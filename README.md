@@ -12,8 +12,9 @@ MoveUp is an Electron-based desktop application designed to promote healthy work
 ## Getting Started
 
  ```sh
- git clone https://github.com/yourusername/moveup.git
+ git clone git@github.com:zentala/MoveUp.git
  cd moveup
  npm install
- npm start
+ npm run build:css
+ npm run start
  ```
