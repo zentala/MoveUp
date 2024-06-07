@@ -4,7 +4,8 @@
   "description": "An Electron-based desktop app that encourages users to take breaks and change their position while working. Integrates with Open Smart Desk which monitors deskt time and height.",
   "main": "src/main.js",
   "scripts": {
-    "start": "npx electron .",
+    "start": "vite",
+    "start:old": "npx electron .",
     "build:css": "npx tailwindcss -i ./src/styles.css -o ./src/dist/output.css --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -15,10 +16,19 @@
   "author": "Paweł Żentała <zentala@gmail.com>",
   "license": "UNLICENSED",
   "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
     "electron": "^30.1.0",
-    "tailwindcss": "^3.4.4"
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.13",
+    "vite-plugin-electron": "^0.28.7",
+    "vite-plugin-electron-renderer": "^0.14.5"
   },
   "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "sharp": "^0.33.4"
   }
 }
