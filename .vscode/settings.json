@@ -1,0 +1,11 @@
+{
+    "files.eol": "\n",
+    "files.autoSave": "onFocusChange",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+    },
+    "eslint.enable": true,
+    "eslint.format.enable": true,
+    "prettier.requireConfig": true
+}

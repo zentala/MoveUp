@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "zhang-renyang.vscode-react",
+        "esbenp.prettier-vscode",
+        "rvest.vs-code-prettier-eslint",
+        "dbaeumer.vscode-eslint"
+    ]
+}
