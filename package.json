@@ -2,7 +2,7 @@
   "name": "moveup",
   "version": "1.0.0",
   "description": "An Electron-based desktop app that encourages users to take breaks and change their position while working. Integrates with Open Smart Desk which monitors deskt time and height.",
-  "main": "src/main.js",
+  "main": "dist/main/app.js",
   "scripts": {
     "start": "vite",
     "start:old": "npx electron .",
