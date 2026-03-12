@@ -1,19 +1,23 @@
 import { BrowserWindow, screen } from 'electron';
 import path from 'path';
 
+let floatingWindowInstance: BrowserWindow | null = null;
+
 export function createFloatingWindow(): BrowserWindow {
+  if (floatingWindowInstance && !floatingWindowInstance.isDestroyed()) {
+    floatingWindowInstance.focus();
+    return floatingWindowInstance;
+  }
+
   // Get the display dimensions
   const display = screen.getPrimaryDisplay();
   const { width, height } = display.workAreaSize;
-  const windowBounds = { width: 300, height: 200 }; // Define the size of the floating window
+  const windowBounds = { width: 300, height: 200 };
 
-  // Calculate the position of the floating window in the bottom right corner
-  // const x = width - windowBounds.width - 10; // 10 pixels from the right edge
-  // const y = height - windowBounds.height - 10; // 10 pixels from the bottom edge
   const x = width - windowBounds.width;
   const y = height - windowBounds.height;
 
-  const floatingWindow = new BrowserWindow({
+  floatingWindowInstance = new BrowserWindow({
     width: windowBounds.width,
     height: windowBounds.height,
     x: x,
@@ -22,15 +26,19 @@ export function createFloatingWindow(): BrowserWindow {
     alwaysOnTop: true,
     skipTaskbar: true,
     webPreferences: {
-      preload: path.join(__dirname, '../renderer/preload.ts')
+      preload: path.join(__dirname, '../renderer/preload.js')
     }
   });
 
-  floatingWindow.loadFile(path.join(__dirname, '../renderer/floating.html'));
+  floatingWindowInstance.loadFile(path.join(__dirname, '../renderer/floating.html'));
 
-  floatingWindow.on('blur', () => {
-    floatingWindow.close();
+  floatingWindowInstance.on('blur', () => {
+    floatingWindowInstance?.close();
   });
 
-  return floatingWindow;
+  floatingWindowInstance.on('closed', () => {
+    floatingWindowInstance = null;
+  });
+
+  return floatingWindowInstance;
 }

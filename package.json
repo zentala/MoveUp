@@ -7,6 +7,7 @@
     "start": "vite",
     "start:old": "npx electron .",
     "build:css": "npx tailwindcss -i ./src/styles.css -o ./src/dist/output.css --watch",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
