@@ -56,7 +56,7 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
         0.0
     };
 
-    let (r, g, b, css_color) = color_for_progress(progress);
+    let (_r, _g, _b, css_color) = color_for_progress(progress);
 
     // Build tooltip label: "↕ 72.3 cm — Sitting (12:34)"
     let state_str = match payload.state {
@@ -72,7 +72,7 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
         format_duration(sitting_secs),
     );
 
-    tray::update_tray(app, &label, r, g, b);
+    let _ = tray::update_tray(app, &label, payload.state.clone(), progress);
 
     if payload.state == DeskState::Sitting {
         overlay::update_overlay(app, progress, css_color);

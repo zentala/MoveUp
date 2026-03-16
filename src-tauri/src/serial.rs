@@ -6,6 +6,7 @@
 //! - `desk:device-lost`       — no payload
 //! - `desk:sensor-error`      — [`SensorError`] payload
 //! - `desk:state-changed`     — [`StateChangedPayload`] payload (via session)
+//! - `desk:daily-reset`       — no payload (T009 — fired when new day detected)
 
 use std::{
     io::{BufRead, BufReader, Write},
@@ -250,8 +251,20 @@ fn reader_loop(
                     .show();
             }
 
-            // Check notification conditions (inactivity, posture balance, praise) every 60s.
+            // Check notification conditions (inactivity, posture balance, praise) and daily reset every 60s.
             if last_notification_check.elapsed() >= Duration::from_secs(60) {
+                // T009: Check for daily reset.
+                let daily_reset_occurred = {
+                    let mut sess = session.lock().unwrap();
+                    sess.check_daily_reset()
+                };
+
+                if daily_reset_occurred {
+                    info!("Daily reset occurred — in-memory counters cleared");
+                    let _ = app.emit("desk:daily-reset", ());
+                }
+
+                // T003: Check notification conditions.
                 let notification_events = {
                     let mut sess = session.lock().unwrap();
                     sess.check_notification_conditions(config)

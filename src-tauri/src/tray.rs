@@ -1,9 +1,10 @@
 //! tray.rs — System tray icon and menu for the Desk application.
 //!
-//! Provides a color-coded 16×16 tray icon (green/yellow/red) with a tooltip
-//! showing the current desk height and session state. Left-click toggles the
-//! main window; the context menu has "Show Desk" and "Quit".
+//! Loads PNG tray icons based on sitting state and session progress.
+//! The tooltip shows the current desk height and session state.
+//! Left-click toggles the main window; the context menu has "Show Desk" and "Quit".
 
+use std::path::PathBuf;
 use tauri::{
     image::Image,
     menu::{MenuBuilder, MenuItem, PredefinedMenuItem},
@@ -11,36 +12,8 @@ use tauri::{
     AppHandle, Manager,
 };
 
-// ─── Icon generation ──────────────────────────────────────────────────────────
-
-/// Generates a 16×16 RGBA image filled with the given colour.
-///
-/// Draws a simple rounded square by zeroing corner pixels at a 2-pixel radius.
-fn tray_icon(r: u8, g: u8, b: u8) -> Image<'static> {
-    const SIZE: usize = 16;
-    let mut pixels = vec![0u8; SIZE * SIZE * 4];
-
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            // Approximate rounded corners: skip 2-pixel corner blocks.
-            let corner = (x < 2 || x >= SIZE - 2) && (y < 2 || y >= SIZE - 2);
-            let idx = (y * SIZE + x) * 4;
-            if corner {
-                pixels[idx] = 0;
-                pixels[idx + 1] = 0;
-                pixels[idx + 2] = 0;
-                pixels[idx + 3] = 0;
-            } else {
-                pixels[idx] = r;
-                pixels[idx + 1] = g;
-                pixels[idx + 2] = b;
-                pixels[idx + 3] = 255;
-            }
-        }
-    }
-
-    Image::new_owned(pixels, SIZE as u32, SIZE as u32)
-}
+use crate::tray_icon::icon_for_state_and_progress;
+use crate::session::DeskState;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -58,7 +31,9 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .item(&quit_item)
         .build()?;
 
-    let icon = tray_icon(76, 175, 80); // green default
+    // Load initial tray icon (default: idle state, 0.0 progress)
+    let icon_path = icon_path_for_state(app, DeskState::Away, 0.0)?;
+    let icon = Image::from_path(&icon_path)?;
 
     TrayIconBuilder::with_id("main-tray")
         .icon(icon)
@@ -84,18 +59,43 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Updates the tray tooltip text and icon colour.
+/// Updates the tray tooltip text and icon based on session state and progress.
 ///
 /// `label` — the tooltip string (e.g. "↕ 72.3 cm — Sitting (12:34)").
-/// `r`, `g`, `b` — RGB components for the icon fill colour.
-pub fn update_tray(app: &AppHandle, label: &str, r: u8, g: u8, b: u8) {
+/// `state` — current desk state (Sitting, Standing, Walking, Away).
+/// `progress_ratio` — sitting time / session limit (0.0–1.0+).
+pub fn update_tray(
+    app: &AppHandle,
+    label: &str,
+    state: DeskState,
+    progress_ratio: f32,
+) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(tray) = app.tray_by_id("main-tray") {
         let _ = tray.set_tooltip(Some(label));
-        let _ = tray.set_icon(Some(tray_icon(r, g, b)));
+
+        let icon_path = icon_path_for_state(app, state, progress_ratio)?;
+        let icon = Image::from_path(&icon_path)?;
+        let _ = tray.set_icon(Some(icon));
     }
+
+    Ok(())
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Resolves the PNG icon path for a given state and progress ratio.
+///
+/// Uses `icon_for_state_and_progress()` to select the icon name based on both
+/// sitting state and progress, then constructs the full path under `src-tauri/icons/tray/`.
+fn icon_path_for_state(
+    app: &AppHandle,
+    state: DeskState,
+    progress_ratio: f32,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let icon_name = icon_for_state_and_progress(state, progress_ratio);
+    let icon_path = app.path().resource_dir()?.join("icons/tray").join(format!("{}.png", icon_name));
+    Ok(icon_path)
+}
 
 /// Toggles the main window between visible/hidden.
 fn toggle_main_window(app: &AppHandle) {
