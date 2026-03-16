@@ -55,44 +55,10 @@ pub fn run() {
             commands::get_today_summary,
         ])
         .setup(|app| {
-            // Load configuration from store (lazy-load since plugin may not be ready yet)
-            let config = match app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
-                Some(store) => AppConfig::load(store.inner()),
-                None => {
-                    info!("Store not ready in setup, using defaults");
-                    AppConfig::default()
-                }
-            };
-            info!("Config: {:?}", config);
-
-            // Initialize SQLite database
+            // Create app data directory
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
-            let db_path = app_data_dir.join("desk.db");
-            let db_conn = rusqlite::Connection::open(&db_path)?;
-            db::init_schema(&db_conn)?;
-
-            // Load today's totals from database
-            let (sitting_secs, standing_secs) = match db::load_today_totals(&db_conn) {
-                Ok((s, st)) => (s, st),
-                Err(e) => {
-                    log::error!("Failed to load today's totals: {}", e);
-                    (0, 0)
-                }
-            };
-
-            // Create session manager from config and seed with today's totals
-            let mut session = SessionManager::new_from_config(&config);
-            session.load_today_totals(sitting_secs, standing_secs);
-
-            // Update AppState with db and config
-            let app_state = app.state::<AppState>();
-            *app_state.db.lock().unwrap() = Some(db_conn);
-            *app_state.config.lock().unwrap() = Some(config);
-            *app.state::<tauri::State<AppState>>()
-                .session
-                .lock()
-                .unwrap() = session;
+            info!("App data dir: {:?}", app_data_dir);
 
             // System tray icon and context menu.
             tray::setup_tray(app.handle())?;
