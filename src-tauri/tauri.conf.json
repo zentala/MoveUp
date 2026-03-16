@@ -16,6 +16,8 @@
         "title": "Desk",
         "width": 520,
         "height": 640,
+        "x": 1400,
+        "y": 440,
         "resizable": true,
         "decorations": false,
         "transparent": true,

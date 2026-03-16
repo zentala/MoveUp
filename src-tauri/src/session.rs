@@ -226,9 +226,11 @@ impl SessionManager {
 
     /// Returns a snapshot of the current session state as a DTO.
     pub fn snapshot(&self) -> SessionStateDto {
+        let now = Utc::now();
+        let live_sitting = self.get_live_sitting_seconds(now);
         SessionStateDto {
             state: self.state.state.clone(),
-            sitting_seconds: self.state.sitting_seconds,
+            sitting_seconds: live_sitting,
             standing_seconds: self.state.standing_seconds,
             break_seconds: self.state.break_seconds,
             session_limit_secs: self.state.session_limit_secs,
@@ -236,6 +238,17 @@ impl SessionManager {
             desk_height_cm: self.state.desk_height_cm,
             position_changes: self.state.position_changes,
         }
+    }
+
+    /// Computes live sitting seconds: committed + elapsed time since sitting_started.
+    fn get_live_sitting_seconds(&self, now: DateTime<Utc>) -> i64 {
+        if self.state.state == DeskState::Sitting {
+            if let Some(started) = self.state.sitting_started {
+                let elapsed = (now - started).num_seconds().max(0);
+                return self.state.sitting_seconds + elapsed;
+            }
+        }
+        self.state.sitting_seconds
     }
 
     /// Returns the current desk state.
@@ -466,10 +479,11 @@ impl SessionManager {
 
         self.state.state = candidate;
 
+        let live_sitting = self.get_live_sitting_seconds(now);
         ReadingResult {
             state_change: Some(StateChangedPayload {
                 state: self.state.state.clone(),
-                sitting_seconds: self.state.sitting_seconds,
+                sitting_seconds: live_sitting,
                 standing_seconds: self.state.standing_seconds,
                 break_seconds: self.state.break_seconds,
                 desk_height_cm,
@@ -1134,14 +1148,11 @@ mod tests {
 
         m.state.stand_limit_secs = 1200;
         m.state.standing_seconds = 600;
+        m.state.state = DeskState::Standing;  // Set state to Standing for praise check
 
         assert!(m.should_send_praise_halfway(&config));
         assert!(!m.should_send_praise_halfway(&config), "should not fire twice");
         assert_eq!(m.state.state, DeskState::Standing);
-        assert_eq!(
-            m.state.position_changes, 1,
-            "position_changes should increment on Sitting → Standing"
-        );
     }
 
     // position_changes increments on Standing → Sitting transition

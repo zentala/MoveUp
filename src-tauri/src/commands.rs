@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 
 use crate::{
     config::AppConfig,
@@ -218,4 +218,30 @@ pub fn get_today_summary(app: tauri::AppHandle, state: State<'_, AppState>) -> R
     summary.position_changes = dto.position_changes;
 
     Ok(summary)
+}
+
+/// Test/debug command: inject a sensor reading directly into the session manager.
+/// Only available in debug builds or when cfg(test) is enabled.
+///
+/// `mm` — raw sensor reading in millimeters
+/// `active` — whether user has been active recently (keyboard/mouse)
+#[tauri::command]
+#[cfg(any(test, debug_assertions))]
+pub fn inject_reading(
+    mm: i32,
+    active: bool,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    ensure_initialized(&app, &state)?;
+
+    let mut session = state.session.lock().unwrap();
+    let result = session.on_reading(mm, active);
+
+    // Emit state change event if there was a transition
+    if let Some(payload) = result.state_change {
+        let _ = app.emit("desk:state-changed", &payload);
+    }
+
+    Ok(())
 }

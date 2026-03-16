@@ -49,16 +49,57 @@ Single user (zentala) working at a motorized sit/stand desk.
   - requires `"transparent": true` in tauri.conf.json + `background: transparent` in CSS
 - Tray icon: built-in Tauri 2 (`tray-icon` feature) — `set_icon()` for dynamic tray icon changes
 
-## Testing
-**Full coverage required from day one.**
+## Testing — 3-Layer Strategy
 
-- **Unit tests** (Rust `#[test]`): session state machine, break rules, height parsing, device auto-detection
-- **Integration tests** (Rust): serial reader with mock port, SQLite read/write
-- **Hardware integration tests**: real device on COM3 — test auto-detection, real readings
-  - Tag with `#[cfg(feature = "hardware-tests")]` so they don't run in CI without device
-- **Frontend component tests** (Vitest + Testing Library): ProgressBar, session display
-- **E2E tests** (Playwright + Tauri): full app flow — connect device, session progression, notifications
-- Minimum coverage: **80%** (enforced by pre-commit hook)
+**Coverage requirement: ≥80% (enforced by vite.config.ts coverage gate)**
+
+### Layer 1 — Unit Tests
+
+**Rust** (`src-tauri/src/*.rs` — `#[test]` modules):
+- Session state machine: sitting/standing/walking transitions, debounce
+- Break credit rules: <5min, 5-9min, ≥10min scenarios
+- Daily reset: state cleanup, throttling
+- Alert firing: once-per-session, suppression
+- Height calculation: calibration formulas
+- Run: `cargo test` from `src-tauri/`
+
+**TypeScript** (`src/**/*.test.tsx` — Vitest + jsdom):
+- Components: ProgressBar, SessionProgress, SettingsPanel, HeightRail
+- Hooks: useDesk (mocked @tauri-apps/api)
+- Utils: formatDuration, formatDurationShort
+- Run: `pnpm test:unit`
+
+### Layer 2 — Integration Tests
+
+**Rust + TypeScript** (`tests/integration/*.test.ts` — Vitest + node environment):
+- Use `inject_reading` command to simulate sensor readings
+- Verify SessionManager state via `get_session_state` IPC
+- Test 10 scenarios: sitting session, standing break, walking, debounce, alerts, daily reset, device reconnect
+- App must be running: `pnpm tauri:dev` in another terminal
+- Run: `pnpm test:integration`
+
+**Device Emulator** (`tests/emulator/`):
+- `DeskDeviceEmulator.ts` — formats device responses (PONG, distance, error)
+- `scenarios.ts` — helpers for multi-reading sequences (debounce, position changes)
+- Constants: `SITTING_DISTANCE_MM=750`, `STANDING_DISTANCE_MM=1080`, `DEBOUNCE_COUNT=5`
+
+### Layer 3 — E2E Tests
+
+**Playwright** (`tests/e2e/*.test.ts` — WebDriver mode):
+- App startup: main window loads, UI elements visible
+- Session progress: state display, progress bar updates, tray tooltip
+- User interactions: settings panel, calibration, overlay toggle
+- Event emissions: desk:state-changed, desk:device-connected/lost
+- Setup: `tauri-driver --compatibility-mode` in one terminal, then `pnpm test:e2e`
+- Run: `pnpm test:e2e` or `pnpm test:e2e:ui`
+
+### Pre-Build Hook
+
+Tests **must pass** before every build:
+- `pnpm build` → runs `test:all` (unit + rust) → vite build
+- `pnpm tauri:build` → runs `test:all` → tauri build
+
+If tests fail, the build is halted. Commit is NOT blocked (tests don't run on pre-commit), only builds.
 
 ## Key Files
 - `firmware/` — Arduino sketch for XIAO ESP32-C3 (in `C:/code/desk-seduino/`)

@@ -41,18 +41,39 @@ pub fn run() {
             db: Arc::new(Mutex::new(None)),
             config: Arc::new(Mutex::new(None)),
         })
-        .invoke_handler(tauri::generate_handler![
-            commands::list_ports,
-            commands::start_auto_connect,
-            commands::stop_reading,
-            commands::get_session_state,
-            commands::set_session_limit,
-            commands::set_stand_limit,
-            commands::calibrate,
-            commands::get_settings,
-            commands::save_settings,
-            commands::get_today_summary,
-        ])
+        .invoke_handler({
+            #[cfg(any(test, debug_assertions))]
+            {
+                tauri::generate_handler![
+                    commands::list_ports,
+                    commands::start_auto_connect,
+                    commands::stop_reading,
+                    commands::get_session_state,
+                    commands::set_session_limit,
+                    commands::set_stand_limit,
+                    commands::calibrate,
+                    commands::get_settings,
+                    commands::save_settings,
+                    commands::get_today_summary,
+                    commands::inject_reading,
+                ]
+            }
+            #[cfg(not(any(test, debug_assertions)))]
+            {
+                tauri::generate_handler![
+                    commands::list_ports,
+                    commands::start_auto_connect,
+                    commands::stop_reading,
+                    commands::get_session_state,
+                    commands::set_session_limit,
+                    commands::set_stand_limit,
+                    commands::calibrate,
+                    commands::get_settings,
+                    commands::save_settings,
+                    commands::get_today_summary,
+                ]
+            }
+        })
         .setup(|app| {
             // Create app data directory
             let app_data_dir = app.path().app_data_dir()?;

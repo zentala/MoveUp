@@ -628,3 +628,14 @@ body {
   align-items: center;
   gap: 6px;
 }
+
+/* ── Tauri window dragging ──────────────────────────────────────────── */
+.app__header {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.app__header-right, .btn {
+  -webkit-app-region: no-drag;
+}
