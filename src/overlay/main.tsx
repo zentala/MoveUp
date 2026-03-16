@@ -1,56 +1,60 @@
 /**
- * overlay/main.tsx — Entry point for the top-of-screen progress bar overlay.
+ * overlay/main.tsx — Canvas-based progress bar overlay.
  *
- * Renders a 4-pixel-tall coloured bar that grows from left to right based on
- * the `overlay:progress` event payload emitted by the Rust backend.
+ * DEBUG: Static bar first to test if canvas renders at all.
+ * Then we'll hook up the event listener.
  */
 
 import { listen } from "@tauri-apps/api/event";
-import { useState, useEffect } from "react";
-import { createRoot } from "react-dom/client";
 
-/** Payload shape emitted by `overlay::update_overlay`. */
 interface OverlayPayload {
   progress: number;
   color: string;
 }
 
-/** Renders the animated progress bar. */
-function OverlayBar() {
-  const [payload, setPayload] = useState<OverlayPayload>({
-    progress: 0,
-    color: "#4caf50",
-  });
+const canvas = document.getElementById("progress-canvas") as HTMLCanvasElement;
+const ctx = canvas.getContext("2d")!;
 
-  useEffect(() => {
-    const unlisten = listen<OverlayPayload>("overlay:progress", ({ payload: p }) => {
-      setPayload(p);
-    });
+// Setup canvas
+canvas.height = 4;
+canvas.width = window.innerWidth || 1920;
 
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, []);
+let currentProgress = 0.35; // TEST: Start at 35% so we see something
+let currentColor = "#ffc107"; // TEST: Amber color
+let targetProgress = 0.35;
+let targetColor = "#ffc107";
 
-  return (
-    <div
-      style={{
-        width: "100%",
-        height: "4px",
-        background: "#1a1a1a",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          width: `${Math.min(payload.progress * 100, 100)}%`,
-          height: "100%",
-          background: payload.color,
-          transition: "width 0.5s ease, background 0.3s ease",
-        }}
-      />
-    </div>
-  );
+console.log("🎨 Canvas setup: " + canvas.width + "x" + canvas.height);
+
+function animate() {
+  currentProgress += (targetProgress - currentProgress) * 0.1;
+
+  // Draw background
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw bar
+  const barWidth = currentProgress * canvas.width;
+  ctx.fillStyle = currentColor;
+  ctx.fillRect(0, 0, barWidth, canvas.height);
+
+  console.log(`🎬 Drawing: ${Math.round(currentProgress * 100)}% | ${currentColor}`);
+
+  requestAnimationFrame(animate);
 }
 
-createRoot(document.getElementById("root")!).render(<OverlayBar />);
+// Listen for events with delay
+setTimeout(() => {
+  console.log("📡 Attaching event listener after 500ms delay...");
+  listen<OverlayPayload>("overlay:progress", ({ payload }) => {
+    console.log("✓✓✓ EVENT RECEIVED! ✓✓✓", payload);
+    targetProgress = Math.min(payload.progress, 1.0);
+    targetColor = payload.color;
+    currentColor = payload.color;
+  }).catch((err) => {
+    console.error("✗ Listener error:", err);
+  });
+}, 500);
+
+// Start animation
+animate();

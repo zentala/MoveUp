@@ -43,7 +43,7 @@ pub fn setup_overlay(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> 
     .inner_size(width, 4.0)
     .position(0.0, 0.0)
     .decorations(false)
-    .transparent(true)
+    .transparent(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .resizable(false)
@@ -58,12 +58,17 @@ pub fn setup_overlay(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> 
 /// `progress` — ratio 0.0–1.0 (values > 1.0 are clamped visually by CSS).
 /// `color`    — CSS colour for the bar.
 pub fn update_overlay(app: &AppHandle, progress: f32, color: &str) {
-    if let Some(window) = app.get_webview_window("overlay") {
-        let payload = OverlayProgress {
-            progress,
-            color: color.to_string(),
-        };
-        let _ = window.emit("overlay:progress", payload);
+    use log::info;
+    use tauri::Emitter;
+
+    info!("📡 emit_all('overlay:progress', progress={}, color={})", progress, color);
+    let payload = OverlayProgress {
+        progress,
+        color: color.to_string(),
+    };
+    match app.emit_all("overlay:progress", payload) {
+        Ok(_) => info!("✓ Event emitted to ALL windows"),
+        Err(e) => info!("✗ Event emit_all failed: {:?}", e),
     }
 }
 

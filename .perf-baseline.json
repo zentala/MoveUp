@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-03-16T18:44:13.693Z",
+  "peak_mb": 229.32851445532634,
+  "stable_mb": 201.1663740781051,
+  "trend": "growing",
+  "samples_count": 20,
+  "comment": "Samples taken every 500ms for 10s"
+}

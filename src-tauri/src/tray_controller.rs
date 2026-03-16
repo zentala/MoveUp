@@ -4,6 +4,7 @@
 //! updates the tray icon colour/tooltip and the overlay progress bar to
 //! reflect the current session state.
 
+use log::info;
 use tauri::{AppHandle, Listener};
 
 use crate::{
@@ -75,9 +76,11 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
     let _ = tray::update_tray(app, &label, payload.state.clone(), progress);
 
     if payload.state == DeskState::Sitting {
+        info!("→ Showing overlay, emitting progress: {} color: {}", progress, css_color);
         overlay::update_overlay(app, progress, css_color);
         overlay::show_overlay(app);
     } else {
+        info!("→ Hiding overlay (state: {:?})", payload.state);
         overlay::hide_overlay(app);
     }
 }

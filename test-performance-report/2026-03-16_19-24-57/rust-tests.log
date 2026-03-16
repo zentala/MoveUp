@@ -1,0 +1,17 @@
+   Compiling desk v0.1.0 (C:\code\zntl-tray\apps\desk\src-tauri)
+warning: comparison is useless due to type limits
+  --> apps\desk\src-tauri\src\activity.rs:61:17
+   |
+61 |         assert!(secs >= 0); // u64 is always >= 0, but this documents intent
+   |                 ^^^^^^^^^
+   |
+   = note: `#[warn(unused_comparisons)]` on by default
+
+warning: `desk` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.18s
+     Running unittests src\lib.rs (C:\code\zntl-tray\target\debug\deps\desk_lib-f14a10a113d93279.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 79 filtered out; finished in 0.00s
+

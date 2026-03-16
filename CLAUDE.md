@@ -110,5 +110,97 @@ If tests fail, the build is halted. Commit is NOT blocked (tests don't run on pr
 - `src/App.tsx` — floating window UI
 - `src/components/ProgressBar.tsx` — top-of-screen overlay
 
+## Icon Requirements
+
+Icons must exist in `src-tauri/icons/`:
+- **32x32.png** — Tray icon, system tray display
+- **128x128.png** — App window icon
+- **icon.ico** — Installer icon, Windows display
+
+If icons are missing, `pnpm tauri:build` fails with:
+```
+error: Icon file not found: icons/icon.ico
+```
+
+To generate icons from a PNG:
+[Link to Tauri icon guide](https://tauri.app/en/develop/guides/assets/#icons)
+
+## Code Signing (Scaffolded)
+
+Code signing ensures Windows trusts the installer.
+
+### Setup (One-time)
+
+1. Acquire Windows code-signing certificate (.pfx file):
+   - Vendor: DigiCert, GlobalSign, etc.
+   - Cost: ~$200-500/year
+   - File: `mycert.pfx` + password
+
+2. Add to GitHub Secrets (Settings → Secrets and variables):
+   - `SIGN_CERT_PATH`: `/home/runner/mycert.pfx` (upload as action secret)
+   - `SIGN_PASSWORD`: certificate password (sensitive)
+
+3. Reference in CI/CD (future `release.yml`):
+   ```yaml
+   env:
+     SIGN_CERT_PATH: ${{ secrets.SIGN_CERT_PATH }}
+     SIGN_PASSWORD: ${{ secrets.SIGN_PASSWORD }}
+   ```
+
+### Script
+
+Location: `scripts/sign-installer.sh`
+
+Currently a template. When certificate acquired, uncomment `signtool` command.
+
+### Implementation Timeline
+
+- Now: Scaffold placeholder
+- Upon first release: Acquire cert + activate signing
+- CI/CD integration: Part of T007 (release.yml)
+
+## Auto-Update Mechanism (Scaffolded)
+
+Users can auto-update when new versions ship to GitHub Releases.
+
+### How It Works
+
+1. Tauri checks `https://releases.example.com/latest.json` periodically
+2. If new version available, downloads + verifies signature
+3. Prompts user: "Update available: click to install?"
+4. Applies update in background
+
+### Setup (Future)
+
+- Acquire code-signing certificate (see ## Code Signing above)
+- Configure `updater` in tauri.conf.json with manifest URL
+- Create GitHub Releases workflow (T007)
+- Generate update manifest with signatures
+
+### Timeline
+
+- Now: Placeholder in tauri.conf.json
+- Upon code signing: Implement updater config
+- With T007: Auto-generate update manifests in CI/CD
+
+## Memory Profiling (On-Demand)
+
+Before tagging a release, run memory profiling:
+
+```bash
+pnpm test:perf
+```
+
+This launches the full app, measures memory for 10 seconds, and compares against baseline.
+
+**Targets:**
+- Peak memory: <250 MB (alert: >300 MB)
+- Stable memory: <200 MB
+- Growth vs baseline: <20 MB
+
+**Baseline:** `.perf-baseline.json`
+
+If memory exceeds targets, review optimization strategies in `docs/OPTIMIZATION_GUIDE.md`.
+
 ## Vision Doc
 See `.agent/vision/2026-03-15-desk-app-vision.md` for full spec.

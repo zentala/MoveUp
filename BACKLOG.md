@@ -16,6 +16,7 @@ Items not yet scheduled, before refinement.
 - **`tauri-plugin-store`** — persystencja konfiguracji (limit sesji, progi wysokości, kalibracja)
 
 - **Dynamiczna ikona tray** — wbudowane Tauri 2 (`tray-icon` feature), `set_icon()` — zmiana koloru/ikony wg stanu (OK / warning / overdue)
+  - **Status:** Scheduled for future (po stabilizacji progress bar overlay)
 
 ---
 
