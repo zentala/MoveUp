@@ -38,7 +38,7 @@ body,
 }
 
 body {
-  background: var(--color-bg);
+  background: transparent;
   color: var(--color-text);
   font-family: var(--font-mono);
   font-size: 14px;
@@ -54,6 +54,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: rgba(20, 20, 20, 0.7);
+  backdrop-filter: blur(8px);
 }
 
 .app__title {

@@ -6,8 +6,11 @@
 mod activity;
 mod commands;
 mod db;
+mod overlay;
 mod serial;
 mod session;
+mod tray;
+mod tray_controller;
 
 use std::sync::{Arc, Mutex};
 
@@ -15,6 +18,7 @@ use commands::AppState;
 use serial::ConnectionState;
 use session::SessionManager;
 use tauri::Manager;
+use window_vibrancy::apply_acrylic;
 
 /// Application entry point called from main.rs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -43,6 +47,20 @@ pub fn run() {
             commands::calibrate,
         ])
         .setup(|app| {
+            // System tray icon and context menu.
+            tray::setup_tray(app.handle())?;
+
+            // Top-of-screen overlay progress bar window.
+            overlay::setup_overlay(app.handle())?;
+
+            // Wire state-changed events to tray + overlay updates.
+            tray_controller::setup(app.handle());
+
+            // Apply Acrylic blur on the main window (Windows 10/11).
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = apply_acrylic(&window, Some((18, 18, 18, 200)));
+            }
+
             // Kick off auto-detection immediately on startup.
             let state: tauri::State<'_, AppState> = app.state();
             serial::scan_and_connect(

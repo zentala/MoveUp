@@ -5,7 +5,7 @@
 
 use chrono::{DateTime, Utc};
 use log::info;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ const SHORT_BREAK_CREDIT_SECS: i64 = 1200;
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 /// The ergonomic state the user is currently in.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeskState {
     Sitting,
@@ -60,7 +60,7 @@ pub struct SessionStateDto {
 }
 
 /// Payload for the `desk:state-changed` event.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateChangedPayload {
     pub state: DeskState,
     pub sitting_seconds: i64,
