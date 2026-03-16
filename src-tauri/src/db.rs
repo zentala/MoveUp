@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 /// DDL executed on startup to ensure the schema exists.
+#[allow(dead_code)]
 pub const SCHEMA_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS sessions (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,6 +41,7 @@ pub struct SessionRow {
 }
 
 /// A single row from the `height_readings` table.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeightReadingRow {
     pub id: i64,
