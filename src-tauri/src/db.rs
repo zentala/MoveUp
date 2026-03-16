@@ -74,25 +74,6 @@ pub struct TodaySummary {
 
 /// Inserts a completed sitting session into the database.
 /// Returns an error if the insert fails; emits `desk:db-error` event on failure.
-pub fn insert_session(
-    conn: &Connection,
-    started_at: &str,
-    ended_at: &str,
-    state: &str,
-    duration_seconds: i64,
-) -> Result<(), String> {
-    conn.execute(
-        "INSERT INTO sessions (started_at, ended_at, state, duration_seconds) VALUES (?, ?, ?, ?)",
-        rusqlite::params![started_at, ended_at, state, duration_seconds],
-    )
-    .map_err(|e| {
-        let msg = format!("Failed to insert session: {}", e);
-        error!("{}", msg);
-        msg
-    })?;
-    Ok(())
-}
-
 // ─── Query operations ────────────────────────────────────────────────────────
 
 /// Loads today's total sitting and standing seconds from the database.

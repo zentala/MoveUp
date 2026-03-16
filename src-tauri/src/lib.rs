@@ -55,13 +55,15 @@ pub fn run() {
             commands::get_today_summary,
         ])
         .setup(|app| {
-            // Load configuration from store
-            let store_state = app
-                .try_state::<tauri_plugin_store::Store<tauri::Wry>>()
-                .ok_or("Failed to access store")?;
-
-            let config = AppConfig::load(store_state.inner());
-            info!("Loaded config: {:?}", config);
+            // Load configuration from store (lazy-load since plugin may not be ready yet)
+            let config = match app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+                Ok(store) => AppConfig::load(store.inner()),
+                Err(_) => {
+                    info!("Store not ready in setup, using defaults");
+                    AppConfig::default()
+                }
+            };
+            info!("Config: {:?}", config);
 
             // Initialize SQLite database
             let db_path = app.path().app_data_dir()?.join("desk.db");
