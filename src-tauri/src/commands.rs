@@ -45,27 +45,6 @@ pub fn get_session_state(state: State<'_, AppState>) -> SessionStateDto {
     state.session.lock().unwrap().snapshot()
 }
 
-/// Returns aggregated totals and session rows for today.
-///
-/// The actual DB query must be issued from the frontend via the SQL plugin
-/// (tauri-plugin-sql exposes its API to JS). This command returns a summary
-/// computed from the in-memory session manager and a placeholder session list.
-/// For a production implementation wire the DB read here via the plugin's
-/// `Database::load` API once it exposes a Rust-side query interface.
-#[tauri::command]
-pub fn get_today_summary(state: State<'_, AppState>) -> TodaySummary {
-    let session = state.session.lock().unwrap();
-    let snap = session.snapshot();
-
-    // In-memory totals only — persistent totals are accumulated in SQLite
-    // and should be queried from the frontend via tauri-plugin-sql directly.
-    TodaySummary {
-        sitting_secs: snap.sitting_seconds,
-        standing_secs: 0, // placeholder; real value comes from SQLite
-        sessions: Vec::<SessionRow>::new(),
-    }
-}
-
 /// Updates the sitting session limit.
 ///
 /// `minutes` — new limit in minutes (e.g. 40).

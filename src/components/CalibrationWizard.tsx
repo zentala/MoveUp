@@ -37,6 +37,10 @@ const CalibrationWizard: FC<CalibrationWizardProps> = ({ deskHeightCm, onComplet
   async function confirmStanding() {
     if (sittingMm === null) return;
     const standingMm = Math.round(deskHeightCm * 10);
+    if (standingMm <= sittingMm + 100) {
+      setError("Standing height must be at least 10 cm above sitting height. Raise your desk further.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {

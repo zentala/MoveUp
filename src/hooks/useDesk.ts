@@ -52,8 +52,6 @@ export function useDesk(): UseDeskResult {
 
   // Tracks when the current sitting session started (ISO-8601 string).
   const sittingStartedAt = useRef<string | null>(null);
-  // Tracks sitting seconds at the last state-changed event for duration calc.
-  const prevSittingSeconds = useRef<number>(0);
 
   useEffect(() => {
     // Fetch current session state on mount
@@ -94,7 +92,9 @@ export function useDesk(): UseDeskResult {
             if (prevState === "Sitting" && payload.state !== "Sitting") {
               const endedAt = new Date().toISOString();
               const startedAt = sittingStartedAt.current ?? endedAt;
-              const durationSecs = payload.sitting_seconds - prevSittingSeconds.current;
+              const durationSecs = Math.round(
+                (new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 1000,
+              );
               if (durationSecs > 0) {
                 saveSittingSession(startedAt, endedAt, durationSecs).catch(console.error);
               }
@@ -102,7 +102,6 @@ export function useDesk(): UseDeskResult {
             }
             if (payload.state === "Sitting" && prevState !== "Sitting") {
               sittingStartedAt.current = new Date().toISOString();
-              prevSittingSeconds.current = payload.sitting_seconds;
             }
             return payload.state;
           });

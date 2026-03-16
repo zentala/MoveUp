@@ -42,7 +42,6 @@ pub fn run() {
             commands::start_auto_connect,
             commands::stop_reading,
             commands::get_session_state,
-            commands::get_today_summary,
             commands::set_session_limit,
             commands::calibrate,
             commands::get_schema_sql,
