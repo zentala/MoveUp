@@ -32,11 +32,15 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     // Load initial tray icon (default: idle state, 0.0 progress)
-    let icon_path = icon_path_for_state(app, DeskState::Away, 0.0)?;
-    let icon = Image::from_path(&icon_path)?;
+    // Try to load PNG, but don't fail if it's missing (e.g., in dev mode before bundling)
+    let mut builder = TrayIconBuilder::with_id("main-tray");
+    if let Ok(icon_path) = icon_path_for_state(app, DeskState::Away, 0.0) {
+        if let Ok(icon) = Image::from_path(&icon_path) {
+            builder = builder.icon(icon);
+        }
+    }
 
-    TrayIconBuilder::with_id("main-tray")
-        .icon(icon)
+    builder
         .tooltip("Desk — connecting…")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -73,9 +77,12 @@ pub fn update_tray(
     if let Some(tray) = app.tray_by_id("main-tray") {
         let _ = tray.set_tooltip(Some(label));
 
-        let icon_path = icon_path_for_state(app, state, progress_ratio)?;
-        let icon = Image::from_path(&icon_path)?;
-        let _ = tray.set_icon(Some(icon));
+        // Try to load PNG icon, fall back to gray square if it fails
+        if let Ok(icon_path) = icon_path_for_state(app, state, progress_ratio) {
+            if let Ok(icon) = Image::from_path(&icon_path) {
+                let _ = tray.set_icon(Some(icon));
+            }
+        }
     }
 
     Ok(())
