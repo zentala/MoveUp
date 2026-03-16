@@ -17,10 +17,12 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    exclude: ["node_modules/**", ".claude/**", "tests/**", "src-tauri/**"],
     setupFiles: ["./src/test/setup.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
+      exclude: ["tests/**", "src-tauri/**", "node_modules/**"],
       thresholds: {
         lines: 80,
         functions: 80,
