@@ -57,8 +57,8 @@ pub fn run() {
         .setup(|app| {
             // Load configuration from store (lazy-load since plugin may not be ready yet)
             let config = match app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
-                Ok(store) => AppConfig::load(store.inner()),
-                Err(_) => {
+                Some(store) => AppConfig::load(store.inner()),
+                None => {
                     info!("Store not ready in setup, using defaults");
                     AppConfig::default()
                 }
