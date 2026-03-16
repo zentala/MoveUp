@@ -1,0 +1,137 @@
+name: Test & Build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        rust: [stable]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: "apps/desk/pnpm-lock.yaml"
+
+      - name: Install dependencies (Frontend)
+        working-directory: apps/desk
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (TypeScript)
+        working-directory: apps/desk
+        run: pnpm typecheck
+
+      - name: Lint (ESLint)
+        working-directory: apps/desk
+        run: pnpm lint
+
+      - name: Frontend Unit Tests
+        working-directory: apps/desk
+        run: pnpm test:unit
+
+      - name: Frontend Coverage Check
+        working-directory: apps/desk
+        run: pnpm test:coverage
+        continue-on-error: false
+
+      - name: Rust Unit Tests
+        working-directory: apps/desk
+        run: pnpm test:unit:rust
+
+      - name: Build Frontend
+        working-directory: apps/desk
+        run: pnpm build
+
+      - name: Build Tauri (Debug)
+        working-directory: apps/desk
+        run: pnpm tauri build --debug
+        if: runner.os == 'Windows'
+
+      - name: Upload Coverage Reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./apps/desk/coverage/coverage-final.json
+          flags: frontend
+          name: desk-frontend
+          fail_ci_if_error: false
+        if: always()
+
+  integration-ready:
+    name: Integration Tests Ready
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Integration Test Structure
+        run: |
+          test -f apps/desk/tests/integration/session-flow.test.ts
+          test -f apps/desk/tests/integration/device-reconnect.test.ts
+          test -f apps/desk/tests/integration/setup.ts
+          echo "✓ Integration tests structure verified"
+
+      - name: Note on Integration Tests
+        run: |
+          echo "Integration tests require Tauri app running."
+          echo "Run manually with: pnpm tauri:dev && pnpm test:integration"
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run cargo audit
+        working-directory: apps/desk
+        run: |
+          cargo install cargo-audit
+          cargo audit
+        continue-on-error: true
+
+      - name: Check for hardcoded secrets
+        run: |
+          if grep -r "password\|token\|secret\|api_key" apps/desk/src --include="*.rs" --include="*.tsx" --include="*.ts" \
+            --exclude-dir=node_modules --exclude-dir=.git | grep -v "test\|mock\|example"; then
+            echo "⚠️ Possible hardcoded credentials found"
+            exit 1
+          fi
+        continue-on-error: true
+
+  status:
+    name: Test Status
+    runs-on: ubuntu-latest
+    needs: [test, integration-ready]
+    if: always()
+
+    steps:
+      - name: Check Test Results
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "❌ Tests failed"
+            exit 1
+          fi
+          echo "✅ All tests passed"
