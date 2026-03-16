@@ -62,6 +62,7 @@ pub struct AppConfig {
 
 impl AppConfig {
     /// Loads config from the store, returning defaults if missing or corrupt.
+    #[allow(dead_code)]
     pub fn load<R: Runtime>(store: &Store<R>) -> Self {
         match store.get("app_config") {
             Some(serde_json::Value::Object(map)) => {

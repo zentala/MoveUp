@@ -17,7 +17,6 @@ mod tray_icon;
 use std::sync::{Arc, Mutex};
 
 use commands::AppState;
-use config::AppConfig;
 use log::info;
 use serial::ConnectionState;
 use session::SessionManager;

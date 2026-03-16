@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 /// Initializes the database schema on first startup.
 /// Idempotent — safe to call multiple times.
+#[allow(dead_code)]
 pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         r#"
@@ -78,6 +79,7 @@ pub struct TodaySummary {
 
 /// Loads today's total sitting and standing seconds from the database.
 /// Returns (sitting_secs, standing_secs) or an error.
+#[allow(dead_code)]
 pub fn load_today_totals(conn: &Connection) -> Result<(i64, i64), String> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
