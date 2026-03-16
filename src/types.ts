@@ -23,6 +23,7 @@ export interface DistancePayload {
 export interface StateChangedPayload {
   state: DeskState;
   sitting_seconds: number;
+  standing_seconds: number;
   break_seconds: number;
   desk_height_cm: number;
 }
@@ -40,6 +41,7 @@ export interface SensorErrorPayload {
 export interface SessionStateDto {
   state: DeskState;
   sitting_seconds: number;
+  standing_seconds: number;
   break_seconds: number;
   session_limit_secs: number;
   desk_height_cm: number;

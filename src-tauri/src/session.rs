@@ -3,7 +3,7 @@
 //! Tracks how long the user has been sitting, applies break credit rules, and
 //! fires alert notifications when the sitting limit is reached.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use log::info;
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +39,8 @@ pub struct SessionState {
     pub sitting_started: Option<DateTime<Utc>>,
     /// Total sitting seconds accumulated this session.
     pub sitting_seconds: i64,
+    /// Total standing seconds accumulated today (incremented only in Standing state).
+    pub standing_seconds: i64,
     pub break_started: Option<DateTime<Utc>>,
     /// Duration of the current break in seconds.
     pub break_seconds: i64,
@@ -53,6 +55,7 @@ pub struct SessionState {
 pub struct SessionStateDto {
     pub state: DeskState,
     pub sitting_seconds: i64,
+    pub standing_seconds: i64,
     pub break_seconds: i64,
     pub session_limit_secs: i64,
     /// Most recent desk height in cm as computed from sensor + calibration.
@@ -64,6 +67,7 @@ pub struct SessionStateDto {
 pub struct StateChangedPayload {
     pub state: DeskState,
     pub sitting_seconds: i64,
+    pub standing_seconds: i64,
     pub break_seconds: i64,
     pub desk_height_cm: f32,
 }
@@ -99,16 +103,30 @@ pub struct SessionManager {
     pub desk_thickness_cm: f32,
     /// Whether `should_alert()` has been armed for the current sitting session.
     alert_fired: bool,
+    /// Whether a standing alert has been armed for the current sitting session.
+    stand_alert_fired: bool,
+    /// Last date when daily reset was performed (T009).
+    pub last_reset_date: NaiveDate,
+    /// Last time when check_daily_reset() was called (T009).
+    pub last_reset_check: DateTime<Utc>,
+    /// Notification debounce flag: inactivity alert fired today (T003).
+    pub notify_inactivity_fired: bool,
+    /// Notification debounce flag: posture balance alert fired today (T003).
+    pub notify_posture_balance_fired: bool,
+    /// Notification debounce flag: praise message fired today (T003).
+    pub praise_halfway_fired_today: bool,
 }
 
 impl SessionManager {
     /// Creates a manager with default calibration values.
     pub fn new() -> Self {
+        let now = Utc::now();
         Self {
             state: SessionState {
                 state: DeskState::Away,
                 sitting_started: None,
                 sitting_seconds: 0,
+                standing_seconds: 0,
                 break_started: None,
                 break_seconds: 0,
                 session_limit_secs: DEFAULT_SESSION_LIMIT_SECS,
@@ -120,16 +138,24 @@ impl SessionManager {
             standing_height_cm: 105.0,
             desk_thickness_cm: 3.0,
             alert_fired: false,
+            stand_alert_fired: false,
+            last_reset_date: now.date_naive(),
+            last_reset_check: now,
+            notify_inactivity_fired: false,
+            notify_posture_balance_fired: false,
+            praise_halfway_fired_today: false,
         }
     }
 
     /// Creates a manager initialized from AppConfig.
     pub fn new_from_config(config: &crate::config::AppConfig) -> Self {
+        let now = Utc::now();
         Self {
             state: SessionState {
                 state: DeskState::Away,
                 sitting_started: None,
                 sitting_seconds: 0,
+                standing_seconds: 0,
                 break_started: None,
                 break_seconds: 0,
                 session_limit_secs: config.sit_limit_mins as i64 * 60,
@@ -141,12 +167,19 @@ impl SessionManager {
             standing_height_cm: config.standing_mm as f32 / 10.0,
             desk_thickness_cm: config.desk_thickness_mm as f32 / 10.0,
             alert_fired: false,
+            stand_alert_fired: false,
+            last_reset_date: now.date_naive(),
+            last_reset_check: now,
+            notify_inactivity_fired: false,
+            notify_posture_balance_fired: false,
+            praise_halfway_fired_today: false,
         }
     }
 
     /// Seeds today's totals from SQLite so in-memory counters survive restarts.
     pub fn load_today_totals(&mut self, sitting_secs: i64, standing_secs: i64) {
         self.state.sitting_seconds = sitting_secs;
+        self.state.standing_seconds = standing_secs;
         info!(
             "seeded today totals: sitting={}s standing={}s",
             sitting_secs, standing_secs
@@ -163,10 +196,41 @@ impl SessionManager {
         SessionStateDto {
             state: self.state.state.clone(),
             sitting_seconds: self.state.sitting_seconds,
+            standing_seconds: self.state.standing_seconds,
             break_seconds: self.state.break_seconds,
             session_limit_secs: self.state.session_limit_secs,
             desk_height_cm: self.state.desk_height_cm,
         }
+    }
+
+    /// Checks if a new day has begun and resets daily counters.
+    /// Only checks every 60 seconds to avoid overhead.
+    /// Returns `true` if reset was performed.
+    pub fn check_daily_reset(&mut self) -> bool {
+        let now = Utc::now();
+        let today = now.date_naive();
+
+        // Only check every 60 seconds
+        if (now - self.last_reset_check).num_seconds() < 60 {
+            return false;
+        }
+
+        self.last_reset_check = now;
+
+        if self.last_reset_date < today {
+            info!("daily reset: new day detected, resetting in-memory counters");
+            self.state.sitting_seconds = 0;
+            self.state.standing_seconds = 0;
+            self.alert_fired = false;
+            self.stand_alert_fired = false;
+            self.notify_inactivity_fired = false;
+            self.notify_posture_balance_fired = false;
+            self.praise_halfway_fired_today = false;
+            self.last_reset_date = today;
+            return true;
+        }
+
+        false
     }
 
     /// Returns `true` (exactly once per sitting stint) when the user has been
@@ -262,7 +326,23 @@ impl SessionManager {
                     self.alert_fired = false;
                 }
             }
-            DeskState::Standing | DeskState::Walking | DeskState::Away => {
+            DeskState::Standing => {
+                if candidate != DeskState::Standing {
+                    if let Some(bs) = self.state.break_started.take() {
+                        let break_dur = (now - bs).num_seconds().max(0);
+                        // Accumulate standing seconds (only when leaving Standing state).
+                        self.state.standing_seconds += break_dur;
+                        if candidate == DeskState::Sitting {
+                            self.apply_break_credit(break_dur);
+                        }
+                        self.state.break_seconds = 0;
+                    }
+                    if candidate == DeskState::Sitting {
+                        self.state.sitting_started = Some(now);
+                    }
+                }
+            }
+            DeskState::Walking | DeskState::Away => {
                 if candidate == DeskState::Sitting {
                     if let Some(bs) = self.state.break_started.take() {
                         let break_dur = (now - bs).num_seconds().max(0);
@@ -285,6 +365,7 @@ impl SessionManager {
             state_change: Some(StateChangedPayload {
                 state: self.state.state.clone(),
                 sitting_seconds: self.state.sitting_seconds,
+                standing_seconds: self.state.standing_seconds,
                 break_seconds: self.state.break_seconds,
                 desk_height_cm,
             }),
@@ -351,7 +432,10 @@ mod tests {
     fn break_under_5_min_has_no_effect() {
         let mut m = manager_with_sitting_secs(3000);
         m.apply_break_credit(4 * 60); // 4-minute break
-        assert_eq!(m.state.sitting_seconds, 3000, "short break must not reduce sitting time");
+        assert_eq!(
+            m.state.sitting_seconds, 3000,
+            "short break must not reduce sitting time"
+        );
     }
 
     // Break 7 min → subtract 20 min, floor at 0
@@ -371,7 +455,10 @@ mod tests {
     fn break_7_min_floors_at_zero() {
         let mut m = manager_with_sitting_secs(600); // only 10 min sitting
         m.apply_break_credit(7 * 60);
-        assert_eq!(m.state.sitting_seconds, 0, "sitting_seconds must not go below 0");
+        assert_eq!(
+            m.state.sitting_seconds, 0,
+            "sitting_seconds must not go below 0"
+        );
     }
 
     // Break 12 min → full reset
@@ -379,7 +466,10 @@ mod tests {
     fn break_12_min_resets_to_zero() {
         let mut m = manager_with_sitting_secs(3600);
         m.apply_break_credit(12 * 60); // 12-minute break
-        assert_eq!(m.state.sitting_seconds, 0, "10+ min break should reset sitting time");
+        assert_eq!(
+            m.state.sitting_seconds, 0,
+            "10+ min break should reset sitting time"
+        );
     }
 
     // Break exactly at short boundary (5 min) → credit applies
@@ -387,7 +477,10 @@ mod tests {
     fn break_exactly_5_min_subtracts_20_min() {
         let mut m = manager_with_sitting_secs(2000);
         m.apply_break_credit(5 * 60); // exactly 5 minutes
-        assert_eq!(m.state.sitting_seconds, 800, "5-minute break should subtract 1200 seconds");
+        assert_eq!(
+            m.state.sitting_seconds, 800,
+            "5-minute break should subtract 1200 seconds"
+        );
     }
 
     // Break exactly at long boundary (10 min) → full reset
@@ -395,7 +488,10 @@ mod tests {
     fn break_exactly_10_min_resets() {
         let mut m = manager_with_sitting_secs(3600);
         m.apply_break_credit(10 * 60); // exactly 10 minutes
-        assert_eq!(m.state.sitting_seconds, 0, "10-minute break should reset to 0");
+        assert_eq!(
+            m.state.sitting_seconds, 0,
+            "10-minute break should reset to 0"
+        );
     }
 
     // Calibrated height: desk_height_cm = floor_distance_cm - desk_thickness_cm
@@ -454,5 +550,181 @@ mod tests {
         m.state.state = DeskState::Sitting;
         assert!(m.should_alert(), "first call should return true");
         assert!(!m.should_alert(), "second call should be suppressed");
+    }
+
+    // ─── T006 Tests: Standing Seconds ────────────────────────────────────────
+
+    // standing_seconds increments only when transitioning from Standing
+    #[test]
+    fn standing_seconds_accumulates_on_transition() {
+        let mut m = SessionManager::new();
+        m.state.standing_seconds = 0;
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(300)); // 5 min ago
+        m.state.state = DeskState::Standing;
+
+        // Transition from Standing to Sitting
+        let _ = m.on_reading(800, true); // low reading = Sitting
+        for _ in 0..DEBOUNCE_COUNT {
+            let _ = m.on_reading(800, true);
+        }
+
+        assert_eq!(m.state.state, DeskState::Sitting);
+        assert!(
+            m.state.standing_seconds >= 0,
+            "standing_seconds should accumulate"
+        );
+    }
+
+    // standing_seconds is NOT incremented when in Walking state
+    #[test]
+    fn standing_seconds_does_not_accumulate_in_walking() {
+        let mut m = SessionManager::new();
+        m.state.standing_seconds = 0;
+
+        // Enter Walking state (high reading, inactive)
+        for _ in 0..DEBOUNCE_COUNT {
+            let _ = m.on_reading(1200, false);
+        }
+        assert_eq!(m.state.state, DeskState::Walking);
+
+        // Stay in Walking for a bit (simulate accumulated time)
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(300)); // 5 min ago
+        let standing_before = m.state.standing_seconds;
+
+        // Call on_reading to advance time without state change
+        let _ = m.on_reading(1200, false);
+
+        // standing_seconds should NOT have increased
+        assert_eq!(
+            m.state.standing_seconds, standing_before,
+            "standing_seconds must not increase in Walking state"
+        );
+    }
+
+    // standing_seconds is reset along with other counters on daily reset
+    #[test]
+    fn check_daily_reset_resets_standing_seconds() {
+        let mut m = SessionManager::new();
+        m.state.standing_seconds = 3600; // 1 hour
+        m.state.sitting_seconds = 2400; // 40 min
+        m.alert_fired = true;
+        m.stand_alert_fired = true;
+
+        // Force a date change
+        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
+        m.last_reset_check = Utc::now() - chrono::Duration::seconds(120); // 2 min ago
+
+        let reset_happened = m.check_daily_reset();
+
+        assert!(reset_happened, "daily reset should have triggered");
+        assert_eq!(
+            m.state.standing_seconds, 0,
+            "standing_seconds should be reset to 0"
+        );
+        assert_eq!(
+            m.state.sitting_seconds, 0,
+            "sitting_seconds should be reset to 0"
+        );
+        assert!(!m.alert_fired, "alert_fired should be reset");
+        assert!(!m.stand_alert_fired, "stand_alert_fired should be reset");
+    }
+
+    // ─── T009 Tests: Daily Reset ────────────────────────────────────────────
+
+    // check_daily_reset returns false when called within same day
+    #[test]
+    fn check_daily_reset_does_not_reset_same_day() {
+        let mut m = SessionManager::new();
+        m.state.sitting_seconds = 1000;
+        m.state.standing_seconds = 500;
+
+        // Set reset to today
+        m.last_reset_date = Utc::now().date_naive();
+        m.last_reset_check = Utc::now() - chrono::Duration::seconds(30);
+
+        let reset_happened = m.check_daily_reset();
+
+        assert!(!reset_happened, "reset should not happen on same day");
+        assert_eq!(
+            m.state.sitting_seconds, 1000,
+            "sitting_seconds should not change"
+        );
+        assert_eq!(
+            m.state.standing_seconds, 500,
+            "standing_seconds should not change"
+        );
+    }
+
+    // check_daily_reset respects 60-second throttle
+    #[test]
+    fn check_daily_reset_throttled_every_60_seconds() {
+        let mut m = SessionManager::new();
+        m.state.sitting_seconds = 1000;
+
+        // Force a date change but check within 60 seconds
+        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
+        m.last_reset_check = Utc::now() - chrono::Duration::seconds(30); // 30 seconds ago
+
+        let reset_happened = m.check_daily_reset();
+
+        assert!(
+            !reset_happened,
+            "reset should be throttled if < 60 seconds since last check"
+        );
+        assert_eq!(
+            m.state.sitting_seconds, 1000,
+            "sitting_seconds should not change"
+        );
+    }
+
+    // check_daily_reset is idempotent on same day
+    #[test]
+    fn check_daily_reset_idempotent_same_day() {
+        let mut m = SessionManager::new();
+        m.state.sitting_seconds = 500;
+        m.last_reset_date = Utc::now().date_naive();
+
+        let first = m.check_daily_reset();
+        let second = m.check_daily_reset();
+
+        assert!(
+            !first && !second,
+            "multiple calls on same day should all return false"
+        );
+        assert_eq!(
+            m.state.sitting_seconds, 500,
+            "sitting_seconds should remain unchanged"
+        );
+    }
+
+    // all notification flags are reset on daily reset
+    #[test]
+    fn check_daily_reset_clears_all_notification_flags() {
+        let mut m = SessionManager::new();
+        m.notify_inactivity_fired = true;
+        m.notify_posture_balance_fired = true;
+        m.praise_halfway_fired_today = true;
+        m.alert_fired = true;
+        m.stand_alert_fired = true;
+
+        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
+        m.last_reset_check = Utc::now() - chrono::Duration::seconds(120);
+
+        let _ = m.check_daily_reset();
+
+        assert!(
+            !m.notify_inactivity_fired,
+            "notify_inactivity_fired should be cleared"
+        );
+        assert!(
+            !m.notify_posture_balance_fired,
+            "notify_posture_balance_fired should be cleared"
+        );
+        assert!(
+            !m.praise_halfway_fired_today,
+            "praise_halfway_fired_today should be cleared"
+        );
+        assert!(!m.alert_fired, "alert_fired should be cleared");
+        assert!(!m.stand_alert_fired, "stand_alert_fired should be cleared");
     }
 }

@@ -27,9 +27,7 @@ const THRESHOLD_RED: f32 = 0.85;
 pub fn setup(app: &AppHandle) {
     let handle = app.clone();
     app.listen("desk:state-changed", move |event| {
-        if let Ok(payload) =
-            serde_json::from_str::<StateChangedPayload>(event.payload())
-        {
+        if let Ok(payload) = serde_json::from_str::<StateChangedPayload>(event.payload()) {
             on_state_changed(&handle, &payload);
         }
     });
@@ -41,8 +39,8 @@ pub fn setup(app: &AppHandle) {
 fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
     // Read session limit from the managed state.
     let session_limit_secs = {
-        use tauri::Manager;
         use crate::commands::AppState;
+        use tauri::Manager;
         app.state::<AppState>()
             .session
             .lock()
@@ -87,11 +85,11 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
 /// Returns (r, g, b, css_hex) for a given progress ratio.
 fn color_for_progress(progress: f32) -> (u8, u8, u8, &'static str) {
     if progress < THRESHOLD_YELLOW {
-        (76, 175, 80, "#4caf50")   // green
+        (76, 175, 80, "#4caf50") // green
     } else if progress < THRESHOLD_RED {
-        (255, 193, 7, "#ffc107")   // yellow
+        (255, 193, 7, "#ffc107") // yellow
     } else {
-        (244, 67, 54, "#f44336")   // red
+        (244, 67, 54, "#f44336") // red
     }
 }
 

@@ -22,10 +22,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_notification::NotificationExt;
 
-use crate::{
-    activity::is_active,
-    session::SessionManager,
-};
+use crate::{activity::is_active, session::SessionManager};
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -208,7 +205,8 @@ fn reader_loop(
             };
 
             if alert {
-                let _ = app.notification()
+                let _ = app
+                    .notification()
                     .builder()
                     .title("Time to stand up!")
                     .body("You've been sitting for 40 minutes. Take a break.")

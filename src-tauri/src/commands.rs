@@ -2,12 +2,12 @@
 
 use std::sync::{Arc, Mutex};
 
-use tauri::State;
 use rusqlite::Connection;
+use tauri::State;
 
 use crate::{
     config::AppConfig,
-    db::{TodaySummary},
+    db::TodaySummary,
     serial::{available_port_infos, scan_and_connect, ConnectionState, PortInfo},
     session::{SessionManager, SessionStateDto},
 };
@@ -86,12 +86,7 @@ pub fn calibrate(
 /// Returns the current application configuration.
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> AppConfig {
-    state
-        .config
-        .lock()
-        .unwrap()
-        .clone()
-        .unwrap_or_default()
+    state.config.lock().unwrap().clone().unwrap_or_default()
 }
 
 /// Saves updated application configuration.

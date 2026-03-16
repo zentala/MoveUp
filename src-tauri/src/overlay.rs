@@ -34,17 +34,21 @@ pub fn setup_overlay(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> 
         .map(|m| m.size().width)
         .unwrap_or(1920) as f64;
 
-    WebviewWindowBuilder::new(app, "overlay", tauri::WebviewUrl::App("overlay.html".into()))
-        .title("")
-        .inner_size(width, 4.0)
-        .position(0.0, 0.0)
-        .decorations(false)
-        .transparent(true)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .resizable(false)
-        .visible(false)
-        .build()?;
+    WebviewWindowBuilder::new(
+        app,
+        "overlay",
+        tauri::WebviewUrl::App("overlay.html".into()),
+    )
+    .title("")
+    .inner_size(width, 4.0)
+    .position(0.0, 0.0)
+    .decorations(false)
+    .transparent(true)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    .visible(false)
+    .build()?;
 
     Ok(())
 }

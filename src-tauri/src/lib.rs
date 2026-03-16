@@ -17,11 +17,11 @@ use std::sync::{Arc, Mutex};
 
 use commands::AppState;
 use config::AppConfig;
+use log::info;
 use serial::ConnectionState;
 use session::SessionManager;
 use tauri::Manager;
 use window_vibrancy::apply_acrylic;
-use log::info;
 
 /// Application entry point called from main.rs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -83,7 +83,10 @@ pub fn run() {
             let app_state = app.state::<AppState>();
             *app_state.db.lock().unwrap() = Some(db_conn);
             *app_state.config.lock().unwrap() = Some(config);
-            *app.state::<tauri::State<AppState>>().session.lock().unwrap() = session;
+            *app.state::<tauri::State<AppState>>()
+                .session
+                .lock()
+                .unwrap() = session;
 
             // System tray icon and context menu.
             tray::setup_tray(app.handle())?;

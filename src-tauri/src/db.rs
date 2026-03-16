@@ -95,9 +95,7 @@ pub fn insert_session(
 /// Loads today's total sitting and standing seconds from the database.
 /// Returns (sitting_secs, standing_secs) or an error.
 pub fn load_today_totals(conn: &Connection) -> Result<(i64, i64), String> {
-    let today = chrono::Local::now()
-        .format("%Y-%m-%d")
-        .to_string();
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     let mut stmt = conn
         .prepare(
@@ -111,10 +109,7 @@ pub fn load_today_totals(conn: &Connection) -> Result<(i64, i64), String> {
 
     let rows = stmt
         .query_map(rusqlite::params![format!("{}%", today)], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, i64>(1)?,
-            ))
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
         })
         .map_err(|e| {
             let msg = format!("Failed to query today's totals: {}", e);
@@ -144,9 +139,7 @@ pub fn load_today_totals(conn: &Connection) -> Result<(i64, i64), String> {
 
 /// Returns today's complete summary including all sessions and aggregate times.
 pub fn get_today_summary(conn: &Connection) -> Result<TodaySummary, String> {
-    let today = chrono::Local::now()
-        .format("%Y-%m-%d")
-        .to_string();
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     let mut stmt = conn
         .prepare(
@@ -228,8 +221,7 @@ mod tests {
 
         assert!(insert_session(&conn, started_at, ended_at, "Sitting", duration).is_ok());
 
-        let (_sitting, _standing) = load_today_totals(&conn)
-            .expect("query should succeed");
+        let (_sitting, _standing) = load_today_totals(&conn).expect("query should succeed");
         // Note: this will only work if the date in started_at matches today
         // For a real test, we'd need to mock the date
     }

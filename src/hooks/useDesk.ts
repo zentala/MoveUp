@@ -27,6 +27,8 @@ export interface UseDeskResult {
   deskHeightCm: number;
   /** Seconds spent in current sitting session. */
   sittingSeconds: number;
+  /** Seconds spent standing today. */
+  standingSeconds: number;
   /** Seconds spent in current break. */
   breakSeconds: number;
   /** Configured session limit in seconds. */
@@ -45,6 +47,7 @@ export function useDesk(): UseDeskResult {
   const [state, setState] = useState<DeskState | null>(null);
   const [deskHeightCm, setDeskHeightCm] = useState(0);
   const [sittingSeconds, setSittingSeconds] = useState(0);
+  const [standingSeconds, setStandingSeconds] = useState(0);
   const [breakSeconds, setBreakSeconds] = useState(0);
   const [sessionLimitSecs, setSessionLimitSecs] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +59,7 @@ export function useDesk(): UseDeskResult {
         setState(dto.state);
         setDeskHeightCm(dto.desk_height_cm);
         setSittingSeconds(dto.sitting_seconds);
+        setStandingSeconds(dto.standing_seconds);
         setBreakSeconds(dto.break_seconds);
         setSessionLimitSecs(dto.session_limit_secs);
       })
@@ -86,6 +90,7 @@ export function useDesk(): UseDeskResult {
           setState(payload.state);
           setDeskHeightCm(payload.desk_height_cm);
           setSittingSeconds(payload.sitting_seconds);
+          setStandingSeconds(payload.standing_seconds);
           setBreakSeconds(payload.break_seconds);
         },
       );
@@ -125,6 +130,7 @@ export function useDesk(): UseDeskResult {
     state,
     deskHeightCm,
     sittingSeconds,
+    standingSeconds,
     breakSeconds,
     sessionLimitSecs,
     error,

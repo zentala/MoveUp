@@ -5,8 +5,8 @@
 
 use log::warn;
 use serde::{Deserialize, Serialize};
-use tauri_plugin_store::Store;
 use tauri::Runtime;
+use tauri_plugin_store::Store;
 
 // ─── Default value helpers ───────────────────────────────────────────────────
 
@@ -75,10 +75,12 @@ impl AppConfig {
 
     /// Saves this config to the store.
     pub fn save<R: Runtime>(&self, store: &Store<R>) -> Result<(), String> {
-        let value = serde_json::to_value(self)
-            .map_err(|e| format!("Failed to serialize config: {}", e))?;
+        let value =
+            serde_json::to_value(self).map_err(|e| format!("Failed to serialize config: {}", e))?;
         store.set("app_config", value);
-        store.save().map_err(|e| format!("Failed to save store: {}", e))?;
+        store
+            .save()
+            .map_err(|e| format!("Failed to save store: {}", e))?;
         Ok(())
     }
 
