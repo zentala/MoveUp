@@ -52,6 +52,8 @@ pub struct SessionState {
     pub desk_height_cm: f32,
     /// Timestamp of last position change (sitting ↔ standing transition).
     pub last_position_change_at: Option<DateTime<Utc>>,
+    /// Number of position changes (Sitting↔Standing transitions) today.
+    pub position_changes: u32,
 }
 
 /// Serialisable DTO emitted with state-change events.
@@ -65,6 +67,8 @@ pub struct SessionStateDto {
     pub stand_limit_secs: i64,
     /// Most recent desk height in cm as computed from sensor + calibration.
     pub desk_height_cm: f32,
+    /// Number of position changes (Sitting↔Standing transitions) today.
+    pub position_changes: u32,
 }
 
 /// Payload for the `desk:state-changed` event.
@@ -75,6 +79,8 @@ pub struct StateChangedPayload {
     pub standing_seconds: i64,
     pub break_seconds: i64,
     pub desk_height_cm: f32,
+    /// Number of position changes (Sitting↔Standing transitions) today.
+    pub position_changes: u32,
 }
 
 /// Completed sitting session with timing information.
@@ -146,7 +152,11 @@ impl SessionManager {
                 session_limit_secs: DEFAULT_SESSION_LIMIT_SECS,
                 stand_limit_secs: 0,
                 desk_height_cm: 0.0,
+<<<<<<< HEAD
                 last_position_change_at: None,
+=======
+                position_changes: 0,
+>>>>>>> feat/T005-position-changes
             },
             pending_state: None,
             pending_count: 0,
@@ -177,7 +187,11 @@ impl SessionManager {
                 session_limit_secs: config.sit_limit_mins as i64 * 60,
                 stand_limit_secs: config.stand_limit_mins as i64 * 60,
                 desk_height_cm: 0.0,
+<<<<<<< HEAD
                 last_position_change_at: None,
+=======
+                position_changes: 0,
+>>>>>>> feat/T005-position-changes
             },
             pending_state: None,
             pending_count: 0,
@@ -224,6 +238,7 @@ impl SessionManager {
             session_limit_secs: self.state.session_limit_secs,
             stand_limit_secs: self.state.stand_limit_secs,
             desk_height_cm: self.state.desk_height_cm,
+            position_changes: self.state.position_changes,
         }
     }
 
@@ -250,6 +265,7 @@ impl SessionManager {
             info!("daily reset: new day detected, resetting in-memory counters");
             self.state.sitting_seconds = 0;
             self.state.standing_seconds = 0;
+            self.state.position_changes = 0;
             self.alert_fired = false;
             self.stand_alert_fired = false;
             self.notify_inactivity_fired = false;
@@ -380,6 +396,10 @@ impl SessionManager {
         // ── Leaving current state ─────────────────────────────────────────────
         let mut completed_session = None;
 
+        // Track position changes: only on Sitting↔Standing transitions (not Standing→Walking/Away)
+        let is_position_change = (self.state.state == DeskState::Sitting && candidate == DeskState::Standing)
+            || (self.state.state == DeskState::Standing && candidate == DeskState::Sitting);
+
         match &self.state.state {
             DeskState::Sitting => {
                 if let Some(started) = self.state.sitting_started.take() {
@@ -438,6 +458,11 @@ impl SessionManager {
             }
         }
 
+        // Increment position_changes only on confirmed Sitting↔Standing transitions
+        if is_position_change {
+            self.state.position_changes += 1;
+        }
+
         info!(
             "State transition: {:?} → {:?}  (sitting={}s desk_height={:.1}cm)",
             self.state.state, candidate, self.state.sitting_seconds, desk_height_cm
@@ -452,6 +477,7 @@ impl SessionManager {
                 standing_seconds: self.state.standing_seconds,
                 break_seconds: self.state.break_seconds,
                 desk_height_cm,
+                position_changes: self.state.position_changes,
             }),
             completed_session,
         }
@@ -836,6 +862,7 @@ mod tests {
         assert!(!m.stand_alert_fired, "stand_alert_fired should be cleared");
     }
 
+<<<<<<< HEAD
     // ─── T003 Tests: Notification Preferences ───────────────────────────────
 
     #[test]
@@ -1001,10 +1028,23 @@ mod tests {
         }
 
         // Now transition back to Standing
+=======
+    // ─── T005 Tests: Position Changes ───────────────────────────────────────
+
+    // position_changes increments on Sitting → Standing transition
+    #[test]
+    fn position_changes_increments_sitting_to_standing() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Sitting;
+        m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(100));
+
+        // Transition to Standing (high reading + active)
+>>>>>>> feat/T005-position-changes
         for _ in 0..DEBOUNCE_COUNT {
             let _ = m.on_reading(1200, true);
         }
 
+<<<<<<< HEAD
         // Alert should fire again in the new standing stint
         m.state.break_seconds = 901; // reset break_seconds as if new break started
         assert!(
@@ -1095,5 +1135,115 @@ mod tests {
 
         assert!(m.should_send_praise_halfway(&config));
         assert!(!m.should_send_praise_halfway(&config), "should not fire twice");
+=======
+        assert_eq!(m.state.state, DeskState::Standing);
+        assert_eq!(
+            m.state.position_changes, 1,
+            "position_changes should increment on Sitting → Standing"
+        );
+    }
+
+    // position_changes increments on Standing → Sitting transition
+    #[test]
+    fn position_changes_increments_standing_to_sitting() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Standing;
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(300)); // 5 min
+        m.state.position_changes = 1;
+
+        // Transition to Sitting (low reading)
+        for _ in 0..DEBOUNCE_COUNT {
+            let _ = m.on_reading(800, true);
+        }
+
+        assert_eq!(m.state.state, DeskState::Sitting);
+        assert_eq!(
+            m.state.position_changes, 2,
+            "position_changes should increment on Standing → Sitting"
+        );
+    }
+
+    // position_changes does NOT increment on Standing → Walking (same break category)
+    #[test]
+    fn position_changes_does_not_increment_standing_to_walking() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Standing;
+        m.state.break_started = Some(Utc::now());
+        m.state.position_changes = 5;
+
+        // Transition to Walking (high reading, inactive)
+        for _ in 0..DEBOUNCE_COUNT {
+            let _ = m.on_reading(1200, false);
+        }
+
+        assert_eq!(m.state.state, DeskState::Walking);
+        assert_eq!(
+            m.state.position_changes, 5,
+            "position_changes must not change on Standing → Walking"
+        );
+    }
+
+    // position_changes does NOT increment on Walking → Standing (both are breaks)
+    #[test]
+    fn position_changes_does_not_increment_walking_to_standing() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Walking;
+        m.state.break_started = Some(Utc::now());
+        m.state.position_changes = 3;
+
+        // Transition to Standing (high reading, active)
+        for _ in 0..DEBOUNCE_COUNT {
+            let _ = m.on_reading(1200, true);
+        }
+
+        assert_eq!(m.state.state, DeskState::Standing);
+        assert_eq!(
+            m.state.position_changes, 3,
+            "position_changes must not change on Walking → Standing"
+        );
+    }
+
+    // position_changes resets on daily reset
+    #[test]
+    fn position_changes_resets_on_daily_reset() {
+        let mut m = SessionManager::new();
+        m.state.position_changes = 12;
+        m.state.sitting_seconds = 2400;
+
+        // Force a date change
+        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
+        m.last_reset_check = Utc::now() - chrono::Duration::seconds(120);
+
+        let reset_happened = m.check_daily_reset();
+
+        assert!(reset_happened, "daily reset should have triggered");
+        assert_eq!(
+            m.state.position_changes, 0,
+            "position_changes should be reset to 0"
+        );
+    }
+
+    // position_changes is included in StateChangedPayload
+    #[test]
+    fn state_changed_payload_includes_position_changes() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Sitting;
+        m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(100));
+        m.state.position_changes = 2;
+
+        // Transition to Standing
+        for _ in 0..DEBOUNCE_COUNT {
+            let result = m.on_reading(1200, true);
+            if let Some(payload) = result.state_change {
+                assert_eq!(
+                    payload.position_changes, 3,
+                    "payload should include incremented position_changes"
+                );
+                return;
+            }
+        }
+
+        panic!("expected state change payload");
+>>>>>>> feat/T005-position-changes
     }
 }

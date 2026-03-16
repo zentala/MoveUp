@@ -64,6 +64,7 @@ pub struct HeightReadingRow {
 pub struct TodaySummary {
     pub sitting_secs: i64,
     pub standing_secs: i64,
+    pub position_changes: u32,
     pub sessions: Vec<SessionRow>,
 }
 
@@ -189,6 +190,7 @@ pub fn get_today_summary(conn: &Connection) -> Result<TodaySummary, String> {
     Ok(TodaySummary {
         sitting_secs,
         standing_secs,
+        position_changes: 0,  // Will be set by caller from SessionManager
         sessions,
     })
 }
