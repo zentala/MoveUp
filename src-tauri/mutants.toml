@@ -1,0 +1,19 @@
+# Mutation testing configuration for cargo-mutants
+# See: https://mutants.live/
+
+# Test timeout per mutation (seconds)
+timeout = 10
+
+# Which test filter to run
+test-filter = "-- --test-threads=1"
+
+# Skip certain paths (e.g., generated code, non-critical code)
+exclude-globs = [
+  "src/main.rs",  # Entry point, no logic to mutate
+]
+
+# Minimum number of mutations to run
+minimum-mutations = 50
+
+# Report verbosity
+verbosity = "high"

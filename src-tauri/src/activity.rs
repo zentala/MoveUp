@@ -51,22 +51,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn idle_seconds_returns_u64() {
+    #[cfg(windows)]
+    fn idle_seconds_returns_u64_windows() {
+        // Windows-only test: GetLastInputInfo is Windows API
         // Just ensure the call does not panic and returns a sane value.
         let secs = get_idle_seconds();
         // On a fresh test runner the machine should have had recent input.
         // We only assert it doesn't overflow or panic.
-        let _ = secs;
+        assert!(secs >= 0); // u64 is always >= 0, but this documents intent
     }
 
     #[test]
-    fn is_active_consistent_with_idle_seconds() {
+    #[cfg(not(windows))]
+    fn idle_seconds_returns_zero_non_windows() {
+        // Non-Windows: get_idle_seconds() always returns 0 (not implemented)
+        let secs = get_idle_seconds();
+        assert_eq!(secs, 0, "non-Windows platforms should return 0 (not implemented)");
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn is_active_consistent_with_idle_seconds_windows() {
+        // Windows-only test: depends on GetLastInputInfo
         let idle = get_idle_seconds();
         let active = is_active();
         if idle < 60 {
-            assert!(active);
+            assert!(active, "should be active if idle < 60 seconds");
         } else {
-            assert!(!active);
+            assert!(!active, "should be inactive if idle >= 60 seconds");
         }
     }
 }

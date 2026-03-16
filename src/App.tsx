@@ -15,6 +15,7 @@ import HeightRail from "@/components/HeightRail";
 import SessionProgress from "@/components/SessionProgress";
 import StateIndicator from "@/components/StateIndicator";
 import TodayStats from "@/components/TodayStats";
+import AppProgressBar from "@/components/AppProgressBar";
 import "@/styles/globals.css";
 
 function statusDotClass(connected: boolean, hasError: boolean): string {
@@ -68,6 +69,14 @@ export default function App() {
 
   return (
     <main className="app">
+
+      {/* DEBUG: V2 Progress bar — 14px inside app window */}
+      {showProgress && (
+        <AppProgressBar
+          sittingSeconds={liveSitting}
+          limitSeconds={sessionLimitSecs}
+        />
+      )}
 
       {/* Header — app identity + connection status + settings button */}
       <div className="app__header">

@@ -35,12 +35,21 @@ function OverlayBar() {
   return (
     <div
       style={{
-        width: `${Math.min(payload.progress * 100, 100)}%`,
+        width: "100%",
         height: "4px",
-        background: payload.color,
-        transition: "width 0.5s ease, background 0.3s ease",
+        background: "#1a1a1a",
+        overflow: "hidden",
       }}
-    />
+    >
+      <div
+        style={{
+          width: `${Math.min(payload.progress * 100, 100)}%`,
+          height: "100%",
+          background: payload.color,
+          transition: "width 0.5s ease, background 0.3s ease",
+        }}
+      />
+    </div>
   );
 }
 

@@ -121,6 +121,76 @@ jobs:
           fi
         continue-on-error: true
 
+  benchmarks:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Benchmarks
+        working-directory: apps/desk
+        run: cargo bench --bench session_state_machine -- --verbose
+        continue-on-error: true
+
+      - name: Store Benchmark Results
+        if: always()
+        run: |
+          mkdir -p benchmark-results
+          cp -r apps/desk/target/criterion benchmark-results/ || true
+
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: benchmark-results
+          path: benchmark-results
+          retention-days: 30
+
+  mutation-testing:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants
+
+      - name: Run Mutation Tests
+        working-directory: apps/desk
+        run: |
+          cargo mutants --tests --timeout 10 --jobs 4 2>&1 | tee mutation-results.txt || true
+        continue-on-error: true
+
+      - name: Parse Mutation Results
+        if: always()
+        working-directory: apps/desk
+        run: |
+          echo "## Mutation Testing Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if grep -q "Summary" mutation-results.txt; then
+            grep -A 5 "Summary" mutation-results.txt >> $GITHUB_STEP_SUMMARY || true
+          else
+            echo "Could not parse mutation results" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Mutation Results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: mutation-results
+          path: apps/desk/mutation-results.txt
+          retention-days: 7
+
   status:
     name: Test Status
     runs-on: ubuntu-latest
