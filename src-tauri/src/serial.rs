@@ -185,13 +185,33 @@ fn reader_loop(
 
             // Feed into session state machine.
             let active = is_active();
-            let result = {
+            let (state_before, result) = {
                 let mut sess = session.lock().unwrap();
-                sess.on_reading(mm, active)
+                let state_before = sess.current_state();
+                let result = sess.on_reading(mm, active);
+                (state_before, result)
             };
 
             if let Some(payload) = result.state_change {
-                let _ = app.emit("desk:state-changed", payload);
+                let _ = app.emit("desk:state-changed", &payload);
+
+                // Check if transitioning to Standing for praise-halfway notification
+                use crate::session::DeskState;
+                if state_before == DeskState::Sitting && payload.state == DeskState::Standing {
+                    let praise = {
+                        let mut sess = session.lock().unwrap();
+                        sess.should_send_praise_halfway(config)
+                    };
+
+                    if praise {
+                        let _ = app
+                            .notification()
+                            .builder()
+                            .title("Halfway through your standing goal!")
+                            .body("Keep it up.")
+                            .show();
+                    }
+                }
             }
 
             // Persist completed sessions to the database

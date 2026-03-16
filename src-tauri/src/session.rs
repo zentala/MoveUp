@@ -227,6 +227,11 @@ impl SessionManager {
         }
     }
 
+    /// Returns the current desk state.
+    pub fn current_state(&self) -> DeskState {
+        self.state.state.clone()
+    }
+
     /// Checks if a new day has begun and resets daily counters.
     /// Only checks every 60 seconds to avoid overhead.
     /// Returns `true` if reset was performed.
@@ -274,10 +279,9 @@ impl SessionManager {
 
     /// Checks notification conditions and returns a list of notifications that should fire.
     ///
-    /// Called periodically (e.g., every 60s) to check for three types of notifications:
+    /// Called periodically (e.g., every 60s) to check for two types of notifications:
     /// 1. **Inactivity** — no position change for ≥ 90 min (fires max once/hour)
     /// 2. **Posture Balance** — sitting time > 2× standing time (fires max once/day)
-    /// 3. **Praise Halfway** — standing time ≥ 50% of standing goal (fires max once/day)
     pub fn check_notification_conditions(&mut self, config: &crate::config::AppConfig) -> Vec<NotificationEvent> {
         let now = Utc::now();
         let mut events = Vec::new();
@@ -301,16 +305,23 @@ impl SessionManager {
             }
         }
 
-        // Check praise halfway: standing ≥ 50% of standing goal
-        if config.notify_praise_halfway && !self.praise_halfway_fired_today {
-            let standing_goal = self.state.stand_limit_secs;
-            if standing_goal > 0 && self.state.standing_seconds >= standing_goal / 2 {
-                self.praise_halfway_fired_today = true;
-                events.push(NotificationEvent::Praise);
-            }
-        }
-
         events
+    }
+
+    /// Checks if praise-halfway notification should fire.
+    ///
+    /// Triggered when transitioning Sitting→Standing if standing_secs >= (stand_limit_secs / 2).
+    /// Fires at most once per day (flag reset on daily reset).
+    pub fn should_send_praise_halfway(&mut self, config: &crate::config::AppConfig) -> bool {
+        if config.notify_praise_halfway
+            && !self.praise_halfway_fired_today
+            && self.state.stand_limit_secs > 0
+            && self.state.standing_seconds >= self.state.stand_limit_secs / 2
+        {
+            self.praise_halfway_fired_today = true;
+            return true;
+        }
+        false
     }
 
     /// Called for each new distance reading from the sensor.
@@ -916,29 +927,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn check_notification_conditions_praise_fires_at_halfway() {
-        let mut m = SessionManager::new();
-        let config = crate::config::AppConfig {
-            notify_praise_halfway: true,
-            stand_limit_mins: 20, // 1200 seconds
-            ..Default::default()
-        };
-
-        m.state.stand_limit_secs = 1200; // 20 minutes
-        m.state.standing_seconds = 600; // exactly 50% of limit
-
-        let events = m.check_notification_conditions(&config);
-
-        assert!(
-            events.iter().any(|e| matches!(e, NotificationEvent::Praise)),
-            "praise notification should fire at 50% of standing goal"
-        );
-        assert!(
-            m.praise_halfway_fired_today,
-            "praise_halfway_fired_today should be set"
-        );
-    }
 
     #[test]
     fn check_notification_conditions_all_reset_on_daily_reset() {
@@ -1034,5 +1022,78 @@ mod tests {
             m.state.stand_limit_secs, 1200,
             "20 minutes should be 1200 seconds"
         );
+    }
+
+    #[test]
+    fn should_send_praise_halfway_fires_at_50_percent() {
+        let mut m = SessionManager::new();
+        let config = crate::config::AppConfig {
+            notify_praise_halfway: true,
+            stand_limit_mins: 20,
+            ..Default::default()
+        };
+
+        m.state.stand_limit_secs = 1200; // 20 minutes
+        m.state.standing_seconds = 600; // exactly 50%
+
+        assert!(
+            m.should_send_praise_halfway(&config),
+            "praise should fire at 50% of standing goal"
+        );
+        assert!(
+            m.praise_halfway_fired_today,
+            "praise_halfway_fired_today should be set"
+        );
+    }
+
+    #[test]
+    fn should_send_praise_halfway_not_disabled() {
+        let mut m = SessionManager::new();
+        let config = crate::config::AppConfig {
+            notify_praise_halfway: false,
+            stand_limit_mins: 20,
+            ..Default::default()
+        };
+
+        m.state.stand_limit_secs = 1200;
+        m.state.standing_seconds = 600;
+
+        assert!(
+            !m.should_send_praise_halfway(&config),
+            "praise should not fire when disabled"
+        );
+    }
+
+    #[test]
+    fn should_send_praise_halfway_disabled_when_stand_limit_zero() {
+        let mut m = SessionManager::new();
+        let config = crate::config::AppConfig {
+            notify_praise_halfway: true,
+            ..Default::default()
+        };
+
+        m.state.stand_limit_secs = 0;
+        m.state.standing_seconds = 600;
+
+        assert!(
+            !m.should_send_praise_halfway(&config),
+            "praise should not fire when stand_limit_secs is 0"
+        );
+    }
+
+    #[test]
+    fn should_send_praise_halfway_fires_once_per_day() {
+        let mut m = SessionManager::new();
+        let config = crate::config::AppConfig {
+            notify_praise_halfway: true,
+            stand_limit_mins: 20,
+            ..Default::default()
+        };
+
+        m.state.stand_limit_secs = 1200;
+        m.state.standing_seconds = 600;
+
+        assert!(m.should_send_praise_halfway(&config));
+        assert!(!m.should_send_praise_halfway(&config), "should not fire twice");
     }
 }
