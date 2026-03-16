@@ -4,7 +4,7 @@
  * Fetches initial session state on mount and subscribes to all `desk:*`
  * Tauri events, cleaning up listeners on unmount.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
@@ -14,6 +14,7 @@ import type {
   StateChangedPayload,
   SensorErrorPayload,
 } from "@/types";
+import { saveSittingSession } from "@/db";
 
 /** Shape returned by the useDesk hook. */
 export interface UseDeskResult {
@@ -49,6 +50,11 @@ export function useDesk(): UseDeskResult {
   const [sessionLimitSecs, setSessionLimitSecs] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  // Tracks when the current sitting session started (ISO-8601 string).
+  const sittingStartedAt = useRef<string | null>(null);
+  // Tracks sitting seconds at the last state-changed event for duration calc.
+  const prevSittingSeconds = useRef<number>(0);
+
   useEffect(() => {
     // Fetch current session state on mount
     invoke<SessionStateDto>("get_session_state")
@@ -83,7 +89,23 @@ export function useDesk(): UseDeskResult {
       const unState = await listen<StateChangedPayload>(
         "desk:state-changed",
         ({ payload }) => {
-          setState(payload.state);
+          // Detect transition away from Sitting → persist the completed session.
+          setState((prevState) => {
+            if (prevState === "Sitting" && payload.state !== "Sitting") {
+              const endedAt = new Date().toISOString();
+              const startedAt = sittingStartedAt.current ?? endedAt;
+              const durationSecs = payload.sitting_seconds - prevSittingSeconds.current;
+              if (durationSecs > 0) {
+                saveSittingSession(startedAt, endedAt, durationSecs).catch(console.error);
+              }
+              sittingStartedAt.current = null;
+            }
+            if (payload.state === "Sitting" && prevState !== "Sitting") {
+              sittingStartedAt.current = new Date().toISOString();
+              prevSittingSeconds.current = payload.sitting_seconds;
+            }
+            return payload.state;
+          });
           setDeskHeightCm(payload.desk_height_cm);
           setSittingSeconds(payload.sitting_seconds);
           setBreakSeconds(payload.break_seconds);

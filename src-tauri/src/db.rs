@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 /// DDL executed on startup to ensure the schema exists.
-#[allow(dead_code)]
+/// Exposed via the `get_schema_sql` Tauri command for the frontend to execute.
 pub const SCHEMA_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS sessions (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,6 +41,7 @@ pub struct SessionRow {
 }
 
 /// A single row from the `height_readings` table.
+// TODO: used when height readings persistence is implemented
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeightReadingRow {

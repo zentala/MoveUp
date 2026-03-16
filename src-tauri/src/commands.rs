@@ -74,6 +74,15 @@ pub fn set_session_limit(minutes: u32, state: State<'_, AppState>) {
     state.session.lock().unwrap().set_limit_minutes(minutes);
 }
 
+/// Returns the SQLite schema DDL for the frontend to execute via tauri-plugin-sql.
+///
+/// The frontend calls this on startup, splits by `;`, and executes each statement
+/// so the schema is always up to date before any reads or writes.
+#[tauri::command]
+pub fn get_schema_sql() -> &'static str {
+    crate::db::SCHEMA_SQL
+}
+
 /// Updates height calibration values used by the session state machine.
 ///
 /// All parameters are optional; only provided values are updated.

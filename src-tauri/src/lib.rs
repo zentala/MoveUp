@@ -45,6 +45,7 @@ pub fn run() {
             commands::get_today_summary,
             commands::set_session_limit,
             commands::calibrate,
+            commands::get_schema_sql,
         ])
         .setup(|app| {
             // System tray icon and context menu.

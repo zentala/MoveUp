@@ -76,9 +76,9 @@ pub struct SessionManager {
     /// Pending candidate state (needs `debounce_count` confirmations).
     pending_state: Option<DeskState>,
     pending_count: u8,
-    /// Calibrated sitting desk height in cm (default 75.0).
+    /// Calibrated sitting desk height in cm (default 72.0).
     pub sitting_height_cm: f32,
-    /// Calibrated standing desk height in cm (default 115.0).
+    /// Calibrated standing desk height in cm (default 105.0).
     pub standing_height_cm: f32,
     /// Desk surface thickness in cm to subtract from raw sensor reading (default 3.0).
     pub desk_thickness_cm: f32,
@@ -101,8 +101,8 @@ impl SessionManager {
             },
             pending_state: None,
             pending_count: 0,
-            sitting_height_cm: 75.0,
-            standing_height_cm: 115.0,
+            sitting_height_cm: 72.0,
+            standing_height_cm: 105.0,
             desk_thickness_cm: 3.0,
             alert_fired: false,
         }
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn low_reading_produces_sitting_candidate() {
         let mut m = SessionManager::new();
-        // Default: sitting=75, standing=115, midpoint=95
+        // Default: sitting=72, standing=105, midpoint=88.5
         // 800 mm = 80 cm floor → 77 cm desk height → below midpoint → Sitting
         for _ in 0..DEBOUNCE_COUNT {
             m.on_reading(800, true);

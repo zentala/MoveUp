@@ -3,10 +3,13 @@
  *
  * Renders live session data (state, progress, today's stats) sourced from
  * the Rust Tauri backend via the useDesk hook. Auto-connects on start.
+ * Shows CalibrationWizard on first run until calibration is complete.
  */
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDesk } from "@/hooks/useDesk";
 import { useTimer } from "@/hooks/useTimer";
+import CalibrationWizard from "@/components/CalibrationWizard";
 import SessionProgress from "@/components/SessionProgress";
 import StateIndicator from "@/components/StateIndicator";
 import TodayStats from "@/components/TodayStats";
@@ -27,6 +30,7 @@ function connectionLabel(connected: boolean, port: string | null): string {
 }
 
 export default function App() {
+  const [calibrated, setCalibrated] = useState(() => localStorage.getItem("desk:calibrated") === "1");
   const { connected, port, state, deskHeightCm, sittingSeconds, breakSeconds, sessionLimitSecs, error } =
     useDesk();
 
@@ -39,15 +43,16 @@ export default function App() {
     await invoke("stop_reading").catch(console.error);
   }
 
-  async function handleCalibrate() {
-    await invoke("calibrate", {}).catch(console.error);
-  }
-
   const showProgress = sessionLimitSecs > 0 && state === "Sitting";
 
   return (
     <main className="app">
       <h1 className="app__title">↕ Desk</h1>
+
+      {/* First-run calibration wizard — shown when connected but not yet calibrated */}
+      {!calibrated && connected && (
+        <CalibrationWizard deskHeightCm={deskHeightCm} onComplete={() => setCalibrated(true)} />
+      )}
 
       {/* State + height row */}
       <div className="card">
@@ -94,8 +99,9 @@ export default function App() {
         <button className="btn btn--danger" onClick={handleStop}>
           Stop
         </button>
-        <button className="btn" onClick={handleCalibrate}>
-          Calibrate
+        {/* Re-calibrate link resets calibration flag to re-show wizard */}
+        <button className="btn btn--link" onClick={() => setCalibrated(false)}>
+          Re-calibrate
         </button>
       </div>
     </main>
