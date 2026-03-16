@@ -89,7 +89,7 @@ export default function App() {
 
       {/* Main state card — HeightRail is the left accent */}
       <div className="panel-row">
-        <HeightRail deskHeightCm={deskHeightCm}>
+        <HeightRail deskHeightCm={deskHeightCm} state={state}>
           <StateIndicator state={state} deskHeightCm={deskHeightCm} />
 
           {/* Session timer — visible while sitting */}
