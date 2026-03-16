@@ -46,8 +46,12 @@ pub struct SessionState {
     pub break_seconds: i64,
     /// Alert threshold — sitting_seconds >= this value triggers an alert.
     pub session_limit_secs: i64,
+    /// Standing session limit in seconds (0 = disabled).
+    pub stand_limit_secs: i64,
     /// Last computed desk height in cm (floor_distance_cm - desk_thickness_cm).
     pub desk_height_cm: f32,
+    /// Timestamp of last position change (sitting ↔ standing transition).
+    pub last_position_change_at: Option<DateTime<Utc>>,
 }
 
 /// Serialisable DTO emitted with state-change events.
@@ -58,6 +62,7 @@ pub struct SessionStateDto {
     pub standing_seconds: i64,
     pub break_seconds: i64,
     pub session_limit_secs: i64,
+    pub stand_limit_secs: i64,
     /// Most recent desk height in cm as computed from sensor + calibration.
     pub desk_height_cm: f32,
 }
@@ -78,6 +83,15 @@ pub struct CompletedSession {
     pub started_at: String,
     pub ended_at: String,
     pub duration_secs: i64,
+}
+
+/// Notification event to be sent to the user.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum NotificationEvent {
+    Inactivity,
+    PostureBalance,
+    Praise,
+    StandLimitReached,
 }
 
 /// Result of processing a sensor reading.
@@ -130,7 +144,9 @@ impl SessionManager {
                 break_started: None,
                 break_seconds: 0,
                 session_limit_secs: DEFAULT_SESSION_LIMIT_SECS,
+                stand_limit_secs: 0,
                 desk_height_cm: 0.0,
+                last_position_change_at: None,
             },
             pending_state: None,
             pending_count: 0,
@@ -159,7 +175,9 @@ impl SessionManager {
                 break_started: None,
                 break_seconds: 0,
                 session_limit_secs: config.sit_limit_mins as i64 * 60,
+                stand_limit_secs: config.stand_limit_mins as i64 * 60,
                 desk_height_cm: 0.0,
+                last_position_change_at: None,
             },
             pending_state: None,
             pending_count: 0,
@@ -191,6 +209,11 @@ impl SessionManager {
         self.state.session_limit_secs = minutes as i64 * 60;
     }
 
+    /// Updates the standing session limit (minutes → seconds).
+    pub fn set_stand_limit_minutes(&mut self, minutes: u32) {
+        self.state.stand_limit_secs = minutes as i64 * 60;
+    }
+
     /// Returns a snapshot of the current session state as a DTO.
     pub fn snapshot(&self) -> SessionStateDto {
         SessionStateDto {
@@ -199,6 +222,7 @@ impl SessionManager {
             standing_seconds: self.state.standing_seconds,
             break_seconds: self.state.break_seconds,
             session_limit_secs: self.state.session_limit_secs,
+            stand_limit_secs: self.state.stand_limit_secs,
             desk_height_cm: self.state.desk_height_cm,
         }
     }
@@ -246,6 +270,47 @@ impl SessionManager {
             return true;
         }
         false
+    }
+
+    /// Checks notification conditions and returns a list of notifications that should fire.
+    ///
+    /// Called periodically (e.g., every 60s) to check for three types of notifications:
+    /// 1. **Inactivity** — no position change for ≥ 90 min (fires max once/hour)
+    /// 2. **Posture Balance** — sitting time > 2× standing time (fires max once/day)
+    /// 3. **Praise Halfway** — standing time ≥ 50% of standing goal (fires max once/day)
+    pub fn check_notification_conditions(&mut self, config: &crate::config::AppConfig) -> Vec<NotificationEvent> {
+        let now = Utc::now();
+        let mut events = Vec::new();
+
+        // Check inactivity: no position change for 90+ minutes
+        if config.notify_inactivity && !self.notify_inactivity_fired {
+            if let Some(last_change) = self.state.last_position_change_at {
+                let elapsed_secs = (now - last_change).num_seconds();
+                if elapsed_secs >= 90 * 60 {
+                    self.notify_inactivity_fired = true;
+                    events.push(NotificationEvent::Inactivity);
+                }
+            }
+        }
+
+        // Check posture balance: sitting > 2× standing
+        if config.notify_daily_posture_balance && !self.notify_posture_balance_fired {
+            if self.state.sitting_seconds > self.state.standing_seconds * 2 {
+                self.notify_posture_balance_fired = true;
+                events.push(NotificationEvent::PostureBalance);
+            }
+        }
+
+        // Check praise halfway: standing ≥ 50% of standing goal
+        if config.notify_praise_halfway && !self.praise_halfway_fired_today {
+            let standing_goal = self.state.stand_limit_secs;
+            if standing_goal > 0 && self.state.standing_seconds >= standing_goal / 2 {
+                self.praise_halfway_fired_today = true;
+                events.push(NotificationEvent::Praise);
+            }
+        }
+
+        events
     }
 
     /// Called for each new distance reading from the sensor.
@@ -324,6 +389,10 @@ impl SessionManager {
                     self.state.break_seconds = 0;
                     // Reset alert so it can fire in the next sitting stint.
                     self.alert_fired = false;
+                    // Reset stand alert for new break.
+                    self.stand_alert_fired = false;
+                    // Update last position change timestamp.
+                    self.state.last_position_change_at = Some(now);
                 }
             }
             DeskState::Standing => {
@@ -340,6 +409,8 @@ impl SessionManager {
                     if candidate == DeskState::Sitting {
                         self.state.sitting_started = Some(now);
                     }
+                    // Update last position change timestamp.
+                    self.state.last_position_change_at = Some(now);
                 }
             }
             DeskState::Walking | DeskState::Away => {
@@ -350,6 +421,8 @@ impl SessionManager {
                         self.state.break_seconds = 0;
                     }
                     self.state.sitting_started = Some(now);
+                    // Update last position change timestamp.
+                    self.state.last_position_change_at = Some(now);
                 }
             }
         }
@@ -382,12 +455,36 @@ impl SessionManager {
                 // sitting_seconds is committed on transition; live value
                 // can be derived from snapshot() + sitting_started elapsed.
             }
-            DeskState::Standing | DeskState::Walking | DeskState::Away => {
+            DeskState::Standing => {
+                if let Some(bs) = self.state.break_started {
+                    self.state.break_seconds = (now - bs).num_seconds().max(0);
+                }
+                // Check stand alert: fires when standing exceeds limit.
+                // Spec: fire when break_seconds >= stand_limit_secs AND !stand_alert_fired
+                // Returns alert in out-of-band event (not in ReadingResult).
+            }
+            DeskState::Walking | DeskState::Away => {
                 if let Some(bs) = self.state.break_started {
                     self.state.break_seconds = (now - bs).num_seconds().max(0);
                 }
             }
         }
+    }
+
+    /// Checks if a stand limit alert should fire (when standing for too long).
+    ///
+    /// Returns `true` exactly once per standing stint when `break_seconds >= stand_limit_secs`.
+    /// Resets when the user transitions out of Standing state.
+    pub fn should_stand_alert(&mut self) -> bool {
+        if self.state.state == DeskState::Standing
+            && !self.stand_alert_fired
+            && self.state.stand_limit_secs > 0
+            && self.state.break_seconds >= self.state.stand_limit_secs
+        {
+            self.stand_alert_fired = true;
+            return true;
+        }
+        false
     }
 
     /// Applies break credit rules when the user returns to sitting.
@@ -726,5 +823,216 @@ mod tests {
         );
         assert!(!m.alert_fired, "alert_fired should be cleared");
         assert!(!m.stand_alert_fired, "stand_alert_fired should be cleared");
+    }
+
+    // ─── T003 Tests: Notification Preferences ───────────────────────────────
+
+    #[test]
+    fn check_notification_conditions_inactivity_fires_after_90min() {
+        let mut m = SessionManager::new();
+        let config = crate::config::AppConfig {
+            notify_inactivity: true,
+            ..Default::default()
+        };
+
+        // Set last position change to 91 minutes ago
+        m.state.last_position_change_at =
+            Some(Utc::now() - chrono::Duration::minutes(91));
+
+        let events = m.check_notification_conditions(&config);
+
+        assert!(
+            events.iter().any(|e| matches!(e, NotificationEvent::Inactivity)),
+            "inactivity notification should fire after 90+ minutes"
+        );
+        assert!(
+            m.notify_inactivity_fired,
+            "notify_inactivity_fired should be set"
+        );
+    }
+
+    #[test]
+    fn check_notification_conditions_inactivity_not_disabled() {
+        let mut m = SessionManager::new();
+        let config = crate::config::AppConfig {
+            notify_inactivity: false,
+            ..Default::default()
+        };
+
+        m.state.last_position_change_at =
+            Some(Utc::now() - chrono::Duration::minutes(91));
+
+        let events = m.check_notification_conditions(&config);
+
+        assert!(
+            !events.iter().any(|e| matches!(e, NotificationEvent::Inactivity)),
+            "inactivity should not fire when disabled"
+        );
+        assert!(
+            !m.notify_inactivity_fired,
+            "notify_inactivity_fired should not be set"
+        );
+    }
+
+    #[test]
+    fn check_notification_conditions_posture_balance_fires() {
+        let mut m = SessionManager::new();
+        let config = crate::config::AppConfig {
+            notify_daily_posture_balance: true,
+            ..Default::default()
+        };
+
+        m.state.sitting_seconds = 3600; // 1 hour
+        m.state.standing_seconds = 1000; // <0.5 hours: sitting > 2× standing
+
+        let events = m.check_notification_conditions(&config);
+
+        assert!(
+            events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)),
+            "posture balance notification should fire when sitting > 2× standing"
+        );
+        assert!(
+            m.notify_posture_balance_fired,
+            "notify_posture_balance_fired should be set"
+        );
+    }
+
+    #[test]
+    fn check_notification_conditions_posture_balance_not_disabled() {
+        let mut m = SessionManager::new();
+        let config = crate::config::AppConfig {
+            notify_daily_posture_balance: false,
+            ..Default::default()
+        };
+
+        m.state.sitting_seconds = 3600;
+        m.state.standing_seconds = 1000;
+
+        let events = m.check_notification_conditions(&config);
+
+        assert!(
+            !events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)),
+            "posture balance should not fire when disabled"
+        );
+    }
+
+    #[test]
+    fn check_notification_conditions_praise_fires_at_halfway() {
+        let mut m = SessionManager::new();
+        let config = crate::config::AppConfig {
+            notify_praise_halfway: true,
+            stand_limit_mins: 20, // 1200 seconds
+            ..Default::default()
+        };
+
+        m.state.stand_limit_secs = 1200; // 20 minutes
+        m.state.standing_seconds = 600; // exactly 50% of limit
+
+        let events = m.check_notification_conditions(&config);
+
+        assert!(
+            events.iter().any(|e| matches!(e, NotificationEvent::Praise)),
+            "praise notification should fire at 50% of standing goal"
+        );
+        assert!(
+            m.praise_halfway_fired_today,
+            "praise_halfway_fired_today should be set"
+        );
+    }
+
+    #[test]
+    fn check_notification_conditions_all_reset_on_daily_reset() {
+        let mut m = SessionManager::new();
+        let config = crate::config::AppConfig::default();
+
+        m.notify_inactivity_fired = true;
+        m.notify_posture_balance_fired = true;
+        m.praise_halfway_fired_today = true;
+
+        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
+        m.last_reset_check = Utc::now() - chrono::Duration::seconds(120);
+
+        let _ = m.check_daily_reset();
+
+        // After daily reset, all notification flags should be cleared
+        let events = m.check_notification_conditions(&config);
+        assert_eq!(events.len(), 0, "no notifications should fire after reset");
+    }
+
+    // ─── T004 Tests: Stand Limit Alert ──────────────────────────────────────
+
+    #[test]
+    fn should_stand_alert_fires_once_per_standing_stint() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Standing;
+        m.state.stand_limit_secs = 900; // 15 minutes
+        m.state.break_seconds = 901; // 15 min + 1 second
+
+        assert!(
+            m.should_stand_alert(),
+            "stand alert should fire when break_seconds >= stand_limit_secs"
+        );
+        assert!(
+            m.stand_alert_fired,
+            "stand_alert_fired should be set"
+        );
+        assert!(
+            !m.should_stand_alert(),
+            "stand alert should not fire twice"
+        );
+    }
+
+    #[test]
+    fn should_stand_alert_disabled_when_stand_limit_is_zero() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Standing;
+        m.state.stand_limit_secs = 0; // disabled
+        m.state.break_seconds = 1000; // well over any limit
+
+        assert!(
+            !m.should_stand_alert(),
+            "stand alert should not fire when stand_limit_secs is 0"
+        );
+    }
+
+    #[test]
+    fn should_stand_alert_reset_on_state_change() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Standing;
+        m.state.stand_limit_secs = 900;
+        m.state.break_seconds = 901;
+
+        // Fire the alert
+        assert!(m.should_stand_alert());
+
+        // Simulate transition from Standing to Sitting
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(901));
+        let _ = m.on_reading(800, true); // low reading = sitting
+        for _ in 0..DEBOUNCE_COUNT {
+            let _ = m.on_reading(800, true);
+        }
+
+        // Now transition back to Standing
+        for _ in 0..DEBOUNCE_COUNT {
+            let _ = m.on_reading(1200, true);
+        }
+
+        // Alert should fire again in the new standing stint
+        m.state.break_seconds = 901; // reset break_seconds as if new break started
+        assert!(
+            m.should_stand_alert(),
+            "stand alert should fire again in new standing stint"
+        );
+    }
+
+    #[test]
+    fn set_stand_limit_minutes_converts_correctly() {
+        let mut m = SessionManager::new();
+        m.set_stand_limit_minutes(20);
+
+        assert_eq!(
+            m.state.stand_limit_secs, 1200,
+            "20 minutes should be 1200 seconds"
+        );
     }
 }

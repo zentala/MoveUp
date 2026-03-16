@@ -34,7 +34,7 @@ pub fn list_ports() -> Vec<PortInfo> {
 /// sensor is found. Safe to call multiple times — a running scan is a no-op.
 #[tauri::command]
 pub fn start_auto_connect(app: tauri::AppHandle, state: State<'_, AppState>) {
-    scan_and_connect(app, state.conn.clone(), state.session.clone());
+    scan_and_connect(app, state.conn.clone(), state.session.clone(), state.config.clone());
 }
 
 /// Signals the background reader thread to stop.
@@ -55,6 +55,14 @@ pub fn get_session_state(state: State<'_, AppState>) -> SessionStateDto {
 #[tauri::command]
 pub fn set_session_limit(minutes: u32, state: State<'_, AppState>) {
     state.session.lock().unwrap().set_limit_minutes(minutes);
+}
+
+/// Updates the standing session limit.
+///
+/// `minutes` — new limit in minutes (e.g. 15). Set to 0 to disable.
+#[tauri::command]
+pub fn set_stand_limit(minutes: u32, state: State<'_, AppState>) {
+    state.session.lock().unwrap().set_stand_limit_minutes(minutes);
 }
 
 /// Updates height calibration values used by the session state machine.
@@ -117,6 +125,7 @@ pub fn save_settings(
     session.standing_height_cm = clamped.standing_mm as f32 / 10.0;
     session.desk_thickness_cm = clamped.desk_thickness_mm as f32 / 10.0;
     session.set_limit_minutes(clamped.sit_limit_mins);
+    session.set_stand_limit_minutes(clamped.stand_limit_mins);
 
     Ok(())
 }

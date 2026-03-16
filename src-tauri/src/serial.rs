@@ -141,6 +141,7 @@ fn reader_loop(
     port_name: &str,
     stop: &Arc<AtomicBool>,
     session: &Arc<Mutex<SessionManager>>,
+    config: &crate::config::AppConfig,
 ) {
     let port = match serialport::new(port_name, BAUD_RATE)
         .timeout(Duration::from_millis(2000))
@@ -156,6 +157,7 @@ fn reader_loop(
 
     let mut reader = BufReader::new(port);
     let mut line = String::new();
+    let mut last_notification_check = std::time::Instant::now();
 
     while !stop.load(Ordering::Relaxed) {
         line.clear();
@@ -212,6 +214,64 @@ fn reader_loop(
                     .body("You've been sitting for 40 minutes. Take a break.")
                     .show();
             }
+
+            // Check for standing time limit alert.
+            let stand_alert = {
+                let mut sess = session.lock().unwrap();
+                sess.should_stand_alert()
+            };
+
+            if stand_alert {
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title("You've been standing a while")
+                    .body("Ready to sit down for a bit?")
+                    .show();
+            }
+
+            // Check notification conditions (inactivity, posture balance, praise) every 60s.
+            if last_notification_check.elapsed() >= Duration::from_secs(60) {
+                let notification_events = {
+                    let mut sess = session.lock().unwrap();
+                    sess.check_notification_conditions(config)
+                };
+
+                for event in notification_events {
+                    use crate::session::NotificationEvent;
+                    match event {
+                        NotificationEvent::Inactivity => {
+                            let _ = app
+                                .notification()
+                                .builder()
+                                .title("No position change in 90 minutes")
+                                .body("Time to move.")
+                                .show();
+                        }
+                        NotificationEvent::PostureBalance => {
+                            let _ = app
+                                .notification()
+                                .builder()
+                                .title("You've been sitting most of today")
+                                .body("Consider standing for a while.")
+                                .show();
+                        }
+                        NotificationEvent::Praise => {
+                            let _ = app
+                                .notification()
+                                .builder()
+                                .title("Halfway through your standing goal!")
+                                .body("Keep it up.")
+                                .show();
+                        }
+                        NotificationEvent::StandLimitReached => {
+                            // Handled separately via should_stand_alert
+                        }
+                    }
+                }
+
+                last_notification_check = std::time::Instant::now();
+            }
         } else if trimmed.to_ascii_uppercase().starts_with("ERROR") {
             emit_error(app, trimmed);
         }
@@ -238,6 +298,7 @@ pub fn scan_and_connect(
     app: AppHandle,
     conn: Arc<ConnectionState>,
     session: Arc<Mutex<SessionManager>>,
+    config: Arc<std::sync::Mutex<Option<crate::config::AppConfig>>>,
 ) {
     std::thread::spawn(move || {
         loop {
@@ -278,8 +339,11 @@ pub fn scan_and_connect(
                     *port_guard = Some(port_name.clone());
                 }
 
+                // Get config for notification checks
+                let cfg = config.lock().unwrap().clone().unwrap_or_default();
+
                 // Block this loop thread while reading.
-                reader_loop(&app, &port_name, &stop, &session);
+                reader_loop(&app, &port_name, &stop, &session, &cfg);
 
                 // Reader ended (device lost or stop requested).
                 {

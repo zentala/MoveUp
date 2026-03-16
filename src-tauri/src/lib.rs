@@ -47,6 +47,7 @@ pub fn run() {
             commands::stop_reading,
             commands::get_session_state,
             commands::set_session_limit,
+            commands::set_stand_limit,
             commands::calibrate,
             commands::get_settings,
             commands::save_settings,
@@ -108,6 +109,7 @@ pub fn run() {
                 app.handle().clone(),
                 state.conn.clone(),
                 state.session.clone(),
+                state.config.clone(),
             );
             Ok(())
         })
