@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 
 /// Number of consecutive readings at a new height before state transitions.
 const DEBOUNCE_COUNT: u8 = 5;
-/// Default session sitting limit (40 minutes in seconds).
-const DEFAULT_SESSION_LIMIT_SECS: i64 = 2400;
+/// Default session sitting limit (45 minutes in seconds).
+pub const DEFAULT_SESSION_LIMIT_SECS: i64 = 2700;
 /// Minimum break duration for any credit (5 minutes).
 const BREAK_SHORT_SECS: i64 = 300;
 /// Break duration threshold for partial credit (10 minutes).
@@ -68,6 +68,21 @@ pub struct StateChangedPayload {
     pub desk_height_cm: f32,
 }
 
+/// Completed sitting session with timing information.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompletedSession {
+    pub started_at: String,
+    pub ended_at: String,
+    pub duration_secs: i64,
+}
+
+/// Result of processing a sensor reading.
+#[derive(Debug, Clone)]
+pub struct ReadingResult {
+    pub state_change: Option<StateChangedPayload>,
+    pub completed_session: Option<CompletedSession>,
+}
+
 // ─── SessionManager ───────────────────────────────────────────────────────────
 
 /// Owns `SessionState` and drives state transitions.
@@ -108,6 +123,36 @@ impl SessionManager {
         }
     }
 
+    /// Creates a manager initialized from AppConfig.
+    pub fn new_from_config(config: &crate::config::AppConfig) -> Self {
+        Self {
+            state: SessionState {
+                state: DeskState::Away,
+                sitting_started: None,
+                sitting_seconds: 0,
+                break_started: None,
+                break_seconds: 0,
+                session_limit_secs: config.sit_limit_mins as i64 * 60,
+                desk_height_cm: 0.0,
+            },
+            pending_state: None,
+            pending_count: 0,
+            sitting_height_cm: config.sitting_mm as f32 / 10.0,
+            standing_height_cm: config.standing_mm as f32 / 10.0,
+            desk_thickness_cm: config.desk_thickness_mm as f32 / 10.0,
+            alert_fired: false,
+        }
+    }
+
+    /// Seeds today's totals from SQLite so in-memory counters survive restarts.
+    pub fn load_today_totals(&mut self, sitting_secs: i64, standing_secs: i64) {
+        self.state.sitting_seconds = sitting_secs;
+        info!(
+            "seeded today totals: sitting={}s standing={}s",
+            sitting_secs, standing_secs
+        );
+    }
+
     /// Updates the sitting session limit (minutes → seconds).
     pub fn set_limit_minutes(&mut self, minutes: u32) {
         self.state.session_limit_secs = minutes as i64 * 60;
@@ -144,8 +189,8 @@ impl SessionManager {
     /// `mm` is the raw sensor reading (floor distance from sensor underside).
     /// `active` is `true` when the user has been active recently (keyboard/mouse).
     ///
-    /// Returns a [`StateChangedPayload`] if the desk state changed, `None` otherwise.
-    pub fn on_reading(&mut self, mm: i32, active: bool) -> Option<StateChangedPayload> {
+    /// Returns a [`ReadingResult`] containing optional state change and completed session info.
+    pub fn on_reading(&mut self, mm: i32, active: bool) -> ReadingResult {
         let now = Utc::now();
 
         // Compute calibrated desk height.
@@ -175,7 +220,10 @@ impl SessionManager {
 
         if self.pending_count < DEBOUNCE_COUNT {
             self.accumulate_ongoing(now);
-            return None;
+            return ReadingResult {
+                state_change: None,
+                completed_session: None,
+            };
         }
 
         // Candidate confirmed; reset debounce.
@@ -183,15 +231,29 @@ impl SessionManager {
 
         if candidate == self.state.state {
             self.accumulate_ongoing(now);
-            return None;
+            return ReadingResult {
+                state_change: None,
+                completed_session: None,
+            };
         }
 
         // ── Leaving current state ─────────────────────────────────────────────
+        let mut completed_session = None;
+
         match &self.state.state {
             DeskState::Sitting => {
                 if let Some(started) = self.state.sitting_started.take() {
                     let elapsed = (now - started).num_seconds().max(0);
                     self.state.sitting_seconds += elapsed;
+
+                    // Record completed session when leaving Sitting
+                    if candidate != DeskState::Sitting {
+                        completed_session = Some(CompletedSession {
+                            started_at: started.to_rfc3339(),
+                            ended_at: now.to_rfc3339(),
+                            duration_secs: elapsed,
+                        });
+                    }
                 }
                 if candidate != DeskState::Sitting {
                     self.state.break_started = Some(now);
@@ -219,12 +281,15 @@ impl SessionManager {
 
         self.state.state = candidate;
 
-        Some(StateChangedPayload {
-            state: self.state.state.clone(),
-            sitting_seconds: self.state.sitting_seconds,
-            break_seconds: self.state.break_seconds,
-            desk_height_cm,
-        })
+        ReadingResult {
+            state_change: Some(StateChangedPayload {
+                state: self.state.state.clone(),
+                sitting_seconds: self.state.sitting_seconds,
+                break_seconds: self.state.break_seconds,
+                desk_height_cm,
+            }),
+            completed_session,
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -338,7 +403,7 @@ mod tests {
     fn on_reading_computes_desk_height_correctly() {
         let mut m = SessionManager::new();
         // 1000 mm = 100 cm floor distance, minus 3 cm thickness = 97 cm desk height
-        m.on_reading(1000, true);
+        let _result = m.on_reading(1000, true);
         assert!(
             (m.state.desk_height_cm - 97.0).abs() < 0.01,
             "desk_height_cm should be 97.0 but got {}",
@@ -353,7 +418,7 @@ mod tests {
         // Default: sitting=72, standing=105, midpoint=88.5
         // 800 mm = 80 cm floor → 77 cm desk height → below midpoint → Sitting
         for _ in 0..DEBOUNCE_COUNT {
-            m.on_reading(800, true);
+            let _result = m.on_reading(800, true);
         }
         assert_eq!(m.state.state, DeskState::Sitting);
     }
@@ -364,7 +429,7 @@ mod tests {
         let mut m = SessionManager::new();
         // 1200 mm = 120 cm floor → 117 cm desk height → above midpoint → Standing (active)
         for _ in 0..DEBOUNCE_COUNT {
-            m.on_reading(1200, true);
+            let _result = m.on_reading(1200, true);
         }
         assert_eq!(m.state.state, DeskState::Standing);
     }
@@ -375,7 +440,7 @@ mod tests {
         let mut m = SessionManager::new();
         // same height but inactive
         for _ in 0..DEBOUNCE_COUNT {
-            m.on_reading(1200, false);
+            let _result = m.on_reading(1200, false);
         }
         assert_eq!(m.state.state, DeskState::Walking);
     }

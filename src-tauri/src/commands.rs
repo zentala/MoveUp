@@ -3,9 +3,11 @@
 use std::sync::{Arc, Mutex};
 
 use tauri::State;
+use rusqlite::Connection;
 
 use crate::{
-    db::{SessionRow, TodaySummary},
+    config::AppConfig,
+    db::{TodaySummary},
     serial::{available_port_infos, scan_and_connect, ConnectionState, PortInfo},
     session::{SessionManager, SessionStateDto},
 };
@@ -16,6 +18,8 @@ use crate::{
 pub struct AppState {
     pub conn: Arc<ConnectionState>,
     pub session: Arc<Mutex<SessionManager>>,
+    pub db: Arc<Mutex<Option<Connection>>>,
+    pub config: Arc<Mutex<Option<AppConfig>>>,
 }
 
 // ─── Commands ────────────────────────────────────────────────────────────────
@@ -53,15 +57,6 @@ pub fn set_session_limit(minutes: u32, state: State<'_, AppState>) {
     state.session.lock().unwrap().set_limit_minutes(minutes);
 }
 
-/// Returns the SQLite schema DDL for the frontend to execute via tauri-plugin-sql.
-///
-/// The frontend calls this on startup, splits by `;`, and executes each statement
-/// so the schema is always up to date before any reads or writes.
-#[tauri::command]
-pub fn get_schema_sql() -> &'static str {
-    crate::db::SCHEMA_SQL
-}
-
 /// Updates height calibration values used by the session state machine.
 ///
 /// All parameters are optional; only provided values are updated.
@@ -86,4 +81,58 @@ pub fn calibrate(
     if let Some(mm) = desk_thickness_mm {
         session.desk_thickness_cm = mm as f32 / 10.0;
     }
+}
+
+/// Returns the current application configuration.
+#[tauri::command]
+pub fn get_settings(state: State<'_, AppState>) -> AppConfig {
+    state
+        .config
+        .lock()
+        .unwrap()
+        .clone()
+        .unwrap_or_default()
+}
+
+/// Saves updated application configuration.
+/// Validates via `config.clamped()`, writes to store, and updates SessionManager.
+#[tauri::command]
+pub fn save_settings(
+    config: AppConfig,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    let clamped = config.clamped();
+
+    // Save to store
+    let store_state = app
+        .try_state::<tauri_plugin_store::Store<tauri::Wry>>()
+        .ok_or_else(|| "Failed to access store".to_string())?;
+
+    clamped.save(store_state.inner())?;
+
+    // Update in-memory config
+    *state.config.lock().unwrap() = Some(clamped.clone());
+
+    // Update session manager with new calibration
+    let mut session = state.session.lock().unwrap();
+    session.sitting_height_cm = clamped.sitting_mm as f32 / 10.0;
+    session.standing_height_cm = clamped.standing_mm as f32 / 10.0;
+    session.desk_thickness_cm = clamped.desk_thickness_mm as f32 / 10.0;
+    session.set_limit_minutes(clamped.sit_limit_mins);
+
+    Ok(())
+}
+
+/// Returns today's summary of sitting and standing time.
+#[tauri::command]
+pub fn get_today_summary(state: State<'_, AppState>) -> Result<TodaySummary, String> {
+    let db_lock = state.db.lock().unwrap();
+    let conn = db_lock
+        .as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+
+    crate::db::get_today_summary(conn)
 }

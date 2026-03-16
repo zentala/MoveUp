@@ -5,6 +5,7 @@
 
 mod activity;
 mod commands;
+mod config;
 mod db;
 mod overlay;
 mod serial;
@@ -15,10 +16,12 @@ mod tray_controller;
 use std::sync::{Arc, Mutex};
 
 use commands::AppState;
+use config::AppConfig;
 use serial::ConnectionState;
 use session::SessionManager;
 use tauri::Manager;
 use window_vibrancy::apply_acrylic;
+use log::info;
 
 /// Application entry point called from main.rs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -32,10 +35,11 @@ pub fn run() {
             Some(vec![]),
         ))
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
-        .plugin(tauri_plugin_sql::Builder::default().build())
         .manage(AppState {
             conn: Arc::new(ConnectionState::default()),
             session: Arc::new(Mutex::new(SessionManager::new())),
+            db: Arc::new(Mutex::new(None)),
+            config: Arc::new(Mutex::new(None)),
         })
         .invoke_handler(tauri::generate_handler![
             commands::list_ports,
@@ -44,9 +48,43 @@ pub fn run() {
             commands::get_session_state,
             commands::set_session_limit,
             commands::calibrate,
-            commands::get_schema_sql,
+            commands::get_settings,
+            commands::save_settings,
+            commands::get_today_summary,
         ])
         .setup(|app| {
+            // Load configuration from store
+            let store_state = app
+                .try_state::<tauri_plugin_store::Store<tauri::Wry>>()
+                .ok_or("Failed to access store")?;
+
+            let config = AppConfig::load(store_state.inner());
+            info!("Loaded config: {:?}", config);
+
+            // Initialize SQLite database
+            let db_path = app.path().app_data_dir()?.join("desk.db");
+            let db_conn = rusqlite::Connection::open(&db_path)?;
+            db::init_schema(&db_conn)?;
+
+            // Load today's totals from database
+            let (sitting_secs, standing_secs) = match db::load_today_totals(&db_conn) {
+                Ok((s, st)) => (s, st),
+                Err(e) => {
+                    log::error!("Failed to load today's totals: {}", e);
+                    (0, 0)
+                }
+            };
+
+            // Create session manager from config and seed with today's totals
+            let mut session = SessionManager::new_from_config(&config);
+            session.load_today_totals(sitting_secs, standing_secs);
+
+            // Update AppState with db and config
+            let app_state = app.state::<AppState>();
+            *app_state.db.lock().unwrap() = Some(db_conn);
+            *app_state.config.lock().unwrap() = Some(config);
+            *app.state::<tauri::State<AppState>>().session.lock().unwrap() = session;
+
             // System tray icon and context menu.
             tray::setup_tray(app.handle())?;
 

@@ -186,13 +186,19 @@ fn reader_loop(
 
             // Feed into session state machine.
             let active = is_active();
-            let maybe_changed = {
+            let result = {
                 let mut sess = session.lock().unwrap();
                 sess.on_reading(mm, active)
             };
 
-            if let Some(payload) = maybe_changed {
+            if let Some(payload) = result.state_change {
                 let _ = app.emit("desk:state-changed", payload);
+            }
+
+            // Persist completed sessions to the database
+            if let Some(completed) = result.completed_session {
+                // TODO: persist to database when db is available in serial context
+                info!("Completed session: {:?}", completed);
             }
 
             // Check if an alert should fire (once per sitting stint).
