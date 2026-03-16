@@ -16,6 +16,8 @@ const REFRESH_INTERVAL_MS = 60_000;
 interface TodaySummary {
   sitting_secs: number;
   standing_secs: number;
+  yesterday_sitting_secs: number;
+  yesterday_standing_secs: number;
   position_changes: number;
   sessions: Array<{
     id: number;
@@ -59,14 +61,28 @@ const TodayStats: FC = () => {
     return <div className="today-stats today-stats--loading">loading…</div>;
   }
 
+  const sitDelta = summary.sitting_secs - summary.yesterday_sitting_secs;
+  const sitDeltaSymbol = sitDelta < -300 ? "↓" : sitDelta > 300 ? "↑" : "";
+  const sitDeltaClass = sitDelta < -300 ? "delta--better" : "delta--worse";
+
+  const standDelta = summary.standing_secs - summary.yesterday_standing_secs;
+  const standDeltaSymbol = standDelta < -300 ? "↓" : standDelta > 300 ? "↑" : "";
+  const standDeltaClass = standDelta < -300 ? "delta--worse" : "delta--better";
+
   return (
     <div className="today-stats">
       <div className="today-stats__item">
-        <span className="today-stats__value">{formatDurationShort(summary.sitting_secs)}</span>
+        <span className="today-stats__value">
+          {formatDurationShort(summary.sitting_secs)}
+          {sitDeltaSymbol && <span className={`delta ${sitDeltaClass}`}>{sitDeltaSymbol}</span>}
+        </span>
         <span className="today-stats__label">sitting</span>
       </div>
       <div className="today-stats__item">
-        <span className="today-stats__value">{formatDurationShort(summary.standing_secs)}</span>
+        <span className="today-stats__value">
+          {formatDurationShort(summary.standing_secs)}
+          {standDeltaSymbol && <span className={`delta ${standDeltaClass}`}>{standDeltaSymbol}</span>}
+        </span>
         <span className="today-stats__label">standing</span>
       </div>
       <div className="today-stats__item">
