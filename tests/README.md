@@ -27,8 +27,24 @@ pnpm test:unit:watch          # Watch mode
 pnpm test:coverage            # With coverage report
 ```
 
+**Tauri API Mocking** (in `src/test/setup.ts`):
+- `invoke()` — mocked to return default responses per command
+- `listen()` — mocked to return unlisten function
+- All mocks use `vi.fn()` so tests can spy on calls and customize behavior
+
+Example mock override in a test:
+```typescript
+import { invoke } from "@tauri-apps/api/core";
+import { vi } from "vitest";
+
+it("handles custom response", () => {
+  vi.mocked(invoke).mockResolvedValueOnce({ custom: "data" });
+  // ... test code
+});
+```
+
 **Examples**:
-- `src/components/ProgressBar.test.tsx` — renders progress, updates on state change
+- `src/components/SessionProgress.test.tsx` — renders progress, updates on state change
 - `src/hooks/useDesk.test.ts` — mocked Tauri API, state synchronization
 - `src/utils/format.test.ts` — duration formatting edge cases
 
@@ -66,6 +82,16 @@ Terminal 2 — Run integration tests:
 ```bash
 pnpm test:integration
 ```
+
+**Note**: If the app is not running, you'll get a helpful error:
+```
+╭─────────────────────────────────────────────────────────────────────╮
+│ The Tauri app is not running!                                      │
+│ Start it with: pnpm tauri:dev                                     │
+╰─────────────────────────────────────────────────────────────────────╯
+```
+
+This check is configured in `tests/integration/setup.ts` and runs before all tests.
 
 ### What They Test
 
@@ -162,6 +188,19 @@ Check coverage:
 pnpm test:coverage
 # Opens coverage/index.html in browser
 ```
+
+### Coverage Goals
+
+- **Frontend (src/)**: 80%+ (enforced by pre-build gate)
+  - Components: ProgressBar, SessionProgress, SettingsPanel, TodayStats, HeightRail
+  - Hooks: useDesk (Tauri API mocked)
+  - Utils: format, time calculations
+- **Backend (Rust)**: 74+ tests covering:
+  - Session state machine (40+ tests)
+  - Database operations (10 tests)
+  - Utility functions (serial parsing, tray icons, colors)
+
+Note: Some functions like `get_idle_seconds()` and `is_active()` cannot be fully tested in CI (Windows-only, requires user input) — these are tagged as integration tests.
 
 ## Pre-Build Validation
 

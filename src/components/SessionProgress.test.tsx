@@ -12,21 +12,21 @@ describe("SessionProgress", () => {
     render(<SessionProgress sittingSeconds={0} limitSeconds={2400} />);
     const bar = screen.getByTestId("progress-bar");
     expect(bar).toHaveStyle({ width: "0%" });
-    expect(bar).toHaveClass("progress-bar--green");
+    expect(bar).toHaveClass("progress-fill--ok");
   });
 
   it("renders at 50% when halfway through the session", () => {
     render(<SessionProgress sittingSeconds={1200} limitSeconds={2400} />);
     const bar = screen.getByTestId("progress-bar");
     expect(bar).toHaveStyle({ width: "50%" });
-    expect(bar).toHaveClass("progress-bar--green");
+    expect(bar).toHaveClass("progress-fill--ok");
   });
 
   it("renders at 100% when limit is exactly reached", () => {
     render(<SessionProgress sittingSeconds={2400} limitSeconds={2400} />);
     const bar = screen.getByTestId("progress-bar");
     expect(bar).toHaveStyle({ width: "100%" });
-    expect(bar).toHaveClass("progress-bar--red");
+    expect(bar).toHaveClass("progress-fill--alert");
   });
 
   it("clamps to 100% when sittingSeconds exceeds limitSeconds", () => {
@@ -35,30 +35,30 @@ describe("SessionProgress", () => {
     expect(bar).toHaveStyle({ width: "100%" });
   });
 
-  it("applies yellow class at 70% of the session (above 60% threshold)", () => {
-    // 70% → 0.7, which is >= 0.6 (yellow) but < 0.85 (red)
+  it("applies warn class at 70% of the session (above 60% threshold)", () => {
+    // 70% → 0.7, which is >= 0.6 (warn) but < 0.85 (alert)
     render(<SessionProgress sittingSeconds={1680} limitSeconds={2400} />);
     const bar = screen.getByTestId("progress-bar");
-    expect(bar).toHaveClass("progress-bar--yellow");
+    expect(bar).toHaveClass("progress-fill--warn");
   });
 
-  it("applies red class at 90% of the session (above 85% threshold)", () => {
-    // 90% → 0.9, which is >= 0.85 (red)
+  it("applies alert class at 90% of the session (above 85% threshold)", () => {
+    // 90% → 0.9, which is >= 0.85 (alert)
     render(<SessionProgress sittingSeconds={2160} limitSeconds={2400} />);
     const bar = screen.getByTestId("progress-bar");
-    expect(bar).toHaveClass("progress-bar--red");
+    expect(bar).toHaveClass("progress-fill--alert");
   });
 
-  it("shows 'Take a break!' when limit is exceeded", () => {
+  it("shows 'take a break' when limit is exceeded", () => {
     render(<SessionProgress sittingSeconds={2500} limitSeconds={2400} />);
-    expect(screen.getByText(/Take a break!/i)).toBeInTheDocument();
+    expect(screen.getByText(/take a break/i)).toBeInTheDocument();
   });
 
   it("shows remaining time when under the limit", () => {
-    // 1 minute remaining
+    // 1 minute remaining = 60 seconds
     render(<SessionProgress sittingSeconds={2340} limitSeconds={2400} />);
-    expect(screen.getByText(/remaining/i)).toBeInTheDocument();
-    expect(screen.getByText(/01:00 remaining/i)).toBeInTheDocument();
+    expect(screen.getByText(/left/i)).toBeInTheDocument();
+    expect(screen.getByText(/01:00 left/i)).toBeInTheDocument();
   });
 
   it("renders at 0% when limitSeconds is 0 (avoids divide-by-zero)", () => {

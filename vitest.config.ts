@@ -15,7 +15,8 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["tests/integration/**/*.test.ts"],
+    setupFiles: ["tests/integration/setup.ts"],
     // Integration tests require the Tauri app to be running
-    // Start with: pnpm tauri dev
+    // Start with: pnpm tauri:dev
   },
 });

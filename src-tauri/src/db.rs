@@ -366,4 +366,104 @@ mod tests {
         assert_eq!(summary.yesterday_sitting_secs, 0, "empty db should have 0 yesterday sitting");
         assert_eq!(summary.yesterday_standing_secs, 0, "empty db should have 0 yesterday standing");
     }
+
+    #[test]
+    fn test_aggregate_multiple_sitting_sessions() {
+        let conn = test_conn();
+        init_schema(&conn).unwrap();
+
+        let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
+
+        // Insert multiple sitting sessions
+        insert_session(&conn, &format!("{}08:00:00Z", today), &format!("{}08:30:00Z", today), "Sitting", 1800).unwrap();
+        insert_session(&conn, &format!("{}09:00:00Z", today), &format!("{}09:15:00Z", today), "Sitting", 900).unwrap();
+        insert_session(&conn, &format!("{}10:00:00Z", today), &format!("{}10:20:00Z", today), "Sitting", 1200).unwrap();
+
+        let (sitting, standing) = load_today_totals(&conn).unwrap();
+
+        // Total: 1800 + 900 + 1200 = 3900 seconds
+        assert_eq!(sitting, 3900, "sitting totals should aggregate correctly");
+        assert_eq!(standing, 0, "no standing sessions should be 0");
+    }
+
+    #[test]
+    fn test_aggregate_mixed_states() {
+        let conn = test_conn();
+        init_schema(&conn).unwrap();
+
+        let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
+
+        insert_session(&conn, &format!("{}08:00:00Z", today), &format!("{}08:30:00Z", today), "Sitting", 1800).unwrap();
+        insert_session(&conn, &format!("{}08:30:00Z", today), &format!("{}08:40:00Z", today), "Standing", 600).unwrap();
+        insert_session(&conn, &format!("{}09:00:00Z", today), &format!("{}09:30:00Z", today), "Sitting", 1800).unwrap();
+
+        let (sitting, standing) = load_today_totals(&conn).unwrap();
+
+        assert_eq!(sitting, 3600, "sitting total: 1800 + 1800");
+        assert_eq!(standing, 600, "standing total");
+    }
+
+    #[test]
+    fn test_incomplete_sessions_ignored() {
+        let conn = test_conn();
+        init_schema(&conn).unwrap();
+
+        let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
+
+        // Insert a complete session
+        insert_session(&conn, &format!("{}08:00:00Z", today), &format!("{}08:30:00Z", today), "Sitting", 1800).unwrap();
+
+        // Insert an incomplete session (ended_at IS NULL)
+        conn.execute(
+            "INSERT INTO sessions (started_at, state) VALUES (?, ?)",
+            rusqlite::params![format!("{}09:00:00Z", today), "Sitting"],
+        ).unwrap();
+
+        let (sitting, standing) = load_today_totals(&conn).unwrap();
+
+        // Only the complete session should be counted
+        assert_eq!(sitting, 1800, "incomplete sessions should be excluded");
+        assert_eq!(standing, 0);
+    }
+
+    #[test]
+    fn test_schema_migration_adds_new_columns() {
+        let conn = test_conn();
+
+        // First initialization creates schema
+        init_schema(&conn).unwrap();
+
+        // Second initialization should be idempotent (no error)
+        let result = init_schema(&conn);
+        assert!(result.is_ok(), "second schema init should be idempotent");
+
+        // Verify the schema was created correctly
+        let mut stmt = conn.prepare("PRAGMA table_info(sessions)").unwrap();
+        let columns: Vec<String> = stmt
+            .query_map([], |row| row.get(1))
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+
+        assert!(columns.contains(&"sitting_seconds".to_string()), "sitting_seconds column should exist");
+        assert!(columns.contains(&"standing_seconds".to_string()), "standing_seconds column should exist");
+        assert!(columns.contains(&"position_changes".to_string()), "position_changes column should exist");
+    }
+
+    #[test]
+    fn test_get_today_summary_returns_all_sessions() {
+        let conn = test_conn();
+        init_schema(&conn).unwrap();
+
+        let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
+
+        insert_session(&conn, &format!("{}08:00:00Z", today), &format!("{}08:30:00Z", today), "Sitting", 1800).unwrap();
+        insert_session(&conn, &format!("{}09:00:00Z", today), &format!("{}09:30:00Z", today), "Standing", 1800).unwrap();
+
+        let summary = get_today_summary(&conn).unwrap();
+
+        assert_eq!(summary.sessions.len(), 2, "should return all sessions");
+        assert_eq!(summary.sitting_secs, 1800);
+        assert_eq!(summary.standing_secs, 1800);
+    }
 }
