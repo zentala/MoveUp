@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
-use tauri::State;
+use tauri::{Manager, State};
 
 use crate::{
     config::AppConfig,
@@ -22,6 +22,65 @@ pub struct AppState {
     pub config: Arc<Mutex<Option<AppConfig>>>,
 }
 
+// ─── Initialization ───────────────────────────────────────────────────────────
+
+/// Lazy-initializes AppState fields (db, config, session) on first command call.
+/// Safe to call multiple times — subsequent calls are no-ops.
+fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<(), String> {
+    let mut db_guard = state.db.lock().unwrap();
+    if db_guard.is_some() {
+        return Ok(()); // Already initialized
+    }
+
+    // Initialize database
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let db_path = app_data_dir.join("desk.db");
+
+    let conn = Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open database: {}", e))?;
+
+    crate::db::init_schema(&conn)
+        .map_err(|e| format!("Failed to initialize database schema: {}", e))?;
+
+    // Load today's totals from database into session manager
+    if let Ok((sitting, standing)) = crate::db::load_today_totals(&conn) {
+        let mut session = state.session.lock().unwrap();
+        session.load_today_totals(sitting, standing);
+    }
+
+    *db_guard = Some(conn);
+
+    // Initialize config from store (if available)
+    if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+        let loaded_config = AppConfig::load(store.inner());
+        *state.config.lock().unwrap() = Some(loaded_config.clone());
+
+        // Update session manager calibration from config
+        let mut session = state.session.lock().unwrap();
+        session.sitting_height_cm = loaded_config.sitting_mm as f32 / 10.0;
+        session.standing_height_cm = loaded_config.standing_mm as f32 / 10.0;
+        session.desk_thickness_cm = loaded_config.desk_thickness_mm as f32 / 10.0;
+        session.set_limit_minutes(loaded_config.sit_limit_mins);
+        session.set_stand_limit_minutes(loaded_config.stand_limit_mins);
+    } else {
+        // No store available — use AppConfig defaults
+        let default_config = AppConfig::default();
+        *state.config.lock().unwrap() = Some(default_config.clone());
+
+        let mut session = state.session.lock().unwrap();
+        session.sitting_height_cm = default_config.sitting_mm as f32 / 10.0;
+        session.standing_height_cm = default_config.standing_mm as f32 / 10.0;
+        session.desk_thickness_cm = default_config.desk_thickness_mm as f32 / 10.0;
+        session.set_limit_minutes(default_config.sit_limit_mins);
+        session.set_stand_limit_minutes(default_config.stand_limit_mins);
+    }
+
+    Ok(())
+}
+
 // ─── Commands ────────────────────────────────────────────────────────────────
 
 /// Lists all available serial ports on the system.
@@ -34,7 +93,7 @@ pub fn list_ports() -> Vec<PortInfo> {
 /// sensor is found. Safe to call multiple times — a running scan is a no-op.
 #[tauri::command]
 pub fn start_auto_connect(app: tauri::AppHandle, state: State<'_, AppState>) {
-    scan_and_connect(app, state.conn.clone(), state.session.clone(), state.config.clone());
+    scan_and_connect(app, state.conn.clone(), state.session.clone(), state.db.clone(), state.config.clone());
 }
 
 /// Signals the background reader thread to stop.
@@ -45,24 +104,29 @@ pub fn stop_reading(state: State<'_, AppState>) {
 
 /// Returns a snapshot of the current session state.
 #[tauri::command]
-pub fn get_session_state(state: State<'_, AppState>) -> SessionStateDto {
-    state.session.lock().unwrap().snapshot()
+pub fn get_session_state(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<SessionStateDto, String> {
+    ensure_initialized(&app, &state)?;
+    Ok(state.session.lock().unwrap().snapshot())
 }
 
 /// Updates the sitting session limit.
 ///
 /// `minutes` — new limit in minutes (e.g. 40).
 #[tauri::command]
-pub fn set_session_limit(minutes: u32, state: State<'_, AppState>) {
+pub fn set_session_limit(minutes: u32, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    ensure_initialized(&app, &state)?;
     state.session.lock().unwrap().set_limit_minutes(minutes);
+    Ok(())
 }
 
 /// Updates the standing session limit.
 ///
 /// `minutes` — new limit in minutes (e.g. 15). Set to 0 to disable.
 #[tauri::command]
-pub fn set_stand_limit(minutes: u32, state: State<'_, AppState>) {
+pub fn set_stand_limit(minutes: u32, app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    ensure_initialized(&app, &state)?;
     state.session.lock().unwrap().set_stand_limit_minutes(minutes);
+    Ok(())
 }
 
 /// Updates height calibration values used by the session state machine.
@@ -77,8 +141,10 @@ pub fn calibrate(
     sitting_mm: Option<i32>,
     standing_mm: Option<i32>,
     desk_thickness_mm: Option<i32>,
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
-) {
+) -> Result<(), String> {
+    ensure_initialized(&app, &state)?;
     let mut session = state.session.lock().unwrap();
     if let Some(mm) = sitting_mm {
         session.sitting_height_cm = mm as f32 / 10.0;
@@ -89,12 +155,14 @@ pub fn calibrate(
     if let Some(mm) = desk_thickness_mm {
         session.desk_thickness_cm = mm as f32 / 10.0;
     }
+    Ok(())
 }
 
 /// Returns the current application configuration.
 #[tauri::command]
-pub fn get_settings(state: State<'_, AppState>) -> AppConfig {
-    state.config.lock().unwrap().clone().unwrap_or_default()
+pub fn get_settings(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<AppConfig, String> {
+    ensure_initialized(&app, &state)?;
+    Ok(state.config.lock().unwrap().clone().unwrap_or_default())
 }
 
 /// Saves updated application configuration.
@@ -106,6 +174,8 @@ pub fn save_settings(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     use tauri::Manager;
+
+    ensure_initialized(&app, &state)?;
 
     let clamped = config.clamped();
 
@@ -132,7 +202,9 @@ pub fn save_settings(
 
 /// Returns today's summary of sitting and standing time.
 #[tauri::command]
-pub fn get_today_summary(state: State<'_, AppState>) -> Result<TodaySummary, String> {
+pub fn get_today_summary(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<TodaySummary, String> {
+    ensure_initialized(&app, &state)?;
+
     let db_lock = state.db.lock().unwrap();
     let conn = db_lock
         .as_ref()

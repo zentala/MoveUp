@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 
 /// Initializes the database schema on first startup.
 /// Idempotent — safe to call multiple times.
-#[allow(dead_code)]
 pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         r#"
@@ -48,6 +47,7 @@ pub struct SessionRow {
 }
 
 /// A single row from the `height_readings` table.
+/// (Deferred: will be used for sensor reading analytics and dashboard in future releases)
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeightReadingRow {
@@ -74,12 +74,45 @@ pub struct TodaySummary {
 // ─── Insert operations ───────────────────────────────────────────────────────
 
 /// Inserts a completed sitting session into the database.
-/// Returns an error if the insert fails; emits `desk:db-error` event on failure.
+/// Returns an error if the insert fails.
+/// (Deferred: will be called when session manager emits completed_session events)
+#[allow(dead_code)]
+pub fn insert_session(
+    conn: &Connection,
+    started_at: &str,
+    ended_at: &str,
+    state: &str,
+    duration_seconds: i64,
+) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "INSERT INTO sessions (started_at, ended_at, state, duration_seconds) VALUES (?, ?, ?, ?)",
+        rusqlite::params![started_at, ended_at, state, duration_seconds],
+    )?;
+    Ok(())
+}
+
+/// Persists a state change event to the database (for session history).
+/// Called whenever SessionManager emits a state change to ensure durable state tracking.
+pub fn save_session_state(
+    conn: &Connection,
+    state_change: &crate::session::StateChangedPayload,
+) -> Result<(), String> {
+    let now = chrono::Local::now().to_rfc3339();
+    let state_str = format!("{:?}", state_change.state);
+
+    conn.execute(
+        "INSERT INTO sessions (started_at, state, duration_seconds) VALUES (?, ?, ?)",
+        rusqlite::params![&now, state_str, state_change.sitting_seconds],
+    )
+    .map_err(|e| format!("Failed to save session state: {}", e))?;
+
+    Ok(())
+}
+
 // ─── Query operations ────────────────────────────────────────────────────────
 
 /// Loads today's total sitting and standing seconds from the database.
 /// Returns (sitting_secs, standing_secs) or an error.
-#[allow(dead_code)]
 pub fn load_today_totals(conn: &Connection) -> Result<(i64, i64), String> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 

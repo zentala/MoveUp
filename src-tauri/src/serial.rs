@@ -137,11 +137,13 @@ fn probe_port(port_name: &str) -> bool {
 /// occurs. Emits `desk:distance`, `desk:sensor-error`, `desk:device-lost`.
 /// Also feeds each valid reading into the [`SessionManager`] and fires a
 /// native notification when `should_alert()` returns true.
+/// Persists state changes to the database for durability.
 fn reader_loop(
     app: &AppHandle,
     port_name: &str,
     stop: &Arc<AtomicBool>,
     session: &Arc<Mutex<SessionManager>>,
+    db: &Arc<Mutex<Option<rusqlite::Connection>>>,
     config: &crate::config::AppConfig,
 ) {
     let port = match serialport::new(port_name, BAUD_RATE)
@@ -195,6 +197,16 @@ fn reader_loop(
 
             if let Some(payload) = result.state_change {
                 let _ = app.emit("desk:state-changed", &payload);
+
+                // Persist state change to database for durability.
+                {
+                    let db_lock = db.lock().unwrap();
+                    if let Some(ref conn) = *db_lock {
+                        if let Err(e) = crate::db::save_session_state(conn, &payload) {
+                            error!("Failed to save session state to database: {}", e);
+                        }
+                    }
+                }
 
                 // Check if transitioning to Standing for praise-halfway notification
                 use crate::session::DeskState;
@@ -331,6 +343,7 @@ pub fn scan_and_connect(
     app: AppHandle,
     conn: Arc<ConnectionState>,
     session: Arc<Mutex<SessionManager>>,
+    db: Arc<Mutex<Option<rusqlite::Connection>>>,
     config: Arc<std::sync::Mutex<Option<crate::config::AppConfig>>>,
 ) {
     std::thread::spawn(move || {
@@ -376,7 +389,7 @@ pub fn scan_and_connect(
                 let cfg = config.lock().unwrap().clone().unwrap_or_default();
 
                 // Block this loop thread while reading.
-                reader_loop(&app, &port_name, &stop, &session, &cfg);
+                reader_loop(&app, &port_name, &stop, &session, &db, &cfg);
 
                 // Reader ended (device lost or stop requested).
                 {

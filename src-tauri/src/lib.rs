@@ -79,6 +79,7 @@ pub fn run() {
                 app.handle().clone(),
                 state.conn.clone(),
                 state.session.clone(),
+                state.db.clone(),
                 state.config.clone(),
             );
             Ok(())
