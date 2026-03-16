@@ -4,10 +4,30 @@
 **Status**: open
 **Absorbs**: T008 (calibration persistence)
 
-## Architectural decision
+## Architectural decisions (eng review locked)
+
 **Rust is the single source of truth** for today's session stats.
-`SessionManager` seeds from SQLite on startup. Frontend reads via Tauri commands only.
-`getTodaySummary()` in TypeScript (plugin-sql) is **removed** — replaced by `get_today_summary` Tauri command.
+
+**rusqlite replaces tauri-plugin-sql.**
+`tauri-plugin-sql` only exposes SQLite to JavaScript — Rust has no API access.
+This task switches to `rusqlite = { version = "0.31", features = ["bundled"] }`.
+`src/db.ts` is **deleted entirely**. `tauri-plugin-sql` removed from `Cargo.toml` + `lib.rs`.
+
+**`on_reading()` returns `ReadingResult` struct** (not a bare Option):
+```rust
+pub struct ReadingResult {
+    pub state_change: Option<StateChangedPayload>,
+    pub completed_session: Option<CompletedSession>,
+}
+pub struct CompletedSession { pub started_at: String, pub ended_at: String, pub duration_secs: i64 }
+```
+`serial.rs` reads `result.completed_session` and calls `db::insert_session()`.
+All existing tests using `on_reading()` must be updated to use `.state_change`.
+
+**Config commands in `config.rs`**, not `commands.rs` (prevents 250-line pre-commit violation).
+
+**`desk:db-error` event** on any rusqlite failure + `log::error!` with full context.
+`useDesk.ts` subscribes → sets error state → error banner shows in UI.
 
 ## Goal
 1. Persist all user config + calibration across restarts via `tauri-plugin-store`
