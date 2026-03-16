@@ -4,9 +4,9 @@
  * Reads distance from VL53L0X Time-of-Flight sensor
  * via I2C on Seeed XIAO ESP32-C3.
  *
- * XIAO ESP32-C3 Grove I2C pinout (verified on hardware):
- *   SDA = GPIO8
- *   SCL = GPIO9
+ * XIAO ESP32-C3 Grove I2C pinout (verified by I2C scan):
+ *   SDA = GPIO6 (D4)
+ *   SCL = GPIO7 (D5)
  *
  * Libraries required (install via Arduino IDE Library Manager):
  *   - "Adafruit_VL53L0X" by Adafruit
@@ -21,8 +21,8 @@
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
 
-#define I2C_SDA 8
-#define I2C_SCL 9
+#define I2C_SDA 6
+#define I2C_SCL 7
 
 Adafruit_VL53L0X sensor;
 
