@@ -1,5 +1,5 @@
 /**
- * StateIndicator.tsx — displays current ergonomic state with icon and desk height.
+ * StateIndicator.tsx — current ergonomic state with status dot and desk height.
  */
 import type { FC } from "react";
 import type { DeskState } from "@/types";
@@ -12,26 +12,24 @@ interface StateIndicatorProps {
   deskHeightCm: number;
 }
 
-/** Maps each DeskState to an icon and label. */
-const STATE_DISPLAY: Record<DeskState, { icon: string; label: string }> = {
-  Sitting: { icon: "🪑", label: "Sitting" },
-  Standing: { icon: "🧍", label: "Standing" },
-  Walking: { icon: "🚶", label: "Walking" },
-  Away: { icon: "💤", label: "Away" },
+const STATE_DOT_CLASS: Record<DeskState, string> = {
+  Sitting:  "state-indicator__dot--sitting",
+  Standing: "state-indicator__dot--standing",
+  Walking:  "state-indicator__dot--walking",
+  Away:     "state-indicator__dot--away",
 };
 
-/**
- * Shows the current desk state (icon + label) alongside the measured desk height.
- */
+/** Displays the current desk state (dot + label) alongside the measured height. */
 const StateIndicator: FC<StateIndicatorProps> = ({ state, deskHeightCm }) => {
-  const display = state ? STATE_DISPLAY[state] : null;
+  const dotClass = state ? STATE_DOT_CLASS[state] : "";
 
   return (
     <div className="state-indicator">
-      <span className="state-icon-label">
-        {display ? `${display.icon} ${display.label}` : "— Unknown"}
-      </span>
-      <span className="state-height">
+      <div className="state-indicator__left">
+        <span className={`state-indicator__dot ${dotClass}`} />
+        <span className="state-indicator__label">{state ?? "Unknown"}</span>
+      </div>
+      <span className="state-indicator__height">
         {deskHeightCm > 0 ? `${deskHeightCm.toFixed(1)} cm` : "— cm"}
       </span>
     </div>

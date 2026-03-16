@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import type { FC } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { getDb, getTodaySummary } from "@/db";
 import { formatDurationShort } from "@/utils/format";
 
@@ -35,23 +36,33 @@ const TodayStats: FC = () => {
 
     fetchSummary();
     const id = setInterval(fetchSummary, REFRESH_INTERVAL_MS);
-    return () => clearInterval(id);
+
+    // Also refresh when desk state changes (session just ended).
+    let unlisten: (() => void) | undefined;
+    listen("desk:state-changed", fetchSummary).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => {
+      clearInterval(id);
+      unlisten?.();
+    };
   }, []);
 
   if (!summary) {
-    return <div className="today-stats today-stats--loading">Loading today's stats…</div>;
+    return <div className="today-stats today-stats--loading">loading…</div>;
   }
 
   return (
     <div className="today-stats">
-      <span className="today-stats__label">Today:</span>
-      <span className="today-stats__item">
-        sat <strong>{formatDurationShort(summary.sitting_secs)}</strong>
-      </span>
-      <span className="today-stats__sep">/</span>
-      <span className="today-stats__item">
-        stood <strong>{formatDurationShort(summary.standing_secs)}</strong>
-      </span>
+      <div className="today-stats__item">
+        <span className="today-stats__value">{formatDurationShort(summary.sitting_secs)}</span>
+        <span className="today-stats__label">sitting</span>
+      </div>
+      <div className="today-stats__item">
+        <span className="today-stats__value">{formatDurationShort(summary.standing_secs)}</span>
+        <span className="today-stats__label">standing</span>
+      </div>
     </div>
   );
 };

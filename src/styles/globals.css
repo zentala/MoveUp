@@ -1,298 +1,414 @@
 /**
- * globals.css — dark theme for the Desk application.
+ * globals.css — Desk: instrument panel design system.
  *
- * Uses CSS custom properties for theming; no external frameworks.
+ * Direction: precision instrument panel — oiled-steel surfaces,
+ * amber active indicators, warm readout text. Feels like bespoke
+ * hardware software, not a SaaS dashboard.
+ *
+ * Depth strategy: borders-only (no shadows).
+ * Base unit: 4px grid.
+ * Typography: full monospace — calibration readout aesthetic.
  */
 
-/* ── Variables ─────────────────────────────────────────────── */
+/* ── Tokens ──────────────────────────────────────────────────────── */
 :root {
-  --color-bg: #1a1a1a;
-  --color-surface: #242424;
-  --color-border: #333;
-  --color-text: #e0e0e0;
-  --color-muted: #888;
-  --color-accent: #4caf50;
-  --color-warn: #ffc107;
-  --color-danger: #f44336;
-  --color-btn-bg: #2e2e2e;
-  --color-btn-hover: #3a3a3a;
-  --font-mono: ui-monospace, "Cascadia Code", "Fira Mono", monospace;
-  --radius: 6px;
-  --progress-height: 10px;
+  /* Surfaces — warm near-black, oiled-steel feel */
+  --panel-base:     #141210;
+  --panel-raised:   #1c1a17;
+  --panel-elevated: #242118;
+  --panel-overlay:  #2c2920;
+
+  /* Borders — whisper-quiet, warm-tinted amber */
+  --rail-subtle:   rgba(255, 215, 140, 0.05);
+  --rail-default:  rgba(255, 215, 140, 0.10);
+  --rail-emphasis: rgba(255, 215, 140, 0.22);
+  --rail-active:   rgba(255, 215, 140, 0.45);
+
+  /* Text — warm off-white hierarchy */
+  --ink-primary:   #f0ebe0;
+  --ink-secondary: #b0a898;
+  --ink-tertiary:  #706858;
+  --ink-muted:     #403830;
+
+  /* Amber beam — the active indicator light */
+  --beam:      #d97706;
+  --beam-hi:   #f59e0b;
+  --beam-glow: rgba(217, 119, 6, 0.20);
+  --beam-dim:  rgba(217, 119, 6, 0.08);
+
+  /* Semantic signals */
+  --signal-ok:    #65a30d;
+  --signal-warn:  #c2762d;
+  --signal-alert: #b91c1c;
+  --signal-up:    #d97706;
+  --signal-away:  #4a7c9e;
+
+  /* Semantic glow */
+  --glow-ok:    rgba(101, 163,  13, 0.18);
+  --glow-warn:  rgba(194, 118,  45, 0.18);
+  --glow-alert: rgba(185,  28,  28, 0.18);
+
+  /* Typography */
+  --font-mono: ui-monospace, "Cascadia Code", "Fira Mono", "Consolas", monospace;
+
+  /* Radii */
+  --r-sm: 3px;
+  --r-md: 5px;
+  --r-lg: 8px;
 }
 
-/* ── Reset ─────────────────────────────────────────────────── */
-*,
-*::before,
-*::after {
+/* ── Reset ──────────────────────────────────────────────────────── */
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-/* ── Base ──────────────────────────────────────────────────── */
-html,
-body,
-#root {
+html, body, #root {
   height: 100%;
 }
 
 body {
   background: transparent;
-  color: var(--color-text);
+  color: var(--ink-primary);
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── App shell ─────────────────────────────────────────────── */
+/* ── App shell ──────────────────────────────────────────────────── */
 .app {
   max-width: 480px;
   margin: 0 auto;
-  padding: 20px 24px;
+  padding: 14px 16px 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  background: rgba(20, 20, 20, 0.7);
-  backdrop-filter: blur(8px);
+  gap: 3px;
+  background: rgba(20, 18, 16, 0.84);
+  backdrop-filter: blur(12px);
 }
 
-.app__title {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--color-accent);
-  margin-bottom: 4px;
-}
-
-/* ── Card ──────────────────────────────────────────────────── */
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-}
-
-/* ── StateIndicator ────────────────────────────────────────── */
-.state-indicator {
+/* ── Header ─────────────────────────────────────────────────────── */
+.app__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 20px;
-  font-weight: 600;
+  padding: 0 2px 10px;
+  border-bottom: 1px solid var(--rail-subtle);
+  margin-bottom: 3px;
 }
 
-.state-icon-label {
+.app__title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+
+/* ── Panel rows ─────────────────────────────────────────────────── */
+.panel-row {
+  padding: 11px 13px;
+  border: 1px solid var(--rail-subtle);
+  border-radius: var(--r-md);
+  background: var(--panel-raised);
+}
+
+/* ── Height rail — signature element ───────────────────────────── */
+/*
+ * A 3px vertical amber rail on the left of the main state card.
+ * An indicator dot slides to show current desk height in its physical range.
+ * Makes the hardware tangible in the UI.
+ */
+.height-rail-wrap {
   display: flex;
-  align-items: center;
+  gap: 11px;
+  align-items: stretch;
+}
+
+.height-rail {
+  width: 3px;
+  flex-shrink: 0;
+  position: relative;
+  background: var(--rail-subtle);
+  border-radius: 2px;
+  align-self: stretch;
+  min-height: 48px;
+}
+
+.height-rail__indicator {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--beam);
+  box-shadow: 0 0 7px var(--beam-glow);
+  transition: bottom 0.9s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  z-index: 1;
+}
+
+/* Sitting zone tick — faint mark at ~30% height (sitting position) */
+.height-rail::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  bottom: 30%;
+  height: 1px;
+  background: var(--rail-default);
+  border-radius: 1px;
+}
+
+.height-rail__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* ── StateIndicator ─────────────────────────────────────────────── */
+.state-indicator {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 8px;
 }
 
-.state-height {
-  font-size: 14px;
-  color: var(--color-muted);
+.state-indicator__left {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
 }
 
-/* ── SessionProgress ───────────────────────────────────────── */
+.state-indicator__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+  background: var(--ink-tertiary);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.state-indicator__dot--sitting  { background: var(--signal-ok);   box-shadow: 0 0 5px var(--glow-ok); }
+.state-indicator__dot--standing { background: var(--signal-up);   box-shadow: 0 0 6px var(--beam-glow); }
+.state-indicator__dot--walking  { background: var(--signal-up);   box-shadow: 0 0 6px var(--beam-glow); }
+.state-indicator__dot--away     { background: var(--signal-away); }
+
+.state-indicator__label {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink-primary);
+  line-height: 1;
+}
+
+.state-indicator__height {
+  font-size: 12px;
+  color: var(--beam);
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+/* ── SessionProgress ────────────────────────────────────────────── */
 .session-progress {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+}
+
+.session-progress__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.session-progress__elapsed {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ink-primary);
+  line-height: 1;
+}
+
+.session-progress__remaining {
+  font-size: 11px;
+  color: var(--ink-tertiary);
+  letter-spacing: 0.02em;
+}
+
+.session-progress__remaining--alert {
+  color: var(--signal-alert);
+  font-weight: 600;
 }
 
 .progress-track {
   width: 100%;
-  height: var(--progress-height);
-  background: var(--color-border);
-  border-radius: calc(var(--progress-height) / 2);
+  height: 3px;
+  background: var(--rail-subtle);
+  border-radius: 2px;
   overflow: hidden;
 }
 
-.progress-bar {
+.progress-fill {
   height: 100%;
-  border-radius: calc(var(--progress-height) / 2);
-  transition: width 0.4s ease, background-color 0.4s ease;
+  border-radius: 2px;
+  transition: width 0.5s ease, background 0.5s ease;
 }
 
-.progress-bar--green {
-  background: var(--color-accent);
+.progress-fill--ok    { background: var(--signal-ok); }
+.progress-fill--warn  { background: var(--signal-warn); }
+.progress-fill--alert { background: var(--signal-alert); }
+
+/* ── Break info ─────────────────────────────────────────────────── */
+.break-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
-.progress-bar--yellow {
-  background: var(--color-warn);
+.break-info__duration {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--beam);
+  line-height: 1;
 }
 
-.progress-bar--red {
-  background: var(--color-danger);
+.break-info__label {
+  font-size: 11px;
+  color: var(--ink-tertiary);
+  letter-spacing: 0.04em;
 }
 
-.progress-label {
-  font-size: 13px;
-  color: var(--color-muted);
-  text-align: right;
-}
-
-/* ── TodayStats ────────────────────────────────────────────── */
+/* ── TodayStats ─────────────────────────────────────────────────── */
 .today-stats {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--color-muted);
+  gap: 20px;
 }
 
-.today-stats strong {
-  color: var(--color-text);
+.today-stats__item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-.today-stats__sep {
-  color: var(--color-border);
+.today-stats__value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-primary);
+  letter-spacing: -0.01em;
+}
+
+.today-stats__label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
 }
 
 .today-stats--loading {
+  font-size: 11px;
+  color: var(--ink-tertiary);
   font-style: italic;
 }
 
-/* ── Connection status ─────────────────────────────────────── */
+/* ── Connection status ──────────────────────────────────────────── */
 .connection-status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--color-muted);
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-tertiary);
 }
 
 .status-dot {
-  width: 9px;
-  height: 9px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.status-dot--green {
-  background: var(--color-accent);
-  box-shadow: 0 0 4px var(--color-accent);
-}
+.status-dot--green  { background: var(--signal-ok);    box-shadow: 0 0 4px var(--glow-ok); }
+.status-dot--yellow { background: var(--signal-warn);  box-shadow: 0 0 4px var(--glow-warn); }
+.status-dot--red    { background: var(--signal-alert); box-shadow: 0 0 4px var(--glow-alert); }
 
-.status-dot--yellow {
-  background: var(--color-warn);
-  box-shadow: 0 0 4px var(--color-warn);
-}
-
-.status-dot--red {
-  background: var(--color-danger);
-  box-shadow: 0 0 4px var(--color-danger);
-}
-
-/* ── Error banner ──────────────────────────────────────────── */
+/* ── Error banner ───────────────────────────────────────────────── */
 .error-banner {
-  background: rgba(244, 67, 54, 0.12);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius);
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--color-danger);
-}
-
-/* ── Actions ───────────────────────────────────────────────── */
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn {
-  background: var(--color-btn-bg);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 6px 14px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.btn:hover {
-  background: var(--color-btn-hover);
-}
-
-.btn:active {
-  opacity: 0.8;
-}
-
-.btn--danger {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.btn--danger:hover {
-  background: rgba(244, 67, 54, 0.1);
-}
-
-/* ── Divider ───────────────────────────────────────────────── */
-.divider {
-  border: none;
-  border-top: 1px solid var(--color-border);
-}
-
-/* ── CalibrationWizard ─────────────────────────────────────── */
-.calibration-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.calibration-modal {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: calc(var(--radius) * 2);
-  padding: 32px 28px;
-  width: 340px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-}
-
-.calibration-modal__title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--color-accent);
-  margin: 0;
-}
-
-.calibration-modal__step {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.calibration-modal__instruction {
-  font-size: 14px;
-  color: var(--color-text);
-  line-height: 1.6;
-}
-
-.calibration-modal__height {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--color-accent);
+  background: rgba(185, 28, 28, 0.07);
+  border: 1px solid rgba(185, 28, 28, 0.22);
+  border-radius: var(--r-md);
+  padding: 7px 11px;
+  font-size: 11px;
+  color: var(--signal-alert);
   letter-spacing: 0.02em;
 }
 
-.calibration-modal__saved {
-  font-size: 12px;
-  color: var(--color-muted);
+/* ── Actions ────────────────────────────────────────────────────── */
+.actions {
+  display: flex;
+  gap: 6px;
 }
 
-.calibration-modal__step-indicator {
-  font-size: 12px;
-  color: var(--color-muted);
-  text-align: right;
+.btn {
+  background: transparent;
+  color: var(--ink-secondary);
+  border: 1px solid var(--rail-default);
+  border-radius: var(--r-sm);
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.btn:hover {
+  border-color: var(--rail-emphasis);
+  color: var(--ink-primary);
+  background: var(--panel-overlay);
+}
+
+.btn:active {
+  background: var(--panel-elevated);
+}
+
+.btn:focus-visible {
+  outline: none;
+  border-color: var(--rail-active);
+}
+
+.btn--danger {
+  border-color: rgba(185, 28, 28, 0.22);
+  color: var(--signal-alert);
+}
+
+.btn--danger:hover {
+  background: rgba(185, 28, 28, 0.08);
+  border-color: rgba(185, 28, 28, 0.40);
+}
+
+.btn--link {
+  border-color: transparent;
+  color: var(--ink-tertiary);
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.btn--link:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-secondary);
+}
+
+/* ── Divider ────────────────────────────────────────────────────── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--rail-subtle);
 }

@@ -1,8 +1,8 @@
 /**
- * SessionProgress.tsx — inline progress bar for the current sitting session.
+ * SessionProgress.tsx — sitting session timer with inline progress bar.
  *
- * Fills green → yellow → red as the session approaches its limit.
- * Shows a countdown or a break reminder when the limit is exceeded.
+ * Leads with the elapsed time (large) so you get the answer at a glance.
+ * The thin 3px bar fills green → warn → alert as the session approaches limit.
  */
 import type { FC } from "react";
 import { formatDuration } from "@/utils/format";
@@ -15,38 +15,37 @@ interface SessionProgressProps {
   limitSeconds: number;
 }
 
-/** Color thresholds as fractions of the session limit. */
-const YELLOW_THRESHOLD = 0.6;
-const RED_THRESHOLD = 0.85;
+/** Fill thresholds as fractions of the session limit. */
+const WARN_THRESHOLD  = 0.60;
+const ALERT_THRESHOLD = 0.85;
 
-/**
- * Returns the CSS color class name based on how much of the session is used.
- */
-function getColorClass(ratio: number): string {
-  if (ratio >= RED_THRESHOLD) return "progress-bar--red";
-  if (ratio >= YELLOW_THRESHOLD) return "progress-bar--yellow";
-  return "progress-bar--green";
+function getFillClass(ratio: number): string {
+  if (ratio >= ALERT_THRESHOLD) return "progress-fill--alert";
+  if (ratio >= WARN_THRESHOLD)  return "progress-fill--warn";
+  return "progress-fill--ok";
 }
 
 /**
- * Inline session progress bar with time remaining label.
- * Shows "hh:mm remaining" while under limit, "⚠ Take a break!" once exceeded.
+ * Sitting session progress — elapsed time prominent, bar + remaining time below.
  */
-const SessionProgress: FC<SessionProgressProps> = ({
-  sittingSeconds,
-  limitSeconds,
-}) => {
-  const ratio = limitSeconds > 0 ? Math.min(sittingSeconds / limitSeconds, 1) : 0;
-  const pct = Math.round(ratio * 100);
-  const colorClass = getColorClass(ratio);
+const SessionProgress: FC<SessionProgressProps> = ({ sittingSeconds, limitSeconds }) => {
+  const ratio     = limitSeconds > 0 ? Math.min(sittingSeconds / limitSeconds, 1) : 0;
+  const pct       = Math.round(ratio * 100);
+  const fillClass = getFillClass(ratio);
   const remaining = limitSeconds - sittingSeconds;
-  const isOver = remaining <= 0;
+  const isOver    = remaining <= 0;
 
   return (
     <div className="session-progress">
+      <div className="session-progress__meta">
+        <span className="session-progress__elapsed">{formatDuration(sittingSeconds)}</span>
+        <span className={`session-progress__remaining${isOver ? " session-progress__remaining--alert" : ""}`}>
+          {isOver ? "take a break" : `${formatDuration(remaining)} left`}
+        </span>
+      </div>
       <div className="progress-track">
         <div
-          className={`progress-bar ${colorClass}`}
+          className={`progress-fill ${fillClass}`}
           style={{ width: `${pct}%` }}
           role="progressbar"
           aria-valuenow={pct}
@@ -55,9 +54,6 @@ const SessionProgress: FC<SessionProgressProps> = ({
           data-testid="progress-bar"
         />
       </div>
-      <span className="progress-label">
-        {isOver ? "⚠ Take a break!" : `${formatDuration(remaining)} remaining`}
-      </span>
     </div>
   );
 };

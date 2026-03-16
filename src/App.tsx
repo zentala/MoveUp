@@ -9,24 +9,24 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDesk } from "@/hooks/useDesk";
 import { useTimer } from "@/hooks/useTimer";
+import { formatDuration } from "@/utils/format";
 import CalibrationWizard from "@/components/CalibrationWizard";
+import HeightRail from "@/components/HeightRail";
 import SessionProgress from "@/components/SessionProgress";
 import StateIndicator from "@/components/StateIndicator";
 import TodayStats from "@/components/TodayStats";
 import "@/styles/globals.css";
 
-/** Determine status dot CSS modifier based on connection/error state. */
 function statusDotClass(connected: boolean, hasError: boolean): string {
   if (hasError) return "status-dot--red";
   if (connected) return "status-dot--green";
   return "status-dot--yellow";
 }
 
-/** Describe connection state in a short human-readable phrase. */
 function connectionLabel(connected: boolean, port: string | null): string {
-  if (connected && port) return `Connected on ${port}`;
-  if (connected) return "Connected";
-  return "Scanning…";
+  if (connected && port) return port;
+  if (connected) return "connected";
+  return "scanning…";
 }
 
 export default function App() {
@@ -34,76 +34,70 @@ export default function App() {
   const { connected, port, state, deskHeightCm, sittingSeconds, breakSeconds, sessionLimitSecs, error } =
     useDesk();
 
-  // Live-ticking counter so the timer updates every second without waiting for events.
-  // Only runs while the state is Sitting; pauses otherwise.
   const liveSitting = useTimer(sittingSeconds, state === "Sitting");
-  const liveBreak = useTimer(breakSeconds, state !== "Sitting" && state !== null);
+  const liveBreak   = useTimer(breakSeconds,   state !== "Sitting" && state !== null);
 
   async function handleStop() {
     await invoke("stop_reading").catch(console.error);
   }
 
   const showProgress = sessionLimitSecs > 0 && state === "Sitting";
+  const showBreak    = state !== "Sitting" && state !== null && liveBreak > 0;
 
   return (
     <main className="app">
-      <h1 className="app__title">↕ Desk</h1>
 
-      {/* First-run calibration wizard — shown when connected but not yet calibrated */}
+      {/* Header — app identity + connection status */}
+      <div className="app__header">
+        <span className="app__title">↕ desk</span>
+        <div className="connection-status">
+          <span className={`status-dot ${statusDotClass(connected, error !== null && !connected)}`} />
+          <span>{connectionLabel(connected, port)}</span>
+        </div>
+      </div>
+
+      {/* First-run calibration wizard */}
       {!calibrated && connected && (
         <CalibrationWizard deskHeightCm={deskHeightCm} onComplete={() => setCalibrated(true)} />
       )}
 
-      {/* State + height row */}
-      <div className="card">
-        <StateIndicator state={state} deskHeightCm={deskHeightCm} />
+      {/* Main state card — HeightRail is the left accent */}
+      <div className="panel-row">
+        <HeightRail deskHeightCm={deskHeightCm}>
+          <StateIndicator state={state} deskHeightCm={deskHeightCm} />
+
+          {/* Session timer — visible while sitting */}
+          {showProgress && (
+            <SessionProgress
+              sittingSeconds={liveSitting}
+              limitSeconds={sessionLimitSecs}
+            />
+          )}
+
+          {/* Break duration — visible when not sitting */}
+          {showBreak && (
+            <div className="break-info">
+              <span className="break-info__duration">{formatDuration(liveBreak)}</span>
+              <span className="break-info__label">break</span>
+            </div>
+          )}
+        </HeightRail>
       </div>
 
-      {/* Session progress bar — only visible while sitting */}
-      {showProgress && (
-        <div className="card">
-          <SessionProgress
-            sittingSeconds={liveSitting}
-            limitSeconds={sessionLimitSecs}
-          />
-        </div>
-      )}
-
-      {/* Break info when not sitting */}
-      {state !== "Sitting" && state !== null && liveBreak > 0 && (
-        <div className="card">
-          <span className="today-stats">
-            Break: <strong>&nbsp;{Math.floor(liveBreak / 60)}m {liveBreak % 60}s</strong>
-          </span>
-        </div>
-      )}
-
       {/* Today's totals */}
-      <div className="card">
+      <div className="panel-row">
         <TodayStats />
       </div>
 
-      <hr className="divider" />
-
-      {/* Connection status */}
-      <div className="connection-status">
-        <span className={`status-dot ${statusDotClass(connected, error !== null && !connected)}`} />
-        <span>{connectionLabel(connected, port)}</span>
-      </div>
-
       {/* Error banner */}
-      {error && <div className="error-banner">⚠ {error}</div>}
+      {error && <div className="error-banner">{error}</div>}
 
-      {/* Action buttons */}
+      {/* Actions */}
       <div className="actions">
-        <button className="btn btn--danger" onClick={handleStop}>
-          Stop
-        </button>
-        {/* Re-calibrate link resets calibration flag to re-show wizard */}
-        <button className="btn btn--link" onClick={() => setCalibrated(false)}>
-          Re-calibrate
-        </button>
+        <button className="btn btn--danger" onClick={handleStop}>stop</button>
+        <button className="btn" onClick={() => setCalibrated(false)}>re-calibrate</button>
       </div>
+
     </main>
   );
 }
