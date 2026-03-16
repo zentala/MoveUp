@@ -9,7 +9,7 @@ mod config;
 mod db;
 mod overlay;
 mod serial;
-mod session;
+pub mod session;
 mod tray;
 mod tray_controller;
 mod tray_icon;

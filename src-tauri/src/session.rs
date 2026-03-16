@@ -111,7 +111,7 @@ pub struct ReadingResult {
 
 /// Owns `SessionState` and drives state transitions.
 pub struct SessionManager {
-    state: SessionState,
+    pub state: SessionState,
     /// Pending candidate state (needs `debounce_count` confirmations).
     pending_state: Option<DeskState>,
     pending_count: u8,
