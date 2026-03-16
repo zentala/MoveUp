@@ -1,6 +1,7 @@
 //! tray.rs — System tray icon and menu for the Desk application.
 //!
-//! Loads PNG tray icons based on sitting state and session progress.
+//! Generates dynamic tray icons (RGBA) based on sitting state and session progress.
+//! Falls back to PNG loading if resource dir is available.
 //! The tooltip shows the current desk height and session state.
 //! Left-click toggles the main window; the context menu has "Show Desk" and "Quit".
 
@@ -77,11 +78,16 @@ pub fn update_tray(
     if let Some(tray) = app.tray_by_id("main-tray") {
         let _ = tray.set_tooltip(Some(label));
 
-        // Try to load PNG icon, fall back to gray square if it fails
-        if let Ok(icon_path) = icon_path_for_state(app, state, progress_ratio) {
-            if let Ok(icon) = Image::from_path(&icon_path) {
-                let _ = tray.set_icon(Some(icon));
-            }
+        // Try to load PNG first, fall back to generated RGBA icon
+        let icon = if let Ok(icon_path) = icon_path_for_state(app, state.clone(), progress_ratio) {
+            Image::from_path(&icon_path).ok()
+        } else {
+            None
+        };
+
+        let icon = icon.or_else(|| generate_tray_icon(state, progress_ratio));
+        if let Some(icon) = icon {
+            let _ = tray.set_icon(Some(icon));
         }
     }
 
@@ -89,6 +95,46 @@ pub fn update_tray(
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Generates a 32x32 RGBA tray icon dynamically based on state and progress.
+///
+/// Returns solid squares with colors matching the icon strategy:
+/// - Green (0, 200, 0) — sitting, <60% progress
+/// - Amber (200, 150, 0) — sitting, 60-85% progress
+/// - Red (200, 0, 0) — sitting, >85% progress
+/// - Gray (128, 128, 128) — standing, walking, or away
+fn generate_tray_icon(state: DeskState, progress_ratio: f32) -> Option<Image<'static>> {
+    const ICON_SIZE: u32 = 32;
+    const PIXELS: usize = (ICON_SIZE * ICON_SIZE) as usize;
+
+    // Determine color based on state and progress
+    let (r, g, b) = match state {
+        DeskState::Sitting => {
+            if progress_ratio < 0.60 {
+                (0, 200, 0) // green
+            } else if progress_ratio < 0.85 {
+                (200, 150, 0) // amber
+            } else {
+                (200, 0, 0) // red
+            }
+        }
+        _ => (128, 128, 128), // gray for standing, walking, away
+    };
+
+    // Build RGBA buffer (32x32 = 1024 pixels × 4 bytes each)
+    let mut rgba = vec![0u8; PIXELS * 4];
+
+    for i in 0..PIXELS {
+        rgba[i * 4] = r;
+        rgba[i * 4 + 1] = g;
+        rgba[i * 4 + 2] = b;
+        rgba[i * 4 + 3] = 255; // alpha
+    }
+
+    // Leak the buffer to get a static lifetime (required by Image)
+    let rgba_static = Box::leak(rgba.into_boxed_slice());
+    Some(Image::new(rgba_static, ICON_SIZE, ICON_SIZE))
+}
 
 /// Resolves the PNG icon path for a given state and progress ratio.
 ///

@@ -4,7 +4,7 @@
  * Fetches initial session state on mount and subscribes to all `desk:*`
  * Tauri events, cleaning up listeners on unmount.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
@@ -37,11 +37,21 @@ export interface UseDeskResult {
   positionChanges: number;
   /** Last sensor or connection error message, if any. */
   error: string | null;
+  /** Calibrate sitting/standing heights (reads current height and saves). */
+  calibrate: (position: "sitting" | "standing") => Promise<void>;
+  /** Update session limit in minutes. */
+  setSitLimit: (mins: number) => Promise<void>;
+  /** Update standing session limit in minutes. */
+  setStandLimit: (mins: number) => Promise<void>;
 }
 
 /**
  * Subscribes to all Tauri `desk:*` events and exposes current desk state.
- * Auto-fetches initial state via `get_session_state()` on mount.
+ * Auto-fetches initial state via `get_session_state()` on mount, then:
+ * - Polls `get_session_state()` every 1 second (live updates when event system lags)
+ * - Polls `get_today_summary()` every 10 seconds
+ * - Starts auto-connect on mount
+ * - Exposes calibration and settings commands
  */
 export function useDesk(): UseDeskResult {
   const [connected, setConnected] = useState(false);
@@ -55,10 +65,54 @@ export function useDesk(): UseDeskResult {
   const [positionChanges, setPositionChanges] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  // Memoized commands
+  const calibrate = useCallback(
+    async (position: "sitting" | "standing") => {
+      try {
+        // Get current height
+        const dto = await invoke<SessionStateDto>("get_session_state");
+        const heightMm = Math.round(dto.desk_height_cm * 10);
+
+        // Save calibration
+        if (position === "sitting") {
+          await invoke("calibrate", { sitting_mm: heightMm });
+        } else {
+          await invoke("calibrate", { standing_mm: heightMm });
+        }
+      } catch (err) {
+        console.error(`Calibration failed for ${position}:`, err);
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const setSitLimit = useCallback(async (mins: number) => {
+    try {
+      await invoke("set_session_limit", { minutes: mins });
+    } catch (err) {
+      console.error("Failed to set sitting limit:", err);
+      throw err;
+    }
+  }, []);
+
+  const setStandLimit = useCallback(async (mins: number) => {
+    try {
+      await invoke("set_stand_limit", { minutes: mins });
+    } catch (err) {
+      console.error("Failed to set standing limit:", err);
+      throw err;
+    }
+  }, []);
+
   useEffect(() => {
+    // Start auto-connect on mount
+    invoke("start_auto_connect").catch(console.error);
+
     // Fetch current session state on mount
-    invoke<SessionStateDto>("get_session_state")
-      .then((dto) => {
+    const fetchState = async () => {
+      try {
+        const dto = await invoke<SessionStateDto>("get_session_state");
         setState(dto.state);
         setDeskHeightCm(dto.desk_height_cm);
         setSittingSeconds(dto.sitting_seconds);
@@ -66,10 +120,23 @@ export function useDesk(): UseDeskResult {
         setBreakSeconds(dto.break_seconds);
         setSessionLimitSecs(dto.session_limit_secs);
         setPositionChanges(dto.position_changes);
-      })
-      .catch(() => {
-        // Backend may not be connected yet; that is expected on cold start
+      } catch (err) {
+        // Backend may not be connected yet; expected on cold start
+        console.debug("get_session_state not ready:", err);
+      }
+    };
+
+    fetchState();
+
+    // Poll session state every 1 second
+    const stateInterval = setInterval(fetchState, 1000);
+
+    // Poll today summary every 10 seconds (used by TodayStats)
+    const summaryInterval = setInterval(() => {
+      invoke("get_today_summary").catch((err) => {
+        console.debug("get_today_summary not ready:", err);
       });
+    }, 10000);
 
     let cleanupFns: Array<() => void> = [];
 
@@ -125,6 +192,8 @@ export function useDesk(): UseDeskResult {
     subscribe().catch(console.error);
 
     return () => {
+      clearInterval(stateInterval);
+      clearInterval(summaryInterval);
       cleanupFns.forEach((fn) => fn());
     };
   }, []);
@@ -140,5 +209,8 @@ export function useDesk(): UseDeskResult {
     sessionLimitSecs,
     positionChanges,
     error,
+    calibrate,
+    setSitLimit,
+    setStandLimit,
   };
 }

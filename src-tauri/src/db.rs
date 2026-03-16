@@ -12,16 +12,50 @@ use serde::{Deserialize, Serialize};
 /// Initializes the database schema on first startup.
 /// Idempotent — safe to call multiple times.
 pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
-    conn.execute_batch(
+    // Create sessions table with new columns for state tracking
+    conn.execute(
         r#"
         CREATE TABLE IF NOT EXISTS sessions (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            started_at       TEXT    NOT NULL,
-            ended_at         TEXT,
-            state            TEXT    NOT NULL,
-            duration_seconds INTEGER
-        );
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at            TEXT    NOT NULL,
+            ended_at              TEXT,
+            state                 TEXT    NOT NULL,
+            duration_seconds      INTEGER,
+            sitting_seconds       INTEGER DEFAULT 0,
+            standing_seconds      INTEGER DEFAULT 0,
+            position_changes      INTEGER DEFAULT 0,
+            session_limit_secs    INTEGER DEFAULT 2700
+        )
+        "#,
+        [],
+    )?;
 
+    // Migrate existing sessions table if it has old schema (missing new columns)
+    let old_schema = conn
+        .prepare("PRAGMA table_info(sessions)")
+        .and_then(|mut stmt| {
+            let columns: Vec<String> = stmt
+                .query_map([], |row| row.get(1))?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(columns)
+        });
+
+    if let Ok(cols) = old_schema {
+        if !cols.contains(&"sitting_seconds".to_string()) {
+            // Add missing columns silently (existing databases)
+            let _ = conn.execute_batch(
+                "
+                ALTER TABLE sessions ADD COLUMN sitting_seconds INTEGER DEFAULT 0;
+                ALTER TABLE sessions ADD COLUMN standing_seconds INTEGER DEFAULT 0;
+                ALTER TABLE sessions ADD COLUMN position_changes INTEGER DEFAULT 0;
+                ALTER TABLE sessions ADD COLUMN session_limit_secs INTEGER DEFAULT 2700;
+                ",
+            );
+        }
+    }
+
+    conn.execute_batch(
+        r#"
         CREATE TABLE IF NOT EXISTS height_readings (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             recorded_at TEXT    NOT NULL,
@@ -31,6 +65,7 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
         "#,
     )?;
+
     Ok(())
 }
 
@@ -101,8 +136,16 @@ pub fn save_session_state(
     let state_str = format!("{:?}", state_change.state);
 
     conn.execute(
-        "INSERT INTO sessions (started_at, state, duration_seconds) VALUES (?, ?, ?)",
-        rusqlite::params![&now, state_str, state_change.sitting_seconds],
+        "INSERT INTO sessions (started_at, state, duration_seconds, sitting_seconds, standing_seconds, position_changes, session_limit_secs) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        rusqlite::params![
+            &now,
+            state_str,
+            state_change.break_seconds,  // Duration of current break
+            state_change.sitting_seconds,
+            state_change.standing_seconds,
+            state_change.position_changes,
+            0  // Will be loaded from config on next app startup
+        ],
     )
     .map_err(|e| format!("Failed to save session state: {}", e))?;
 
