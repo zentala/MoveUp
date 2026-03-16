@@ -21,20 +21,6 @@
         "transparent": true,
         "visible": false
       },
-      {
-        "label": "overlay",
-        "url": "overlay.html",
-        "width": 1920,
-        "height": 4,
-        "x": 0,
-        "y": 0,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "resizable": false,
-        "visible": false
-      }
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost"
