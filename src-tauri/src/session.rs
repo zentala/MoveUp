@@ -152,11 +152,8 @@ impl SessionManager {
                 session_limit_secs: DEFAULT_SESSION_LIMIT_SECS,
                 stand_limit_secs: 0,
                 desk_height_cm: 0.0,
-<<<<<<< HEAD
                 last_position_change_at: None,
-=======
                 position_changes: 0,
->>>>>>> feat/T005-position-changes
             },
             pending_state: None,
             pending_count: 0,
@@ -187,11 +184,8 @@ impl SessionManager {
                 session_limit_secs: config.sit_limit_mins as i64 * 60,
                 stand_limit_secs: config.stand_limit_mins as i64 * 60,
                 desk_height_cm: 0.0,
-<<<<<<< HEAD
                 last_position_change_at: None,
-=======
                 position_changes: 0,
->>>>>>> feat/T005-position-changes
             },
             pending_state: None,
             pending_count: 0,
@@ -862,7 +856,6 @@ mod tests {
         assert!(!m.stand_alert_fired, "stand_alert_fired should be cleared");
     }
 
-<<<<<<< HEAD
     // ─── T003 Tests: Notification Preferences ───────────────────────────────
 
     #[test]
@@ -954,7 +947,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn check_notification_conditions_all_reset_on_daily_reset() {
         let mut m = SessionManager::new();
@@ -1028,7 +1020,18 @@ mod tests {
         }
 
         // Now transition back to Standing
-=======
+        for _ in 0..DEBOUNCE_COUNT {
+            let _ = m.on_reading(1200, true);
+        }
+
+        // Alert should fire again in the new standing stint
+        m.state.break_seconds = 901; // reset break_seconds as if new break started
+        assert!(
+            m.should_stand_alert(),
+            "stand alert should fire again in new standing stint"
+        );
+    }
+
     // ─── T005 Tests: Position Changes ───────────────────────────────────────
 
     // position_changes increments on Sitting → Standing transition
@@ -1039,17 +1042,14 @@ mod tests {
         m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(100));
 
         // Transition to Standing (high reading + active)
->>>>>>> feat/T005-position-changes
         for _ in 0..DEBOUNCE_COUNT {
             let _ = m.on_reading(1200, true);
         }
 
-<<<<<<< HEAD
-        // Alert should fire again in the new standing stint
-        m.state.break_seconds = 901; // reset break_seconds as if new break started
-        assert!(
-            m.should_stand_alert(),
-            "stand alert should fire again in new standing stint"
+        assert_eq!(m.state.state, DeskState::Standing);
+        assert_eq!(
+            m.state.position_changes, 1,
+            "position_changes should increment on Sitting → Standing"
         );
     }
 
@@ -1135,7 +1135,6 @@ mod tests {
 
         assert!(m.should_send_praise_halfway(&config));
         assert!(!m.should_send_praise_halfway(&config), "should not fire twice");
-=======
         assert_eq!(m.state.state, DeskState::Standing);
         assert_eq!(
             m.state.position_changes, 1,
@@ -1244,6 +1243,5 @@ mod tests {
         }
 
         panic!("expected state change payload");
->>>>>>> feat/T005-position-changes
     }
 }

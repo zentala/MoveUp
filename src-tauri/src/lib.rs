@@ -12,6 +12,7 @@ mod serial;
 mod session;
 mod tray;
 mod tray_controller;
+mod tray_icon;
 
 use std::sync::{Arc, Mutex};
 
