@@ -129,5 +129,12 @@ pub fn get_today_summary(state: State<'_, AppState>) -> Result<TodaySummary, Str
         .as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
-    crate::db::get_today_summary(conn)
+    let mut summary = crate::db::get_today_summary(conn)?;
+
+    // Add position_changes from in-memory SessionManager
+    let session = state.session.lock().unwrap();
+    let dto = session.snapshot();
+    summary.position_changes = dto.position_changes;
+
+    Ok(summary)
 }

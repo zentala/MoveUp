@@ -1,5 +1,5 @@
 /**
- * TodayStats.tsx — displays today's total sitting and standing durations.
+ * TodayStats.tsx — displays today's total sitting and standing durations and position changes.
  *
  * Fetches data from Rust backend via get_today_summary command on mount
  * and refreshes every 60 s.
@@ -16,6 +16,7 @@ const REFRESH_INTERVAL_MS = 60_000;
 interface TodaySummary {
   sitting_secs: number;
   standing_secs: number;
+  position_changes: number;
   sessions: Array<{
     id: number;
     started_at: string;
@@ -26,7 +27,7 @@ interface TodaySummary {
 }
 
 /**
- * Renders today's total sitting and standing times,
+ * Renders today's total sitting and standing times and position changes,
  * auto-refreshing every 60 seconds.
  */
 const TodayStats: FC = () => {
@@ -67,6 +68,10 @@ const TodayStats: FC = () => {
       <div className="today-stats__item">
         <span className="today-stats__value">{formatDurationShort(summary.standing_secs)}</span>
         <span className="today-stats__label">standing</span>
+      </div>
+      <div className="today-stats__item">
+        <span className="today-stats__value">{summary.position_changes}</span>
+        <span className="today-stats__label">changes</span>
       </div>
     </div>
   );

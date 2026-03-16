@@ -33,6 +33,8 @@ export interface UseDeskResult {
   breakSeconds: number;
   /** Configured session limit in seconds. */
   sessionLimitSecs: number;
+  /** Number of position changes (Sitting↔Standing transitions) today. */
+  positionChanges: number;
   /** Last sensor or connection error message, if any. */
   error: string | null;
 }
@@ -50,6 +52,7 @@ export function useDesk(): UseDeskResult {
   const [standingSeconds, setStandingSeconds] = useState(0);
   const [breakSeconds, setBreakSeconds] = useState(0);
   const [sessionLimitSecs, setSessionLimitSecs] = useState(0);
+  const [positionChanges, setPositionChanges] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,6 +65,7 @@ export function useDesk(): UseDeskResult {
         setStandingSeconds(dto.standing_seconds);
         setBreakSeconds(dto.break_seconds);
         setSessionLimitSecs(dto.session_limit_secs);
+        setPositionChanges(dto.position_changes);
       })
       .catch(() => {
         // Backend may not be connected yet; that is expected on cold start
@@ -92,6 +96,7 @@ export function useDesk(): UseDeskResult {
           setSittingSeconds(payload.sitting_seconds);
           setStandingSeconds(payload.standing_seconds);
           setBreakSeconds(payload.break_seconds);
+          setPositionChanges(payload.position_changes);
         },
       );
 
@@ -133,6 +138,7 @@ export function useDesk(): UseDeskResult {
     standingSeconds,
     breakSeconds,
     sessionLimitSecs,
+    positionChanges,
     error,
   };
 }

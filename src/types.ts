@@ -26,6 +26,7 @@ export interface StateChangedPayload {
   standing_seconds: number;
   break_seconds: number;
   desk_height_cm: number;
+  position_changes: number;
 }
 
 /** Payload for `desk:sensor-error` event. */
@@ -45,6 +46,7 @@ export interface SessionStateDto {
   break_seconds: number;
   session_limit_secs: number;
   desk_height_cm: number;
+  position_changes: number;
 }
 
 /** A single tracked session within a day. */
