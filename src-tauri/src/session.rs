@@ -1,25 +1,18 @@
 //! session.rs — Sit/stand desk session state machine.
 //!
 //! Tracks how long the user has been sitting, applies break credit rules, and
-//! emits Tauri events when the state changes or when a sitting limit is reached.
+//! fires alert notifications when the sitting limit is reached.
 
 use chrono::{DateTime, Utc};
 use log::info;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-/// Height threshold (mm) below which the desk is considered in "sitting" position.
-const SIT_HEIGHT_MM: i32 = 900;
-/// Height threshold (mm) above which the desk is considered in "standing" position.
-const STAND_HEIGHT_MM: i32 = 1000;
 /// Number of consecutive readings at a new height before state transitions.
 const DEBOUNCE_COUNT: u8 = 5;
 /// Default session sitting limit (40 minutes in seconds).
 const DEFAULT_SESSION_LIMIT_SECS: i64 = 2400;
-/// Inactivity duration before transitioning to Away (5 minutes in seconds).
-const AWAY_IDLE_SECS: u64 = 300;
 /// Minimum break duration for any credit (5 minutes).
 const BREAK_SHORT_SECS: i64 = 300;
 /// Break duration threshold for partial credit (10 minutes).
@@ -51,6 +44,8 @@ pub struct SessionState {
     pub break_seconds: i64,
     /// Alert threshold — sitting_seconds >= this value triggers an alert.
     pub session_limit_secs: i64,
+    /// Last computed desk height in cm (floor_distance_cm - desk_thickness_cm).
+    pub desk_height_cm: f32,
 }
 
 /// Serialisable DTO emitted with state-change events.
@@ -60,14 +55,17 @@ pub struct SessionStateDto {
     pub sitting_seconds: i64,
     pub break_seconds: i64,
     pub session_limit_secs: i64,
+    /// Most recent desk height in cm as computed from sensor + calibration.
+    pub desk_height_cm: f32,
 }
 
 /// Payload for the `desk:state-changed` event.
 #[derive(Debug, Clone, Serialize)]
-struct StateChangedPayload {
-    state: DeskState,
-    sitting_seconds: i64,
-    break_seconds: i64,
+pub struct StateChangedPayload {
+    pub state: DeskState,
+    pub sitting_seconds: i64,
+    pub break_seconds: i64,
+    pub desk_height_cm: f32,
 }
 
 // ─── SessionManager ───────────────────────────────────────────────────────────
@@ -78,10 +76,18 @@ pub struct SessionManager {
     /// Pending candidate state (needs `debounce_count` confirmations).
     pending_state: Option<DeskState>,
     pending_count: u8,
+    /// Calibrated sitting desk height in cm (default 75.0).
+    pub sitting_height_cm: f32,
+    /// Calibrated standing desk height in cm (default 115.0).
+    pub standing_height_cm: f32,
+    /// Desk surface thickness in cm to subtract from raw sensor reading (default 3.0).
+    pub desk_thickness_cm: f32,
+    /// Whether `should_alert()` has been armed for the current sitting session.
+    alert_fired: bool,
 }
 
 impl SessionManager {
-    /// Creates a manager with the default session limit.
+    /// Creates a manager with default calibration values.
     pub fn new() -> Self {
         Self {
             state: SessionState {
@@ -91,13 +97,18 @@ impl SessionManager {
                 break_started: None,
                 break_seconds: 0,
                 session_limit_secs: DEFAULT_SESSION_LIMIT_SECS,
+                desk_height_cm: 0.0,
             },
             pending_state: None,
             pending_count: 0,
+            sitting_height_cm: 75.0,
+            standing_height_cm: 115.0,
+            desk_thickness_cm: 3.0,
+            alert_fired: false,
         }
     }
 
-    /// Updates the session limit (minutes → seconds).
+    /// Updates the sitting session limit (minutes → seconds).
     pub fn set_limit_minutes(&mut self, minutes: u32) {
         self.state.session_limit_secs = minutes as i64 * 60;
     }
@@ -109,28 +120,49 @@ impl SessionManager {
             sitting_seconds: self.state.sitting_seconds,
             break_seconds: self.state.break_seconds,
             session_limit_secs: self.state.session_limit_secs,
+            desk_height_cm: self.state.desk_height_cm,
         }
     }
 
-    /// Called for each new distance reading.
+    /// Returns `true` (exactly once per sitting stint) when the user has been
+    /// sitting for at least `session_limit_secs` and an alert should be shown.
     ///
-    /// `height_mm` is the sensor distance (floor distance from underside of desk).
-    /// `idle_secs` is the system idle time in seconds.
-    pub fn on_reading(&mut self, app: &AppHandle, height_mm: i32, idle_secs: u64) {
+    /// Resets when the user transitions out of the Sitting state.
+    pub fn should_alert(&mut self) -> bool {
+        if self.state.state == DeskState::Sitting
+            && !self.alert_fired
+            && self.state.sitting_seconds >= self.state.session_limit_secs
+        {
+            self.alert_fired = true;
+            return true;
+        }
+        false
+    }
+
+    /// Called for each new distance reading from the sensor.
+    ///
+    /// `mm` is the raw sensor reading (floor distance from sensor underside).
+    /// `active` is `true` when the user has been active recently (keyboard/mouse).
+    ///
+    /// Returns a [`StateChangedPayload`] if the desk state changed, `None` otherwise.
+    pub fn on_reading(&mut self, mm: i32, active: bool) -> Option<StateChangedPayload> {
         let now = Utc::now();
 
-        // Determine the candidate state from current inputs.
-        let candidate = if idle_secs >= AWAY_IDLE_SECS {
-            DeskState::Away
-        } else if height_mm > STAND_HEIGHT_MM {
-            // Active movement at standing height → Walking, else Standing.
-            if idle_secs > 30 {
-                DeskState::Walking
-            } else {
-                DeskState::Standing
-            }
-        } else {
+        // Compute calibrated desk height.
+        let floor_distance_cm = mm as f32 / 10.0;
+        let desk_height_cm = floor_distance_cm - self.desk_thickness_cm;
+        self.state.desk_height_cm = desk_height_cm;
+
+        // Midpoint between sitting and standing thresholds.
+        let mid_cm = (self.sitting_height_cm + self.standing_height_cm) / 2.0;
+
+        // Determine candidate state.
+        let candidate = if desk_height_cm <= mid_cm {
             DeskState::Sitting
+        } else if active {
+            DeskState::Standing
+        } else {
+            DeskState::Walking
         };
 
         // Debounce: only transition when we see DEBOUNCE_COUNT consistent readings.
@@ -142,9 +174,8 @@ impl SessionManager {
         }
 
         if self.pending_count < DEBOUNCE_COUNT {
-            // Not enough readings yet — accumulate ongoing metrics but don't switch.
             self.accumulate_ongoing(now);
-            return;
+            return None;
         }
 
         // Candidate confirmed; reset debounce.
@@ -152,26 +183,25 @@ impl SessionManager {
 
         if candidate == self.state.state {
             self.accumulate_ongoing(now);
-            return;
+            return None;
         }
 
         // ── Leaving current state ─────────────────────────────────────────────
         match &self.state.state {
             DeskState::Sitting => {
-                // Stop counting sitting time.
                 if let Some(started) = self.state.sitting_started.take() {
                     let elapsed = (now - started).num_seconds().max(0);
                     self.state.sitting_seconds += elapsed;
                 }
-                // Starting a break.
                 if candidate != DeskState::Sitting {
                     self.state.break_started = Some(now);
                     self.state.break_seconds = 0;
+                    // Reset alert so it can fire in the next sitting stint.
+                    self.alert_fired = false;
                 }
             }
             DeskState::Standing | DeskState::Walking | DeskState::Away => {
                 if candidate == DeskState::Sitting {
-                    // Returning to sitting — apply break credit.
                     if let Some(bs) = self.state.break_started.take() {
                         let break_dur = (now - bs).num_seconds().max(0);
                         self.apply_break_credit(break_dur);
@@ -183,28 +213,18 @@ impl SessionManager {
         }
 
         info!(
-            "State transition: {:?} → {:?}  (sitting={}s)",
-            self.state.state, candidate, self.state.sitting_seconds
+            "State transition: {:?} → {:?}  (sitting={}s desk_height={:.1}cm)",
+            self.state.state, candidate, self.state.sitting_seconds, desk_height_cm
         );
 
         self.state.state = candidate;
 
-        // Emit state-changed event.
-        let _ = app.emit(
-            "desk:state-changed",
-            StateChangedPayload {
-                state: self.state.state.clone(),
-                sitting_seconds: self.state.sitting_seconds,
-                break_seconds: self.state.break_seconds,
-            },
-        );
-
-        // Check alert threshold.
-        if self.state.state == DeskState::Sitting
-            && self.state.sitting_seconds >= self.state.session_limit_secs
-        {
-            let _ = app.emit("desk:session-alert", self.snapshot());
-        }
+        Some(StateChangedPayload {
+            state: self.state.state.clone(),
+            sitting_seconds: self.state.sitting_seconds,
+            break_seconds: self.state.break_seconds,
+            desk_height_cm,
+        })
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -213,9 +233,8 @@ impl SessionManager {
     fn accumulate_ongoing(&mut self, now: DateTime<Utc>) {
         match self.state.state {
             DeskState::Sitting => {
-                // Update live sitting seconds without committing (sitting_started stays).
-                // We don't mutate sitting_seconds here to avoid double-counting on
-                // transition; the caller can snapshot() for live display.
+                // sitting_seconds is committed on transition; live value
+                // can be derived from snapshot() + sitting_started elapsed.
             }
             DeskState::Standing | DeskState::Walking | DeskState::Away => {
                 if let Some(bs) = self.state.break_started {
@@ -298,25 +317,6 @@ mod tests {
         assert_eq!(m.state.sitting_seconds, 0, "10+ min break should reset sitting time");
     }
 
-    // Height threshold: below 900 mm → Sitting candidate
-    #[test]
-    fn height_below_threshold_produces_sitting_candidate() {
-        // Test the constant directly — desk at 850 mm is below SIT_HEIGHT_MM.
-        assert!(850 <= SIT_HEIGHT_MM, "850mm should be sitting height");
-    }
-
-    // Height threshold: above 1000 mm → Standing candidate
-    #[test]
-    fn height_above_threshold_produces_standing_candidate() {
-        assert!(1050 > STAND_HEIGHT_MM, "1050mm should be standing height");
-    }
-
-    // Boundary: exactly at sitting threshold
-    #[test]
-    fn height_exactly_at_sit_threshold() {
-        assert!(SIT_HEIGHT_MM <= SIT_HEIGHT_MM, "boundary value should be treated as sitting");
-    }
-
     // Break exactly at short boundary (5 min) → credit applies
     #[test]
     fn break_exactly_5_min_subtracts_20_min() {
@@ -331,5 +331,63 @@ mod tests {
         let mut m = manager_with_sitting_secs(3600);
         m.apply_break_credit(10 * 60); // exactly 10 minutes
         assert_eq!(m.state.sitting_seconds, 0, "10-minute break should reset to 0");
+    }
+
+    // Calibrated height: desk_height_cm = floor_distance_cm - desk_thickness_cm
+    #[test]
+    fn on_reading_computes_desk_height_correctly() {
+        let mut m = SessionManager::new();
+        // 1000 mm = 100 cm floor distance, minus 3 cm thickness = 97 cm desk height
+        m.on_reading(1000, true);
+        assert!(
+            (m.state.desk_height_cm - 97.0).abs() < 0.01,
+            "desk_height_cm should be 97.0 but got {}",
+            m.state.desk_height_cm
+        );
+    }
+
+    // Sitting threshold: desk height <= midpoint → Sitting candidate
+    #[test]
+    fn low_reading_produces_sitting_candidate() {
+        let mut m = SessionManager::new();
+        // Default: sitting=75, standing=115, midpoint=95
+        // 800 mm = 80 cm floor → 77 cm desk height → below midpoint → Sitting
+        for _ in 0..DEBOUNCE_COUNT {
+            m.on_reading(800, true);
+        }
+        assert_eq!(m.state.state, DeskState::Sitting);
+    }
+
+    // Standing threshold: desk height > midpoint + active → Standing candidate
+    #[test]
+    fn high_reading_active_produces_standing_candidate() {
+        let mut m = SessionManager::new();
+        // 1200 mm = 120 cm floor → 117 cm desk height → above midpoint → Standing (active)
+        for _ in 0..DEBOUNCE_COUNT {
+            m.on_reading(1200, true);
+        }
+        assert_eq!(m.state.state, DeskState::Standing);
+    }
+
+    // Walking: desk height > midpoint + not active → Walking candidate
+    #[test]
+    fn high_reading_inactive_produces_walking_candidate() {
+        let mut m = SessionManager::new();
+        // same height but inactive
+        for _ in 0..DEBOUNCE_COUNT {
+            m.on_reading(1200, false);
+        }
+        assert_eq!(m.state.state, DeskState::Walking);
+    }
+
+    // should_alert fires once when limit reached, not again until break
+    #[test]
+    fn should_alert_fires_once_then_suppressed() {
+        let mut m = SessionManager::new();
+        m.state.session_limit_secs = 10;
+        m.state.sitting_seconds = 11;
+        m.state.state = DeskState::Sitting;
+        assert!(m.should_alert(), "first call should return true");
+        assert!(!m.should_alert(), "second call should be suppressed");
     }
 }

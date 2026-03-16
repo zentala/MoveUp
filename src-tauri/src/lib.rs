@@ -31,7 +31,7 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         .manage(AppState {
             conn: Arc::new(ConnectionState::default()),
-            session: Mutex::new(SessionManager::new()),
+            session: Arc::new(Mutex::new(SessionManager::new())),
         })
         .invoke_handler(tauri::generate_handler![
             commands::list_ports,
@@ -40,11 +40,16 @@ pub fn run() {
             commands::get_session_state,
             commands::get_today_summary,
             commands::set_session_limit,
+            commands::calibrate,
         ])
         .setup(|app| {
             // Kick off auto-detection immediately on startup.
             let state: tauri::State<'_, AppState> = app.state();
-            serial::scan_and_connect(app.handle().clone(), state.conn.clone());
+            serial::scan_and_connect(
+                app.handle().clone(),
+                state.conn.clone(),
+                state.session.clone(),
+            );
             Ok(())
         })
         .run(tauri::generate_context!())

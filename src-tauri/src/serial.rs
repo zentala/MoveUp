@@ -5,6 +5,7 @@
 //! - `desk:device-connected`  — [`DeviceConnected`] payload
 //! - `desk:device-lost`       — no payload
 //! - `desk:sensor-error`      — [`SensorError`] payload
+//! - `desk:state-changed`     — [`StateChangedPayload`] payload (via session)
 
 use std::{
     io::{BufRead, BufReader, Write},
@@ -19,6 +20,12 @@ use chrono::Utc;
 use log::{error, info, warn};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_notification::NotificationExt;
+
+use crate::{
+    activity::is_active,
+    session::SessionManager,
+};
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -130,7 +137,14 @@ fn probe_port(port_name: &str) -> bool {
 
 /// Runs the reader loop for a confirmed port until `stop` is set or an error
 /// occurs. Emits `desk:distance`, `desk:sensor-error`, `desk:device-lost`.
-fn reader_loop(app: &AppHandle, port_name: &str, stop: &Arc<AtomicBool>) {
+/// Also feeds each valid reading into the [`SessionManager`] and fires a
+/// native notification when `should_alert()` returns true.
+fn reader_loop(
+    app: &AppHandle,
+    port_name: &str,
+    stop: &Arc<AtomicBool>,
+    session: &Arc<Mutex<SessionManager>>,
+) {
     let port = match serialport::new(port_name, BAUD_RATE)
         .timeout(Duration::from_millis(2000))
         .open()
@@ -162,12 +176,38 @@ fn reader_loop(app: &AppHandle, port_name: &str, stop: &Arc<AtomicBool>) {
         let trimmed = line.trim();
 
         if let Some(mm) = parse_distance(trimmed) {
+            // Emit raw distance to the frontend.
             let reading = DistanceReading {
                 mm,
                 cm: mm as f32 / 10.0,
                 timestamp: Utc::now().to_rfc3339(),
             };
             let _ = app.emit("desk:distance", reading);
+
+            // Feed into session state machine.
+            let active = is_active();
+            let maybe_changed = {
+                let mut sess = session.lock().unwrap();
+                sess.on_reading(mm, active)
+            };
+
+            if let Some(payload) = maybe_changed {
+                let _ = app.emit("desk:state-changed", payload);
+            }
+
+            // Check if an alert should fire (once per sitting stint).
+            let alert = {
+                let mut sess = session.lock().unwrap();
+                sess.should_alert()
+            };
+
+            if alert {
+                let _ = app.notification()
+                    .builder()
+                    .title("Time to stand up!")
+                    .body("You've been sitting for 40 minutes. Take a break.")
+                    .show();
+            }
         } else if trimmed.to_ascii_uppercase().starts_with("ERROR") {
             emit_error(app, trimmed);
         }
@@ -190,7 +230,11 @@ pub struct ConnectionState {
 ///
 /// A new OS thread is spawned immediately; this function returns once the
 /// thread is started.
-pub fn scan_and_connect(app: AppHandle, conn: Arc<ConnectionState>) {
+pub fn scan_and_connect(
+    app: AppHandle,
+    conn: Arc<ConnectionState>,
+    session: Arc<Mutex<SessionManager>>,
+) {
     std::thread::spawn(move || {
         loop {
             // If already connected, sleep and check again.
@@ -231,7 +275,7 @@ pub fn scan_and_connect(app: AppHandle, conn: Arc<ConnectionState>) {
                 }
 
                 // Block this loop thread while reading.
-                reader_loop(&app, &port_name, &stop);
+                reader_loop(&app, &port_name, &stop, &session);
 
                 // Reader ended (device lost or stop requested).
                 {
