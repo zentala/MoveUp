@@ -1,0 +1,235 @@
+/**
+ * globals.css — dark theme for the Desk application.
+ *
+ * Uses CSS custom properties for theming; no external frameworks.
+ */
+
+/* ── Variables ─────────────────────────────────────────────── */
+:root {
+  --color-bg: #1a1a1a;
+  --color-surface: #242424;
+  --color-border: #333;
+  --color-text: #e0e0e0;
+  --color-muted: #888;
+  --color-accent: #4caf50;
+  --color-warn: #ffc107;
+  --color-danger: #f44336;
+  --color-btn-bg: #2e2e2e;
+  --color-btn-hover: #3a3a3a;
+  --font-mono: ui-monospace, "Cascadia Code", "Fira Mono", monospace;
+  --radius: 6px;
+  --progress-height: 10px;
+}
+
+/* ── Reset ─────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Base ──────────────────────────────────────────────────── */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── App shell ─────────────────────────────────────────────── */
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app__title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-accent);
+  margin-bottom: 4px;
+}
+
+/* ── Card ──────────────────────────────────────────────────── */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+/* ── StateIndicator ────────────────────────────────────────── */
+.state-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.state-icon-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.state-height {
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+/* ── SessionProgress ───────────────────────────────────────── */
+.session-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progress-track {
+  width: 100%;
+  height: var(--progress-height);
+  background: var(--color-border);
+  border-radius: calc(var(--progress-height) / 2);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: calc(var(--progress-height) / 2);
+  transition: width 0.4s ease, background-color 0.4s ease;
+}
+
+.progress-bar--green {
+  background: var(--color-accent);
+}
+
+.progress-bar--yellow {
+  background: var(--color-warn);
+}
+
+.progress-bar--red {
+  background: var(--color-danger);
+}
+
+.progress-label {
+  font-size: 13px;
+  color: var(--color-muted);
+  text-align: right;
+}
+
+/* ── TodayStats ────────────────────────────────────────────── */
+.today-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.today-stats strong {
+  color: var(--color-text);
+}
+
+.today-stats__sep {
+  color: var(--color-border);
+}
+
+.today-stats--loading {
+  font-style: italic;
+}
+
+/* ── Connection status ─────────────────────────────────────── */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot--green {
+  background: var(--color-accent);
+  box-shadow: 0 0 4px var(--color-accent);
+}
+
+.status-dot--yellow {
+  background: var(--color-warn);
+  box-shadow: 0 0 4px var(--color-warn);
+}
+
+.status-dot--red {
+  background: var(--color-danger);
+  box-shadow: 0 0 4px var(--color-danger);
+}
+
+/* ── Error banner ──────────────────────────────────────────── */
+.error-banner {
+  background: rgba(244, 67, 54, 0.12);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--color-danger);
+}
+
+/* ── Actions ───────────────────────────────────────────────── */
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  background: var(--color-btn-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn:hover {
+  background: var(--color-btn-hover);
+}
+
+.btn:active {
+  opacity: 0.8;
+}
+
+.btn--danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.btn--danger:hover {
+  background: rgba(244, 67, 54, 0.1);
+}
+
+/* ── Divider ───────────────────────────────────────────────── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--color-border);
+}
