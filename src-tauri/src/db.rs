@@ -64,6 +64,8 @@ pub struct HeightReadingRow {
 pub struct TodaySummary {
     pub sitting_secs: i64,
     pub standing_secs: i64,
+    pub yesterday_sitting_secs: i64,
+    pub yesterday_standing_secs: i64,
     pub position_changes: u32,
     pub sessions: Vec<SessionRow>,
 }
@@ -138,6 +140,50 @@ pub fn load_today_totals(conn: &Connection) -> Result<(i64, i64), String> {
     Ok((sitting_secs, standing_secs))
 }
 
+/// Loads yesterday's total sitting and standing seconds from the database.
+/// Returns (sitting_secs, standing_secs) or an error.
+/// Returns (0, 0) if no sessions exist for yesterday.
+pub fn get_yesterday_totals(conn: &Connection) -> Result<(i64, i64), String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT state, duration_seconds FROM sessions WHERE date(started_at) = date('now', '-1 day') AND ended_at IS NOT NULL",
+        )
+        .map_err(|e| {
+            let msg = format!("Failed to prepare query: {}", e);
+            error!("{}", msg);
+            msg
+        })?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .map_err(|e| {
+            let msg = format!("Failed to query yesterday's totals: {}", e);
+            error!("{}", msg);
+            msg
+        })?;
+
+    let mut sitting_secs = 0i64;
+    let mut standing_secs = 0i64;
+
+    for row_result in rows {
+        let (state, duration) = row_result.map_err(|e| {
+            let msg = format!("Failed to read row: {}", e);
+            error!("{}", msg);
+            msg
+        })?;
+
+        if state == "Sitting" {
+            sitting_secs += duration;
+        } else {
+            standing_secs += duration;
+        }
+    }
+
+    Ok((sitting_secs, standing_secs))
+}
+
 /// Returns today's complete summary including all sessions and aggregate times.
 pub fn get_today_summary(conn: &Connection) -> Result<TodaySummary, String> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
@@ -187,9 +233,13 @@ pub fn get_today_summary(conn: &Connection) -> Result<TodaySummary, String> {
         }
     }
 
+    let (yesterday_sitting_secs, yesterday_standing_secs) = get_yesterday_totals(conn)?;
+
     Ok(TodaySummary {
         sitting_secs,
         standing_secs,
+        yesterday_sitting_secs,
+        yesterday_standing_secs,
         position_changes: 0,  // Will be set by caller from SessionManager
         sessions,
     })
@@ -236,5 +286,25 @@ mod tests {
         let (sitting, standing) = load_today_totals(&conn).unwrap();
         assert_eq!(sitting, 0);
         assert_eq!(standing, 0);
+    }
+
+    #[test]
+    fn test_get_yesterday_totals_empty() {
+        let conn = test_conn();
+        init_schema(&conn).unwrap();
+
+        let (sitting, standing) = get_yesterday_totals(&conn).unwrap();
+        assert_eq!(sitting, 0, "no yesterday data should return 0 sitting");
+        assert_eq!(standing, 0, "no yesterday data should return 0 standing");
+    }
+
+    #[test]
+    fn test_get_today_summary_includes_yesterday() {
+        let conn = test_conn();
+        init_schema(&conn).unwrap();
+
+        let summary = get_today_summary(&conn).unwrap();
+        assert_eq!(summary.yesterday_sitting_secs, 0, "empty db should have 0 yesterday sitting");
+        assert_eq!(summary.yesterday_standing_secs, 0, "empty db should have 0 yesterday standing");
     }
 }
