@@ -3,14 +3,14 @@
  *
  * Renders live session data (state, progress, today's stats) sourced from
  * the Rust Tauri backend via the useDesk hook. Auto-connects on start.
- * Shows CalibrationWizard on first run until calibration is complete.
+ * Shows SettingsPanel on first run until settings are configured.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDesk } from "@/hooks/useDesk";
 import { useTimer } from "@/hooks/useTimer";
 import { formatDuration } from "@/utils/format";
-import CalibrationWizard from "@/components/CalibrationWizard";
+import SettingsPanel from "@/components/SettingsPanel";
 import HeightRail from "@/components/HeightRail";
 import SessionProgress from "@/components/SessionProgress";
 import StateIndicator from "@/components/StateIndicator";
@@ -30,12 +30,25 @@ function connectionLabel(connected: boolean, port: string | null): string {
 }
 
 export default function App() {
-  const [calibrated, setCalibrated] = useState(() => localStorage.getItem("desk:calibrated") === "1");
+  const [showSettings, setShowSettings] = useState(false);
   const { connected, port, state, deskHeightCm, sittingSeconds, breakSeconds, sessionLimitSecs, error } =
     useDesk();
 
   const liveSitting = useTimer(sittingSeconds, state === "Sitting");
   const liveBreak   = useTimer(breakSeconds,   state !== "Sitting" && state !== null);
+
+  // Check if settings exist on startup
+  useEffect(() => {
+    async function checkSettings() {
+      try {
+        await invoke("get_settings");
+      } catch {
+        // No settings exist yet, show settings panel on first run
+        setShowSettings(true);
+      }
+    }
+    checkSettings();
+  }, []);
 
   async function handleStop() {
     await invoke("stop_reading").catch(console.error);
@@ -44,22 +57,35 @@ export default function App() {
   const showProgress = sessionLimitSecs > 0 && state === "Sitting";
   const showBreak    = state !== "Sitting" && state !== null && liveBreak > 0;
 
+  // If settings panel is open, show only that
+  if (showSettings) {
+    return (
+      <main className="app">
+        <SettingsPanel onClose={() => setShowSettings(false)} />
+      </main>
+    );
+  }
+
   return (
     <main className="app">
 
-      {/* Header — app identity + connection status */}
+      {/* Header — app identity + connection status + settings button */}
       <div className="app__header">
         <span className="app__title">↕ desk</span>
-        <div className="connection-status">
-          <span className={`status-dot ${statusDotClass(connected, error !== null && !connected)}`} />
-          <span>{connectionLabel(connected, port)}</span>
+        <div className="app__header-right">
+          <div className="connection-status">
+            <span className={`status-dot ${statusDotClass(connected, error !== null && !connected)}`} />
+            <span>{connectionLabel(connected, port)}</span>
+          </div>
+          <button
+            className="btn btn--link"
+            onClick={() => setShowSettings(true)}
+            title="Open settings"
+          >
+            ⚙
+          </button>
         </div>
       </div>
-
-      {/* First-run calibration wizard */}
-      {!calibrated && connected && (
-        <CalibrationWizard deskHeightCm={deskHeightCm} onComplete={() => setCalibrated(true)} />
-      )}
 
       {/* Main state card — HeightRail is the left accent */}
       <div className="panel-row">
@@ -95,7 +121,6 @@ export default function App() {
       {/* Actions */}
       <div className="actions">
         <button className="btn btn--danger" onClick={handleStop}>stop</button>
-        <button className="btn" onClick={() => setCalibrated(false)}>re-calibrate</button>
       </div>
 
     </main>
