@@ -66,7 +66,9 @@ pub fn run() {
             info!("Config: {:?}", config);
 
             // Initialize SQLite database
-            let db_path = app.path().app_data_dir()?.join("desk.db");
+            let app_data_dir = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&app_data_dir)?;
+            let db_path = app_data_dir.join("desk.db");
             let db_conn = rusqlite::Connection::open(&db_path)?;
             db::init_schema(&db_conn)?;
 
