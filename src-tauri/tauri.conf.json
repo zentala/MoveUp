@@ -31,27 +31,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "nsis": {
-      "installerFilename": "zntlDesk_0.1.0_x64_en-US.exe",
-      "shortcutsTargetDir": "ProgramFilesFolder",
-      "uninstallerSidebar": true,
-      "deleteUninstallerOnFinish": false
-    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/icon.ico"
-    ],
-    "// AUTO-UPDATE (future)": {
-      "note": "When auto-update is implemented, add:",
-      "updater": {
-        "active": true,
-        "endpoints": [
-          "https://releases.example.com/latest.json"
-        ],
-        "dialog": true,
-        "pubkey": "public-key-from-cert"
-      }
-    }
+    ]
   }
 }

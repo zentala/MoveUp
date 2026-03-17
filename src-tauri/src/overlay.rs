@@ -59,16 +59,19 @@ pub fn setup_overlay(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> 
 /// `color`    — CSS colour for the bar.
 pub fn update_overlay(app: &AppHandle, progress: f32, color: &str) {
     use log::info;
-    use tauri::Emitter;
 
-    info!("📡 emit_all('overlay:progress', progress={}, color={})", progress, color);
+    info!("📡 emit('overlay:progress', progress={}, color={})", progress, color);
     let payload = OverlayProgress {
         progress,
         color: color.to_string(),
     };
-    match app.emit_all("overlay:progress", payload) {
-        Ok(_) => info!("✓ Event emitted to ALL windows"),
-        Err(e) => info!("✗ Event emit_all failed: {:?}", e),
+    if let Some(window) = app.get_webview_window("overlay") {
+        match window.emit("overlay:progress", payload) {
+            Ok(_) => info!("✓ Event emitted to overlay window"),
+            Err(e) => info!("✗ Event emit failed: {:?}", e),
+        }
+    } else {
+        info!("✗ Overlay window not found");
     }
 }
 

@@ -8,17 +8,10 @@ use log::info;
 use tauri::{AppHandle, Listener};
 
 use crate::{
-    overlay,
+    colors::color_for_progress,
     session::{DeskState, StateChangedPayload},
     tray,
 };
-
-// ─── Colour thresholds ────────────────────────────────────────────────────────
-
-/// 0–60 % of session limit → green.
-const THRESHOLD_YELLOW: f32 = 0.60;
-/// 60–85 % → yellow.
-const THRESHOLD_RED: f32 = 0.85;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -38,16 +31,20 @@ pub fn setup(app: &AppHandle) {
 
 /// Reacts to a state-change event by updating tray and overlay.
 fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
-    // Read session limit from the managed state.
-    let session_limit_secs = {
-        use crate::commands::AppState;
-        use tauri::Manager;
-        app.state::<AppState>()
+    use crate::commands::AppState;
+    use tauri::Manager;
+
+    // Read session limit and overlay from managed state.
+    let (session_limit_secs, overlay) = {
+        let app_state = app.state::<AppState>();
+        let session_limit_secs = app_state
             .session
             .lock()
             .unwrap()
             .snapshot()
-            .session_limit_secs
+            .session_limit_secs;
+        let overlay = app_state.overlay.clone();
+        (session_limit_secs, overlay)
     };
 
     let sitting_secs = payload.sitting_seconds;
@@ -57,7 +54,7 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
         0.0
     };
 
-    let (_r, _g, _b, css_color) = color_for_progress(progress);
+    let (r, g, b, _css_color) = color_for_progress(progress);
 
     // Build tooltip label: "↕ 72.3 cm — Sitting (12:34)"
     let state_str = match payload.state {
@@ -75,24 +72,14 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
 
     let _ = tray::update_tray(app, &label, payload.state.clone(), progress);
 
+    // Update WinAPI overlay
     if payload.state == DeskState::Sitting {
-        info!("→ Showing overlay, emitting progress: {} color: {}", progress, css_color);
-        overlay::update_overlay(app, progress, css_color);
-        overlay::show_overlay(app);
+        info!("→ Showing overlay, progress: {:.0}%", progress * 100.0);
+        overlay.update(progress, (r, g, b));
+        overlay.show();
     } else {
         info!("→ Hiding overlay (state: {:?})", payload.state);
-        overlay::hide_overlay(app);
-    }
-}
-
-/// Returns (r, g, b, css_hex) for a given progress ratio.
-fn color_for_progress(progress: f32) -> (u8, u8, u8, &'static str) {
-    if progress < THRESHOLD_YELLOW {
-        (76, 175, 80, "#4caf50") // green
-    } else if progress < THRESHOLD_RED {
-        (255, 193, 7, "#ffc107") // yellow
-    } else {
-        (244, 67, 54, "#f44336") // red
+        overlay.hide();
     }
 }
 
@@ -130,24 +117,4 @@ mod tests {
         assert_eq!(format_duration(-10), "00:00");
     }
 
-    #[test]
-    fn color_green_below_60_percent() {
-        let (r, g, b, css) = color_for_progress(0.3);
-        assert_eq!((r, g, b), (76, 175, 80));
-        assert_eq!(css, "#4caf50");
-    }
-
-    #[test]
-    fn color_yellow_between_60_and_85() {
-        let (r, g, b, css) = color_for_progress(0.7);
-        assert_eq!((r, g, b), (255, 193, 7));
-        assert_eq!(css, "#ffc107");
-    }
-
-    #[test]
-    fn color_red_above_85_percent() {
-        let (r, g, b, css) = color_for_progress(0.9);
-        assert_eq!((r, g, b), (244, 67, 54));
-        assert_eq!(css, "#f44336");
-    }
 }

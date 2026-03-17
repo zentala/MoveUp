@@ -8,6 +8,7 @@ use tauri::{Emitter, Manager, State};
 use crate::{
     config::AppConfig,
     db::TodaySummary,
+    overlay_renderer::OverlayRenderer,
     serial::{available_port_infos, scan_and_connect, ConnectionState, PortInfo},
     session::{SessionManager, SessionStateDto},
 };
@@ -20,6 +21,7 @@ pub struct AppState {
     pub session: Arc<Mutex<SessionManager>>,
     pub db: Arc<Mutex<Option<Connection>>>,
     pub config: Arc<Mutex<Option<AppConfig>>>,
+    pub overlay: Arc<OverlayRenderer>,
 }
 
 // ─── Initialization ───────────────────────────────────────────────────────────

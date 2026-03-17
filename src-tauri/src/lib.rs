@@ -4,10 +4,12 @@
 //! as soon as the app is set up.
 
 mod activity;
+mod colors;
 mod commands;
 mod config;
 mod db;
 mod overlay;
+mod overlay_renderer;
 mod serial;
 pub mod session;
 mod tray;
@@ -18,6 +20,7 @@ use std::sync::{Arc, Mutex};
 
 use commands::AppState;
 use log::info;
+use overlay_renderer::OverlayRenderer;
 use serial::ConnectionState;
 use session::SessionManager;
 use tauri::Manager;
@@ -40,6 +43,7 @@ pub fn run() {
             session: Arc::new(Mutex::new(SessionManager::new())),
             db: Arc::new(Mutex::new(None)),
             config: Arc::new(Mutex::new(None)),
+            overlay: Arc::new(OverlayRenderer::new()),
         })
         .invoke_handler({
             #[cfg(any(test, debug_assertions))]
