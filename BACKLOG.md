@@ -20,6 +20,19 @@ Items not yet scheduled, before refinement.
 
 ---
 
+## Dokumentacja
+
+- **Overlay Progress Bar Architecture Document** — pełny opis systemu paska na górze ekranu
+  - Architektura: OverlayRenderer, OverlayState, thread-safe state management
+  - Synchronizacja z session state (Sitting/Standing/Walking)
+  - Logika kolorów (green → amber → red)
+  - Linkowanie do testów: `overlay_renderer::tests`, `colors::tests`
+  - Linkowanie do plików: `overlay_renderer.rs`, `colors.rs`, `tray_controller.rs`
+  - Diagram przepływu: State → TrayController → OverlayRenderer → WinAPI Window
+  - Aby uniknąć rozjazdów: dokumentacja = Single Source of Truth dla jak pasek działa
+
+---
+
 ## Inne
 
 - Konfiguracja progów wysokości przez UI (kalibracja: "ustaw biurko na siedzącą pozycję i kliknij")

@@ -135,7 +135,7 @@ fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
             WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
             PCSTR(CLASS_NAME.as_ptr()),
             PCSTR(WINDOW_NAME.as_ptr()),
-            WS_POPUP,
+            WS_POPUP | WS_VISIBLE,
             0,                  // x
             0,                  // y
             screen_width,       // width
@@ -217,6 +217,7 @@ unsafe extern "system" fn wnd_proc(
                 let state = &*state_ptr;
                 if let Ok(mut s) = state.lock() {
                     if s.needs_redraw {
+                        log::debug!("WM_TIMER: Invalidating rect (progress={}, visible={})", s.progress, s.visible);
                         let _ = InvalidateRect(Some(hwnd), None, false.into());
                         s.needs_redraw = false;
                     }
@@ -226,6 +227,7 @@ unsafe extern "system" fn wnd_proc(
         }
 
         WM_PAINT => {
+            log::info!("WM_PAINT: Painting overlay");
             // WM_PAINT: Draw the progress bar
             let state_ptr = GetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(0)) as *mut Arc<Mutex<OverlayState>>;
             if !state_ptr.is_null() {
@@ -239,6 +241,7 @@ unsafe extern "system" fn wnd_proc(
                     let _ = GetClientRect(hwnd, &mut rect);
                     let window_width = rect.right - rect.left;
                     let window_height = rect.bottom - rect.top;
+                    log::debug!("WM_PAINT: window={}x{}, progress={}, visible={}", window_width, window_height, s.progress, s.visible);
 
                     // Calculate bar width (progress × window_width)
                     let bar_width = ((window_width as f32) * s.progress.max(0.0).min(1.0)) as i32;
