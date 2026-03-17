@@ -8,7 +8,6 @@ mod colors;
 mod commands;
 mod config;
 mod db;
-mod overlay;
 mod overlay_renderer;
 mod serial;
 pub mod session;
@@ -86,9 +85,6 @@ pub fn run() {
 
             // System tray icon and context menu.
             tray::setup_tray(app.handle())?;
-
-            // Top-of-screen overlay progress bar window.
-            overlay::setup_overlay(app.handle())?;
 
             // Wire state-changed events to tray + overlay updates.
             tray_controller::setup(app.handle());

@@ -268,6 +268,17 @@ unsafe extern "system" fn wnd_proc(
                     let bar_width = ((window_width as f32) * s.progress.max(0.0).min(1.0)) as i32;
                     log::info!("WM_PAINT: bar_width={} (progress={}), visible={}", bar_width, s.progress, s.visible);
 
+                    // TEMPORARY DEBUG: Golden background for all cases to see the bar
+                    // TODO: Remove this and use s.visible flag properly
+                    let debug_gold = COLORREF(
+                        (255u32) | ((200u32 << 8)) | ((0u32 << 16))  // RGB(255, 200, 0) = gold
+                    );
+                    let gold_brush = CreateSolidBrush(debug_gold);
+                    if !gold_brush.is_invalid() {
+                        let _ = FillRect(hdc, &rect, gold_brush);  // Fill entire bar with gold
+                        let _ = DeleteObject(gold_brush.into());
+                    }
+
                     if s.visible {
                         // Create brush with RGB color
                         // RGB(r, g, b) in Windows = r | (g << 8) | (b << 16)
