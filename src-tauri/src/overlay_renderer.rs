@@ -268,14 +268,20 @@ unsafe extern "system" fn wnd_proc(
                     let bar_width = ((window_width as f32) * s.progress.max(0.0).min(1.0)) as i32;
                     log::info!("WM_PAINT: bar_width={} (progress={}), visible={}", bar_width, s.progress, s.visible);
 
+                    // First: Fill background with black (solid brush, not stock)
+                    let black_brush = CreateSolidBrush(COLORREF(0));  // RGB(0,0,0) = black
+                    if !black_brush.is_invalid() {
+                        let _ = FillRect(hdc, &rect, black_brush);
+                        let _ = DeleteObject(black_brush.into());
+                    }
+
                     // TEMPORARY DEBUG: Golden background for all cases to see the bar
-                    // TODO: Remove this and use s.visible flag properly
                     let debug_gold = COLORREF(
                         (255u32) | ((200u32 << 8)) | ((0u32 << 16))  // RGB(255, 200, 0) = gold
                     );
                     let gold_brush = CreateSolidBrush(debug_gold);
                     if !gold_brush.is_invalid() {
-                        let _ = FillRect(hdc, &rect, gold_brush);  // Fill entire bar with gold
+                        let _ = FillRect(hdc, &rect, gold_brush);  // Golden bar OVER black
                         let _ = DeleteObject(gold_brush.into());
                     }
 
@@ -291,7 +297,7 @@ unsafe extern "system" fn wnd_proc(
                         let brush = CreateSolidBrush(color);
                         log::info!("WM_PAINT: brush.is_invalid()={}", brush.is_invalid());
 
-                        // Draw progress bar
+                        // Draw progress bar ON TOP of gold
                         if bar_width > 0 && !brush.is_invalid() {
                             log::info!("WM_PAINT: Drawing progress bar at {}px", bar_width);
                             let bar_rect = RECT {
@@ -306,26 +312,6 @@ unsafe extern "system" fn wnd_proc(
                         // Clean up brush
                         if !brush.is_invalid() {
                             let _ = DeleteObject(brush.into());
-                        }
-
-                        // Fill background (black)
-                        if bar_width < window_width {
-                            let bg_rect = RECT {
-                                left: bar_width,
-                                top: 0,
-                                right: window_width,
-                                bottom: window_height,
-                            };
-                            let black_brush = GetStockObject(BLACK_BRUSH);
-                            if !black_brush.is_invalid() {
-                                let _ = FillRect(hdc, &bg_rect, HBRUSH(black_brush.0));
-                            }
-                        }
-                    } else {
-                        // Window hidden: fill entire area with black
-                        let black_brush = GetStockObject(BLACK_BRUSH);
-                        if !black_brush.is_invalid() {
-                            let _ = FillRect(hdc, &rect, HBRUSH(black_brush.0));
                         }
                     }
                 }
