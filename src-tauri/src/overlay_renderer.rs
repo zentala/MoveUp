@@ -77,10 +77,31 @@ impl OverlayRenderer {
 ///
 /// ⚠️ CreateWindowExW MUST be called here, not in OverlayRenderer::new().
 ///
-/// NOTE: Full WinAPI implementation deferred to V2. V1 uses simplified setup
-/// that skips actual window creation to unblock testing of the overlay system.
+/// Two implementations available:
+/// - OPAQUE mode: Simple black background, fallback (reliable)
+/// - LAYERED mode: Transparent with UpdateLayeredWindow (experimental)
+///
+/// Set `OVERLAY_MODE=layered` env var to switch (default: opaque)
 #[cfg(target_os = "windows")]
 fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
+    let mode = std::env::var("OVERLAY_MODE").unwrap_or_else(|_| "opaque".to_string());
+    match mode.as_str() {
+        "layered" => {
+            info!("🎨 [EXPERIMENTAL] Starting overlay in LAYERED mode (UpdateLayeredWindow)");
+            run_event_loop_layered(state);
+        }
+        _ => {
+            info!("🎨 [STABLE] Starting overlay in OPAQUE mode (black background)");
+            run_event_loop_opaque(state);
+        }
+    }
+}
+
+/// Opaque overlay: Black background, standard GDI rendering (STABLE)
+///
+/// ⚠️ No transparency, but reliable rendering.
+#[cfg(target_os = "windows")]
+fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>) {
     use windows::Win32::Foundation::*;
     use windows::Win32::Graphics::Gdi::*;
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -245,6 +266,7 @@ unsafe extern "system" fn wnd_proc(
 
                     // Calculate bar width (progress × window_width)
                     let bar_width = ((window_width as f32) * s.progress.max(0.0).min(1.0)) as i32;
+                    log::info!("WM_PAINT: bar_width={} (progress={}), visible={}", bar_width, s.progress, s.visible);
 
                     if s.visible {
                         // Create brush with RGB color
@@ -254,10 +276,13 @@ unsafe extern "system" fn wnd_proc(
                                 | ((s.color_rgb.1 as u32) << 8)
                                 | ((s.color_rgb.2 as u32) << 16),
                         );
+                        log::info!("WM_PAINT: Creating brush with RGB({}, {}, {})", s.color_rgb.0, s.color_rgb.1, s.color_rgb.2);
                         let brush = CreateSolidBrush(color);
+                        log::info!("WM_PAINT: brush.is_invalid()={}", brush.is_invalid());
 
                         // Draw progress bar
                         if bar_width > 0 && !brush.is_invalid() {
+                            log::info!("WM_PAINT: Drawing progress bar at {}px", bar_width);
                             let bar_rect = RECT {
                                 left: 0,
                                 top: 0,
@@ -310,6 +335,22 @@ unsafe extern "system" fn wnd_proc(
             DefWindowProcA(hwnd, msg, wparam, lparam)
         }
     }
+}
+
+/// Layered overlay: Transparent with UpdateLayeredWindow (EXPERIMENTAL)
+///
+/// ⚠️ Uses WS_EX_LAYERED + UpdateLayeredWindow for transparency.
+/// Requires 32-bit ARGB bitmap and more complex rendering pipeline.
+///
+/// TODO (V3): Implement proper layered window rendering with offscreen DC
+/// and per-pixel alpha blending for smooth transparency.
+#[cfg(target_os = "windows")]
+fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>) {
+    info!("⚠️ [EXPERIMENTAL] Layered mode not yet implemented");
+    info!("   Falling back to opaque mode for now");
+    // TODO: Implement UpdateLayeredWindow approach
+    // For now, fall back to opaque to avoid hanging
+    run_event_loop_opaque(state);
 }
 
 /// Placeholder for non-Windows platforms
