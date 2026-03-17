@@ -117,7 +117,7 @@ fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
             hInstance: hinstance,
             hIcon: HICON::default(),
             hCursor: HCURSOR::default(),
-            hbrBackground: HBRUSH::default(),
+            hbrBackground: HBRUSH(GetStockObject(BLACK_BRUSH).0),
             lpszMenuName: PCSTR::null(),
             lpszClassName: PCSTR(CLASS_NAME.as_ptr()),
         };
@@ -129,8 +129,10 @@ fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
         }
 
         // 3. Create window at (0,0) with screen_width × 4px
+        // Note: Removed WS_EX_LAYERED as it requires UpdateLayeredWindow for rendering.
+        // Using standard WS_POPUP allows normal GDI drawing via BeginPaint/FillRect.
         let hwnd = match CreateWindowExA(
-            WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+            WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
             PCSTR(CLASS_NAME.as_ptr()),
             PCSTR(WINDOW_NAME.as_ptr()),
             WS_POPUP,
