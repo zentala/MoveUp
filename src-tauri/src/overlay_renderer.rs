@@ -10,8 +10,6 @@
 use std::sync::{Arc, Mutex};
 use log::info;
 
-use crate::colors::color_for_progress;
-
 /// Shared state — written from Tauri thread, read from WinAPI thread.
 pub struct OverlayState {
     pub progress: f32,           // 0.0 – 1.0
@@ -78,30 +76,40 @@ impl OverlayRenderer {
 /// WinAPI event loop — runs in background thread.
 ///
 /// ⚠️ CreateWindowExW MUST be called here, not in OverlayRenderer::new().
+///
+/// NOTE: Full WinAPI implementation deferred to V2. V1 uses simplified setup
+/// that skips actual window creation to unblock testing of the overlay system.
 #[cfg(target_os = "windows")]
 fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
-    use windows::Win32::{
-        Foundation::*,
-        Graphics::Gdi::*,
-        UI::WindowsAndMessaging::*,
-    };
+    use std::thread;
 
-    // TODO: detect primary monitor width at runtime
-    let screen_width = 1920i32;
-    let height = 4i32;
+    // PLACEHOLDER FOR V2: Full WinAPI implementation
+    //
+    // To complete this, implement:
+    // 1. Window class registration (WNDCLASSA)
+    // 2. CreateWindowExW with flags: WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
+    // 3. GetMonitorInfo to detect primary monitor dimensions
+    // 4. SetTimer(hwnd, 16ms) for 60fps redraw
+    // 5. Message loop with:
+    //    - WM_TIMER: check state.needs_redraw, InvalidateRect if dirty
+    //    - WM_PAINT: BeginPaint → FillRect(bar_width) → EndPaint
+    //    - WM_DESTROY: PostQuitMessage(0)
+    // 6. Store state Arc in window USERDATA (SetWindowLongPtrW) for WNDPROC callback
+    //
+    // See GitHub issues and Windows API docs for implementation details.
 
-    unsafe {
-        // TODO: Implement full WinAPI window setup:
-        // 1. Register window class
-        // 2. CreateWindowExW() with WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
-        // 3. SetTimer(hwnd, 1, 16, None)  ← 60fps timer
-        // 4. Message loop:
-        //    - WM_TIMER: if needs_redraw { InvalidateRect() }
-        //    - WM_PAINT: BeginPaint → FillRect(bar_width) → EndPaint
-        //    - WM_DESTROY: PostQuitMessage(0)
+    info!("🎨 [V1 PLACEHOLDER] Overlay renderer started (full WinAPI deferred to V2)");
+
+    // Keep thread alive to monitor state changes (for future implementation)
+    loop {
+        if let Ok(s) = state.lock() {
+            if !s.visible {
+                thread::sleep(std::time::Duration::from_millis(100));
+            } else {
+                thread::sleep(std::time::Duration::from_millis(16));
+            }
+        }
     }
-
-    info!("🎨 WinAPI overlay window created: {}x{} @ (0,0)", screen_width, height);
 }
 
 /// Placeholder for non-Windows platforms
@@ -115,6 +123,7 @@ fn run_event_loop(_state: Arc<Mutex<OverlayState>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::colors::color_for_progress;
 
     #[test]
     fn state_update_sets_needs_redraw() {
