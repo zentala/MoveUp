@@ -81,33 +81,228 @@ impl OverlayRenderer {
 /// that skips actual window creation to unblock testing of the overlay system.
 #[cfg(target_os = "windows")]
 fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
-    use std::thread;
+    use windows::Win32::Foundation::*;
+    use windows::Win32::Graphics::Gdi::*;
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows::Win32::UI::WindowsAndMessaging::*;
+    use windows::core::PCSTR;
 
-    // PLACEHOLDER FOR V2: Full WinAPI implementation
-    //
-    // To complete this, implement:
-    // 1. Window class registration (WNDCLASSA)
-    // 2. CreateWindowExW with flags: WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
-    // 3. GetMonitorInfo to detect primary monitor dimensions
-    // 4. SetTimer(hwnd, 16ms) for 60fps redraw
-    // 5. Message loop with:
-    //    - WM_TIMER: check state.needs_redraw, InvalidateRect if dirty
-    //    - WM_PAINT: BeginPaint → FillRect(bar_width) → EndPaint
-    //    - WM_DESTROY: PostQuitMessage(0)
-    // 6. Store state Arc in window USERDATA (SetWindowLongPtrW) for WNDPROC callback
-    //
-    // See GitHub issues and Windows API docs for implementation details.
+    const CLASS_NAME: &[u8] = b"zntlOverlayBar\0";
+    const WINDOW_NAME: &[u8] = b"zntl Overlay\0";
+    const TIMER_ID: usize = 1;
+    const TIMER_INTERVAL_MS: u32 = 16; // ~60fps
 
-    info!("🎨 [V1 PLACEHOLDER] Overlay renderer started (full WinAPI deferred to V2)");
+    unsafe {
+        // 1. Get primary monitor dimensions using GetMonitorInfo
+        let hmonitor = MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY);
+        let mut monitor_info: MONITORINFO = std::mem::zeroed();
+        monitor_info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
 
-    // Keep thread alive to monitor state changes (for future implementation)
-    loop {
-        if let Ok(s) = state.lock() {
-            if !s.visible {
-                thread::sleep(std::time::Duration::from_millis(100));
-            } else {
-                thread::sleep(std::time::Duration::from_millis(16));
+        let screen_width = if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
+            monitor_info.rcMonitor.right - monitor_info.rcMonitor.left
+        } else {
+            1920 // fallback
+        };
+        let screen_height = 4i32;
+
+        // 2. Register window class
+        let hmodule = GetModuleHandleW(None).unwrap_or(HMODULE::default());
+        let hinstance: HINSTANCE = hmodule.into();
+
+        let wnd_class = WNDCLASSA {
+            style: CS_HREDRAW | CS_VREDRAW,
+            lpfnWndProc: Some(wnd_proc),
+            cbClsExtra: 0,
+            cbWndExtra: std::mem::size_of::<isize>() as i32,
+            hInstance: hinstance,
+            hIcon: HICON::default(),
+            hCursor: HCURSOR::default(),
+            hbrBackground: HBRUSH::default(),
+            lpszMenuName: PCSTR::null(),
+            lpszClassName: PCSTR(CLASS_NAME.as_ptr()),
+        };
+
+        let class_atom = RegisterClassA(&wnd_class);
+        if class_atom == 0 {
+            info!("⚠️ Failed to register window class");
+            return;
+        }
+
+        // 3. Create window at (0,0) with screen_width × 4px
+        let hwnd = match CreateWindowExA(
+            WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+            PCSTR(CLASS_NAME.as_ptr()),
+            PCSTR(WINDOW_NAME.as_ptr()),
+            WS_POPUP,
+            0,                  // x
+            0,                  // y
+            screen_width,       // width
+            screen_height,      // height
+            None,               // parent
+            None,               // menu
+            Some(hinstance),
+            None,
+        ) {
+            Ok(h) => h,
+            Err(_) => {
+                info!("⚠️ Failed to create overlay window");
+                return;
             }
+        };
+
+        // 4. Store state Arc pointer in window userdata (cbWndExtra)
+        let state_ptr = Box::into_raw(Box::new(state.clone()));
+        SetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(0), state_ptr as isize);
+
+        // 5. Make window visible and set timer
+        let _ = ShowWindow(hwnd, SW_SHOW);
+        let _ = UpdateWindow(hwnd);
+
+        if SetTimer(Some(hwnd), TIMER_ID, TIMER_INTERVAL_MS, None) == 0 {
+            info!("⚠️ Failed to set timer");
+            let _ = DestroyWindow(hwnd);
+            return;
+        }
+
+        info!(
+            "🎨 WinAPI overlay window created: {}x{} @ (0,0), timer={}ms",
+            screen_width, screen_height, TIMER_INTERVAL_MS
+        );
+
+        // 6. Message loop
+        let mut msg: MSG = std::mem::zeroed();
+        loop {
+            let msg_result = GetMessageW(&mut msg, None, 0, 0);
+
+            if msg_result.0 == 0 {
+                // WM_QUIT received, exit loop
+                break;
+            } else if msg_result.0 < 0 {
+                info!("⚠️ GetMessageW error");
+                break;
+            }
+
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+
+        // Cleanup
+        let _ = DestroyWindow(hwnd);
+        let _ = UnregisterClassA(PCSTR(CLASS_NAME.as_ptr()), Some(hinstance));
+        let _ = Box::from_raw(state_ptr); // reclaim Arc
+    }
+}
+
+/// Window procedure — handles window messages for the overlay.
+///
+/// Accessed state pointer stored in cbWndExtra via GetWindowLongPtrW(hwnd, 0).
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn wnd_proc(
+    hwnd: windows::Win32::Foundation::HWND,
+    msg: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::Foundation::*;
+    use windows::Win32::Graphics::Gdi::*;
+    use windows::Win32::UI::WindowsAndMessaging::*;
+
+    match msg {
+        WM_TIMER => {
+            // WM_TIMER: Check if state needs redraw, invalidate if dirty
+            let state_ptr = GetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(0)) as *mut Arc<Mutex<OverlayState>>;
+            if !state_ptr.is_null() {
+                let state = &*state_ptr;
+                if let Ok(mut s) = state.lock() {
+                    if s.needs_redraw {
+                        let _ = InvalidateRect(Some(hwnd), None, false.into());
+                        s.needs_redraw = false;
+                    }
+                }
+            }
+            LRESULT(0)
+        }
+
+        WM_PAINT => {
+            // WM_PAINT: Draw the progress bar
+            let state_ptr = GetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(0)) as *mut Arc<Mutex<OverlayState>>;
+            if !state_ptr.is_null() {
+                let state = &*state_ptr;
+                let mut ps: PAINTSTRUCT = std::mem::zeroed();
+                let hdc = BeginPaint(hwnd, &mut ps);
+
+                if let Ok(s) = state.lock() {
+                    // Get window dimensions
+                    let mut rect: RECT = std::mem::zeroed();
+                    let _ = GetClientRect(hwnd, &mut rect);
+                    let window_width = rect.right - rect.left;
+                    let window_height = rect.bottom - rect.top;
+
+                    // Calculate bar width (progress × window_width)
+                    let bar_width = ((window_width as f32) * s.progress.max(0.0).min(1.0)) as i32;
+
+                    if s.visible {
+                        // Create brush with RGB color
+                        // RGB(r, g, b) in Windows = r | (g << 8) | (b << 16)
+                        let color = COLORREF(
+                            (s.color_rgb.0 as u32)
+                                | ((s.color_rgb.1 as u32) << 8)
+                                | ((s.color_rgb.2 as u32) << 16),
+                        );
+                        let brush = CreateSolidBrush(color);
+
+                        // Draw progress bar
+                        if bar_width > 0 && !brush.is_invalid() {
+                            let bar_rect = RECT {
+                                left: 0,
+                                top: 0,
+                                right: bar_width,
+                                bottom: window_height,
+                            };
+                            let _ = FillRect(hdc, &bar_rect, brush);
+                        }
+
+                        // Clean up brush
+                        if !brush.is_invalid() {
+                            let _ = DeleteObject(brush.into());
+                        }
+
+                        // Fill background (black)
+                        if bar_width < window_width {
+                            let bg_rect = RECT {
+                                left: bar_width,
+                                top: 0,
+                                right: window_width,
+                                bottom: window_height,
+                            };
+                            let black_brush = GetStockObject(BLACK_BRUSH);
+                            if !black_brush.is_invalid() {
+                                let _ = FillRect(hdc, &bg_rect, HBRUSH(black_brush.0));
+                            }
+                        }
+                    } else {
+                        // Window hidden: fill entire area with black
+                        let black_brush = GetStockObject(BLACK_BRUSH);
+                        if !black_brush.is_invalid() {
+                            let _ = FillRect(hdc, &rect, HBRUSH(black_brush.0));
+                        }
+                    }
+                }
+
+                let _ = EndPaint(hwnd, &ps);
+            }
+            LRESULT(0)
+        }
+
+        WM_DESTROY => {
+            // Window is being destroyed, quit the message loop
+            PostQuitMessage(0);
+            LRESULT(0)
+        }
+
+        _ => {
+            // Default window procedure for other messages
+            DefWindowProcA(hwnd, msg, wparam, lparam)
         }
     }
 }
