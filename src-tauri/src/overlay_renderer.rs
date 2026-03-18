@@ -345,6 +345,7 @@ unsafe extern "system" fn wnd_proc(
 /// Layered buffer — offscreen 32-bit ARGB DIBSection for UpdateLayeredWindow
 #[cfg(target_os = "windows")]
 struct LayeredBufferState {
+    hdc_screen: windows::Win32::Graphics::Gdi::HDC, // screen DC (cached from GetDC(None) at init)
     hdc_mem: windows::Win32::Graphics::Gdi::HDC,
     hbm: windows::Win32::Graphics::Gdi::HBITMAP,
     old_hbm: windows::Win32::Graphics::Gdi::HGDIOBJ,
@@ -478,8 +479,9 @@ fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>) {
 
         let old_hbm = SelectObject(hdc_mem, hbm.into());
 
-        // 7. Create LayeredBufferState and store in window
+        // 7. Create LayeredBufferState and store in window (with cached screen DC)
         let buf_state = LayeredBufferState {
+            hdc_screen,
             hdc_mem,
             hbm,
             old_hbm,
@@ -512,9 +514,6 @@ fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>) {
             "🎨 [LAYERED] WinAPI overlay window created: {}x{} @ (0,0), UpdateLayeredWindow mode",
             screen_width, screen_height
         );
-
-        // Release screen DC (no longer needed)
-        let _ = ReleaseDC(None, hdc_screen);
 
         // 11. Message loop
         let mut msg: MSG = std::mem::zeroed();
@@ -555,9 +554,10 @@ unsafe fn draw_layered_frame(
     let pixel_count = (buf.width * buf.height) as usize;
     std::ptr::write_bytes(buf.bits_ptr, 0, pixel_count);
 
-    // 2. Lock state, snapshot progress/color/visible
-    let (bar_progress, color_rgb, visible) = if let Ok(s) = state.lock() {
-        (s.progress, s.color_rgb, s.visible)
+    // 2. Lock state, snapshot progress/visible/frame_count
+    // Note: color_rgb would be used for real rendering; test mode uses test_colors instead
+    let (bar_progress, visible, frame_count) = if let Ok(s) = state.lock() {
+        (s.progress, s.visible, s.frame_count)
     } else {
         return;
     };
@@ -571,7 +571,16 @@ unsafe fn draw_layered_frame(
 
     // 4. Fill bar pixels with BGRA (background stays transparent)
     if bar_width > 0 {
-        let (r, g, b) = color_rgb;
+        // TEST: Cycle through colors every 3 frames (same as OPAQUE mode)
+        let test_colors = [
+            (255, 0, 0),     // Bright Red
+            (139, 0, 0),     // Dark Red/Maroon
+            (128, 0, 128),   // Purple
+            (240, 230, 200), // Cream
+            (0, 128, 0),     // Dark Green
+        ];
+        let color_idx = ((frame_count / 3) as usize) % test_colors.len();
+        let (r, g, b) = test_colors[color_idx];
         let pixel = 0xFF_00_00_00 | ((b as u32) << 16) | ((g as u32) << 8) | (r as u32);
 
         for y in 0..buf.height {
@@ -582,34 +591,36 @@ unsafe fn draw_layered_frame(
         }
     }
 
-    // 5. Get screen DC and call UpdateLayeredWindow
-    let hdc_screen = GetDC(None);
-    if !hdc_screen.is_invalid() {
-        let src_point = POINT { x: 0, y: 0 };
-        let size = SIZE {
-            cx: buf.width,
-            cy: buf.height,
-        };
-        let blend = BLENDFUNCTION {
-            BlendOp: 0,
-            BlendFlags: 0,
-            SourceConstantAlpha: 255,
-            AlphaFormat: 1, // AC_SRC_ALPHA
-        };
+    // 5. Use cached screen DC and call UpdateLayeredWindow
+    let src_point = POINT { x: 0, y: 0 };
+    let size = SIZE {
+        cx: buf.width,
+        cy: buf.height,
+    };
+    let blend = BLENDFUNCTION {
+        BlendOp: 0,
+        BlendFlags: 0,
+        SourceConstantAlpha: 255,
+        AlphaFormat: 1, // AC_SRC_ALPHA
+    };
 
-        let _ = UpdateLayeredWindow(
-            hwnd,
-            Some(hdc_screen),
-            None,
-            Some(&size),
-            Some(buf.hdc_mem),
-            Some(&src_point),
-            COLORREF(0),
-            Some(&blend),
-            ULW_ALPHA,
-        );
-
-        let _ = ReleaseDC(None, hdc_screen);
+    match UpdateLayeredWindow(
+        hwnd,
+        Some(buf.hdc_screen),
+        None,
+        Some(&size),
+        Some(buf.hdc_mem),
+        Some(&src_point),
+        COLORREF(0),
+        Some(&blend),
+        ULW_ALPHA,
+    ) {
+        Ok(_) => {
+            // Success
+        }
+        Err(e) => {
+            log::warn!("[LAYERED] UpdateLayeredWindow failed: {:?}", e);
+        }
     }
 }
 
@@ -630,7 +641,9 @@ unsafe extern "system" fn wnd_proc_layered(
 
     match msg {
         WM_TIMER => {
-            // Increment frame counter and redraw if dirty
+            // Increment frame counter and redraw
+            // ⚠️ Unlike OPAQUE (which uses InvalidateRect), we must redraw every frame
+            // because UpdateLayeredWindow doesn't use the paint pipeline.
             let state_ptr = GetWindowLongPtrW(hwnd, SLOT_STATE) as *mut Arc<Mutex<OverlayState>>;
             let buf_ptr = GetWindowLongPtrW(hwnd, SLOT_BUF) as *mut LayeredBufferState;
 
@@ -640,11 +653,10 @@ unsafe extern "system" fn wnd_proc_layered(
 
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
-                    if s.needs_redraw {
-                        s.needs_redraw = false;
-                        drop(s); // release lock before draw
-                        draw_layered_frame(hwnd, state, buf);
-                    }
+                    // Always redraw (no paint pipeline for layered windows)
+                    s.needs_redraw = false;
+                    drop(s); // release lock before draw
+                    draw_layered_frame(hwnd, state, buf);
                 }
             }
             LRESULT(0)
@@ -660,6 +672,7 @@ unsafe extern "system" fn wnd_proc_layered(
                 let _ = SelectObject(buf.hdc_mem, buf.old_hbm);
                 let _ = DeleteObject(buf.hbm.into());
                 let _ = DeleteDC(buf.hdc_mem);
+                let _ = ReleaseDC(None, buf.hdc_screen);
             }
 
             if !state_ptr.is_null() {

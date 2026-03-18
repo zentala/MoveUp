@@ -73,14 +73,19 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
     let _ = tray::update_tray(app, &label, payload.state.clone(), progress);
 
     // Update WinAPI overlay
-    if payload.state == DeskState::Sitting {
-        info!("→ Showing overlay, progress: {:.0}%", progress * 100.0);
-        overlay.update(progress, (r, g, b));
-        overlay.show();
-    } else {
-        info!("→ Hiding overlay (state: {:?})", payload.state);
-        overlay.hide();
-    }
+    // DEBUG: Always show overlay (regardless of state) to test rendering
+    info!("→ Overlay update: progress={:.0}%, state={:?}", progress * 100.0, payload.state);
+    overlay.update(progress, (r, g, b));
+    overlay.show();
+    // Original logic (commented for testing):
+    // if payload.state == DeskState::Sitting {
+    //     info!("→ Showing overlay, progress: {:.0}%", progress * 100.0);
+    //     overlay.update(progress, (r, g, b));
+    //     overlay.show();
+    // } else {
+    //     info!("→ Hiding overlay (state: {:?})", payload.state);
+    //     overlay.hide();
+    // }
 }
 
 /// Formats a duration in seconds as `"MM:SS"`.
