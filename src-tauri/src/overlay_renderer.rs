@@ -99,7 +99,7 @@ fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
     match mode.as_str() {
         "layered" => {
             if demo_mode {
-                info!("🎨 [EXPERIMENTAL + DEMO] Starting overlay in LAYERED mode with demo cycling (0%, 25%, 50%, 75%, 100% every 1s)");
+                info!("🎨 [EXPERIMENTAL + DEMO] Starting overlay in LAYERED mode with demo cycling (0%, 25%, 50%, 75%, 100% every 5s)");
             } else {
                 info!("🎨 [EXPERIMENTAL] Starting overlay in LAYERED mode (UpdateLayeredWindow)");
             }
@@ -107,7 +107,7 @@ fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
         }
         _ => {
             if demo_mode {
-                info!("🎨 [STABLE + DEMO] Starting overlay in OPAQUE mode with demo cycling");
+                info!("🎨 [STABLE + DEMO] Starting overlay in OPAQUE mode with demo cycling (every 5s)");
             } else {
                 info!("🎨 [STABLE] Starting overlay in OPAQUE mode (black background)");
             }
@@ -258,10 +258,11 @@ unsafe extern "system" fn wnd_proc(
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
 
-                    // Demo mode: cycle progress through 0%, 25%, 50%, 75%, 100% every 1 second
+                    // Demo mode: cycle progress through 0%, 25%, 50%, 75%, 100% every 5 seconds (300 frames @ 60fps)
                     if s.demo_mode {
-                        let stage = ((s.frame_count / 60) % 5) as u32; // 60 frames @ 60fps = 1 second per stage
+                        let stage = ((s.frame_count / 300) % 5) as u32; // 300 frames @ 60fps = 5 seconds per stage
                         s.progress = stage as f32 / 4.0; // 0/4, 1/4, 2/4, 3/4, 4/4
+                        s.visible = true; // Always show in demo mode
                     }
 
                     // For test: always redraw to cycle through colors
@@ -694,10 +695,11 @@ unsafe extern "system" fn wnd_proc_layered(
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
 
-                    // Demo mode: cycle progress through 0%, 25%, 50%, 75%, 100% every 1 second
+                    // Demo mode: cycle progress through 0%, 25%, 50%, 75%, 100% every 5 seconds (300 frames @ 60fps)
                     if s.demo_mode {
-                        let stage = ((s.frame_count / 60) % 5) as u32; // 60 frames @ 60fps = 1 second per stage
+                        let stage = ((s.frame_count / 300) % 5) as u32; // 300 frames @ 60fps = 5 seconds per stage
                         s.progress = stage as f32 / 4.0; // 0/4, 1/4, 2/4, 3/4, 4/4
+                        s.visible = true; // Always show in demo mode
                         log::info!("[DEMO] stage={}, progress={:.0}%", stage, s.progress * 100.0);
                     }
 
