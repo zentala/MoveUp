@@ -604,7 +604,7 @@ unsafe fn draw_layered_frame(
     if demo_mode {
         let stage = ((frame_count / 300) % 5) as u32;
         bar_progress = stage as f32 / 4.0;
-        log::info!("[DEMO] frame={}, stage={}, progress={:.0}%", frame_count, stage, bar_progress * 100.0);
+        log::warn!("🔵 [DEMO-OVERRIDE] frame_count={}, stage={}, bar_progress={:.2}% (before: calc from state)", frame_count, stage, bar_progress * 100.0);
     }
 
     // 3. Calculate bar width - always show at least 1px when visible
@@ -615,7 +615,8 @@ unsafe fn draw_layered_frame(
         0
     };
 
-    log::debug!("[LAYERED] draw_layered_frame: visible={}, progress={:.2}%, bar_width={}, demo={}", visible, bar_progress * 100.0, bar_width, demo_mode);
+    log::warn!("📊 [DRAW] frame={} | visible={} | progress={:.2}% | bar_width={}/{} | demo={}",
+        frame_count, visible, bar_progress * 100.0, bar_width, buf.width, demo_mode);
 
     // 4. Fill bar pixels with BGRA (background stays transparent)
     // Semi-transparent white bar (always visible when visible=true)
@@ -700,11 +701,15 @@ unsafe extern "system" fn wnd_proc_layered(
 
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
-                    if s.demo_mode {
+                    let fc = s.frame_count;
+                    let dm = s.demo_mode;
+                    if dm {
                         s.visible = true; // Always show in demo mode
                     }
-                    // Always redraw (no paint pipeline for layered windows)
-                    s.needs_redraw = false;
+                    // Log every 60 frames (approx 1 second at 60fps)
+                    if fc % 60 == 0 {
+                        log::warn!("⏱️ [TIMER] frame_count={}, demo_mode={}, visible={}", fc, dm, s.visible);
+                    }
                     drop(s); // release lock before draw
                     draw_layered_frame(hwnd, state, buf);
                 }

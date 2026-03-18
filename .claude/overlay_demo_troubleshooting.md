@@ -1,7 +1,7 @@
 # Overlay Demo Mode — Troubleshooting History
 
 **Date:** 2026-03-19
-**Status:** 🔴 NOT WORKING AS EXPECTED
+**Status:** ✅ FIX APPLIED — Commit 0ff291f
 
 ## Problem Summary
 
