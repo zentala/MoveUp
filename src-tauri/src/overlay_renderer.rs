@@ -16,6 +16,7 @@ pub struct OverlayState {
     pub color_rgb: (u8, u8, u8), // RGB
     pub visible: bool,
     pub needs_redraw: bool,      // dirty flag — redraw only when changed
+    pub frame_count: u32,        // For test animation (cycles through colors)
 }
 
 impl Default for OverlayState {
@@ -25,6 +26,7 @@ impl Default for OverlayState {
             color_rgb: (76, 175, 80), // green
             visible: false,
             needs_redraw: false,
+            frame_count: 0,
         }
     }
 }
@@ -232,16 +234,14 @@ unsafe extern "system" fn wnd_proc(
 
     match msg {
         WM_TIMER => {
-            // WM_TIMER: Check if state needs redraw, invalidate if dirty
+            // WM_TIMER: Increment animation frame and invalidate
             let state_ptr = GetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(0)) as *mut Arc<Mutex<OverlayState>>;
             if !state_ptr.is_null() {
                 let state = &*state_ptr;
                 if let Ok(mut s) = state.lock() {
-                    if s.needs_redraw {
-                        log::debug!("WM_TIMER: Invalidating rect (progress={}, visible={})", s.progress, s.visible);
-                        let _ = InvalidateRect(Some(hwnd), None, false.into());
-                        s.needs_redraw = false;
-                    }
+                    s.frame_count = s.frame_count.wrapping_add(1);
+                    // For test: always redraw to cycle through colors
+                    let _ = InvalidateRect(Some(hwnd), None, false.into());
                 }
             }
             LRESULT(0)
@@ -275,14 +275,22 @@ unsafe extern "system" fn wnd_proc(
                         let _ = DeleteObject(black_brush.into());
                     }
 
-                    // TEMPORARY DEBUG: Golden background for all cases to see the bar
-                    let debug_gold = COLORREF(
-                        (255u32) | ((200u32 << 8)) | ((0u32 << 16))  // RGB(255, 200, 0) = gold
-                    );
-                    let gold_brush = CreateSolidBrush(debug_gold);
-                    if !gold_brush.is_invalid() {
-                        let _ = FillRect(hdc, &rect, gold_brush);  // Golden bar OVER black
-                        let _ = DeleteObject(gold_brush.into());
+                    // TEST: Cycle through colors on every frame (blinking effect)
+                    // Colors: Red, Dark Red/Maroon, Purple, Cream, Green
+                    let test_colors = [
+                        (255, 0, 0),     // Bright Red
+                        (139, 0, 0),     // Dark Red/Maroon
+                        (128, 0, 128),   // Purple
+                        (240, 230, 200), // Cream
+                        (0, 128, 0),     // Dark Green
+                    ];
+                    let color_idx = (s.frame_count as usize) % test_colors.len();
+                    let (r, g, b) = test_colors[color_idx];
+                    let test_color = COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16));
+                    let test_brush = CreateSolidBrush(test_color);
+                    if !test_brush.is_invalid() {
+                        let _ = FillRect(hdc, &rect, test_brush);  // Full bar in test color
+                        let _ = DeleteObject(test_brush.into());
                     }
 
                     if s.visible {
