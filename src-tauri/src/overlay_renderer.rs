@@ -17,16 +17,21 @@ pub struct OverlayState {
     pub visible: bool,
     pub needs_redraw: bool,      // dirty flag — redraw only when changed
     pub frame_count: u32,        // For test animation (cycles through colors)
+    pub demo_mode: bool,         // If true, cycle progress for testing
 }
 
 impl Default for OverlayState {
     fn default() -> Self {
+        let demo_mode = std::env::var("OVERLAY_DEMO_MODE")
+            .map(|v| v.to_lowercase() == "true")
+            .unwrap_or(false);
         Self {
             progress: 0.0,
             color_rgb: (76, 175, 80), // green
             visible: false,
             needs_redraw: false,
             frame_count: 0,
+            demo_mode,
         }
     }
 }
@@ -87,13 +92,25 @@ impl OverlayRenderer {
 #[cfg(target_os = "windows")]
 fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
     let mode = std::env::var("OVERLAY_MODE").unwrap_or_else(|_| "opaque".to_string());
+    let demo_mode = std::env::var("OVERLAY_DEMO_MODE")
+        .map(|v| v.to_lowercase() == "true")
+        .unwrap_or(false);
+
     match mode.as_str() {
         "layered" => {
-            info!("🎨 [EXPERIMENTAL] Starting overlay in LAYERED mode (UpdateLayeredWindow)");
+            if demo_mode {
+                info!("🎨 [EXPERIMENTAL + DEMO] Starting overlay in LAYERED mode with demo cycling (0%, 25%, 50%, 75%, 100% every 1s)");
+            } else {
+                info!("🎨 [EXPERIMENTAL] Starting overlay in LAYERED mode (UpdateLayeredWindow)");
+            }
             run_event_loop_layered(state);
         }
         _ => {
-            info!("🎨 [STABLE] Starting overlay in OPAQUE mode (black background)");
+            if demo_mode {
+                info!("🎨 [STABLE + DEMO] Starting overlay in OPAQUE mode with demo cycling");
+            } else {
+                info!("🎨 [STABLE] Starting overlay in OPAQUE mode (black background)");
+            }
             run_event_loop_opaque(state);
         }
     }
@@ -240,6 +257,13 @@ unsafe extern "system" fn wnd_proc(
                 let state = &*state_ptr;
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
+
+                    // Demo mode: cycle progress through 0%, 25%, 50%, 75%, 100% every 1 second
+                    if s.demo_mode {
+                        let stage = ((s.frame_count / 60) % 5) as u32; // 60 frames @ 60fps = 1 second per stage
+                        s.progress = stage as f32 / 4.0; // 0/4, 1/4, 2/4, 3/4, 4/4
+                    }
+
                     // For test: always redraw to cycle through colors
                     let _ = InvalidateRect(Some(hwnd), None, false.into());
                 }
@@ -669,6 +693,14 @@ unsafe extern "system" fn wnd_proc_layered(
 
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
+
+                    // Demo mode: cycle progress through 0%, 25%, 50%, 75%, 100% every 1 second
+                    if s.demo_mode {
+                        let stage = ((s.frame_count / 60) % 5) as u32; // 60 frames @ 60fps = 1 second per stage
+                        s.progress = stage as f32 / 4.0; // 0/4, 1/4, 2/4, 3/4, 4/4
+                        log::info!("[DEMO] stage={}, progress={:.0}%", stage, s.progress * 100.0);
+                    }
+
                     // Always redraw (no paint pipeline for layered windows)
                     s.needs_redraw = false;
                     drop(s); // release lock before draw
