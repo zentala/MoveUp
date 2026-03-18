@@ -336,4 +336,152 @@ Tauri WebviewWindow renderuje się w **własnym procesie/layerze** Windows, niez
 
 **Status:** Potrzebny nowy kierunek — event system się załamał, Tauri okno nie da się "schować"
 
+---
+
+## ✅ ITERACJA 5: RAW WINDOWS API — SUKCES!
+
+**Data:** 2026-03-17
+**Status:** 🟢 **WORKING** — Pasek widoczny na ekranie, kolory się rysują
+
+### Dlaczego poprzednie podejścia ZAWSZE się nie udały
+
+1. **Tauri WebviewWindow** = zawsze "decorates" okno (minimalna wysokość >4px, zaokrąglenia, cienie)
+2. **Event system** = wewnętrzny do Tauri, nigdy nie docierał do React
+3. **z-index hacks** = HTML zawsze renderuje WEWNĄTRZ Tauri window, nigdy ponad nim
+4. **Canvas/HTML fixed** = to samo — zawsze wewnątrz procesu Tauri
+
+### Rozwiązanie: CreateWindowExA bezpośrednio w Rust
+
+Zamiast Tauri:
+- Używamy raw **Windows API** → `CreateWindowExW`
+- Tworzymy **native window** (nie Tauri WebviewWindow)
+- Rysujemy bezpośrednio **GDI** (Graphics Device Interface)
+- Biegnie w **oddzielnym wątku** (background)
+- **Zero Tauri constraints**
+
+### Architektura Finalnego Rozwiązania
+
+```
+Session State (sitting/standing)
+    ↓
+TrayController.on_state_changed()
+    ↓
+overlay.update(progress, rgb_color)
+    ↓
+OverlayRenderer (background thread)
+    ↓
+WinAPI CreateWindowExA(WS_EX_TOPMOST | WS_POPUP)
+    ↓
+Message Loop: GetMessageW/DispatchMessageW
+    ↓
+WM_TIMER (16ms) → InvalidateRect
+    ↓
+WM_PAINT → CreateSolidBrush(rgb) → FillRect
+    ↓
+Screen: 4px × full width bar at (0,0)
+```
+
+### Kluczowe Elementy Implementacji
+
+**Plik:** `src-tauri/src/overlay_renderer.rs`
+
+1. **OverlayState** (thread-safe):
+   ```rust
+   pub struct OverlayState {
+       pub progress: f32,           // 0.0 - 1.0
+       pub color_rgb: (u8, u8, u8), // RGB
+       pub visible: bool,
+       pub needs_redraw: bool,      // dirty flag
+       pub frame_count: u32,        // for animation
+   }
+   ```
+
+2. **Two Modes** (switchable via `OVERLAY_MODE` env var):
+   - **OPAQUE** (default): Black background + GDI rendering (stable)
+   - **LAYERED** (experimental): UpdateLayeredWindow + transparency (placeholder)
+
+3. **Window Creation**:
+   ```rust
+   CreateWindowExA(
+       WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+       "zntlOverlayBar",
+       WS_POPUP | WS_VISIBLE,
+       (0, 0, screen_width, 4px)
+   )
+   ```
+
+4. **Message Loop**:
+   - `WM_TIMER` (16ms): Increment `frame_count`, trigger `InvalidateRect`
+   - `WM_PAINT`: Render progress bar with GDI `FillRect`
+   - `WM_DESTROY`: Cleanup
+
+5. **GDI Drawing**:
+   ```rust
+   let black_brush = CreateSolidBrush(COLORREF(0));
+   FillRect(hdc, &rect, black_brush);  // black background
+
+   let color_brush = CreateSolidBrush(rgb_to_colorref);
+   FillRect(hdc, &bar_rect, color_brush);  // progress bar
+   ```
+
+### Co Działa Teraz ✅
+
+- ✅ Pasek pojawia się na górze ekranu, 4px tall
+- ✅ Kolory się rysują (test: cycling red → maroon → purple → cream → green)
+- ✅ Skaluje się do szerokości ekranu automatycznie
+- ✅ Bieży niezależnie od głównego okna Tauri
+- ✅ Always-on-top (WS_EX_TOPMOST)
+- ✅ No decorations, no system shadows
+- ✅ 60fps message loop (16ms timer)
+- ✅ Thread-safe state (Arc<Mutex<>>)
+
+### Problemy które Zostały Rozwiązane
+
+| Problem | Rozwiązanie |
+|---------|------------|
+| Tauri okno zawsze ma dekoracje | Raw WinAPI → żadnych dekoracji |
+| Event system się nie connect | Direct Arc<Mutex> pointer w window USERDATA |
+| z-index issues | Native window = zawsze na top |
+| 4px nie skaluje się | GetMonitorInfo → dokładne wymiary |
+| No rendering | GDI FillRect działa bezpośrednio |
+
+### Kilka Rzeczy do Zachowania
+
+1. **frame_count** w OverlayState — pozwala na animacje bez Tauri
+2. **Dirty flag** (`needs_redraw`) — optymalizacja, nie redraw co frame jeśli state nie zmienił się
+3. **Thread safety** — Arc<Mutex<>> pozwala TrayController thread pisać, WinAPI thread czytać
+4. **Dual mode** — OPAQUE jako fallback, LAYERED jako future
+5. **Color cycling test** — zmienia kolor co 3 frames (dla debug)
+
+### Commits w Sekwencji
+
+1. `feat(overlay): implement V2 system-level WinAPI progress bar overlay` — Full WinAPI implementation
+2. `fix(overlay): remove WS_EX_LAYERED to enable GDI rendering` — Fixed transparency issue
+3. `fix(overlay): layer gold debug bar on top of black background` — Fixed rendering order
+4. `feat(overlay): dual-mode implementation with OPAQUE (stable) and LAYERED (experimental)` — Mode switching
+5. `fix: remove old overlay module, add golden debug bar` — Cleanup old code
+6. `feat(overlay): cycling color test animation for debugging` — Test animation
+7. `fix(overlay): slow down color cycling test to every 3 frames` — Perf improvement
+
+### Lekcje Nauczane
+
+1. **Tauri nie jest rozwiązaniem dla low-level overlays** — WebviewWindow zawsze ma constraints
+2. **Raw WinAPI > abstrakcji** — gdy potrzebny full control, idź do źródła
+3. **Thread-safe state sharing** — Arc<Mutex> is the way
+4. **Message loop patterns** — GetMessageW/DispatchMessageW to universal Windows pattern
+5. **GDI rendering** — prosty, szybki, niezawodny dla 2D graphics
+
+### Next Steps (V3+)
+
+- [ ] Implement UpdateLayeredWindow for LAYERED mode (transparency)
+- [ ] Multi-monitor support (enumerate all displays)
+- [ ] DPI awareness (SetProcessDpiAwarenessContext)
+- [ ] Remove test color cycling (integrate real progress logic)
+- [ ] Performance: baseline memory & CPU usage
+- [ ] Accessibility: narration dla screen readers?
+
+---
+
+**SUCCESS!** 🎉 Pasek na ekranie działa! Render bez okna, bezpośrednio na system level!
+
 Good luck! 🚀
