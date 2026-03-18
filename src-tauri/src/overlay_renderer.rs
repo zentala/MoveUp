@@ -586,20 +586,26 @@ unsafe fn draw_layered_frame(
     let pixel_count = (buf.width * buf.height) as usize;
     std::ptr::write_bytes(buf.bits_ptr, 0, pixel_count);
 
-    // 2. Lock state, snapshot progress/visible/frame_count
-    // Note: color_rgb would be used for real rendering; test mode uses test_colors instead
-    let (bar_progress, visible, frame_count) = if let Ok(s) = state.lock() {
+    // 2. Lock state, snapshot progress/visible/frame_count/demo_mode
+    let (mut bar_progress, visible, frame_count, demo_mode) = if let Ok(s) = state.lock() {
         let v = s.visible;
         if v {
             log::warn!("🟢 [DRAW] visible=TRUE, will show bar");
         } else {
             log::warn!("🔴 [DRAW] visible=FALSE, bar will be 0px");
         }
-        (s.progress, v, s.frame_count)
+        (s.progress, v, s.frame_count, s.demo_mode)
     } else {
         log::error!("[DRAW] Failed to acquire state lock!");
         return;
     };
+
+    // Demo mode: override progress based on frame count (0%, 25%, 50%, 75%, 100% every 5 seconds)
+    if demo_mode {
+        let stage = ((frame_count / 300) % 5) as u32;
+        bar_progress = stage as f32 / 4.0;
+        log::info!("[DEMO] frame={}, stage={}, progress={:.0}%", frame_count, stage, bar_progress * 100.0);
+    }
 
     // 3. Calculate bar width - always show at least 1px when visible
     let bar_width = if visible {
@@ -609,7 +615,7 @@ unsafe fn draw_layered_frame(
         0
     };
 
-    log::debug!("[LAYERED] draw_layered_frame: visible={}, progress={:.2}%, bar_width={}", visible, bar_progress * 100.0, bar_width);
+    log::debug!("[LAYERED] draw_layered_frame: visible={}, progress={:.2}%, bar_width={}, demo={}", visible, bar_progress * 100.0, bar_width, demo_mode);
 
     // 4. Fill bar pixels with BGRA (background stays transparent)
     // Semi-transparent white bar (always visible when visible=true)
@@ -694,15 +700,9 @@ unsafe extern "system" fn wnd_proc_layered(
 
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
-
-                    // Demo mode: cycle progress through 0%, 25%, 50%, 75%, 100% every 5 seconds (300 frames @ 60fps)
                     if s.demo_mode {
-                        let stage = ((s.frame_count / 300) % 5) as u32; // 300 frames @ 60fps = 5 seconds per stage
-                        s.progress = stage as f32 / 4.0; // 0/4, 1/4, 2/4, 3/4, 4/4
                         s.visible = true; // Always show in demo mode
-                        log::info!("[DEMO] stage={}, progress={:.0}%", stage, s.progress * 100.0);
                     }
-
                     // Always redraw (no paint pipeline for layered windows)
                     s.needs_redraw = false;
                     drop(s); // release lock before draw
