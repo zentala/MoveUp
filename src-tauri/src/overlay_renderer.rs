@@ -342,20 +342,336 @@ unsafe extern "system" fn wnd_proc(
     }
 }
 
+/// Layered buffer — offscreen 32-bit ARGB DIBSection for UpdateLayeredWindow
+#[cfg(target_os = "windows")]
+struct LayeredBufferState {
+    hdc_mem: windows::Win32::Graphics::Gdi::HDC,
+    hbm: windows::Win32::Graphics::Gdi::HBITMAP,
+    old_hbm: windows::Win32::Graphics::Gdi::HGDIOBJ,
+    bits_ptr: *mut u32, // BGRA pixel data (32-bit per pixel)
+    width: i32,
+    height: i32,
+}
+
 /// Layered overlay: Transparent with UpdateLayeredWindow (EXPERIMENTAL)
 ///
 /// ⚠️ Uses WS_EX_LAYERED + UpdateLayeredWindow for transparency.
-/// Requires 32-bit ARGB bitmap and more complex rendering pipeline.
-///
-/// TODO (V3): Implement proper layered window rendering with offscreen DC
-/// and per-pixel alpha blending for smooth transparency.
+/// Renders to offscreen 32-bit ARGB bitmap, composites with per-pixel alpha.
 #[cfg(target_os = "windows")]
 fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>) {
-    info!("⚠️ [EXPERIMENTAL] Layered mode not yet implemented");
-    info!("   Falling back to opaque mode for now");
-    // TODO: Implement UpdateLayeredWindow approach
-    // For now, fall back to opaque to avoid hanging
-    run_event_loop_opaque(state);
+    use windows::Win32::Foundation::*;
+    use windows::Win32::Graphics::Gdi::*;
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows::Win32::UI::WindowsAndMessaging::*;
+    use windows::core::PCSTR;
+
+    const CLASS_NAME: &[u8] = b"zntlOverlayBarLayered\0";
+    const WINDOW_NAME: &[u8] = b"zntl Overlay (Layered)\0";
+    const TIMER_ID: usize = 1;
+    const TIMER_INTERVAL_MS: u32 = 16; // ~60fps
+    const SLOT_STATE: WINDOW_LONG_PTR_INDEX = WINDOW_LONG_PTR_INDEX(0);
+    const SLOT_BUF: WINDOW_LONG_PTR_INDEX = WINDOW_LONG_PTR_INDEX(8);
+
+    unsafe {
+        // 1. Get primary monitor dimensions
+        let hmonitor = MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY);
+        let mut monitor_info: MONITORINFO = std::mem::zeroed();
+        monitor_info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+
+        let (screen_width, screen_height) = if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
+            (
+                monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
+                4i32,
+            )
+        } else {
+            (1920, 4)
+        };
+
+        // 2. Register window class with layered proc
+        let hmodule = GetModuleHandleW(None).unwrap_or(HMODULE::default());
+        let hinstance: HINSTANCE = hmodule.into();
+
+        let wnd_class = WNDCLASSA {
+            style: CS_HREDRAW | CS_VREDRAW,
+            lpfnWndProc: Some(wnd_proc_layered),
+            cbClsExtra: 0,
+            cbWndExtra: 2 * std::mem::size_of::<isize>() as i32, // 16 bytes total: 2 slots
+            hInstance: hinstance,
+            hIcon: HICON::default(),
+            hCursor: HCURSOR::default(),
+            hbrBackground: HBRUSH::default(), // null — no OS background
+            lpszMenuName: PCSTR::null(),
+            lpszClassName: PCSTR(CLASS_NAME.as_ptr()),
+        };
+
+        let class_atom = RegisterClassA(&wnd_class);
+        if class_atom == 0 {
+            info!("⚠️ [LAYERED] Failed to register window class");
+            return;
+        }
+
+        // 3. Create layered window with WS_EX_LAYERED
+        let hwnd = match CreateWindowExA(
+            WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+            PCSTR(CLASS_NAME.as_ptr()),
+            PCSTR(WINDOW_NAME.as_ptr()),
+            WS_POPUP, // No WS_VISIBLE yet — show after first draw
+            0,
+            0,
+            screen_width,
+            screen_height,
+            None,
+            None,
+            Some(hinstance),
+            None,
+        ) {
+            Ok(h) => h,
+            Err(_) => {
+                info!("⚠️ [LAYERED] Failed to create window");
+                return;
+            }
+        };
+
+        // 4. Get screen DC for CreateDIBSection
+        let hdc_screen = GetDC(None);
+
+        // 5. Create 32-bit ARGB DIBSection (top-down: biHeight negative)
+        let bmi = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: screen_width,
+                biHeight: -screen_height, // negative = top-down
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB.0,
+                biSizeImage: 0,
+                biXPelsPerMeter: 0,
+                biYPelsPerMeter: 0,
+                biClrUsed: 0,
+                biClrImportant: 0,
+            },
+            bmiColors: [RGBQUAD::default()],
+        };
+
+        let mut bits_void_ptr = std::ptr::null_mut();
+        let hbm = match CreateDIBSection(Some(hdc_screen), &bmi, DIB_RGB_COLORS, &mut bits_void_ptr, None, 0) {
+            Ok(h) => h,
+            Err(_) => {
+                info!("⚠️ [LAYERED] Failed to create DIBSection");
+                ReleaseDC(None, hdc_screen);
+                let _ = DestroyWindow(hwnd);
+                return;
+            }
+        };
+
+        let bits_ptr = bits_void_ptr as *mut u32;
+
+        // 6. Create memory DC and select bitmap
+        let hdc_mem = CreateCompatibleDC(Some(hdc_screen));
+        if hdc_mem.is_invalid() {
+            info!("⚠️ [LAYERED] Failed to create memory DC");
+            ReleaseDC(None, hdc_screen);
+            let _ = DeleteObject(hbm.into());
+            let _ = DestroyWindow(hwnd);
+            return;
+        }
+
+        let old_hbm = SelectObject(hdc_mem, hbm.into());
+
+        // 7. Create LayeredBufferState and store in window
+        let buf_state = LayeredBufferState {
+            hdc_mem,
+            hbm,
+            old_hbm,
+            bits_ptr,
+            width: screen_width,
+            height: screen_height,
+        };
+
+        let state_ptr = Box::into_raw(Box::new(state.clone()));
+        let buf_ptr = Box::into_raw(Box::new(buf_state));
+
+        SetWindowLongPtrW(hwnd, SLOT_STATE, state_ptr as isize);
+        SetWindowLongPtrW(hwnd, SLOT_BUF, buf_ptr as isize);
+
+        // 8. Draw initial frame before showing
+        draw_layered_frame(hwnd, &state, &*buf_ptr);
+
+        // 9. Show window after first draw
+        let _ = ShowWindow(hwnd, SW_SHOW);
+        let _ = UpdateWindow(hwnd);
+
+        // 10. Set timer (no InvalidateRect — layered windows handle redraw differently)
+        if SetTimer(Some(hwnd), TIMER_ID, TIMER_INTERVAL_MS, None) == 0 {
+            info!("⚠️ [LAYERED] Failed to set timer");
+            let _ = DestroyWindow(hwnd);
+            return;
+        }
+
+        info!(
+            "🎨 [LAYERED] WinAPI overlay window created: {}x{} @ (0,0), UpdateLayeredWindow mode",
+            screen_width, screen_height
+        );
+
+        // Release screen DC (no longer needed)
+        let _ = ReleaseDC(None, hdc_screen);
+
+        // 11. Message loop
+        let mut msg: MSG = std::mem::zeroed();
+        loop {
+            let msg_result = GetMessageW(&mut msg, None, 0, 0);
+
+            if msg_result.0 == 0 {
+                break;
+            } else if msg_result.0 < 0 {
+                info!("⚠️ [LAYERED] GetMessageW error");
+                break;
+            }
+
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+
+        // Cleanup
+        let _ = DestroyWindow(hwnd);
+        let _ = UnregisterClassA(PCSTR(CLASS_NAME.as_ptr()), Some(hinstance));
+        let _ = Box::from_raw(state_ptr);
+        let _ = Box::from_raw(buf_ptr);
+    }
+}
+
+/// Draw a frame to the layered buffer and composite to screen with UpdateLayeredWindow
+#[cfg(target_os = "windows")]
+unsafe fn draw_layered_frame(
+    hwnd: windows::Win32::Foundation::HWND,
+    state: &Arc<Mutex<OverlayState>>,
+    buf: &LayeredBufferState,
+) {
+    use windows::Win32::Foundation::*;
+    use windows::Win32::Graphics::Gdi::*;
+    use windows::Win32::UI::WindowsAndMessaging::*;
+
+    // 1. Clear entire buffer: all pixels transparent (alpha=0)
+    let pixel_count = (buf.width * buf.height) as usize;
+    std::ptr::write_bytes(buf.bits_ptr, 0, pixel_count);
+
+    // 2. Lock state, snapshot progress/color/visible
+    let (bar_progress, color_rgb, visible) = if let Ok(s) = state.lock() {
+        (s.progress, s.color_rgb, s.visible)
+    } else {
+        return;
+    };
+
+    // 3. Calculate bar width
+    let bar_width = if visible && bar_progress > 0.0 {
+        ((buf.width as f32) * bar_progress.max(0.0).min(1.0)) as i32
+    } else {
+        0
+    };
+
+    // 4. Fill bar pixels with BGRA (background stays transparent)
+    if bar_width > 0 {
+        let (r, g, b) = color_rgb;
+        let pixel = 0xFF_00_00_00 | ((b as u32) << 16) | ((g as u32) << 8) | (r as u32);
+
+        for y in 0..buf.height {
+            for x in 0..bar_width {
+                let idx = (y * buf.width + x) as usize;
+                *buf.bits_ptr.add(idx) = pixel;
+            }
+        }
+    }
+
+    // 5. Get screen DC and call UpdateLayeredWindow
+    let hdc_screen = GetDC(None);
+    if !hdc_screen.is_invalid() {
+        let src_point = POINT { x: 0, y: 0 };
+        let size = SIZE {
+            cx: buf.width,
+            cy: buf.height,
+        };
+        let blend = BLENDFUNCTION {
+            BlendOp: 0,
+            BlendFlags: 0,
+            SourceConstantAlpha: 255,
+            AlphaFormat: 1, // AC_SRC_ALPHA
+        };
+
+        let _ = UpdateLayeredWindow(
+            hwnd,
+            Some(hdc_screen),
+            None,
+            Some(&size),
+            Some(buf.hdc_mem),
+            Some(&src_point),
+            COLORREF(0),
+            Some(&blend),
+            ULW_ALPHA,
+        );
+
+        let _ = ReleaseDC(None, hdc_screen);
+    }
+}
+
+/// Window procedure for layered overlay
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn wnd_proc_layered(
+    hwnd: windows::Win32::Foundation::HWND,
+    msg: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::Foundation::*;
+    use windows::Win32::Graphics::Gdi::*;
+    use windows::Win32::UI::WindowsAndMessaging::*;
+
+    const SLOT_STATE: WINDOW_LONG_PTR_INDEX = WINDOW_LONG_PTR_INDEX(0);
+    const SLOT_BUF: WINDOW_LONG_PTR_INDEX = WINDOW_LONG_PTR_INDEX(8);
+
+    match msg {
+        WM_TIMER => {
+            // Increment frame counter and redraw if dirty
+            let state_ptr = GetWindowLongPtrW(hwnd, SLOT_STATE) as *mut Arc<Mutex<OverlayState>>;
+            let buf_ptr = GetWindowLongPtrW(hwnd, SLOT_BUF) as *mut LayeredBufferState;
+
+            if !state_ptr.is_null() && !buf_ptr.is_null() {
+                let state = &*state_ptr;
+                let buf = &*buf_ptr;
+
+                if let Ok(mut s) = state.lock() {
+                    s.frame_count = s.frame_count.wrapping_add(1);
+                    if s.needs_redraw {
+                        s.needs_redraw = false;
+                        drop(s); // release lock before draw
+                        draw_layered_frame(hwnd, state, buf);
+                    }
+                }
+            }
+            LRESULT(0)
+        }
+
+        WM_DESTROY => {
+            // Cleanup: restore old bitmap, free resources, quit
+            let state_ptr = GetWindowLongPtrW(hwnd, SLOT_STATE) as *mut Arc<Mutex<OverlayState>>;
+            let buf_ptr = GetWindowLongPtrW(hwnd, SLOT_BUF) as *mut LayeredBufferState;
+
+            if !buf_ptr.is_null() {
+                let buf = Box::from_raw(buf_ptr);
+                let _ = SelectObject(buf.hdc_mem, buf.old_hbm);
+                let _ = DeleteObject(buf.hbm.into());
+                let _ = DeleteDC(buf.hdc_mem);
+            }
+
+            if !state_ptr.is_null() {
+                let _ = Box::from_raw(state_ptr);
+            }
+
+            PostQuitMessage(0);
+            LRESULT(0)
+        }
+
+        _ => DefWindowProcA(hwnd, msg, wparam, lparam),
+    }
 }
 
 /// Placeholder for non-Windows platforms
