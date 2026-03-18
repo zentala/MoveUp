@@ -275,7 +275,7 @@ unsafe extern "system" fn wnd_proc(
                         let _ = DeleteObject(black_brush.into());
                     }
 
-                    // TEST: Cycle through colors on every frame (blinking effect)
+                    // TEST: Cycle through colors every 3 frames (~48ms at 60fps)
                     // Colors: Red, Dark Red/Maroon, Purple, Cream, Green
                     let test_colors = [
                         (255, 0, 0),     // Bright Red
@@ -284,7 +284,7 @@ unsafe extern "system" fn wnd_proc(
                         (240, 230, 200), // Cream
                         (0, 128, 0),     // Dark Green
                     ];
-                    let color_idx = (s.frame_count as usize) % test_colors.len();
+                    let color_idx = ((s.frame_count / 3) as usize) % test_colors.len();
                     let (r, g, b) = test_colors[color_idx];
                     let test_color = COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16));
                     let test_brush = CreateSolidBrush(test_color);

@@ -6,6 +6,9 @@ Ergonomics tracker for a sit/stand desk. Detects whether user is sitting or stan
 ## Target User
 Single user (zentala) working at a motorized sit/stand desk.
 
+## Project Map
+See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, architecture, IPC events, and test strategy.
+
 ## Hardware
 - **MCU**: Seeed XIAO ESP32-C3 on COM3 (Windows)
 - **Sensor**: Grove VL53L1X v2 — mounted **under the desk, pointing down to the floor**
@@ -334,3 +337,11 @@ git push origin v0.1.0
 
 ## Vision Doc
 See `.agent/vision/2026-03-15-desk-app-vision.md` for full spec.
+
+## PROJECT.xml Maintenance
+
+**Rule: Update PROJECT.xml before every commit** if any of the following changed:
+- New or removed source files
+- New or removed features / IPC events
+- New or removed test files or layers
+- Dependency changes (Cargo.toml / package.json)

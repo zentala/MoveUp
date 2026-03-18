@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="zntlDesk" type="tauri-desktop-app" platform="windows">
+
+  <meta>
+    <purpose>Ergonomics tracker for motorized sit/stand desk — detects sitting/standing via VL53L1X ToF laser sensor, tracks sessions, nudges user to take breaks</purpose>
+    <target-user>Single user (zentala) at a motorized sit/stand desk</target-user>
+    <stack frontend="React+TypeScript+Vite" backend="Rust+Tauri2" db="SQLite" serial="serialport-crate"/>
+    <hardware>
+      <mcu>Seeed XIAO ESP32-C3 on COM3</mcu>
+      <sensor>Grove VL53L1X v2 — mounted under desk, pointing down to floor</sensor>
+      <formula>desk_height_mm = sensor_reading_mm - desk_thickness_mm</formula>
+    </hardware>
+  </meta>
+
+  <functionality>
+    <feature name="desk-state-detection">
+      <description>Detects SITTING / STANDING / WALKING / AWAY based on sensor distance + keyboard/mouse activity</description>
+      <debounce>5 stable readings required before state change</debounce>
+    </feature>
+    <feature name="session-tracking">
+      <description>Tracks sitting session duration, enforces 40-min default limit</description>
+      <break-rules>
+        <rule threshold="lt5min">No effect</rule>
+        <rule threshold="5-9min">Subtract 20 min from session</rule>
+        <rule threshold="gte10min">Reset session to 0</rule>
+      </break-rules>
+    </feature>
+    <feature name="ui">
+      <component name="system-tray-text">Shows current height or session warning</component>
+      <component name="floating-window">Height, today totals, session history</component>
+      <component name="progress-bar">4px top-of-screen bar, green-to-red over 40min</component>
+      <component name="popup-notification">Alert at session limit</component>
+    </feature>
+    <feature name="persistence">
+      <description>SQLite stores session history, today summaries</description>
+    </feature>
+    <feature name="settings">
+      <description>Sit/stand limits, height calibration, notification prefs — persisted via tauri-plugin-store</description>
+    </feature>
+    <feature name="auto-connect">
+      <description>Auto-detects zntl-desk-sensor v1 on serial ports via PING/PONG handshake</description>
+    </feature>
+  </functionality>
+
+  <architecture>
+
+    <layer name="firmware" path="firmware/tof_reader/">
+      <file name="tof_reader.ino">
+        Arduino sketch for XIAO ESP32-C3 — reads VL53L1X, responds to PING with device ID, emits "distance: NNN mm" at 115200 baud
+      </file>
+    </layer>
+
+    <layer name="rust-backend" path="src-tauri/src/">
+      <file name="lib.rs">App entry — registers plugins, AppState, setup hook (tray, blur, serial)</file>
+      <file name="main.rs">Binary entry — calls lib::run()</file>
+      <file name="commands.rs">
+        All Tauri IPC commands:
+        list_ports, start_auto_connect, stop_reading,
+        get_session_state, set_session_limit, set_stand_limit,
+        calibrate, get_settings, save_settings,
+        get_today_summary, inject_reading (debug)
+        + AppState struct definition
+      </file>
+      <file name="session.rs">
+        Core state machine — SessionManager, DeskState enum,
+        break credit rules, alert firing, debounce, daily reset
+      </file>
+      <file name="serial.rs">
+        Background serial reader — auto-detect device via PING/PONG,
+        parse distance readings, emit Tauri events
+      </file>
+      <file name="activity.rs">Windows idle detection via GetLastInputInfo WinAPI</file>
+      <file name="db.rs">SQLite persistence — schema, session recording, TodaySummary queries</file>
+      <file name="config.rs">AppConfig struct — user settings persisted via tauri-plugin-store</file>
+      <file name="tray.rs">System tray — dynamic icon, tooltip, context menu, left-click toggle</file>
+      <file name="tray_controller.rs">Wires desk:state-changed events to tray + overlay updates</file>
+      <file name="tray_icon.rs">Generates RGBA tray icons programmatically by state + progress</file>
+      <file name="colors.rs">Progress ratio to green/yellow/red color mapping (thresholds 60%/85%)</file>
+      <file name="overlay_renderer.rs">
+        Native WinAPI overlay window — 4px tall, full-width, always-on-top,
+        CreateWindowExW, own message loop thread, shared OverlayState mutex
+      </file>
+    </layer>
+
+    <layer name="react-frontend" path="src/">
+      <file name="main.tsx">React DOM root — mounts App</file>
+      <file name="App.tsx">Root component — orchestrates useDesk, useTimer, renders all panels</file>
+      <file name="types.ts">Shared TypeScript types: DeskState, SessionStateDto, TodaySummaryDto, etc.</file>
+
+      <dir name="components/">
+        <file name="HeightRail.tsx">Visual left-side accent bar — animates by deskHeightCm and state</file>
+        <file name="SessionProgress.tsx">Current sitting session timer and progress vs limit</file>
+        <file name="SettingsPanel.tsx">Settings UI — limits, calibration, notification prefs</file>
+        <file name="StateIndicator.tsx">Badge showing current state (Sitting/Standing/Walking/Away)</file>
+        <file name="TodayStats.tsx">Today's total sitting, standing, position change count</file>
+        <file name="AppProgressBar.tsx">14px in-app progress bar (debug variant)</file>
+        <file name="ScreenProgressBar.tsx">4px top-of-screen CSS overlay bar (production)</file>
+      </dir>
+
+      <dir name="hooks/">
+        <file name="useDesk.ts">Main data hook — subscribes to desk:* events, fetches initial state</file>
+        <file name="useTimer.ts">Tick hook — increments counter every second when running</file>
+      </dir>
+
+      <dir name="utils/">
+        <file name="format.ts">formatDuration(secs), formatDurationShort(secs) — human-readable time</file>
+      </dir>
+
+      <dir name="overlay/">
+        <file name="main.tsx">Canvas-based overlay entry — listens for overlay:progress events</file>
+      </dir>
+    </layer>
+
+    <layer name="ipc-events">
+      <event name="desk:distance" direction="rust-to-js">Raw sensor reading (mm, cm, timestamp)</event>
+      <event name="desk:device-connected" direction="rust-to-js">Sensor identified on serial port</event>
+      <event name="desk:device-lost" direction="rust-to-js">Serial connection dropped</event>
+      <event name="desk:sensor-error" direction="rust-to-js">Serial or sensor error</event>
+      <event name="desk:state-changed" direction="rust-to-js">State transition (sitting/standing/etc.)</event>
+      <event name="desk:daily-reset" direction="rust-to-js">New day detected, counters reset</event>
+      <event name="overlay:progress" direction="rust-to-js">Progress ratio + color for overlay</event>
+    </layer>
+
+  </architecture>
+
+  <testing>
+    <strategy coverage-gate="80%">3-layer: Unit to Integration to E2E</strategy>
+
+    <layer name="unit">
+      <rust path="src-tauri/src/" runner="cargo test">
+        Session state machine transitions, break credit rules, daily reset, alerts, height calculation
+      </rust>
+      <typescript path="src/**/*.test.tsx" runner="pnpm test:unit">
+        Components (ProgressBar, SessionProgress, SettingsPanel, HeightRail), hooks (useDesk), utils (format)
+      </typescript>
+    </layer>
+
+    <layer name="integration" path="tests/integration/" runner="pnpm test:integration">
+      <file name="session-flow.test.ts">Full sitting/standing flow via inject_reading IPC</file>
+      <file name="device-reconnect.test.ts">Device disconnect/reconnect handling</file>
+      <note>App must be running: pnpm tauri:dev in another terminal</note>
+    </layer>
+
+    <layer name="e2e" path="tests/e2e/" runner="pnpm test:e2e">
+      <file name="app-startup.test.ts">App loads, UI elements visible</file>
+      <file name="session-progress.test.ts">Session state, progress bar, tray tooltip</file>
+      <note>Requires: tauri-driver --compatibility-mode in separate terminal</note>
+    </layer>
+
+    <layer name="performance" path="tests/perf/" runner="pnpm test:perf">
+      <file name="memory-profile.test.ts">Memory sampling vs .perf-baseline.json (peak less than 250MB)</file>
+    </layer>
+
+    <support>
+      <file path="tests/emulator/DeskDeviceEmulator.ts">Emulates device serial responses</file>
+      <file path="tests/emulator/scenarios.ts">Multi-reading scenario helpers</file>
+      <file path="tests/fixtures/builders.ts">Test data builders</file>
+    </support>
+  </testing>
+
+  <config-files>
+    <file name="tauri.conf.json">Window config (520x640, transparent, no decorations), bundle, CSP</file>
+    <file name="Cargo.toml">Rust deps: tauri2, rusqlite, serialport, chrono, tokio, window-vibrancy, windows</file>
+    <file name="vite.config.ts">Vite build + Vitest unit config, 80% coverage gate</file>
+    <file name="playwright.config.ts">E2E test config</file>
+    <file name="tsconfig.json">TypeScript config</file>
+    <file name=".gitattributes">LF line endings enforced</file>
+  </config-files>
+
+  <project-management>
+    <file path="TASKS.md">Task board with P0-P4 priorities</file>
+    <file path="BACKLOG.md">Unscheduled backlog</file>
+    <file path="DDD.md">Domain-driven design glossary</file>
+    <dir path=".claude/tasks/">Detailed task specs (NNNN-scope-name.md)</dir>
+    <dir path=".agent/vision/">Long-term vision docs</dir>
+    <dir path="docs/">User-facing documentation</dir>
+  </project-management>
+
+</project>
