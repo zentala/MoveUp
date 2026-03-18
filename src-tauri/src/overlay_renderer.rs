@@ -379,13 +379,15 @@ fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>) {
         let mut monitor_info: MONITORINFO = std::mem::zeroed();
         monitor_info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
 
-        let (screen_width, screen_height) = if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
+        let (screen_width, screen_height, screen_x, screen_y) = if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
             (
                 monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
                 4i32,
+                monitor_info.rcMonitor.left,
+                monitor_info.rcMonitor.top,
             )
         } else {
-            (1920, 4)
+            (1920, 4, 0, 0)
         };
 
         // 2. Register window class with layered proc
@@ -411,14 +413,14 @@ fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>) {
             return;
         }
 
-        // 3. Create layered window with WS_EX_LAYERED
+        // 3. Create layered window at monitor's actual position (not (0,0)!)
         let hwnd = match CreateWindowExA(
             WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
             PCSTR(CLASS_NAME.as_ptr()),
             PCSTR(WINDOW_NAME.as_ptr()),
             WS_POPUP, // No WS_VISIBLE yet — show after first draw
-            0,
-            0,
+            screen_x,
+            screen_y,
             screen_width,
             screen_height,
             None,
@@ -497,11 +499,16 @@ fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>) {
         SetWindowLongPtrW(hwnd, SLOT_BUF, buf_ptr as isize);
 
         // 8. Draw initial frame before showing
+        info!("[LAYERED] Drawing initial frame...");
         draw_layered_frame(hwnd, &state, &*buf_ptr);
+        info!("[LAYERED] Initial frame drawn");
 
         // 9. Show window after first draw
-        let _ = ShowWindow(hwnd, SW_SHOW);
-        let _ = UpdateWindow(hwnd);
+        info!("[LAYERED] Calling ShowWindow(SW_SHOW)...");
+        let show_result = ShowWindow(hwnd, SW_SHOW);
+        info!("[LAYERED] ShowWindow returned: {:?}", show_result);
+        let update_result = UpdateWindow(hwnd);
+        info!("[LAYERED] UpdateWindow returned: {:?}", update_result);
 
         // 10. Set timer (no InvalidateRect — layered windows handle redraw differently)
         if SetTimer(Some(hwnd), TIMER_ID, TIMER_INTERVAL_MS, None) == 0 {
@@ -511,8 +518,8 @@ fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>) {
         }
 
         info!(
-            "🎨 [LAYERED] WinAPI overlay window created: {}x{} @ (0,0), UpdateLayeredWindow mode",
-            screen_width, screen_height
+            "🎨 [LAYERED] WinAPI overlay window created: {}x{} @ ({},{}), UpdateLayeredWindow mode",
+            screen_width, screen_height, screen_x, screen_y
         );
 
         // 11. Message loop
@@ -557,38 +564,43 @@ unsafe fn draw_layered_frame(
     // 2. Lock state, snapshot progress/visible/frame_count
     // Note: color_rgb would be used for real rendering; test mode uses test_colors instead
     let (bar_progress, visible, frame_count) = if let Ok(s) = state.lock() {
-        (s.progress, s.visible, s.frame_count)
+        let v = s.visible;
+        if v {
+            log::warn!("🟢 [DRAW] visible=TRUE, will show bar");
+        } else {
+            log::warn!("🔴 [DRAW] visible=FALSE, bar will be 0px");
+        }
+        (s.progress, v, s.frame_count)
     } else {
+        log::error!("[DRAW] Failed to acquire state lock!");
         return;
     };
 
-    // 3. Calculate bar width
-    let bar_width = if visible && bar_progress > 0.0 {
-        ((buf.width as f32) * bar_progress.max(0.0).min(1.0)) as i32
+    // 3. Calculate bar width - always show at least 1px when visible
+    let bar_width = if visible {
+        let w = ((buf.width as f32) * bar_progress.max(0.0).min(1.0)) as i32;
+        w.max(1)  // Minimum 1 pixel wide
     } else {
         0
     };
 
-    // 4. Fill bar pixels with BGRA (background stays transparent)
-    if bar_width > 0 {
-        // TEST: Cycle through colors every 3 frames (same as OPAQUE mode)
-        let test_colors = [
-            (255, 0, 0),     // Bright Red
-            (139, 0, 0),     // Dark Red/Maroon
-            (128, 0, 128),   // Purple
-            (240, 230, 200), // Cream
-            (0, 128, 0),     // Dark Green
-        ];
-        let color_idx = ((frame_count / 3) as usize) % test_colors.len();
-        let (r, g, b) = test_colors[color_idx];
-        let pixel = 0xFF_00_00_00 | ((b as u32) << 16) | ((g as u32) << 8) | (r as u32);
+    log::debug!("[LAYERED] draw_layered_frame: visible={}, progress={:.2}%, bar_width={}", visible, bar_progress * 100.0, bar_width);
 
-        for y in 0..buf.height {
-            for x in 0..bar_width {
-                let idx = (y * buf.width + x) as usize;
-                *buf.bits_ptr.add(idx) = pixel;
-            }
+    // 4. Fill bar pixels with BGRA (background stays transparent)
+    // Semi-transparent white bar (always visible when visible=true)
+    // Alpha = 128 (50% opacity), RGB = white (255, 255, 255)
+    let alpha = 128u32;
+    let pixel = ((alpha as u32) << 24) | 0x00_FF_FF_FF;  // ARGB: 50% white
+
+    for y in 0..buf.height {
+        for x in 0..bar_width {
+            let idx = (y * buf.width + x) as usize;
+            *buf.bits_ptr.add(idx) = pixel;
         }
+    }
+
+    if bar_width > 0 {
+        log::debug!("[LAYERED] Filled {} pixels", bar_width * buf.height);
     }
 
     // 5. Use cached screen DC and call UpdateLayeredWindow
@@ -604,10 +616,14 @@ unsafe fn draw_layered_frame(
         AlphaFormat: 1, // AC_SRC_ALPHA
     };
 
+    // Window position on screen (must be explicit, not None)
+    let dst_point = POINT { x: 0, y: 0 };
+
+    log::debug!("[LAYERED] Calling UpdateLayeredWindow: hdc_screen={:?}, hdc_mem={:?}, size={}x{}", buf.hdc_screen.0, buf.hdc_mem.0, size.cx, size.cy);
     match UpdateLayeredWindow(
         hwnd,
         Some(buf.hdc_screen),
-        None,
+        Some(&dst_point),  // ← Explicit position
         Some(&size),
         Some(buf.hdc_mem),
         Some(&src_point),
@@ -616,10 +632,10 @@ unsafe fn draw_layered_frame(
         ULW_ALPHA,
     ) {
         Ok(_) => {
-            // Success
+            log::debug!("[LAYERED] UpdateLayeredWindow SUCCESS");
         }
         Err(e) => {
-            log::warn!("[LAYERED] UpdateLayeredWindow failed: {:?}", e);
+            log::warn!("[LAYERED] UpdateLayeredWindow FAILED: {:?}", e);
         }
     }
 }
