@@ -16,14 +16,19 @@ mod tray_controller;
 mod tray_icon;
 
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use commands::AppState;
 use log::info;
 use overlay_renderer::OverlayRenderer;
 use serial::ConnectionState;
 use session::SessionManager;
-use tauri::Manager;
+use tauri::{Listener, Manager};
+use tauri_plugin_notification::NotificationExt;
 use window_vibrancy::apply_acrylic;
+
+/// Minimum interval between device-missing/lost notifications (5 minutes).
+const DEVICE_NOTIFICATION_COOLDOWN_SECS: u64 = 300;
 
 /// Application entry point called from main.rs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -103,6 +108,42 @@ pub fn run() {
                 state.db.clone(),
                 state.config.clone(),
             );
+
+            // Throttled notifications for missing/lost sensor.
+            let last_notif = Arc::new(Mutex::new(Instant::now() - std::time::Duration::from_secs(DEVICE_NOTIFICATION_COOLDOWN_SECS)));
+
+            {
+                let handle = app.handle().clone();
+                let last = Arc::clone(&last_notif);
+                app.listen("desk:device-missing", move |_| {
+                    let mut guard = last.lock().unwrap();
+                    if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
+                        let _ = handle.notification()
+                            .builder()
+                            .title("zntlDesk")
+                            .body("Sensor not connected. Plug in desk sensor.")
+                            .show();
+                        *guard = Instant::now();
+                    }
+                });
+            }
+
+            {
+                let handle = app.handle().clone();
+                let last = Arc::clone(&last_notif);
+                app.listen("desk:device-lost", move |_| {
+                    let mut guard = last.lock().unwrap();
+                    if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
+                        let _ = handle.notification()
+                            .builder()
+                            .title("zntlDesk")
+                            .body("Sensor disconnected. Check USB cable.")
+                            .show();
+                        *guard = Instant::now();
+                    }
+                });
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())
