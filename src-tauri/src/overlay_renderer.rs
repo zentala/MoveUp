@@ -17,21 +17,28 @@ pub struct OverlayState {
     pub visible: bool,
     pub needs_redraw: bool,      // dirty flag — redraw only when changed
     pub frame_count: u32,        // For test animation (cycles through colors)
-    pub demo_mode: bool,         // If true, cycle progress for testing
+    pub dev_mode: bool,          // Auto-enabled in debug builds
 }
 
 impl Default for OverlayState {
     fn default() -> Self {
-        let demo_mode = std::env::var("OVERLAY_DEMO_MODE")
-            .map(|v| v.to_lowercase() == "true")
-            .unwrap_or(false);
+        let dev_mode = if cfg!(debug_assertions) {
+            // Auto-enable in debug builds unless explicitly disabled
+            std::env::var("OVERLAY_DEV_MODE")
+                .map(|v| v.to_lowercase() != "false")
+                .unwrap_or(true)
+        } else {
+            std::env::var("OVERLAY_DEV_MODE")
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(false)
+        };
         Self {
             progress: 0.0,
             color_rgb: (76, 175, 80), // green
             visible: false,
             needs_redraw: false,
             frame_count: 0,
-            demo_mode,
+            dev_mode,
         }
     }
 }
@@ -59,6 +66,7 @@ impl OverlayRenderer {
 
     pub fn update(&self, progress: f32, color_rgb: (u8, u8, u8)) {
         if let Ok(mut s) = self.state.lock() {
+            if s.dev_mode { return; }
             s.progress = progress.clamp(0.0, 1.0);
             s.color_rgb = color_rgb;
             s.needs_redraw = true;
@@ -67,6 +75,7 @@ impl OverlayRenderer {
 
     pub fn show(&self) {
         if let Ok(mut s) = self.state.lock() {
+            if s.dev_mode { return; }
             s.visible = true;
             s.needs_redraw = true;
         }
@@ -74,10 +83,21 @@ impl OverlayRenderer {
 
     pub fn hide(&self) {
         if let Ok(mut s) = self.state.lock() {
+            if s.dev_mode { return; }
             s.visible = false;
             s.needs_redraw = true;
         }
     }
+}
+
+/// Calculates dev mode progress and color from frame count.
+/// Cycles: 0% -> 25% -> 50% -> 75% -> 100% every 5 seconds (300 frames @ 60fps).
+fn dev_mode_progress(frame_count: u32) -> (f32, (u8, u8, u8)) {
+    use crate::colors::color_for_progress;
+    let stage = ((frame_count / 300) % 5) as u32;
+    let progress = stage as f32 / 4.0;
+    let (r, g, b, _) = color_for_progress(progress);
+    (progress, (r, g, b))
 }
 
 /// WinAPI event loop — runs in background thread.
@@ -92,24 +112,30 @@ impl OverlayRenderer {
 #[cfg(target_os = "windows")]
 fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
     let mode = std::env::var("OVERLAY_MODE").unwrap_or_else(|_| "opaque".to_string());
-    let demo_mode = std::env::var("OVERLAY_DEMO_MODE")
-        .map(|v| v.to_lowercase() == "true")
-        .unwrap_or(false);
+    let dev_mode = if cfg!(debug_assertions) {
+        std::env::var("OVERLAY_DEV_MODE")
+            .map(|v| v.to_lowercase() != "false")
+            .unwrap_or(true)
+    } else {
+        std::env::var("OVERLAY_DEV_MODE")
+            .map(|v| v.to_lowercase() == "true")
+            .unwrap_or(false)
+    };
 
     match mode.as_str() {
         "layered" => {
-            if demo_mode {
-                info!("🎨 [EXPERIMENTAL + DEMO] Starting overlay in LAYERED mode with demo cycling (0%, 25%, 50%, 75%, 100% every 5s)");
+            if dev_mode {
+                info!("[LAYERED + DEV] Starting overlay with dev mode cycling (0%, 25%, 50%, 75%, 100% every 5s)");
             } else {
-                info!("🎨 [EXPERIMENTAL] Starting overlay in LAYERED mode (UpdateLayeredWindow)");
+                info!("[LAYERED] Starting overlay in LAYERED mode (UpdateLayeredWindow)");
             }
             run_event_loop_layered(state);
         }
         _ => {
-            if demo_mode {
-                info!("🎨 [STABLE + DEMO] Starting overlay in OPAQUE mode with demo cycling (every 5s)");
+            if dev_mode {
+                info!("[OPAQUE + DEV] Starting overlay with dev mode cycling (every 5s)");
             } else {
-                info!("🎨 [STABLE] Starting overlay in OPAQUE mode (black background)");
+                info!("[OPAQUE] Starting overlay in OPAQUE mode (black background)");
             }
             run_event_loop_opaque(state);
         }
@@ -259,7 +285,7 @@ unsafe extern "system" fn wnd_proc(
                     s.frame_count = s.frame_count.wrapping_add(1);
 
                     // Demo mode: cycle progress through 0%, 25%, 50%, 75%, 100% every 5 seconds (300 frames @ 60fps)
-                    if s.demo_mode {
+                    if s.dev_mode {
                         let stage = ((s.frame_count / 300) % 5) as u32; // 300 frames @ 60fps = 5 seconds per stage
                         s.progress = stage as f32 / 4.0; // 0/4, 1/4, 2/4, 3/4, 4/4
                         s.visible = true; // Always show in demo mode
@@ -586,22 +612,22 @@ unsafe fn draw_layered_frame(
     let pixel_count = (buf.width * buf.height) as usize;
     std::ptr::write_bytes(buf.bits_ptr, 0, pixel_count);
 
-    // 2. Lock state, snapshot progress/visible/frame_count/demo_mode
-    let (mut bar_progress, visible, frame_count, demo_mode) = if let Ok(s) = state.lock() {
+    // 2. Lock state, snapshot progress/visible/frame_count/dev_mode
+    let (mut bar_progress, visible, frame_count, dev_mode) = if let Ok(s) = state.lock() {
         let v = s.visible;
         if v {
             log::warn!("🟢 [DRAW] visible=TRUE, will show bar");
         } else {
             log::warn!("🔴 [DRAW] visible=FALSE, bar will be 0px");
         }
-        (s.progress, v, s.frame_count, s.demo_mode)
+        (s.progress, v, s.frame_count, s.dev_mode)
     } else {
         log::error!("[DRAW] Failed to acquire state lock!");
         return;
     };
 
     // Demo mode: override progress based on frame count (0%, 25%, 50%, 75%, 100% every 5 seconds)
-    if demo_mode {
+    if dev_mode {
         let stage = ((frame_count / 300) % 5) as u32;
         bar_progress = stage as f32 / 4.0;
         log::warn!("🔵 [DEMO-OVERRIDE] frame_count={}, stage={}, bar_progress={:.2}% (before: calc from state)", frame_count, stage, bar_progress * 100.0);
@@ -616,7 +642,7 @@ unsafe fn draw_layered_frame(
     };
 
     log::warn!("📊 [DRAW] frame={} | visible={} | progress={:.2}% | bar_width={}/{} | demo={}",
-        frame_count, visible, bar_progress * 100.0, bar_width, buf.width, demo_mode);
+        frame_count, visible, bar_progress * 100.0, bar_width, buf.width, dev_mode);
 
     // 4. Fill bar pixels with BGRA (background stays transparent)
     // Semi-transparent white bar (always visible when visible=true)
@@ -702,13 +728,13 @@ unsafe extern "system" fn wnd_proc_layered(
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
                     let fc = s.frame_count;
-                    let dm = s.demo_mode;
+                    let dm = s.dev_mode;
                     if dm {
                         s.visible = true; // Always show in demo mode
                     }
                     // Log every 60 frames (approx 1 second at 60fps)
                     if fc % 60 == 0 {
-                        log::warn!("⏱️ [TIMER] frame_count={}, demo_mode={}, visible={}", fc, dm, s.visible);
+                        log::warn!("⏱️ [TIMER] frame_count={}, dev_mode={}, visible={}", fc, dm, s.visible);
                     }
                     drop(s); // release lock before draw
                     draw_layered_frame(hwnd, state, buf);
@@ -755,9 +781,16 @@ mod tests {
     use super::*;
     use crate::colors::color_for_progress;
 
+    /// Helper: create renderer with dev_mode disabled for production behavior tests
+    fn renderer_production() -> OverlayRenderer {
+        let renderer = OverlayRenderer::new();
+        renderer.state.lock().unwrap().dev_mode = false;
+        renderer
+    }
+
     #[test]
     fn state_update_sets_needs_redraw() {
-        let renderer = OverlayRenderer::new();
+        let renderer = renderer_production();
         renderer.update(0.5, (255, 193, 7));
         let state = renderer.state.lock().unwrap();
         assert_eq!(state.progress, 0.5);
@@ -767,7 +800,7 @@ mod tests {
 
     #[test]
     fn show_sets_visible_and_needs_redraw() {
-        let renderer = OverlayRenderer::new();
+        let renderer = renderer_production();
         renderer.show();
         let state = renderer.state.lock().unwrap();
         assert!(state.visible);
@@ -776,7 +809,7 @@ mod tests {
 
     #[test]
     fn hide_clears_visible_and_sets_needs_redraw() {
-        let renderer = OverlayRenderer::new();
+        let renderer = renderer_production();
         renderer.show();
         renderer.hide();
         let state = renderer.state.lock().unwrap();
@@ -786,7 +819,7 @@ mod tests {
 
     #[test]
     fn progress_clamped_to_0_1() {
-        let renderer = OverlayRenderer::new();
+        let renderer = renderer_production();
         renderer.update(1.5, (0, 0, 0));
         let state = renderer.state.lock().unwrap();
         assert_eq!(state.progress, 1.0);
@@ -799,10 +832,70 @@ mod tests {
 
     #[test]
     fn color_for_progress_works_with_renderer() {
-        let renderer = OverlayRenderer::new();
+        let renderer = renderer_production();
         let (r, g, b, _css) = color_for_progress(0.3);
         renderer.update(0.3, (r, g, b));
         let state = renderer.state.lock().unwrap();
         assert_eq!(state.color_rgb, (76, 175, 80)); // green
+    }
+
+    #[test]
+    fn dev_mode_ignores_production_updates() {
+        let renderer = OverlayRenderer::new();
+        // In debug builds, dev_mode is true by default
+        assert!(renderer.state.lock().unwrap().dev_mode);
+
+        // update/show/hide should be no-ops in dev mode
+        renderer.update(0.75, (255, 0, 0));
+        renderer.show();
+        let state = renderer.state.lock().unwrap();
+        assert_eq!(state.progress, 0.0, "dev mode should ignore update()");
+        assert!(!state.visible, "dev mode should ignore show()");
+    }
+
+    #[test]
+    fn dev_mode_progress_cycles_correctly() {
+        // Stage 0: frame 0-299 -> 0%
+        let (p, _) = dev_mode_progress(0);
+        assert_eq!(p, 0.0);
+
+        // Stage 1: frame 300-599 -> 25%
+        let (p, _) = dev_mode_progress(300);
+        assert_eq!(p, 0.25);
+
+        // Stage 2: frame 600-899 -> 50%
+        let (p, _) = dev_mode_progress(600);
+        assert_eq!(p, 0.5);
+
+        // Stage 3: frame 900-1199 -> 75%
+        let (p, _) = dev_mode_progress(900);
+        assert_eq!(p, 0.75);
+
+        // Stage 4: frame 1200-1499 -> 100%
+        let (p, _) = dev_mode_progress(1200);
+        assert_eq!(p, 1.0);
+
+        // Wraps back to stage 0
+        let (p, _) = dev_mode_progress(1500);
+        assert_eq!(p, 0.0);
+    }
+
+    #[test]
+    fn dev_mode_progress_returns_correct_colors() {
+        // 0% -> green
+        let (_, color) = dev_mode_progress(0);
+        assert_eq!(color, (76, 175, 80));
+
+        // 50% -> green (below 60% threshold)
+        let (_, color) = dev_mode_progress(600);
+        assert_eq!(color, (76, 175, 80));
+
+        // 75% -> yellow (between 60-85%)
+        let (_, color) = dev_mode_progress(900);
+        assert_eq!(color, (255, 193, 7));
+
+        // 100% -> red (above 85%)
+        let (_, color) = dev_mode_progress(1200);
+        assert_eq!(color, (244, 67, 54));
     }
 }
