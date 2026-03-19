@@ -98,24 +98,30 @@ if demo_mode {
 
 ---
 
-## Known Problems
+## CRITICAL DISCOVERY
 
-### Problem A: Progress Always 100%
-- Bar always fills entire width
-- Demo cycling (0%, 25%, 50%, etc.) never happens
-- Hypothesis: demo_mode flag not activating OR frame_count not incrementing OR bar_width calculation wrong
+### What Actually Works ✅
+**TEST CODE in OPAQUE mode:**
+- Cycles through colors every 3 frames (fast, visible)
+- Fills entire screen with colors
+- **User can see it** (tęczowe kolory, miganie)
 
-### Problem B: Blinking/Flickering
-- Bar flashes or blinks continuously
-- Happens even without demo mode
-- Frequency: unclear (user says "zbyt szybko" but can't measure)
-- Hypothesis: rendering every frame causes flicker? 16ms too fast?
+### What Doesn't Work ❌
+**Progress bar (real code):**
+- Supposed to show: 0% → 25% → 50% → 75% → 100%
+- Actually shows: NOTHING (invisible)
+- Rendering is broken or bar_width=0
 
-### Problem C: Can't Verify Anything
-- No way to see what's actually happening
-- Only user feedback ("nie działa")
-- No measurements, no frame-by-frame analysis
-- Need: automated visual testing
+### My Mistake
+- I thought TEST CODE was broken
+- Actually: TEST CODE IS THE ONLY THING THAT WORKS
+- Removed test code, replaced with "better" code
+- Result: completely invisible
+- My tests showed "progress cycling works" but lied (showed test color cycling, not real progress)
+
+### What User Sees
+- `pnpm tauri:dev` → TEST CODE → colors cycling (works!)
+- `pnpm tauri:dev` after my change → PROGRESS BAR → nothing (broken!)
 
 ---
 
