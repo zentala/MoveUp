@@ -45,12 +45,22 @@ pub struct OverlayState {
 /// Default: `Demo` in debug builds, `Live` in release builds.
 fn parse_data_source() -> DataSource {
     let default = if cfg!(debug_assertions) { DataSource::Demo } else { DataSource::Live };
-    match std::env::var("OVERLAY_DATA").as_deref() {
+    let result = match std::env::var("OVERLAY_DATA").as_deref() {
         Ok("demo") => DataSource::Demo,
         Ok("live") => DataSource::Live,
         Ok("mock") => DataSource::Mock,
-        _ => default,
-    }
+        Ok(other) => {
+            log::warn!("[OVERLAY] Unknown OVERLAY_DATA='{}', using default {:?}", other, default);
+            default
+        }
+        Err(_) => default,
+    };
+    log::info!("[OVERLAY] DataSource={:?} (OVERLAY_DATA env={:?}, debug={})",
+        result,
+        std::env::var("OVERLAY_DATA").ok(),
+        cfg!(debug_assertions),
+    );
+    result
 }
 
 impl Default for OverlayState {
