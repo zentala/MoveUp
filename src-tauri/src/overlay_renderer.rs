@@ -587,53 +587,34 @@ unsafe fn draw_layered_frame(
     let pixel_count = (buf.width * buf.height) as usize;
     std::ptr::write_bytes(buf.bits_ptr, 0, pixel_count);
 
-    // 2. Lock state, snapshot progress/visible/frame_count/dev_mode
-    let (mut bar_progress, visible, frame_count, dev_mode) = if let Ok(s) = state.lock() {
-        let v = s.visible;
-        if v {
-            log::warn!("🟢 [DRAW] visible=TRUE, will show bar");
-        } else {
-            log::warn!("🔴 [DRAW] visible=FALSE, bar will be 0px");
-        }
-        (s.progress, v, s.frame_count, s.dev_mode)
+    // 2. Lock state, snapshot progress/visible/color/dev_mode
+    let (bar_progress, visible, color_rgb, dev_mode) = if let Ok(s) = state.lock() {
+        (s.progress, s.visible, s.color_rgb, s.dev_mode)
     } else {
         log::error!("[DRAW] Failed to acquire state lock!");
         return;
     };
 
-    // Demo mode: override progress based on frame count (0%, 25%, 50%, 75%, 100% every 5 seconds)
-    if dev_mode {
-        let stage = ((frame_count / 300) % 5) as u32;
-        bar_progress = stage as f32 / 4.0;
-        log::warn!("🔵 [DEMO-OVERRIDE] frame_count={}, stage={}, bar_progress={:.2}% (before: calc from state)", frame_count, stage, bar_progress * 100.0);
-    }
-
-    // 3. Calculate bar width - always show at least 1px when visible
-    let bar_width = if visible {
-        let w = ((buf.width as f32) * bar_progress.max(0.0).min(1.0)) as i32;
-        w.max(1)  // Minimum 1 pixel wide
+    // 3. Calculate bar width
+    let bar_width = if dev_mode || visible {
+        let w = ((buf.width as f32) * bar_progress.clamp(0.0, 1.0)) as i32;
+        if dev_mode { w.max(1) } else { w }
     } else {
         0
     };
 
-    log::warn!("📊 [DRAW] frame={} | visible={} | progress={:.2}% | bar_width={}/{} | demo={}",
-        frame_count, visible, bar_progress * 100.0, bar_width, buf.width, dev_mode);
-
-    // 4. Fill bar pixels with BGRA (background stays transparent)
-    // Semi-transparent white bar (always visible when visible=true)
-    // Alpha = 128 (50% opacity), RGB = white (255, 255, 255)
-    let alpha = 128u32;
-    let pixel = ((alpha as u32) << 24) | 0x00_FF_FF_FF;  // ARGB: 50% white
+    // 4. Fill bar pixels with BGRA (pre-multiplied alpha)
+    let alpha = 200u32;
+    let r = ((color_rgb.0 as u32) * alpha / 255) as u32;
+    let g = ((color_rgb.1 as u32) * alpha / 255) as u32;
+    let b = ((color_rgb.2 as u32) * alpha / 255) as u32;
+    let pixel = (alpha << 24) | (r << 16) | (g << 8) | b;
 
     for y in 0..buf.height {
         for x in 0..bar_width {
             let idx = (y * buf.width + x) as usize;
             *buf.bits_ptr.add(idx) = pixel;
         }
-    }
-
-    if bar_width > 0 {
-        log::debug!("[LAYERED] Filled {} pixels", bar_width * buf.height);
     }
 
     // 5. Use cached screen DC and call UpdateLayeredWindow
@@ -652,7 +633,6 @@ unsafe fn draw_layered_frame(
     // Window position on screen (must be explicit, not None)
     let dst_point = POINT { x: 0, y: 0 };
 
-    log::debug!("[LAYERED] Calling UpdateLayeredWindow: hdc_screen={:?}, hdc_mem={:?}, size={}x{}", buf.hdc_screen.0, buf.hdc_mem.0, size.cx, size.cy);
     match UpdateLayeredWindow(
         hwnd,
         Some(buf.hdc_screen),
@@ -664,11 +644,9 @@ unsafe fn draw_layered_frame(
         Some(&blend),
         ULW_ALPHA,
     ) {
-        Ok(_) => {
-            log::debug!("[LAYERED] UpdateLayeredWindow SUCCESS");
-        }
+        Ok(_) => {}
         Err(e) => {
-            log::warn!("[LAYERED] UpdateLayeredWindow FAILED: {:?}", e);
+            log::warn!("[LAYERED] UpdateLayeredWindow failed: {:?}", e);
         }
     }
 }
@@ -702,16 +680,18 @@ unsafe extern "system" fn wnd_proc_layered(
 
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
-                    let fc = s.frame_count;
-                    let dm = s.dev_mode;
-                    if dm {
-                        s.visible = true; // Always show in demo mode
+                    if s.dev_mode {
+                        let (progress, color) = dev_mode_progress(s.frame_count);
+                        let prev_stage = ((s.frame_count.wrapping_sub(1) / 300) % 5) as u32;
+                        let curr_stage = ((s.frame_count / 300) % 5) as u32;
+                        if prev_stage != curr_stage {
+                            log::info!("[DEV] Stage {}: progress={:.0}%", curr_stage, progress * 100.0);
+                        }
+                        s.progress = progress;
+                        s.color_rgb = color;
+                        s.visible = true;
                     }
-                    // Log every 60 frames (approx 1 second at 60fps)
-                    if fc % 60 == 0 {
-                        log::warn!("⏱️ [TIMER] frame_count={}, dev_mode={}, visible={}", fc, dm, s.visible);
-                    }
-                    drop(s); // release lock before draw
+                    drop(s);
                     draw_layered_frame(hwnd, state, buf);
                 }
             }
