@@ -20,6 +20,7 @@ pub struct OverlayState {
     pub frame_count: u32,        // For test animation (cycles through colors)
     pub dev_mode: bool,          // Auto-enabled in debug builds
     pub bar_height: i32,         // Default 4, configurable via OVERLAY_HEIGHT
+    pub overlay_variant: u8,     // 0=solid, 1=gradient, 2=pulsing (OVERLAY_VARIANT env)
 }
 
 impl Default for OverlayState {
@@ -39,6 +40,11 @@ impl Default for OverlayState {
             .and_then(|v| v.parse::<i32>().ok())
             .unwrap_or(4)
             .clamp(1, 20);
+        let overlay_variant = std::env::var("OVERLAY_VARIANT")
+            .ok()
+            .and_then(|v| v.parse::<u8>().ok())
+            .unwrap_or(0)
+            .min(2); // 0=solid, 1=gradient, 2=pulsing
         Self {
             progress: 0.0,
             color_rgb: (76, 175, 80), // green
@@ -47,6 +53,7 @@ impl Default for OverlayState {
             frame_count: 0,
             dev_mode,
             bar_height,
+            overlay_variant,
         }
     }
 }
@@ -858,6 +865,21 @@ mod tests {
         assert_eq!(0i32.clamp(1, 20), 1);
         assert_eq!(4i32.clamp(1, 20), 4);
         assert_eq!(25i32.clamp(1, 20), 20);
+    }
+
+    #[test]
+    fn overlay_variant_defaults_to_solid() {
+        let state = OverlayState::default();
+        assert_eq!(state.overlay_variant, 0);
+    }
+
+    #[test]
+    fn overlay_variant_clamped_to_max_2() {
+        // Variant value is clamped via .min(2) in Default
+        assert_eq!(3u8.min(2), 2);
+        assert_eq!(255u8.min(2), 2);
+        assert_eq!(1u8.min(2), 1);
+        assert_eq!(0u8.min(2), 0);
     }
 
     #[test]
