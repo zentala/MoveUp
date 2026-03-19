@@ -42,7 +42,7 @@ export default function App() {
   // Debug: poll overlay state every 2s
   const [overlayDebug, setOverlayDebug] = useState<Record<string, unknown> | null>(null);
   const pollOverlay = useCallback(() => {
-    invoke("get_overlay_state").then((s) => setOverlayDebug(s as Record<string, unknown>)).catch(() => {});
+    invoke("get_overlay_state").then((s) => setOverlayDebug(s as Record<string, unknown>)).catch((e) => console.warn("overlay debug:", e));
   }, []);
   useEffect(() => {
     pollOverlay();

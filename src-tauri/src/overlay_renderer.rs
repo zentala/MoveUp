@@ -257,6 +257,8 @@ fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>, bar_height: i32) {
         let hmodule = GetModuleHandleW(None).unwrap_or(HMODULE::default());
         let hinstance: HINSTANCE = hmodule.into();
 
+        let arrow_cursor = LoadCursorW(None, IDC_ARROW).unwrap_or(HCURSOR::default());
+
         let wnd_class = WNDCLASSA {
             style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(wnd_proc),
@@ -264,7 +266,7 @@ fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>, bar_height: i32) {
             cbWndExtra: std::mem::size_of::<isize>() as i32,
             hInstance: hinstance,
             hIcon: HICON::default(),
-            hCursor: HCURSOR::default(),
+            hCursor: arrow_cursor,
             hbrBackground: HBRUSH(GetStockObject(BLACK_BRUSH).0),
             lpszMenuName: PCSTR::null(),
             lpszClassName: PCSTR(CLASS_NAME.as_ptr()),
@@ -409,7 +411,7 @@ unsafe extern "system" fn wnd_proc(
                     // Draw progress bar with variant-aware rendering
                     if s.visible {
                         let bar_width = ((window_width as f32) * s.progress.clamp(0.0, 1.0)) as i32;
-                        let bar_width = if s.data_source != DataSource::Live { bar_width.max(1) } else { bar_width };
+                        let bar_width = bar_width.max(1); // Always show at least 1px when visible
 
                         match s.overlay_variant {
                             0 => {
@@ -531,6 +533,8 @@ fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>, bar_height: i32) {
         let hmodule = GetModuleHandleW(None).unwrap_or(HMODULE::default());
         let hinstance: HINSTANCE = hmodule.into();
 
+        let arrow_cursor = LoadCursorW(None, IDC_ARROW).unwrap_or(HCURSOR::default());
+
         let wnd_class = WNDCLASSA {
             style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(wnd_proc_layered),
@@ -538,7 +542,7 @@ fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>, bar_height: i32) {
             cbWndExtra: 2 * std::mem::size_of::<isize>() as i32, // 16 bytes total: 2 slots
             hInstance: hinstance,
             hIcon: HICON::default(),
-            hCursor: HCURSOR::default(),
+            hCursor: arrow_cursor,
             hbrBackground: HBRUSH::default(), // null — no OS background
             lpszMenuName: PCSTR::null(),
             lpszClassName: PCSTR(CLASS_NAME.as_ptr()),
@@ -699,7 +703,7 @@ unsafe fn draw_layered_frame(
     std::ptr::write_bytes(buf.bits_ptr, 0, pixel_count);
 
     // 2. Lock state, snapshot progress/visible/color/data_source/variant/frame_count
-    let (bar_progress, visible, color_rgb, data_source, overlay_variant, frame_count) = if let Ok(s) = state.lock() {
+    let (bar_progress, visible, color_rgb, _data_source, overlay_variant, frame_count) = if let Ok(s) = state.lock() {
         (s.progress, s.visible, s.color_rgb, s.data_source, s.overlay_variant, s.frame_count)
     } else {
         log::error!("[DRAW] Failed to acquire state lock!");
@@ -709,7 +713,7 @@ unsafe fn draw_layered_frame(
     // 3. Calculate bar width
     let bar_width = if visible {
         let w = ((buf.width as f32) * bar_progress.clamp(0.0, 1.0)) as i32;
-        if data_source != DataSource::Live { w.max(1) } else { w }
+        w.max(1) // Always show at least 1px when visible
     } else {
         0
     };
