@@ -29,7 +29,7 @@
 
 ## P0 — Blocker: Bar Must Be Visible in Dev Mode
 
-### [ ] T-OVR-001: Dev mode — always-visible progress bar
+### [x] T-OVR-001: Dev mode — always-visible progress bar
 **Priority:** P0
 **Why:** Developer cannot test/style overlay without seeing it. Currently invisible without desk sensor.
 
@@ -136,7 +136,7 @@ Test code (overlay_renderer.rs, WM_PAINT, ~lines 303-319) runs UNCONDITIONALLY �
 
 ---
 
-### [ ] T-OVR-002: Device disconnected notification
+### [x] T-OVR-002: Device disconnected notification
 **Priority:** P0
 **Why:** App's purpose is to track desk sensor. User must know if sensor is disconnected.
 
@@ -157,7 +157,7 @@ Test code (overlay_renderer.rs, WM_PAINT, ~lines 303-319) runs UNCONDITIONALLY �
 
 ## P1 — Core Overlay Development
 
-### [ ] T-OVR-003: Compare OPAQUE vs LAYERED visually
+### [x] T-OVR-003: Compare OPAQUE vs LAYERED visually
 **Priority:** P1
 **Why:** Developer needs to see both modes to decide which to use for production.
 
@@ -179,7 +179,7 @@ OVERLAY_MODE=layered OVERLAY_DEV_MODE=true pnpm tauri:dev
 
 ---
 
-### [ ] T-OVR-004: Multiple bar variants for UX testing
+### [x] T-OVR-004: Multiple bar variants for UX testing
 **Priority:** P1
 **Why:** Developer wants to test different bar styles before committing to design.
 
@@ -200,7 +200,7 @@ OVERLAY_MODE=layered OVERLAY_DEV_MODE=true pnpm tauri:dev
 
 ---
 
-### [ ] T-OVR-005: Adjustable bar height
+### [x] T-OVR-005: Adjustable bar height
 **Priority:** P1
 **Why:** 4px may be too thin/thick. Developer needs to test different heights.
 
@@ -213,7 +213,7 @@ OVERLAY_MODE=layered OVERLAY_DEV_MODE=true pnpm tauri:dev
 
 ## P2 — Testing Infrastructure
 
-### [ ] T-OVR-006: Fix auto-test.sh for OPAQUE mode
+### [x] T-OVR-006: Fix auto-test.sh for OPAQUE mode
 **Priority:** P2
 **Why:** Current auto-test only tests LAYERED mode. Must test what user sees.
 
@@ -226,7 +226,7 @@ OVERLAY_MODE=layered OVERLAY_DEV_MODE=true pnpm tauri:dev
 
 ---
 
-### [ ] T-OVR-007: Screenshot-based visual regression
+### [x] T-OVR-007: Rust unit tests for overlay rendering logic
 **Priority:** P2
 **Why:** Log analysis alone is insufficient — need visual proof.
 
@@ -241,17 +241,55 @@ OVERLAY_MODE=layered OVERLAY_DEV_MODE=true pnpm tauri:dev
 
 ## P3 — Production Integration
 
-### [ ] T-OVR-008: Wire overlay to real session data
-**Priority:** P3
-**Depends on:** T-OVR-001 (dev mode working)
-**Why:** After visual development, connect to real sitting session tracking.
+### [ ] T-OVR-008: DataSource refactor — replace dev_mode with OVERLAY_DATA
+**Priority:** P1
+**Depends on:** T-OVR-001 (done)
+**Why:** `dev_mode` conflates visibility + data source. Need independent axes.
 
-**Requirements:**
-- In production mode (no dev flags): overlay controlled by tray_controller
-- progress = sitting_seconds / session_limit_secs
-- color = green (< 60%), yellow (60-85%), red (> 85%)
-- Show only when DeskState::Sitting
-- Hide when Standing/Walking/Away
+**Decision (from CEO review 2026-03-19):**
+- Replace `dev_mode: bool` with `data_source: DataSource` enum
+- Remove `OVERLAY_DEV_MODE` env var entirely
+- Add `OVERLAY_DATA=demo|live|mock` env var
+
+**DataSource enum:**
+```rust
+enum DataSource { Demo, Live, Mock }
+```
+
+**Defaults:**
+- Debug build (`cfg!(debug_assertions)`): `Demo`
+- Release build: `Live`
+- Override with `OVERLAY_DATA` env var
+
+**Behavior per source:**
+| Source | `update()/show()/hide()` | Bar visibility | Data origin |
+|--------|--------------------------|----------------|-------------|
+| Demo | Blocked (early return) | Always visible | `dev_mode_progress()` cycling |
+| Live | Pass through | From DeskState | `tray_controller.rs` events |
+| Mock | Blocked (early return) | Sit=visible, Stand=hidden | `mock_progress()` simulated cycle |
+
+**Mock cycle (compressed ~3 min):**
+- Sit phase: 0→100% over ~150s (2.5 min), bar visible, color green→yellow→red
+- Stand phase: ~30s, bar hidden
+- Resets and repeats
+
+**Files to modify:**
+- `src-tauri/src/overlay_renderer.rs` — enum, guards, mock_progress()
+- `.claude/overlay/DEVELOPER-GUIDE.md` — update env vars docs
+
+**Tests (~10 new + 4 renames):**
+- DataSource parsing from env var (valid, invalid, missing)
+- Guard behavior per source (Demo blocks, Live passes, Mock blocks)
+- `mock_progress()` sit/stand phases, cycle wrap, colors
+- Rename existing `dev_mode` tests → `demo_source`
+
+**Acceptance criteria:**
+- [ ] `OVERLAY_DATA=demo pnpm tauri:dev` → cycling demo (same as current)
+- [ ] `OVERLAY_DATA=live pnpm tauri:dev` → bar responds to sensor
+- [ ] `OVERLAY_DATA=mock pnpm tauri:dev` → simulated sit/stand cycle
+- [ ] Default in debug: demo. Default in release: live.
+- [ ] `cargo test --lib` passes (all tests + new ones)
+- [ ] No `dev_mode` references remain in code
 
 ---
 

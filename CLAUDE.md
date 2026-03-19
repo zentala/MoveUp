@@ -41,8 +41,11 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 
 | File | Purpose |
 |------|---------|
-| `.claude/overlay/KNOWLEDGE-BASE.md` | Architecture, root causes, rules — **READ FIRST** |
+| `.claude/overlay/DEVELOPER-GUIDE.md` | **START HERE** — env vars, modes, styles, testing |
+| `.claude/overlay/KNOWLEDGE-BASE.md` | Architecture, root causes, rules |
+| `.claude/overlay/MODE-COMPARISON.md` | OPAQUE vs LAYERED technical comparison |
 | `.claude/overlay/TASKS.md` | Development tasks (T-OVR-001 through T-OVR-009) |
+| `.claude/overlay/ORCHESTRATOR.md` | Wave-based parallel execution plan |
 | `.claude/overlay/v1-opaque-debugging/` | Historical debugging session (archived) |
 | `.claude/overlay/test-infrastructure/` | auto-test.sh, screenshot tests |
 
