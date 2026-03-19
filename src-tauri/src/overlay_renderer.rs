@@ -164,12 +164,16 @@ fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>) {
         let mut monitor_info: MONITORINFO = std::mem::zeroed();
         monitor_info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
 
-        let screen_width = if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
-            monitor_info.rcMonitor.right - monitor_info.rcMonitor.left
+        let (screen_width, screen_height, screen_x, screen_y) = if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
+            (
+                monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
+                4i32,
+                monitor_info.rcMonitor.left,
+                monitor_info.rcMonitor.top,
+            )
         } else {
-            1920 // fallback
+            (1920, 4, 0, 0)
         };
-        let screen_height = 4i32;
 
         // 2. Register window class
         let hmodule = GetModuleHandleW(None).unwrap_or(HMODULE::default());
@@ -194,16 +198,14 @@ fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>) {
             return;
         }
 
-        // 3. Create window at (0,0) with screen_width × 4px
-        // Note: Removed WS_EX_LAYERED as it requires UpdateLayeredWindow for rendering.
-        // Using standard WS_POPUP allows normal GDI drawing via BeginPaint/FillRect.
+        // 3. Create window at monitor position with screen_width x 4px
         let hwnd = match CreateWindowExA(
             WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
             PCSTR(CLASS_NAME.as_ptr()),
             PCSTR(WINDOW_NAME.as_ptr()),
             WS_POPUP | WS_VISIBLE,
-            0,                  // x
-            0,                  // y
+            screen_x,           // x
+            screen_y,           // y
             screen_width,       // width
             screen_height,      // height
             None,               // parent
@@ -233,8 +235,8 @@ fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>) {
         }
 
         info!(
-            "🎨 WinAPI overlay window created: {}x{} @ (0,0), timer={}ms",
-            screen_width, screen_height, TIMER_INTERVAL_MS
+            "[OPAQUE] Overlay window created: {}x{} @ ({},{}), timer={}ms",
+            screen_width, screen_height, screen_x, screen_y, TIMER_INTERVAL_MS
         );
 
         // 6. Message loop
@@ -284,14 +286,18 @@ unsafe extern "system" fn wnd_proc(
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
 
-                    // Demo mode: cycle progress through 0%, 25%, 50%, 75%, 100% every 5 seconds (300 frames @ 60fps)
                     if s.dev_mode {
-                        let stage = ((s.frame_count / 300) % 5) as u32; // 300 frames @ 60fps = 5 seconds per stage
-                        s.progress = stage as f32 / 4.0; // 0/4, 1/4, 2/4, 3/4, 4/4
-                        s.visible = true; // Always show in demo mode
+                        let (progress, color) = dev_mode_progress(s.frame_count);
+                        let prev_stage = ((s.frame_count.wrapping_sub(1) / 300) % 5) as u32;
+                        let curr_stage = ((s.frame_count / 300) % 5) as u32;
+                        if prev_stage != curr_stage {
+                            log::info!("[DEV] Stage {}: progress={:.0}%", curr_stage, progress * 100.0);
+                        }
+                        s.progress = progress;
+                        s.color_rgb = color;
+                        s.visible = true;
                     }
 
-                    // For test: always redraw to cycle through colors
                     let _ = InvalidateRect(Some(hwnd), None, false.into());
                 }
             }
@@ -299,8 +305,6 @@ unsafe extern "system" fn wnd_proc(
         }
 
         WM_PAINT => {
-            log::info!("WM_PAINT: Painting overlay");
-            // WM_PAINT: Draw the progress bar
             let state_ptr = GetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(0)) as *mut Arc<Mutex<OverlayState>>;
             if !state_ptr.is_null() {
                 let state = &*state_ptr;
@@ -308,57 +312,30 @@ unsafe extern "system" fn wnd_proc(
                 let hdc = BeginPaint(hwnd, &mut ps);
 
                 if let Ok(s) = state.lock() {
-                    // Get window dimensions
                     let mut rect: RECT = std::mem::zeroed();
                     let _ = GetClientRect(hwnd, &mut rect);
                     let window_width = rect.right - rect.left;
                     let window_height = rect.bottom - rect.top;
-                    log::debug!("WM_PAINT: window={}x{}, progress={}, visible={}", window_width, window_height, s.progress, s.visible);
 
-                    // Calculate bar width (progress × window_width)
-                    let bar_width = ((window_width as f32) * s.progress.max(0.0).min(1.0)) as i32;
-                    log::info!("WM_PAINT: bar_width={} (progress={}), visible={}", bar_width, s.progress, s.visible);
-
-                    // First: Fill background with black (solid brush, not stock)
-                    let black_brush = CreateSolidBrush(COLORREF(0));  // RGB(0,0,0) = black
+                    // Fill background with black
+                    let black_brush = CreateSolidBrush(COLORREF(0));
                     if !black_brush.is_invalid() {
                         let _ = FillRect(hdc, &rect, black_brush);
                         let _ = DeleteObject(black_brush.into());
                     }
 
-                    // TEST: Cycle through colors every 3 frames (~48ms at 60fps)
-                    // Colors: Red, Dark Red/Maroon, Purple, Cream, Green
-                    let test_colors = [
-                        (255, 0, 0),     // Bright Red
-                        (139, 0, 0),     // Dark Red/Maroon
-                        (128, 0, 128),   // Purple
-                        (240, 230, 200), // Cream
-                        (0, 128, 0),     // Dark Green
-                    ];
-                    let color_idx = ((s.frame_count / 3) as usize) % test_colors.len();
-                    let (r, g, b) = test_colors[color_idx];
-                    let test_color = COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16));
-                    let test_brush = CreateSolidBrush(test_color);
-                    if !test_brush.is_invalid() {
-                        let _ = FillRect(hdc, &rect, test_brush);  // Full bar in test color
-                        let _ = DeleteObject(test_brush.into());
-                    }
+                    // Draw progress bar
+                    if s.dev_mode || s.visible {
+                        let bar_width = ((window_width as f32) * s.progress.clamp(0.0, 1.0)) as i32;
+                        let bar_width = if s.dev_mode { bar_width.max(1) } else { bar_width };
 
-                    if s.visible {
-                        // Create brush with RGB color
-                        // RGB(r, g, b) in Windows = r | (g << 8) | (b << 16)
                         let color = COLORREF(
                             (s.color_rgb.0 as u32)
                                 | ((s.color_rgb.1 as u32) << 8)
                                 | ((s.color_rgb.2 as u32) << 16),
                         );
-                        log::info!("WM_PAINT: Creating brush with RGB({}, {}, {})", s.color_rgb.0, s.color_rgb.1, s.color_rgb.2);
                         let brush = CreateSolidBrush(color);
-                        log::info!("WM_PAINT: brush.is_invalid()={}", brush.is_invalid());
-
-                        // Draw progress bar ON TOP of gold
                         if bar_width > 0 && !brush.is_invalid() {
-                            log::info!("WM_PAINT: Drawing progress bar at {}px", bar_width);
                             let bar_rect = RECT {
                                 left: 0,
                                 top: 0,
@@ -367,8 +344,6 @@ unsafe extern "system" fn wnd_proc(
                             };
                             let _ = FillRect(hdc, &bar_rect, brush);
                         }
-
-                        // Clean up brush
                         if !brush.is_invalid() {
                             let _ = DeleteObject(brush.into());
                         }
