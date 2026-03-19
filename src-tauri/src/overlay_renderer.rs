@@ -1,7 +1,8 @@
 //! overlay_renderer.rs — System-level progress bar overlay using raw WinAPI.
 //!
 //! Creates a native Windows window (NOT Tauri WebviewWindow) at position (0,0).
-//! Window is 4px tall × full screen width, always-on-top, no decorations.
+//! Window is N px tall × full screen width, always-on-top, no decorations.
+//! Height configurable via OVERLAY_HEIGHT env var (1-20, default 4).
 //!
 //! ⚠️ CRITICAL: CreateWindowExW() MUST be called in the SAME THREAD as the
 //! message loop (PeekMessage/DispatchMessage). Never call it from another thread.
@@ -18,6 +19,7 @@ pub struct OverlayState {
     pub needs_redraw: bool,      // dirty flag — redraw only when changed
     pub frame_count: u32,        // For test animation (cycles through colors)
     pub dev_mode: bool,          // Auto-enabled in debug builds
+    pub bar_height: i32,         // Default 4, configurable via OVERLAY_HEIGHT
 }
 
 impl Default for OverlayState {
@@ -32,6 +34,11 @@ impl Default for OverlayState {
                 .map(|v| v.to_lowercase() == "true")
                 .unwrap_or(false)
         };
+        let bar_height = std::env::var("OVERLAY_HEIGHT")
+            .ok()
+            .and_then(|v| v.parse::<i32>().ok())
+            .unwrap_or(4)
+            .clamp(1, 20);
         Self {
             progress: 0.0,
             color_rgb: (76, 175, 80), // green
@@ -39,6 +46,7 @@ impl Default for OverlayState {
             needs_redraw: false,
             frame_count: 0,
             dev_mode,
+            bar_height,
         }
     }
 }
@@ -122,6 +130,8 @@ fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
             .unwrap_or(false)
     };
 
+    let bar_height = state.lock().map(|s| s.bar_height).unwrap_or(4);
+
     match mode.as_str() {
         "layered" => {
             if dev_mode {
@@ -129,7 +139,7 @@ fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
             } else {
                 info!("[LAYERED] Starting overlay in LAYERED mode (UpdateLayeredWindow)");
             }
-            run_event_loop_layered(state);
+            run_event_loop_layered(state, bar_height);
         }
         _ => {
             if dev_mode {
@@ -137,7 +147,7 @@ fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
             } else {
                 info!("[OPAQUE] Starting overlay in OPAQUE mode (black background)");
             }
-            run_event_loop_opaque(state);
+            run_event_loop_opaque(state, bar_height);
         }
     }
 }
@@ -146,7 +156,7 @@ fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
 ///
 /// ⚠️ No transparency, but reliable rendering.
 #[cfg(target_os = "windows")]
-fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>) {
+fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>, bar_height: i32) {
     use windows::Win32::Foundation::*;
     use windows::Win32::Graphics::Gdi::*;
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -167,12 +177,12 @@ fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>) {
         let (screen_width, screen_height, screen_x, screen_y) = if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
             (
                 monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
-                4i32,
+                bar_height,
                 monitor_info.rcMonitor.left,
                 monitor_info.rcMonitor.top,
             )
         } else {
-            (1920, 4, 0, 0)
+            (1920, bar_height, 0, 0)
         };
 
         // 2. Register window class
@@ -385,7 +395,7 @@ struct LayeredBufferState {
 /// ⚠️ Uses WS_EX_LAYERED + UpdateLayeredWindow for transparency.
 /// Renders to offscreen 32-bit ARGB bitmap, composites with per-pixel alpha.
 #[cfg(target_os = "windows")]
-fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>) {
+fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>, bar_height: i32) {
     use windows::Win32::Foundation::*;
     use windows::Win32::Graphics::Gdi::*;
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -408,12 +418,12 @@ fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>) {
         let (screen_width, screen_height, screen_x, screen_y) = if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
             (
                 monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
-                4i32,
+                bar_height,
                 monitor_info.rcMonitor.left,
                 monitor_info.rcMonitor.top,
             )
         } else {
-            (1920, 4, 0, 0)
+            (1920, bar_height, 0, 0)
         };
 
         // 2. Register window class with layered proc
@@ -833,6 +843,21 @@ mod tests {
         // Wraps back to stage 0
         let (p, _) = dev_mode_progress(1500);
         assert_eq!(p, 0.0);
+    }
+
+    #[test]
+    fn bar_height_defaults_to_4() {
+        let state = OverlayState::default();
+        assert_eq!(state.bar_height, 4);
+    }
+
+    #[test]
+    fn bar_height_clamped_to_range() {
+        // bar_height is read from env at Default::default() time,
+        // so we test the clamp logic directly
+        assert_eq!(0i32.clamp(1, 20), 1);
+        assert_eq!(4i32.clamp(1, 20), 4);
+        assert_eq!(25i32.clamp(1, 20), 20);
     }
 
     #[test]
