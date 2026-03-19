@@ -293,29 +293,11 @@ unsafe extern "system" fn wnd_proc(
                     let bar_width = ((window_width as f32) * s.progress.max(0.0).min(1.0)) as i32;
                     log::info!("WM_PAINT: bar_width={} (progress={}), visible={}", bar_width, s.progress, s.visible);
 
-                    // First: Fill background with black (solid brush, not stock)
-                    let black_brush = CreateSolidBrush(COLORREF(0));  // RGB(0,0,0) = black
+                    // Fill background with black
+                    let black_brush = CreateSolidBrush(COLORREF(0));
                     if !black_brush.is_invalid() {
                         let _ = FillRect(hdc, &rect, black_brush);
                         let _ = DeleteObject(black_brush.into());
-                    }
-
-                    // TEST: Cycle through colors every 3 frames (~48ms at 60fps)
-                    // Colors: Red, Dark Red/Maroon, Purple, Cream, Green
-                    let test_colors = [
-                        (255, 0, 0),     // Bright Red
-                        (139, 0, 0),     // Dark Red/Maroon
-                        (128, 0, 128),   // Purple
-                        (240, 230, 200), // Cream
-                        (0, 128, 0),     // Dark Green
-                    ];
-                    let color_idx = ((s.frame_count / 3) as usize) % test_colors.len();
-                    let (r, g, b) = test_colors[color_idx];
-                    let test_color = COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16));
-                    let test_brush = CreateSolidBrush(test_color);
-                    if !test_brush.is_invalid() {
-                        let _ = FillRect(hdc, &rect, test_brush);  // Full bar in test color
-                        let _ = DeleteObject(test_brush.into());
                     }
 
                     if s.visible {
