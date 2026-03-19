@@ -115,6 +115,7 @@
       <event name="desk:distance" direction="rust-to-js">Raw sensor reading (mm, cm, timestamp)</event>
       <event name="desk:device-connected" direction="rust-to-js">Sensor identified on serial port</event>
       <event name="desk:device-lost" direction="rust-to-js">Serial connection dropped</event>
+      <event name="desk:device-missing" direction="rust-to-js">No sensor found after scanning all ports</event>
       <event name="desk:sensor-error" direction="rust-to-js">Serial or sensor error</event>
       <event name="desk:state-changed" direction="rust-to-js">State transition (sitting/standing/etc.)</event>
       <event name="desk:daily-reset" direction="rust-to-js">New day detected, counters reset</event>

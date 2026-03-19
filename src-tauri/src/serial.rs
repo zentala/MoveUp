@@ -4,6 +4,7 @@
 //! - `desk:distance`          — [`DistanceReading`] payload
 //! - `desk:device-connected`  — [`DeviceConnected`] payload
 //! - `desk:device-lost`       — no payload
+//! - `desk:device-missing`    — no payload (no sensor found after scanning all ports)
 //! - `desk:sensor-error`      — [`SensorError`] payload
 //! - `desk:state-changed`     — [`StateChangedPayload`] payload (via session)
 //! - `desk:daily-reset`       — no payload (T009 — fired when new day detected)
@@ -400,6 +401,7 @@ pub fn scan_and_connect(
                 }
             } else {
                 info!("No desk sensor found; retrying in {RESCAN_INTERVAL_SECS}s");
+                let _ = app.emit("desk:device-missing", ());
             }
 
             std::thread::sleep(Duration::from_secs(RESCAN_INTERVAL_SECS));
