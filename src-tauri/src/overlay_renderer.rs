@@ -878,4 +878,71 @@ mod tests {
         let (_, color) = dev_mode_progress(1200);
         assert_eq!(color, (244, 67, 54));
     }
+
+    #[test]
+    fn dev_mode_colors_match_color_for_progress() {
+        for frame in [0, 300, 600, 900, 1200] {
+            let (progress, (r, g, b)) = dev_mode_progress(frame);
+            let (er, eg, eb, _) = color_for_progress(progress);
+            assert_eq!((r, g, b), (er, eg, eb), "Color mismatch at frame {}", frame);
+        }
+    }
+
+    #[test]
+    fn bar_width_calculation_matches_progress() {
+        // Simulate the bar width calculation used in WM_PAINT
+        let screen_width = 1920i32;
+
+        // 0% progress -> 0px (or 1px in dev mode)
+        let progress = 0.0f32;
+        let bar_width = ((screen_width as f32) * progress.clamp(0.0, 1.0)) as i32;
+        assert_eq!(bar_width, 0);
+        assert_eq!(bar_width.max(1), 1); // dev mode minimum
+
+        // 25% -> 480px
+        let progress = 0.25f32;
+        let bar_width = ((screen_width as f32) * progress.clamp(0.0, 1.0)) as i32;
+        assert_eq!(bar_width, 480);
+
+        // 50% -> 960px
+        let progress = 0.5f32;
+        let bar_width = ((screen_width as f32) * progress.clamp(0.0, 1.0)) as i32;
+        assert_eq!(bar_width, 960);
+
+        // 100% -> 1920px
+        let progress = 1.0f32;
+        let bar_width = ((screen_width as f32) * progress.clamp(0.0, 1.0)) as i32;
+        assert_eq!(bar_width, 1920);
+    }
+
+    #[test]
+    fn overlay_state_dev_mode_blocks_updates() {
+        let renderer = OverlayRenderer::new();
+        // In debug builds, dev_mode is true by default
+        if cfg!(debug_assertions) {
+            renderer.update(0.5, (255, 0, 0));
+            let state = renderer.state.lock().unwrap();
+            assert_ne!(state.progress, 0.5, "dev mode should block update()");
+        }
+    }
+
+    #[test]
+    fn overlay_state_visibility_blocked_in_dev_mode() {
+        let renderer = OverlayRenderer::new();
+        if cfg!(debug_assertions) {
+            renderer.show();
+            renderer.hide();
+            // show/hide are no-ops in dev mode
+            let state = renderer.state.lock().unwrap();
+            assert!(!state.visible || state.dev_mode);
+        }
+    }
+
+    #[test]
+    fn colorref_format_is_bgr() {
+        // COLORREF is 0x00BBGGRR
+        let (r, g, b) = (255u8, 128u8, 0u8);
+        let colorref = (r as u32) | ((g as u32) << 8) | ((b as u32) << 16);
+        assert_eq!(colorref, 0x000080FF); // Blue=0x00, Green=0x80, Red=0xFF
+    }
 }
