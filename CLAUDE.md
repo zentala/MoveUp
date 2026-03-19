@@ -35,6 +35,39 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 3. **Top-of-screen progress bar** — green→red over 40min session, popup at limit
 4. **Popup notification** — "Sitting 40 min, take a break"
 
+## Overlay Progress Bar — Development
+
+**Project folder:** `.claude/overlay/`
+
+| File | Purpose |
+|------|---------|
+| `.claude/overlay/KNOWLEDGE-BASE.md` | Architecture, root causes, rules — **READ FIRST** |
+| `.claude/overlay/TASKS.md` | Development tasks (T-OVR-001 through T-OVR-009) |
+| `.claude/overlay/v1-opaque-debugging/` | Historical debugging session (archived) |
+| `.claude/overlay/test-infrastructure/` | auto-test.sh, screenshot tests |
+
+**Key rules (from debugging session 2026-03-19):**
+- Progress bar is INVISIBLE without desk sensor (`visible=false` by default)
+- To see bar in development: use dev mode (`OVERLAY_DEV_MODE=true`)
+- Two render backends: OPAQUE (GDI, black bg) and LAYERED (UpdateLayeredWindow, transparent)
+- Test the SAME mode the user sees — don't test LAYERED if user runs default OPAQUE
+- Don't remove working code without proven replacement
+- Document every iteration in `.claude/overlay/v1-*/OVERLAY-REPORT.md`
+
+**Dev mode commands:**
+```bash
+# See bar immediately (OPAQUE, dev mode)
+OVERLAY_DEV_MODE=true pnpm tauri:dev
+
+# See bar (LAYERED, transparent background)
+OVERLAY_MODE=layered OVERLAY_DEV_MODE=true pnpm tauri:dev
+```
+
+**Memory references:**
+- Persistent learnings: `C:\Users\zentala\.claude\projects\C--code-zntl-tray\memory\`
+- `memory/MEMORY.md` — index of all memory entries (auto-loaded by Claude Code)
+- Memory is stored OUTSIDE the project dir (per Claude Code design) — not moveable
+
 ## Stack
 - **Frontend**: React + TypeScript (Vite, port 1443)
 - **Backend**: Rust (Tauri 2)
