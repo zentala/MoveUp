@@ -64,6 +64,7 @@ pub fn run() {
                     commands::save_settings,
                     commands::get_today_summary,
                     commands::inject_reading,
+                    commands::get_overlay_state,
                 ]
             }
             #[cfg(not(any(test, debug_assertions)))]

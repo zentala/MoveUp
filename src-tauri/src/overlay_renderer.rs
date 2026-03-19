@@ -112,7 +112,12 @@ impl OverlayRenderer {
 
     pub fn update(&self, progress: f32, color_rgb: (u8, u8, u8)) {
         if let Ok(mut s) = self.state.lock() {
-            if s.data_source != DataSource::Live { return; }
+            if s.data_source != DataSource::Live {
+                log::trace!("[OVERLAY] update() ignored (source={:?})", s.data_source);
+                return;
+            }
+            log::info!("[OVERLAY] update() progress={:.1}% color=({},{},{})",
+                progress * 100.0, color_rgb.0, color_rgb.1, color_rgb.2);
             s.progress = progress.clamp(0.0, 1.0);
             s.color_rgb = color_rgb;
             s.needs_redraw = true;
@@ -121,10 +126,30 @@ impl OverlayRenderer {
 
     pub fn show(&self) {
         if let Ok(mut s) = self.state.lock() {
-            if s.data_source != DataSource::Live { return; }
+            if s.data_source != DataSource::Live {
+                log::trace!("[OVERLAY] show() ignored (source={:?})", s.data_source);
+                return;
+            }
+            log::info!("[OVERLAY] show() called — bar now visible");
             s.visible = true;
             s.needs_redraw = true;
         }
+    }
+
+    /// Returns overlay state as JSON for debugging (debug builds only).
+    #[cfg(debug_assertions)]
+    pub fn debug_state(&self) -> Option<serde_json::Value> {
+        let s = self.state.lock().ok()?;
+        Some(serde_json::json!({
+            "data_source": format!("{:?}", s.data_source),
+            "progress": (s.progress * 100.0).round() / 100.0,
+            "progress_pct": format!("{:.1}%", s.progress * 100.0),
+            "color_rgb": [s.color_rgb.0, s.color_rgb.1, s.color_rgb.2],
+            "visible": s.visible,
+            "frame_count": s.frame_count,
+            "bar_height": s.bar_height,
+            "overlay_variant": s.overlay_variant,
+        }))
     }
 
     pub fn hide(&self) {

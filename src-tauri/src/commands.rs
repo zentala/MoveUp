@@ -222,6 +222,15 @@ pub fn get_today_summary(app: tauri::AppHandle, state: State<'_, AppState>) -> R
     Ok(summary)
 }
 
+/// Returns current overlay state for debugging.
+#[tauri::command]
+#[cfg(debug_assertions)]
+pub fn get_overlay_state(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let overlay_state = state.overlay.debug_state()
+        .ok_or_else(|| "Failed to lock overlay state".to_string())?;
+    Ok(overlay_state)
+}
+
 /// Test/debug command: inject a sensor reading directly into the session manager.
 /// Only available in debug builds or when cfg(test) is enabled.
 ///

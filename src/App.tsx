@@ -5,7 +5,7 @@
  * the Rust Tauri backend via the useDesk hook. Auto-connects on start.
  * Shows SettingsPanel on first run until settings are configured.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDesk } from "@/hooks/useDesk";
 import { useTimer } from "@/hooks/useTimer";
@@ -38,6 +38,17 @@ export default function App() {
 
   const liveSitting = useTimer(sittingSeconds, state === "Sitting");
   const liveBreak   = useTimer(breakSeconds,   state !== "Sitting" && state !== null);
+
+  // Debug: poll overlay state every 2s
+  const [overlayDebug, setOverlayDebug] = useState<Record<string, unknown> | null>(null);
+  const pollOverlay = useCallback(() => {
+    invoke("get_overlay_state").then((s) => setOverlayDebug(s as Record<string, unknown>)).catch(() => {});
+  }, []);
+  useEffect(() => {
+    pollOverlay();
+    const id = setInterval(pollOverlay, 2000);
+    return () => clearInterval(id);
+  }, [pollOverlay]);
 
   // Check if settings exist on startup
   useEffect(() => {
@@ -133,6 +144,13 @@ export default function App() {
       <div className="panel-row">
         <TodayStats />
       </div>
+
+      {/* Debug: overlay state */}
+      {overlayDebug && (
+        <div style={{ fontSize: "10px", opacity: 0.7, padding: "4px 8px", fontFamily: "monospace" }}>
+          overlay: {String(overlayDebug.data_source)} | {String(overlayDebug.progress_pct)} | visible={String(overlayDebug.visible)} | h={String(overlayDebug.bar_height)}px
+        </div>
+      )}
 
       {/* Error banner */}
       {error && <div className="error-banner">{error}</div>}
