@@ -341,28 +341,57 @@ unsafe extern "system" fn wnd_proc(
                         let _ = DeleteObject(black_brush.into());
                     }
 
-                    // Draw progress bar
+                    // Draw progress bar with variant-aware rendering
                     if s.dev_mode || s.visible {
                         let bar_width = ((window_width as f32) * s.progress.clamp(0.0, 1.0)) as i32;
                         let bar_width = if s.dev_mode { bar_width.max(1) } else { bar_width };
 
-                        let color = COLORREF(
-                            (s.color_rgb.0 as u32)
-                                | ((s.color_rgb.1 as u32) << 8)
-                                | ((s.color_rgb.2 as u32) << 16),
-                        );
-                        let brush = CreateSolidBrush(color);
-                        if bar_width > 0 && !brush.is_invalid() {
-                            let bar_rect = RECT {
-                                left: 0,
-                                top: 0,
-                                right: bar_width,
-                                bottom: window_height,
-                            };
-                            let _ = FillRect(hdc, &bar_rect, brush);
-                        }
-                        if !brush.is_invalid() {
-                            let _ = DeleteObject(brush.into());
+                        match s.overlay_variant {
+                            0 => {
+                                // Solid fill (default behavior)
+                                let color = COLORREF(
+                                    (s.color_rgb.0 as u32)
+                                        | ((s.color_rgb.1 as u32) << 8)
+                                        | ((s.color_rgb.2 as u32) << 16),
+                                );
+                                let brush = CreateSolidBrush(color);
+                                if bar_width > 0 && !brush.is_invalid() {
+                                    let bar_rect = RECT { left: 0, top: 0, right: bar_width, bottom: window_height };
+                                    let _ = FillRect(hdc, &bar_rect, brush);
+                                }
+                                if !brush.is_invalid() { let _ = DeleteObject(brush.into()); }
+                            }
+                            1 => {
+                                // Gradient: dark to bright, left to right
+                                for x in 0..bar_width {
+                                    let factor = x as f32 / bar_width.max(1) as f32;
+                                    let r = (s.color_rgb.0 as f32 * factor) as u8;
+                                    let g = (s.color_rgb.1 as f32 * factor) as u8;
+                                    let b = (s.color_rgb.2 as f32 * factor) as u8;
+                                    let col_color = COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16));
+                                    let brush = CreateSolidBrush(col_color);
+                                    if !brush.is_invalid() {
+                                        let col_rect = RECT { left: x, top: 0, right: x + 1, bottom: window_height };
+                                        let _ = FillRect(hdc, &col_rect, brush);
+                                        let _ = DeleteObject(brush.into());
+                                    }
+                                }
+                            }
+                            2 => {
+                                // Pulsing: modulate brightness using frame_count
+                                let pulse = (s.frame_count as f32 * 0.1).sin() * 0.3 + 0.7; // 0.4 to 1.0
+                                let r = (s.color_rgb.0 as f32 * pulse) as u8;
+                                let g = (s.color_rgb.1 as f32 * pulse) as u8;
+                                let b = (s.color_rgb.2 as f32 * pulse) as u8;
+                                let pulsed_color = COLORREF((r as u32) | ((g as u32) << 8) | ((b as u32) << 16));
+                                let brush = CreateSolidBrush(pulsed_color);
+                                if bar_width > 0 && !brush.is_invalid() {
+                                    let bar_rect = RECT { left: 0, top: 0, right: bar_width, bottom: window_height };
+                                    let _ = FillRect(hdc, &bar_rect, brush);
+                                }
+                                if !brush.is_invalid() { let _ = DeleteObject(brush.into()); }
+                            }
+                            _ => {} // Unknown variant, render nothing extra
                         }
                     }
                 }
@@ -604,9 +633,9 @@ unsafe fn draw_layered_frame(
     let pixel_count = (buf.width * buf.height) as usize;
     std::ptr::write_bytes(buf.bits_ptr, 0, pixel_count);
 
-    // 2. Lock state, snapshot progress/visible/color/dev_mode
-    let (bar_progress, visible, color_rgb, dev_mode) = if let Ok(s) = state.lock() {
-        (s.progress, s.visible, s.color_rgb, s.dev_mode)
+    // 2. Lock state, snapshot progress/visible/color/dev_mode/variant/frame_count
+    let (bar_progress, visible, color_rgb, dev_mode, overlay_variant, frame_count) = if let Ok(s) = state.lock() {
+        (s.progress, s.visible, s.color_rgb, s.dev_mode, s.overlay_variant, s.frame_count)
     } else {
         log::error!("[DRAW] Failed to acquire state lock!");
         return;
@@ -620,18 +649,52 @@ unsafe fn draw_layered_frame(
         0
     };
 
-    // 4. Fill bar pixels with BGRA (pre-multiplied alpha)
+    // 4. Fill bar pixels with BGRA (pre-multiplied alpha), variant-aware
     let alpha = 200u32;
-    let r = ((color_rgb.0 as u32) * alpha / 255) as u32;
-    let g = ((color_rgb.1 as u32) * alpha / 255) as u32;
-    let b = ((color_rgb.2 as u32) * alpha / 255) as u32;
-    let pixel = (alpha << 24) | (r << 16) | (g << 8) | b;
 
-    for y in 0..buf.height {
-        for x in 0..bar_width {
-            let idx = (y * buf.width + x) as usize;
-            *buf.bits_ptr.add(idx) = pixel;
+    match overlay_variant {
+        0 => {
+            // Solid fill (default)
+            let r = ((color_rgb.0 as u32) * alpha / 255) as u32;
+            let g = ((color_rgb.1 as u32) * alpha / 255) as u32;
+            let b = ((color_rgb.2 as u32) * alpha / 255) as u32;
+            let pixel = (alpha << 24) | (r << 16) | (g << 8) | b;
+            for y in 0..buf.height {
+                for x in 0..bar_width {
+                    let idx = (y * buf.width + x) as usize;
+                    *buf.bits_ptr.add(idx) = pixel;
+                }
+            }
         }
+        1 => {
+            // Gradient: dark to bright, left to right
+            for y in 0..buf.height {
+                for x in 0..bar_width {
+                    let factor = x as f32 / bar_width.max(1) as f32;
+                    let r = ((color_rgb.0 as f32 * factor) as u32 * alpha / 255) as u32;
+                    let g = ((color_rgb.1 as f32 * factor) as u32 * alpha / 255) as u32;
+                    let b = ((color_rgb.2 as f32 * factor) as u32 * alpha / 255) as u32;
+                    let pixel = (alpha << 24) | (r << 16) | (g << 8) | b;
+                    let idx = (y * buf.width + x) as usize;
+                    *buf.bits_ptr.add(idx) = pixel;
+                }
+            }
+        }
+        2 => {
+            // Pulsing: modulate brightness by frame_count
+            let pulse = (frame_count as f32 * 0.1).sin() * 0.3 + 0.7; // 0.4 to 1.0
+            let r = ((color_rgb.0 as f32 * pulse) as u32 * alpha / 255) as u32;
+            let g = ((color_rgb.1 as f32 * pulse) as u32 * alpha / 255) as u32;
+            let b = ((color_rgb.2 as f32 * pulse) as u32 * alpha / 255) as u32;
+            let pixel = (alpha << 24) | (r << 16) | (g << 8) | b;
+            for y in 0..buf.height {
+                for x in 0..bar_width {
+                    let idx = (y * buf.width + x) as usize;
+                    *buf.bits_ptr.add(idx) = pixel;
+                }
+            }
+        }
+        _ => {} // Unknown variant, leave transparent
     }
 
     // 5. Use cached screen DC and call UpdateLayeredWindow
