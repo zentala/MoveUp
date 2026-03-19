@@ -10,45 +10,62 @@ All env vars are read at app startup. Restart required after changes.
 
 | Variable | Values | Default | Description |
 |----------|--------|---------|-------------|
-| `OVERLAY_DEV_MODE` | `true`/`false` | `true` in debug, `false` in release | Enables demo animation (ignores sensor data) |
+| `OVERLAY_DATA` | `demo`/`live`/`mock` | `demo` in debug, `live` in release | Data source (see below) |
 | `OVERLAY_MODE` | `opaque`/`layered` | `opaque` | Render backend (see Render Modes below) |
 | `OVERLAY_HEIGHT` | `1`–`20` | `4` | Bar height in pixels |
 | `OVERLAY_VARIANT` | `0`/`1`/`2` | `0` | Bar style (see Variants below) |
 
-## Data Modes
+## Configuration Axes
 
-### Demo Mode (`dev_mode = true`)
-- Auto-enabled in debug builds (`cargo dev` / `pnpm tauri:dev`)
-- Shows cycling animation: 0% → 25% → 50% → 75% → 100%, looping every 25 seconds
+Three independent axes — any combination is valid:
+
+```
+OVERLAY_DATA=demo|live|mock     ← where progress data comes from
+OVERLAY_MODE=opaque|layered     ← how the bar is rendered
+OVERLAY_VARIANT=0|1|2           ← visual style of the bar
+```
+
+## Data Sources (`OVERLAY_DATA`)
+
+### Demo (`demo`) — default in debug builds
+- Cycling animation: 0% → 25% → 50% → 75% → 100%, looping every 25 seconds
 - Each stage lasts 5 seconds (300 frames @ 60fps)
 - Color follows progress: green → yellow → red
+- Bar always visible
 - Ignores `update()`, `show()`, `hide()` calls from `tray_controller.rs`
 - **Use case:** Visual development without desk sensor
 
-### Live Mode (`dev_mode = false`)
-- Active in release builds by default
+### Live (`live`) — default in release builds
 - Bar driven by real session data from `tray_controller.rs`
 - Shows when sitting (`DeskState::Sitting`), hides otherwise
 - Progress = `sitting_seconds / session_limit_secs`
 - Color: green (0%) → yellow (60%) → red (85%+)
 - **Use case:** Production use with desk sensor connected
 
-### Switching between modes
+### Mock (`mock`)
+- Simulates realistic sit/stand cycle, compressed to ~3 minutes
+- Sit phase (~2.5 min): progress grows 0% → 100%, bar visible
+- Stand phase (~30s): bar hidden
+- Resets and repeats
+- Ignores external updates (like Demo)
+- **Use case:** Testing full session lifecycle without waiting 40 minutes
+
+### Switching between data sources
 ```bash
 # Demo mode (default in debug)
 pnpm tauri:dev
 
-# Demo mode explicitly
-OVERLAY_DEV_MODE=true pnpm tauri:dev
+# Mock mode — simulated sit/stand cycle
+OVERLAY_DATA=mock pnpm tauri:dev
 
 # Live mode in debug build (requires sensor)
-OVERLAY_DEV_MODE=false pnpm tauri:dev
+OVERLAY_DATA=live pnpm tauri:dev
 
-# Release build (always live mode unless overridden)
+# Release build (always live unless overridden)
 pnpm tauri:build
 ```
 
-## Render Modes
+## Render Modes (`OVERLAY_MODE`)
 
 ### OPAQUE (default)
 - GDI `BeginPaint`/`FillRect` rendering
@@ -69,10 +86,10 @@ OVERLAY_MODE=layered pnpm tauri:dev
 
 See [MODE-COMPARISON.md](./MODE-COMPARISON.md) for detailed comparison.
 
-## Bar Variants (Styles)
+## Bar Variants (`OVERLAY_VARIANT`)
 
-| Variant | `OVERLAY_VARIANT` | Description |
-|---------|-------------------|-------------|
+| Variant | Value | Description |
+|---------|-------|-------------|
 | Solid | `0` | Single color fill (default) |
 | Gradient | `1` | Dark-to-bright, left-to-right |
 | Pulsing | `2` | Brightness oscillates (sin wave) |
@@ -84,28 +101,34 @@ OVERLAY_VARIANT=1 pnpm tauri:dev
 # Test pulsing style
 OVERLAY_VARIANT=2 pnpm tauri:dev
 
-# Combine: tall pulsing layered bar
-OVERLAY_HEIGHT=10 OVERLAY_VARIANT=2 OVERLAY_MODE=layered pnpm tauri:dev
+# Combine: tall pulsing layered bar with mock data
+OVERLAY_HEIGHT=10 OVERLAY_VARIANT=2 OVERLAY_MODE=layered OVERLAY_DATA=mock pnpm tauri:dev
 ```
 
 ## Architecture
 
 ```
-serial.rs (sensor) → session.rs (state machine) → tray_controller.rs → overlay_renderer.rs
-                                                                         ↑
-                                                              update(progress, color)
-                                                              show() / hide()
+┌─────────────────────────────────────────────────────────────────┐
+│                     DATA FLOW BY SOURCE                         │
+│                                                                 │
+│  demo:  WM_TIMER → demo_progress(frame) → state.progress       │
+│         Always visible. Internal animation.                     │
+│                                                                 │
+│  live:  serial.rs → session.rs → tray_controller.rs             │
+│         → overlay.update(progress, color)                       │
+│         → overlay.show() / overlay.hide()                       │
+│                                                                 │
+│  mock:  WM_TIMER → mock_progress(frame) → state.progress       │
+│         Simulates 40-min sit + 10-min stand. Always visible     │
+│         during sit phase, hidden during stand phase.            │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-- `overlay_renderer.rs` — creates native WinAPI window in background thread
-- `tray_controller.rs` — listens for `desk:state-changed` events, calls overlay methods
-- In dev_mode, `tray_controller.rs` calls are ignored; demo animation runs independently
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `src-tauri/src/overlay_renderer.rs` | WinAPI overlay window, rendering, dev mode |
+| `src-tauri/src/overlay_renderer.rs` | WinAPI overlay window, rendering, data sources |
 | `src-tauri/src/tray_controller.rs` | Wires session events → overlay + tray |
 | `src-tauri/src/colors.rs` | `color_for_progress()` — progress → RGB mapping |
 | `src-tauri/src/serial.rs` | Serial port reader, sensor auto-detect |

@@ -50,20 +50,21 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 | `.claude/overlay/test-infrastructure/` | auto-test.sh, screenshot tests |
 
 **Key rules (from debugging session 2026-03-19):**
-- Progress bar is INVISIBLE without desk sensor (`visible=false` by default)
-- To see bar in development: use dev mode (`OVERLAY_DEV_MODE=true`)
+- Progress bar data source controlled by `OVERLAY_DATA=demo|live|mock` (default: `demo` in debug, `live` in release)
 - Two render backends: OPAQUE (GDI, black bg) and LAYERED (UpdateLayeredWindow, transparent)
 - Test the SAME mode the user sees — don't test LAYERED if user runs default OPAQUE
 - Don't remove working code without proven replacement
-- Document every iteration in `.claude/overlay/v1-*/OVERLAY-REPORT.md`
 
-**Dev mode commands:**
+**Quick start commands:**
 ```bash
-# See bar immediately (OPAQUE, dev mode)
-OVERLAY_DEV_MODE=true pnpm tauri:dev
+# Demo mode (default in debug builds)
+pnpm tauri:dev
 
-# See bar (LAYERED, transparent background)
-OVERLAY_MODE=layered OVERLAY_DEV_MODE=true pnpm tauri:dev
+# Mock mode (simulated sit/stand cycle)
+OVERLAY_DATA=mock pnpm tauri:dev
+
+# Live mode (requires sensor)
+OVERLAY_DATA=live pnpm tauri:dev
 ```
 
 **Memory references:**

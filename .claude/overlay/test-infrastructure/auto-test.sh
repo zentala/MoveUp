@@ -52,7 +52,7 @@ echo "Code compiles OK"
 # Step 4: Set environment and run test
 echo "Running test ($TEST_TIMEOUT seconds, mode=$MODE)..."
 
-ENV_VARS="OVERLAY_DEV_MODE=true RUST_LOG=warn"
+ENV_VARS="OVERLAY_DATA=demo RUST_LOG=warn"
 if [ "$MODE" = "layered" ]; then
     ENV_VARS="OVERLAY_MODE=layered $ENV_VARS"
 fi
@@ -120,7 +120,7 @@ cat > "$RESULTS_FILE" << EOF
 ## Config
 - Mode: **$MODE**
 - Timeout: **${TEST_TIMEOUT}s**
-- Dev mode: **OVERLAY_DEV_MODE=true**
+- Data source: **OVERLAY_DATA=demo**
 
 ## Common Metrics
 - TIMER logs: **$TIMER_COUNT**

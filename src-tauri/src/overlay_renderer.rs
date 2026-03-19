@@ -11,30 +11,51 @@
 use std::sync::{Arc, Mutex};
 use log::info;
 
+/// Data source for overlay progress bar.
+///
+/// ```text
+/// Demo:  WM_TIMER → demo_progress(frame) → cycling animation
+/// Live:  serial.rs → session.rs → tray_controller.rs → overlay.update()
+/// Mock:  WM_TIMER → mock_progress(frame) → simulated sit/stand cycle
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DataSource {
+    /// Cycling demo animation (0%→25%→50%→75%→100%). Default in debug builds.
+    Demo,
+    /// Real sensor data via tray_controller.rs. Default in release builds.
+    Live,
+    /// Simulated 40-min sit / 10-min stand cycle, compressed to ~3 min.
+    Mock,
+}
+
 /// Shared state — written from Tauri thread, read from WinAPI thread.
 pub struct OverlayState {
     pub progress: f32,           // 0.0 – 1.0
     pub color_rgb: (u8, u8, u8), // RGB
     pub visible: bool,
     pub needs_redraw: bool,      // dirty flag — redraw only when changed
-    pub frame_count: u32,        // For test animation (cycles through colors)
-    pub dev_mode: bool,          // Auto-enabled in debug builds
+    pub frame_count: u32,        // For animation (demo/mock cycling)
+    pub data_source: DataSource, // OVERLAY_DATA=demo|live|mock
     pub bar_height: i32,         // Default 4, configurable via OVERLAY_HEIGHT
     pub overlay_variant: u8,     // 0=solid, 1=gradient, 2=pulsing (OVERLAY_VARIANT env)
 }
 
+/// Parses `OVERLAY_DATA` env var into a [`DataSource`].
+///
+/// Default: `Demo` in debug builds, `Live` in release builds.
+fn parse_data_source() -> DataSource {
+    let default = if cfg!(debug_assertions) { DataSource::Demo } else { DataSource::Live };
+    match std::env::var("OVERLAY_DATA").as_deref() {
+        Ok("demo") => DataSource::Demo,
+        Ok("live") => DataSource::Live,
+        Ok("mock") => DataSource::Mock,
+        _ => default,
+    }
+}
+
 impl Default for OverlayState {
     fn default() -> Self {
-        let dev_mode = if cfg!(debug_assertions) {
-            // Auto-enable in debug builds unless explicitly disabled
-            std::env::var("OVERLAY_DEV_MODE")
-                .map(|v| v.to_lowercase() != "false")
-                .unwrap_or(true)
-        } else {
-            std::env::var("OVERLAY_DEV_MODE")
-                .map(|v| v.to_lowercase() == "true")
-                .unwrap_or(false)
-        };
+        let data_source = parse_data_source();
         let bar_height = std::env::var("OVERLAY_HEIGHT")
             .ok()
             .and_then(|v| v.parse::<i32>().ok())
@@ -51,7 +72,7 @@ impl Default for OverlayState {
             visible: false,
             needs_redraw: false,
             frame_count: 0,
-            dev_mode,
+            data_source,
             bar_height,
             overlay_variant,
         }
@@ -81,7 +102,7 @@ impl OverlayRenderer {
 
     pub fn update(&self, progress: f32, color_rgb: (u8, u8, u8)) {
         if let Ok(mut s) = self.state.lock() {
-            if s.dev_mode { return; }
+            if s.data_source != DataSource::Live { return; }
             s.progress = progress.clamp(0.0, 1.0);
             s.color_rgb = color_rgb;
             s.needs_redraw = true;
@@ -90,7 +111,7 @@ impl OverlayRenderer {
 
     pub fn show(&self) {
         if let Ok(mut s) = self.state.lock() {
-            if s.dev_mode { return; }
+            if s.data_source != DataSource::Live { return; }
             s.visible = true;
             s.needs_redraw = true;
         }
@@ -98,21 +119,46 @@ impl OverlayRenderer {
 
     pub fn hide(&self) {
         if let Ok(mut s) = self.state.lock() {
-            if s.dev_mode { return; }
+            if s.data_source != DataSource::Live { return; }
             s.visible = false;
             s.needs_redraw = true;
         }
     }
 }
 
-/// Calculates dev mode progress and color from frame count.
-/// Cycles: 0% -> 25% -> 50% -> 75% -> 100% every 5 seconds (300 frames @ 60fps).
-fn dev_mode_progress(frame_count: u32) -> (f32, (u8, u8, u8)) {
+/// Calculates demo progress and color from frame count.
+/// Cycles: 0% → 25% → 50% → 75% → 100% every 5 seconds (300 frames @ 60fps).
+fn demo_progress(frame_count: u32) -> (f32, (u8, u8, u8)) {
     use crate::colors::color_for_progress;
     let stage = ((frame_count / 300) % 5) as u32;
     let progress = stage as f32 / 4.0;
     let (r, g, b, _) = color_for_progress(progress);
     (progress, (r, g, b))
+}
+
+/// Calculates mock progress simulating a realistic sit/stand cycle.
+///
+/// ```text
+/// |<── sit phase (9000 frames = 2.5 min) ──>|<── stand (1800 = 30s) ──>|
+/// |  progress: 0.0 ──────────────────> 1.0  |  bar hidden              |
+/// |  visible: true                          |  visible: false           |
+/// |  Total cycle: 10800 frames = 3 min (simulates 50 min real)         |
+/// ```
+fn mock_progress(frame_count: u32) -> (f32, (u8, u8, u8), bool) {
+    use crate::colors::color_for_progress;
+    const SIT_FRAMES: u32 = 9000;   // 2.5 min @ 60fps
+    const STAND_FRAMES: u32 = 1800; // 30s @ 60fps
+    const CYCLE: u32 = SIT_FRAMES + STAND_FRAMES;
+
+    let pos = frame_count % CYCLE;
+    if pos < SIT_FRAMES {
+        let progress = pos as f32 / SIT_FRAMES as f32;
+        let (r, g, b, _) = color_for_progress(progress);
+        (progress, (r, g, b), true)
+    } else {
+        // Stand phase: bar hidden, progress reset
+        (0.0, (76, 175, 80), false)
+    }
 }
 
 /// WinAPI event loop — runs in background thread.
@@ -127,35 +173,15 @@ fn dev_mode_progress(frame_count: u32) -> (f32, (u8, u8, u8)) {
 #[cfg(target_os = "windows")]
 fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
     let mode = std::env::var("OVERLAY_MODE").unwrap_or_else(|_| "opaque".to_string());
-    let dev_mode = if cfg!(debug_assertions) {
-        std::env::var("OVERLAY_DEV_MODE")
-            .map(|v| v.to_lowercase() != "false")
-            .unwrap_or(true)
-    } else {
-        std::env::var("OVERLAY_DEV_MODE")
-            .map(|v| v.to_lowercase() == "true")
-            .unwrap_or(false)
-    };
+    let (data_source, bar_height) = state.lock()
+        .map(|s| (s.data_source, s.bar_height))
+        .unwrap_or((DataSource::Demo, 4));
 
-    let bar_height = state.lock().map(|s| s.bar_height).unwrap_or(4);
+    info!("[OVERLAY] data_source={:?}, render_mode={}, height={}", data_source, mode, bar_height);
 
     match mode.as_str() {
-        "layered" => {
-            if dev_mode {
-                info!("[LAYERED + DEV] Starting overlay with dev mode cycling (0%, 25%, 50%, 75%, 100% every 5s)");
-            } else {
-                info!("[LAYERED] Starting overlay in LAYERED mode (UpdateLayeredWindow)");
-            }
-            run_event_loop_layered(state, bar_height);
-        }
-        _ => {
-            if dev_mode {
-                info!("[OPAQUE + DEV] Starting overlay with dev mode cycling (every 5s)");
-            } else {
-                info!("[OPAQUE] Starting overlay in OPAQUE mode (black background)");
-            }
-            run_event_loop_opaque(state, bar_height);
-        }
+        "layered" => run_event_loop_layered(state, bar_height),
+        _ => run_event_loop_opaque(state, bar_height),
     }
 }
 
@@ -303,16 +329,20 @@ unsafe extern "system" fn wnd_proc(
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
 
-                    if s.dev_mode {
-                        let (progress, color) = dev_mode_progress(s.frame_count);
-                        let prev_stage = ((s.frame_count.wrapping_sub(1) / 300) % 5) as u32;
-                        let curr_stage = ((s.frame_count / 300) % 5) as u32;
-                        if prev_stage != curr_stage {
-                            log::info!("[DEV] Stage {}: progress={:.0}%", curr_stage, progress * 100.0);
+                    match s.data_source {
+                        DataSource::Demo => {
+                            let (progress, color) = demo_progress(s.frame_count);
+                            s.progress = progress;
+                            s.color_rgb = color;
+                            s.visible = true;
                         }
-                        s.progress = progress;
-                        s.color_rgb = color;
-                        s.visible = true;
+                        DataSource::Mock => {
+                            let (progress, color, visible) = mock_progress(s.frame_count);
+                            s.progress = progress;
+                            s.color_rgb = color;
+                            s.visible = visible;
+                        }
+                        DataSource::Live => {} // External updates via update()/show()/hide()
                     }
 
                     let _ = InvalidateRect(Some(hwnd), None, false.into());
@@ -342,9 +372,9 @@ unsafe extern "system" fn wnd_proc(
                     }
 
                     // Draw progress bar with variant-aware rendering
-                    if s.dev_mode || s.visible {
+                    if s.visible {
                         let bar_width = ((window_width as f32) * s.progress.clamp(0.0, 1.0)) as i32;
-                        let bar_width = if s.dev_mode { bar_width.max(1) } else { bar_width };
+                        let bar_width = if s.data_source != DataSource::Live { bar_width.max(1) } else { bar_width };
 
                         match s.overlay_variant {
                             0 => {
@@ -633,18 +663,18 @@ unsafe fn draw_layered_frame(
     let pixel_count = (buf.width * buf.height) as usize;
     std::ptr::write_bytes(buf.bits_ptr, 0, pixel_count);
 
-    // 2. Lock state, snapshot progress/visible/color/dev_mode/variant/frame_count
-    let (bar_progress, visible, color_rgb, dev_mode, overlay_variant, frame_count) = if let Ok(s) = state.lock() {
-        (s.progress, s.visible, s.color_rgb, s.dev_mode, s.overlay_variant, s.frame_count)
+    // 2. Lock state, snapshot progress/visible/color/data_source/variant/frame_count
+    let (bar_progress, visible, color_rgb, data_source, overlay_variant, frame_count) = if let Ok(s) = state.lock() {
+        (s.progress, s.visible, s.color_rgb, s.data_source, s.overlay_variant, s.frame_count)
     } else {
         log::error!("[DRAW] Failed to acquire state lock!");
         return;
     };
 
     // 3. Calculate bar width
-    let bar_width = if dev_mode || visible {
+    let bar_width = if visible {
         let w = ((buf.width as f32) * bar_progress.clamp(0.0, 1.0)) as i32;
-        if dev_mode { w.max(1) } else { w }
+        if data_source != DataSource::Live { w.max(1) } else { w }
     } else {
         0
     };
@@ -760,16 +790,20 @@ unsafe extern "system" fn wnd_proc_layered(
 
                 if let Ok(mut s) = state.lock() {
                     s.frame_count = s.frame_count.wrapping_add(1);
-                    if s.dev_mode {
-                        let (progress, color) = dev_mode_progress(s.frame_count);
-                        let prev_stage = ((s.frame_count.wrapping_sub(1) / 300) % 5) as u32;
-                        let curr_stage = ((s.frame_count / 300) % 5) as u32;
-                        if prev_stage != curr_stage {
-                            log::info!("[DEV] Stage {}: progress={:.0}%", curr_stage, progress * 100.0);
+                    match s.data_source {
+                        DataSource::Demo => {
+                            let (progress, color) = demo_progress(s.frame_count);
+                            s.progress = progress;
+                            s.color_rgb = color;
+                            s.visible = true;
                         }
-                        s.progress = progress;
-                        s.color_rgb = color;
-                        s.visible = true;
+                        DataSource::Mock => {
+                            let (progress, color, visible) = mock_progress(s.frame_count);
+                            s.progress = progress;
+                            s.color_rgb = color;
+                            s.visible = visible;
+                        }
+                        DataSource::Live => {}
                     }
                     drop(s);
                     draw_layered_frame(hwnd, state, buf);
@@ -816,16 +850,16 @@ mod tests {
     use super::*;
     use crate::colors::color_for_progress;
 
-    /// Helper: create renderer with dev_mode disabled for production behavior tests
-    fn renderer_production() -> OverlayRenderer {
+    /// Helper: create renderer with Live data source for production behavior tests
+    fn renderer_live() -> OverlayRenderer {
         let renderer = OverlayRenderer::new();
-        renderer.state.lock().unwrap().dev_mode = false;
+        renderer.state.lock().unwrap().data_source = DataSource::Live;
         renderer
     }
 
     #[test]
     fn state_update_sets_needs_redraw() {
-        let renderer = renderer_production();
+        let renderer = renderer_live();
         renderer.update(0.5, (255, 193, 7));
         let state = renderer.state.lock().unwrap();
         assert_eq!(state.progress, 0.5);
@@ -835,7 +869,7 @@ mod tests {
 
     #[test]
     fn show_sets_visible_and_needs_redraw() {
-        let renderer = renderer_production();
+        let renderer = renderer_live();
         renderer.show();
         let state = renderer.state.lock().unwrap();
         assert!(state.visible);
@@ -844,7 +878,7 @@ mod tests {
 
     #[test]
     fn hide_clears_visible_and_sets_needs_redraw() {
-        let renderer = renderer_production();
+        let renderer = renderer_live();
         renderer.show();
         renderer.hide();
         let state = renderer.state.lock().unwrap();
@@ -854,7 +888,7 @@ mod tests {
 
     #[test]
     fn progress_clamped_to_0_1() {
-        let renderer = renderer_production();
+        let renderer = renderer_live();
         renderer.update(1.5, (0, 0, 0));
         let state = renderer.state.lock().unwrap();
         assert_eq!(state.progress, 1.0);
@@ -867,7 +901,7 @@ mod tests {
 
     #[test]
     fn color_for_progress_works_with_renderer() {
-        let renderer = renderer_production();
+        let renderer = renderer_live();
         let (r, g, b, _css) = color_for_progress(0.3);
         renderer.update(0.3, (r, g, b));
         let state = renderer.state.lock().unwrap();
@@ -875,43 +909,53 @@ mod tests {
     }
 
     #[test]
-    fn dev_mode_ignores_production_updates() {
+    fn demo_source_ignores_external_updates() {
         let renderer = OverlayRenderer::new();
-        // In debug builds, dev_mode is true by default
-        assert!(renderer.state.lock().unwrap().dev_mode);
+        // In debug builds, data_source defaults to Demo
+        renderer.state.lock().unwrap().data_source = DataSource::Demo;
 
-        // update/show/hide should be no-ops in dev mode
         renderer.update(0.75, (255, 0, 0));
         renderer.show();
         let state = renderer.state.lock().unwrap();
-        assert_eq!(state.progress, 0.0, "dev mode should ignore update()");
-        assert!(!state.visible, "dev mode should ignore show()");
+        assert_eq!(state.progress, 0.0, "Demo source should ignore update()");
+        assert!(!state.visible, "Demo source should ignore show()");
     }
 
     #[test]
-    fn dev_mode_progress_cycles_correctly() {
-        // Stage 0: frame 0-299 -> 0%
-        let (p, _) = dev_mode_progress(0);
+    fn mock_source_ignores_external_updates() {
+        let renderer = OverlayRenderer::new();
+        renderer.state.lock().unwrap().data_source = DataSource::Mock;
+
+        renderer.update(0.75, (255, 0, 0));
+        renderer.show();
+        let state = renderer.state.lock().unwrap();
+        assert_eq!(state.progress, 0.0, "Mock source should ignore update()");
+        assert!(!state.visible, "Mock source should ignore show()");
+    }
+
+    #[test]
+    fn live_source_accepts_external_updates() {
+        let renderer = renderer_live();
+        renderer.update(0.75, (255, 0, 0));
+        renderer.show();
+        let state = renderer.state.lock().unwrap();
+        assert_eq!(state.progress, 0.75, "Live source should accept update()");
+        assert!(state.visible, "Live source should accept show()");
+    }
+
+    #[test]
+    fn demo_progress_cycles_correctly() {
+        let (p, _) = demo_progress(0);
         assert_eq!(p, 0.0);
-
-        // Stage 1: frame 300-599 -> 25%
-        let (p, _) = dev_mode_progress(300);
+        let (p, _) = demo_progress(300);
         assert_eq!(p, 0.25);
-
-        // Stage 2: frame 600-899 -> 50%
-        let (p, _) = dev_mode_progress(600);
+        let (p, _) = demo_progress(600);
         assert_eq!(p, 0.5);
-
-        // Stage 3: frame 900-1199 -> 75%
-        let (p, _) = dev_mode_progress(900);
+        let (p, _) = demo_progress(900);
         assert_eq!(p, 0.75);
-
-        // Stage 4: frame 1200-1499 -> 100%
-        let (p, _) = dev_mode_progress(1200);
+        let (p, _) = demo_progress(1200);
         assert_eq!(p, 1.0);
-
-        // Wraps back to stage 0
-        let (p, _) = dev_mode_progress(1500);
+        let (p, _) = demo_progress(1500);
         assert_eq!(p, 0.0);
     }
 
@@ -946,28 +990,21 @@ mod tests {
     }
 
     #[test]
-    fn dev_mode_progress_returns_correct_colors() {
-        // 0% -> green
-        let (_, color) = dev_mode_progress(0);
-        assert_eq!(color, (76, 175, 80));
-
-        // 50% -> green (below 60% threshold)
-        let (_, color) = dev_mode_progress(600);
-        assert_eq!(color, (76, 175, 80));
-
-        // 75% -> yellow (between 60-85%)
-        let (_, color) = dev_mode_progress(900);
-        assert_eq!(color, (255, 193, 7));
-
-        // 100% -> red (above 85%)
-        let (_, color) = dev_mode_progress(1200);
-        assert_eq!(color, (244, 67, 54));
+    fn demo_progress_returns_correct_colors() {
+        let (_, color) = demo_progress(0);
+        assert_eq!(color, (76, 175, 80)); // green at 0%
+        let (_, color) = demo_progress(600);
+        assert_eq!(color, (76, 175, 80)); // green at 50%
+        let (_, color) = demo_progress(900);
+        assert_eq!(color, (255, 193, 7)); // yellow at 75%
+        let (_, color) = demo_progress(1200);
+        assert_eq!(color, (244, 67, 54)); // red at 100%
     }
 
     #[test]
-    fn dev_mode_colors_match_color_for_progress() {
+    fn demo_colors_match_color_for_progress() {
         for frame in [0, 300, 600, 900, 1200] {
-            let (progress, (r, g, b)) = dev_mode_progress(frame);
+            let (progress, (r, g, b)) = demo_progress(frame);
             let (er, eg, eb, _) = color_for_progress(progress);
             assert_eq!((r, g, b), (er, eg, eb), "Color mismatch at frame {}", frame);
         }
@@ -978,11 +1015,11 @@ mod tests {
         // Simulate the bar width calculation used in WM_PAINT
         let screen_width = 1920i32;
 
-        // 0% progress -> 0px (or 1px in dev mode)
+        // 0% progress -> 0px (or 1px in demo/mock mode)
         let progress = 0.0f32;
         let bar_width = ((screen_width as f32) * progress.clamp(0.0, 1.0)) as i32;
         assert_eq!(bar_width, 0);
-        assert_eq!(bar_width.max(1), 1); // dev mode minimum
+        assert_eq!(bar_width.max(1), 1); // demo/mock minimum
 
         // 25% -> 480px
         let progress = 0.25f32;
@@ -1001,33 +1038,65 @@ mod tests {
     }
 
     #[test]
-    fn overlay_state_dev_mode_blocks_updates() {
-        let renderer = OverlayRenderer::new();
-        // In debug builds, dev_mode is true by default
+    fn data_source_defaults_to_demo_in_debug() {
         if cfg!(debug_assertions) {
-            renderer.update(0.5, (255, 0, 0));
-            let state = renderer.state.lock().unwrap();
-            assert_ne!(state.progress, 0.5, "dev mode should block update()");
+            let state = OverlayState::default();
+            assert_eq!(state.data_source, DataSource::Demo);
         }
     }
 
     #[test]
-    fn overlay_state_visibility_blocked_in_dev_mode() {
-        let renderer = OverlayRenderer::new();
-        if cfg!(debug_assertions) {
-            renderer.show();
-            renderer.hide();
-            // show/hide are no-ops in dev mode
-            let state = renderer.state.lock().unwrap();
-            assert!(!state.visible || state.dev_mode);
+    fn mock_progress_sit_phase() {
+        // Frame 0: start of sit phase
+        let (p, _, visible) = mock_progress(0);
+        assert_eq!(p, 0.0);
+        assert!(visible, "should be visible during sit phase");
+
+        // Mid sit phase
+        let (p, _, visible) = mock_progress(4500);
+        assert!((p - 0.5).abs() < 0.01, "should be ~50% at midpoint");
+        assert!(visible);
+
+        // End of sit phase
+        let (p, _, visible) = mock_progress(8999);
+        assert!(p > 0.99, "should be near 100% at end of sit");
+        assert!(visible);
+    }
+
+    #[test]
+    fn mock_progress_stand_phase() {
+        // Stand phase starts at frame 9000
+        let (p, _, visible) = mock_progress(9000);
+        assert_eq!(p, 0.0);
+        assert!(!visible, "should be hidden during stand phase");
+
+        let (_, _, visible) = mock_progress(10000);
+        assert!(!visible);
+    }
+
+    #[test]
+    fn mock_progress_cycle_wraps() {
+        // Cycle is 10800 frames (9000 sit + 1800 stand)
+        let (p0, _, v0) = mock_progress(0);
+        let (p_wrap, _, v_wrap) = mock_progress(10800);
+        assert_eq!(p0, p_wrap, "should wrap to same progress");
+        assert_eq!(v0, v_wrap, "should wrap to same visibility");
+    }
+
+    #[test]
+    fn mock_progress_colors_match_color_for_progress() {
+        use crate::colors::color_for_progress;
+        for frame in [0, 2250, 4500, 6750, 8999] {
+            let (progress, (r, g, b), _) = mock_progress(frame);
+            let (er, eg, eb, _) = color_for_progress(progress);
+            assert_eq!((r, g, b), (er, eg, eb), "Color mismatch at frame {}", frame);
         }
     }
 
     #[test]
     fn colorref_format_is_bgr() {
-        // COLORREF is 0x00BBGGRR
         let (r, g, b) = (255u8, 128u8, 0u8);
         let colorref = (r as u32) | ((g as u32) << 8) | ((b as u32) << 16);
-        assert_eq!(colorref, 0x000080FF); // Blue=0x00, Green=0x80, Red=0xFF
+        assert_eq!(colorref, 0x000080FF);
     }
 }
