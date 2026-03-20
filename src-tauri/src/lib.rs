@@ -4,8 +4,11 @@
 //! as soon as the app is set up.
 
 mod activity;
+mod alert_actions;
+mod alert_config;
 mod alert_manager;
 mod alert_popup;
+mod alert_popup_window;
 mod colors;
 mod commands;
 mod config;
@@ -16,6 +19,10 @@ mod overlay_renderer;
 mod overlay_variants;
 #[cfg(test)]
 mod overlay_tests;
+#[cfg(test)]
+mod alert_manager_tests;
+#[cfg(test)]
+mod alert_snooze_tests;
 mod serial;
 pub mod session;
 mod tray;
