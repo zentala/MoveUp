@@ -8,7 +8,12 @@ mod colors;
 mod commands;
 mod config;
 mod db;
+mod overlay_layered;
+mod overlay_opaque;
 mod overlay_renderer;
+mod overlay_variants;
+#[cfg(test)]
+mod overlay_tests;
 mod serial;
 pub mod session;
 mod tray;
