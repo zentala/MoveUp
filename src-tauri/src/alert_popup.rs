@@ -34,6 +34,8 @@ use std::thread::{self, JoinHandle};
 /// Non-modal always-on-top popup shown during alert Stage2.
 pub struct AlertPopup {
     pub(crate) visible: Arc<AtomicBool>,
+    /// Set to `true` by the popup thread when user clicks Dismiss or Stand Up.
+    user_dismissed: Arc<AtomicBool>,
     thread_handle: Option<JoinHandle<()>>,
 }
 
@@ -42,6 +44,7 @@ impl AlertPopup {
     pub fn new() -> Self {
         Self {
             visible: Arc::new(AtomicBool::new(false)),
+            user_dismissed: Arc::new(AtomicBool::new(false)),
             thread_handle: None,
         }
     }
@@ -55,10 +58,11 @@ impl AlertPopup {
         }
         self.visible.store(true, Ordering::SeqCst);
         let visible_flag = Arc::clone(&self.visible);
+        let user_dismissed = Arc::clone(&self.user_dismissed);
         let handle = thread::Builder::new()
             .name("alert-popup".into())
             .spawn(move || {
-                run_popup_window(visible_flag, msg);
+                run_popup_window(visible_flag, msg, user_dismissed);
             })
             .expect("Failed to spawn alert popup thread");
         self.thread_handle = Some(handle);
@@ -78,6 +82,12 @@ impl AlertPopup {
     #[allow(dead_code)]
     pub fn is_visible(&self) -> bool {
         self.visible.load(Ordering::SeqCst)
+    }
+
+    /// Returns `true` (and resets the flag) if the user clicked Dismiss or Stand Up
+    /// since the last call. Used by `tray_controller` to trigger snooze logic.
+    pub fn take_user_dismissed(&self) -> bool {
+        self.user_dismissed.swap(false, Ordering::SeqCst)
     }
 }
 

@@ -7,7 +7,6 @@
 //! Also drives the [`AlertManager`] state machine and executes returned
 //! [`AlertAction`]s (pulse bar, show/dismiss popup).
 
-use log::info;
 use tauri::{AppHandle, Listener};
 
 use crate::{
@@ -114,6 +113,15 @@ fn update_overlay_progress(app: &AppHandle) {
     use tauri::Manager;
 
     let app_state = app.state::<AppState>();
+
+    // Check if user dismissed the popup — triggers snooze logic in alert_manager
+    if app_state.alert_popup.lock().unwrap().take_user_dismissed() {
+        let actions = app_state.alert_manager.lock().unwrap().dismiss();
+        let overlay = app_state.overlay.clone();
+        let alert_popup = app_state.alert_popup.clone();
+        execute_alert_actions(&actions, &overlay, &alert_popup);
+    }
+
     let session = app_state.session.lock().unwrap();
     let snapshot = session.snapshot();
 

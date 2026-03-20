@@ -23,8 +23,10 @@ const MARGIN: i32 = 16;
 /// Runs the WinAPI message loop for the popup on the calling thread.
 ///
 /// Exits when `visible_flag` is set to `false` (polled via `PeekMessage` loop + sleep).
+/// When the user clicks Dismiss or Stand Up, `user_dismissed` is set to `true` and
+/// `visible_flag` is set to `false` before returning.
 #[cfg(target_os = "windows")]
-pub(crate) fn run_popup_window(visible_flag: Arc<AtomicBool>, msg: String) {
+pub(crate) fn run_popup_window(visible_flag: Arc<AtomicBool>, msg: String, user_dismissed: Arc<AtomicBool>) {
     use windows::Win32::Foundation::*;
     use windows::Win32::Graphics::Gdi::*;
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -109,6 +111,8 @@ pub(crate) fn run_popup_window(visible_flag: Arc<AtomicBool>, msg: String) {
             while PeekMessageW(&mut msg_loop, None, 0, 0, PM_REMOVE).as_bool() {
                 if msg_loop.message == WM_QUIT {
                     let _ = DestroyWindow(hwnd);
+                    user_dismissed.store(true, Ordering::SeqCst);
+                    visible_flag.store(false, Ordering::SeqCst);
                     return;
                 }
                 let _ = TranslateMessage(&msg_loop);
@@ -227,6 +231,6 @@ unsafe extern "system" fn popup_wnd_proc(
 
 /// No-op stub for non-Windows platforms.
 #[cfg(not(target_os = "windows"))]
-pub(crate) fn run_popup_window(_visible_flag: Arc<AtomicBool>, _msg: String) {
+pub(crate) fn run_popup_window(_visible_flag: Arc<AtomicBool>, _msg: String, _user_dismissed: Arc<AtomicBool>) {
     log::warn!("[AlertPopup] Popup not supported on this platform");
 }
