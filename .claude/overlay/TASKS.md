@@ -28,22 +28,38 @@ OPAQUE (recommended by MODE-COMPARISON.md) vs LAYERED. Test both visually, pick 
 
 ---
 
-### [ ] T-OVR-010: Split overlay_renderer.rs (~1060 lines, limit 250)
+### [ ] T-OVR-010: Split overlay_renderer.rs (1132 lines → 5 files, limit 250)
 **Priority:** P0
-**Why:** File is 4x over the 250-line limit. Must split before adding more features.
+**Why:** File is 4.5x over the 250-line limit. Must split before adding more features.
 
-**Proposed split:**
-- `overlay_renderer.rs` — `DataSource` enum, `OverlayState`, `OverlayRenderer` API, `parse_data_source()`, `demo_progress()`, `mock_progress()`, `run_event_loop()` dispatcher
-- `overlay_opaque.rs` — `run_event_loop_opaque()`, `wnd_proc()` (OPAQUE rendering)
-- `overlay_layered.rs` — `run_event_loop_layered()`, `wnd_proc_layered()`, `draw_layered_frame()`, `LayeredBufferState`
-- `overlay_variants.rs` — variant rendering logic (solid/gradient/pulsing) used by both modes
+**Eng review decisions (2026-03-20):**
+- Variant rendering extracted to shared module (DRY — same logic in both backends)
+- Tests in separate file (keeps main module clean)
+- State passed as `Arc<Mutex<OverlayState>>` parameter (explicit, no globals)
 
-Tests stay in `overlay_renderer.rs` (or `overlay_tests.rs` if needed).
+**Target split:**
+```
+overlay_renderer.rs  (~100 lines) — DataSource, OverlayState, OverlayRenderer API, run_event_loop() dispatcher
+overlay_opaque.rs    (~150 lines) — run_event_loop_opaque(), wnd_proc() (OPAQUE backend)
+overlay_layered.rs   (~230 lines) — run_event_loop_layered(), wnd_proc_layered(), draw_layered_frame(), LayeredBufferState
+overlay_variants.rs  (~80 lines)  — render_variant_gdi() + render_variant_pixels() (shared by both backends)
+overlay_tests.rs     (~200 lines) — all overlay unit tests (moved from overlay_renderer.rs)
+```
+
+**Implementation:**
+1. Create `overlay_variants.rs` — extract variant match blocks from both WM_PAINT and draw_layered_frame
+2. Create `overlay_opaque.rs` — move `run_event_loop_opaque()` + `wnd_proc()`
+3. Create `overlay_layered.rs` — move layered code + `LayeredBufferState`
+4. Create `overlay_tests.rs` — move `#[cfg(test)] mod tests`
+5. Slim `overlay_renderer.rs` to public API + dispatcher
+6. Add `pub(crate) mod` declarations in `lib.rs` or `overlay_renderer.rs`
+7. Verify: `cargo test --lib` (101 tests), `cargo check` (0 warnings)
 
 **Acceptance criteria:**
-- [ ] No file > 250 lines
+- [ ] All 5 files under 250 lines
 - [ ] `cargo test --lib` passes (101 tests)
-- [ ] No behavior changes
+- [ ] Zero behavior changes — pure refactor
+- [ ] `pub(crate)` visibility on moved functions (not `pub`)
 
 ---
 

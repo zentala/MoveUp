@@ -75,11 +75,14 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 
 - [ ] **T013** P1 — AlertManager module + Stage 1 (bar pulse at limit)
   - New `alert_manager.rs`: `AlertStage` enum, `AlertAction` enum, `AlertManager` struct
-  - `tick(progress, sitting_secs)` → `Vec<AlertAction>` (pure logic, no WinAPI)
+  - **Time source:** `Instant` (monotonic clock). `stage_entered_at: Instant` tracks when each stage started.
+  - `tick(progress)` → `Vec<AlertAction>` (pure logic, no WinAPI)
   - Stage 1: bar pulses red when `progress >= 1.0`
   - `on_standing()` → reset to IDLE
+  - `dismiss()` → SNOOZED state
   - Wire into `tray_controller.rs` via `desk:distance` listener
-  - Unit tests for state transitions, stage timing, reset on stand
+  - **Depends on:** T-OVR-010 (split) must be done first
+  - Unit tests: state transitions, stage timing, reset on stand, progress oscillation edge case, rapid sit/stand
 
 - [ ] **T014** P1 — Stage 2: popup window ("Take a break!")
   - Native WinAPI window (like overlay bar — proven pattern)
