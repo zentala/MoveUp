@@ -121,11 +121,31 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 
 ### Snooze & Escalation (P2)
 
-- [ ] **T015** P2 — Snooze + re-escalation logic
-  - Dismiss → `SNOOZED` state with configurable cooldown (default 2h, in AppConfig)
-  - After cooldown expires → restart from Stage 1
-  - "Your body will thank you for a break."
-  - Tests: snooze timing, re-escalation, configurable duration
+- [ ] **T015** P2 — Snooze with deescalating frequency + tone shift
+  - **CEO review decisions (2026-03-20):**
+  - **Deescalating cooldown** — more dismisses = longer intervals (app backs off):
+    ```
+    snooze_durations: [5, 15, 30, 60]  // minutes
+    Dismiss #1 → 5 min   ("just checking")
+    Dismiss #2 → 15 min  ("ok, later")
+    Dismiss #3 → 30 min  ("I hear you")
+    Dismiss #4+ → 60 min ("last reminder")
+    Standing → reset snooze_index to 0
+    ```
+  - **Tone shift at dismiss #3** — if nagging doesn't work, stop nagging. Inspire instead:
+    - Dismiss 1-2: neutral ("Time for a stretch!", "Your body needs a break")
+    - Dismiss 3+: positive ("Even 2 min standing helps blood flow", "Quick stand = fresh mind")
+    - Messages are configurable array, not hardcoded
+  - **Bar during snooze:**
+    ```
+    UNDER LIMIT:     green bar, growing
+    AT LIMIT:        red bar, PULSING
+    SNOOZED:         red bar, SOLID (passive reminder — "I heard your dismiss")
+    SNOOZE EXPIRED:  red bar, PULSING again
+    STANDING:        bar hidden, everything resets
+    ```
+  - **Implementation:** extend `AlertManager` with `snooze_index: usize`, `snoozed_until: Option<Instant>`, `snooze_durations: Vec<Duration>`, message arrays
+  - **Tests:** snooze timing per index, tone shift at threshold, bar variant changes, standing resets index, configurable durations
 
 - [ ] **T016** P2 — Tray icon color dot
   - Small colored circle overlay on tray icon (not full recolor)
