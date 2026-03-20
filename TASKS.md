@@ -93,7 +93,7 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
     ```rust
     tick(progress: f32) → Vec<AlertAction>
     on_standing() → Vec<AlertAction>   // reset + StopPulse + DismissPopup
-    dismiss()                          // returns to Idle
+    dismiss()                          // → Snoozed (stub in T013, filled by T015)
     ```
   - **AlertPopup API:**
     ```rust
