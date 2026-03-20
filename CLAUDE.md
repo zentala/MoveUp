@@ -35,42 +35,87 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 3. **Top-of-screen progress bar** — green→red over 40min session, popup at limit
 4. **Popup notification** — "Sitting 40 min, take a break"
 
-## Overlay Progress Bar — Development
+## Overlay Progress Bar
 
-**Project folder:** `.claude/overlay/`
+Native WinAPI window (4px × full screen width) at top of screen showing sitting session progress. NOT a Tauri WebviewWindow — rendered via GDI/UpdateLayeredWindow in a background thread. Code: `src-tauri/src/overlay_renderer.rs`.
+
+**Full developer docs:** `.claude/overlay/DEVELOPER-GUIDE.md`
+
+### Three independent config axes (env vars, read at startup)
+
+| Axis | Env var | Values | Default |
+|------|---------|--------|---------|
+| Data source | `OVERLAY_DATA` | `demo`, `live`, `mock` | `demo` (debug) / `live` (release) |
+| Render mode | `OVERLAY_MODE` | `opaque`, `layered` | `opaque` |
+| Visual style | `OVERLAY_VARIANT` | `0` solid, `1` gradient, `2` pulsing | `0` |
+| Bar height | `OVERLAY_HEIGHT` | `1`–`20` px | `4` |
+
+Any combination is valid. All are independent.
+
+### Data sources (`DataSource` enum in `overlay_renderer.rs`)
+
+- **Demo** — cycling animation 0%→25%→50%→75%→100% every 25s. Bar always visible. Ignores `update()/show()/hide()`. Default in debug.
+- **Live** — real sensor data. `tray_controller.rs` calls `overlay.update(progress, color)` on every `desk:distance` event (~1/s) and `show()/hide()` on state transitions. Default in release.
+- **Mock** — simulated 40-min sit + 10-min stand compressed to ~3 min. Bar visible during sit, hidden during stand. Ignores external updates.
+
+### pnpm scripts
+
+```bash
+pnpm tauri:dev          # demo (default)
+pnpm tauri:dev:demo     # explicit demo
+pnpm tauri:dev:live     # real sensor data
+pnpm tauri:dev:mock     # simulated sit/stand
+```
+
+Uses `cross-env` for Windows env var support.
+
+### Data flow (Live mode)
+
+```
+serial.rs ──desk:distance──→ tray_controller.rs ──→ overlay.update(progress, color)
+serial.rs ──desk:state-changed──→ tray_controller.rs ──→ overlay.show() / hide()
+```
+
+### Render modes
+
+- **OPAQUE** (default): GDI `BeginPaint`/`FillRect`, black background, reliable
+- **LAYERED** (experimental): `UpdateLayeredWindow`, transparent background, complex
+
+See `.claude/overlay/MODE-COMPARISON.md` for comparison.
+
+### Debug tools
+
+- **Popup debug line**: `get_overlay_state` IPC command (debug builds) shows data_source, progress%, visible in app popup
+- **Rust logging**: `RUST_LOG=desk_lib::overlay_renderer=debug` for verbose overlay logs
+- **auto-test.sh**: `.claude/overlay/test-infrastructure/auto-test.sh [opaque|layered]`
+
+### Key rules
+
+- Don't remove working render code without proven replacement (caused invisible bar before)
+- Test OPAQUE mode — that's what users see. Don't test only LAYERED and claim success.
+- Bar shows minimum 1px when visible (even at 0% progress)
+- Arrow cursor on overlay window (not loading cursor)
+- 101 Rust unit tests cover: DataSource parsing, demo/mock progress, guard behavior, color mapping, bar width
+
+### Overlay project docs
 
 | File | Purpose |
 |------|---------|
-| `.claude/overlay/DEVELOPER-GUIDE.md` | **START HERE** — env vars, modes, styles, testing |
-| `.claude/overlay/KNOWLEDGE-BASE.md` | Architecture, root causes, rules |
-| `.claude/overlay/MODE-COMPARISON.md` | OPAQUE vs LAYERED technical comparison |
-| `.claude/overlay/TASKS.md` | Development tasks (T-OVR-001 through T-OVR-009) |
-| `.claude/overlay/ORCHESTRATOR.md` | Wave-based parallel execution plan |
-| `.claude/overlay/v1-opaque-debugging/` | Historical debugging session (archived) |
-| `.claude/overlay/test-infrastructure/` | auto-test.sh, screenshot tests |
+| `.claude/overlay/DEVELOPER-GUIDE.md` | **START HERE** — full reference |
+| `.claude/overlay/KNOWLEDGE-BASE.md` | Architecture, root causes, pitfalls |
+| `.claude/overlay/MODE-COMPARISON.md` | OPAQUE vs LAYERED comparison |
+| `.claude/overlay/TASKS.md` | T-OVR-001 through T-OVR-009 |
+| `.claude/overlay/test-infrastructure/` | auto-test.sh |
 
-**Key rules (from debugging session 2026-03-19):**
-- Progress bar data source controlled by `OVERLAY_DATA=demo|live|mock` (default: `demo` in debug, `live` in release)
-- Two render backends: OPAQUE (GDI, black bg) and LAYERED (UpdateLayeredWindow, transparent)
-- Test the SAME mode the user sees — don't test LAYERED if user runs default OPAQUE
-- Don't remove working code without proven replacement
+### Key source files
 
-**Quick start commands:**
-```bash
-# Demo mode (default in debug builds)
-pnpm tauri:dev
-
-# Mock mode (simulated sit/stand cycle)
-OVERLAY_DATA=mock pnpm tauri:dev
-
-# Live mode (requires sensor)
-OVERLAY_DATA=live pnpm tauri:dev
-```
-
-**Memory references:**
-- Persistent learnings: `C:\Users\zentala\.claude\projects\C--code-zntl-tray\memory\`
-- `memory/MEMORY.md` — index of all memory entries (auto-loaded by Claude Code)
-- Memory is stored OUTSIDE the project dir (per Claude Code design) — not moveable
+| File | What it does |
+|------|-------------|
+| `overlay_renderer.rs` | WinAPI window, `DataSource` enum, demo/mock/live logic, rendering variants |
+| `tray_controller.rs` | Wires sensor events → overlay + tray icon updates |
+| `colors.rs` | `color_for_progress()` — green→yellow→red gradient |
+| `serial.rs` | Sensor reader, emits `desk:distance` + `desk:state-changed` |
+| `session.rs` | Session state machine (sitting/standing/walking/away) |
 
 ## Stack
 - **Frontend**: React + TypeScript (Vite, port 1443)
