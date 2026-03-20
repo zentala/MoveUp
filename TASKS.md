@@ -73,23 +73,42 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 
 ### Foundation (P1 — do first)
 
-- [ ] **T013** P1 — AlertManager module + Stage 1 (bar pulse at limit)
-  - New `alert_manager.rs`: `AlertStage` enum, `AlertAction` enum, `AlertManager` struct
-  - **Time source:** `Instant` (monotonic clock). `stage_entered_at: Instant` tracks when each stage started.
-  - `tick(progress)` → `Vec<AlertAction>` (pure logic, no WinAPI)
-  - Stage 1: bar pulses red when `progress >= 1.0`
-  - `on_standing()` → reset to IDLE
-  - `dismiss()` → SNOOZED state
-  - Wire into `tray_controller.rs` via `desk:distance` listener
-  - **Depends on:** T-OVR-010 (split) must be done first
-  - Unit tests: state transitions, stage timing, reset on stand, progress oscillation edge case, rapid sit/stand
-
-- [ ] **T014** P1 — Stage 2: popup window ("Take a break!")
-  - Native WinAPI window (like overlay bar — proven pattern)
-  - Shows at `limit + 2min`: "You've been sitting 47 min. Take a 5-min break!"
-  - Dismiss button → triggers `AlertManager::dismiss()`
-  - Auto-dismiss when `DeskState::Standing` detected
-  - Non-modal, always-on-top, arrow cursor
+- [ ] **T013+T014** P1 — AlertManager + Stage 1 (bar pulse) + Stage 2 (popup) **BUNDLED**
+  - **CEO review decision:** Ship together — bar pulse alone too subtle to change behavior.
+  - **Depends on:** T-OVR-010 (split overlay_renderer.rs)
+  - **New files:**
+    - `alert_manager.rs` — `AlertStage` enum, `AlertAction` enum, `AlertManager` struct
+    - `alert_popup.rs` — WinAPI popup window (center-screen card)
+  - **AlertManager:**
+    - `tick(progress)` → `Vec<AlertAction>` (pure logic, no WinAPI)
+    - `on_standing()` → reset to IDLE + dismiss popup
+    - `dismiss()` → SNOOZED state
+    - Time: `Instant` (monotonic). `stage_entered_at: Instant`.
+    - Wire into `tray_controller.rs` via `desk:distance` listener
+  - **Stage 1 (at limit):** bar variant switches to pulsing (variant=2)
+  - **Stage 2 (+2min):** popup card, right-bottom (notification area):
+    ```
+                                    ┌────────────────────────┐
+                                    │                        │
+                                    │  You've been sitting   │
+                                    │  for 45 minutes.       │
+                                    │                        │
+                                    │  Take a 5-min break!   │
+                                    │                        │
+                                    │  [Dismiss]  [Stand up] │
+                                    │                        │
+                                    └────────────────────────┘
+                                    ↑ right-bottom, near tray
+    ```
+    - WinAPI window, ~400x200px, positioned near system tray (right-bottom)
+    - Always-on-top, non-modal
+    - Dismiss → `AlertManager::dismiss()` → SNOOZED
+    - Auto-dismiss when `DeskState::Standing` detected
+    - "Stand up" button = same as dismiss (informational)
+  - **Tests (~15):**
+    - AlertManager: idle, stage1, stage2 transitions, on_standing reset
+    - Snooze, progress oscillation, rapid sit/stand
+    - Popup: creation, dismiss, auto-dismiss on stand
 
 ### Snooze & Escalation (P2)
 

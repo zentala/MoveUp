@@ -15,16 +15,12 @@ PHASE 1: T-OVR-010 — Split overlay_renderer.rs (P0 blocker)
 │
 ▼ verify: cargo test --lib (101 tests), all files < 250 lines
 │
-PHASE 2: T013 — AlertManager + Stage 1 (can parallel with T016)
-│   ├── Agent A: alert_manager.rs + tray_controller wiring
-│   └── Agent B (optional): T016 tray icon color dot (independent)
+PHASE 2: T013+T014 BUNDLED — AlertManager + Stage 1 + Stage 2 popup
+│   ├── Agent A: alert_manager.rs + tray_controller wiring + bar pulse
+│   └── Agent B (optional parallel): T016 tray icon color dot (independent)
+│   CEO decision: bundle T013+T014 — bar pulse alone too subtle.
 │
-▼ verify: cargo test --lib, demo bar pulses at 100%
-│
-PHASE 3: T014 — Stage 2 popup (depends on T013)
-│   Single agent. WinAPI popup window.
-│
-▼ verify: popup appears at limit+2min, dismiss works, auto-dismiss on stand
+▼ verify: cargo test --lib, bar pulses at 100%, popup at +2min, auto-dismiss on stand
 │
 PHASE 4: T015 — Snooze logic (depends on T013)
 │   Single agent. Extends AlertManager.
