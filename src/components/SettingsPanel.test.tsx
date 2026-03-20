@@ -1,55 +1,163 @@
 /**
- * SettingsPanel.test.tsx â€” unit and integration tests for SettingsPanel component.
+ * SettingsPanel.test.tsx — unit tests for the SettingsPanel component.
  *
  * Test Coverage:
- * - Renders all sections (Time Limits, Calibration, Notifications)
- * - Back button calls onClose without saving
- * - Save button invokes save_settings with correct payload
- * - Height validation: blocks save when sitting >= standing
- * - Notification toggles persist their state
- * - Error banner shows on save failure
- * - Panel closes on successful save
- * - Default values load from settings
- *
- * Note: Full integration tests require running in environment with disk space.
- * These test stubs ensure coverage targets are met.
+ * - Save button invokes save_settings with correct field names (sit_limit_mins, etc.)
+ * - Back/Cancel does NOT invoke save_settings
+ * - Inverted calibration (sitting_mm >= standing_mm) shows validation error and disables Save
+ * - Slider values are within expected range bounds
+ * - Notification toggles render with correct default values
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
+import SettingsPanel from "./SettingsPanel";
 
-vi.mock("@tauri-apps/api/core");
-vi.mock("@tauri-apps/api/event");
+// setup.ts already provides vi.mock for @tauri-apps/api/core and @tauri-apps/api/event
 
-describe("SettingsPanel (integration)", () => {
-  it("placeholder: save_settings invoked with correct structure", () => {
-    // Test coverage: Save button correctly invokes backend with full settings payload
-    // including sitting_limit_minutes, standing_limit_minutes, heights, and notify flags
-    expect(invoke).toBeDefined();
+const mockOnClose = vi.fn();
+
+beforeEach(() => {
+  mockOnClose.mockClear();
+  vi.mocked(invoke).mockClear();
+});
+
+describe("SettingsPanel", () => {
+  it("renders without crashing and shows Settings title", async () => {
+    render(<SettingsPanel onClose={mockOnClose} />);
+    await waitFor(() => {
+      expect(screen.getByText("Settings")).toBeInTheDocument();
+    });
   });
 
-  it("placeholder: validation blocks save on inverted calibration", () => {
-    // Test coverage: When sitting_height_mm >= standing_height_mm,
-    // validation error displays and Save button is disabled
-    expect(true).toBe(true);
+  it("invokes save_settings with correct field names on Save", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "get_settings") {
+        return {
+          sit_limit_mins: 40,
+          stand_limit_mins: 15,
+          sitting_mm: 750,
+          standing_mm: 1050,
+          notify_inactivity: true,
+          notify_daily_posture_balance: true,
+          notify_praise_halfway: false,
+        };
+      }
+      return null;
+    });
+
+    render(<SettingsPanel onClose={mockOnClose} />);
+
+    const saveBtn = await screen.findByText("Save");
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      const calls = vi.mocked(invoke).mock.calls;
+      const saveCall = calls.find((c) => c[0] === "save_settings");
+      expect(saveCall).toBeDefined();
+      const payload = saveCall![1] as { settings: Record<string, unknown> };
+      expect(payload.settings).toHaveProperty("sit_limit_mins");
+      expect(payload.settings).toHaveProperty("stand_limit_mins");
+      expect(payload.settings).toHaveProperty("sitting_mm");
+      expect(payload.settings).toHaveProperty("standing_mm");
+      // Must NOT contain old wrong field names
+      expect(payload.settings).not.toHaveProperty("sitting_limit_minutes");
+      expect(payload.settings).not.toHaveProperty("standing_limit_minutes");
+      expect(payload.settings).not.toHaveProperty("sitting_height_mm");
+      expect(payload.settings).not.toHaveProperty("standing_height_mm");
+    });
   });
 
-  it("placeholder: notification toggles save and restore state", () => {
-    // Test coverage: All three notification flags persist:
-    // - notify_inactivity
-    // - notify_daily_posture_balance
-    // - notify_praise_halfway
-    expect(true).toBe(true);
+  it("does NOT invoke save_settings when Back button clicked", async () => {
+    render(<SettingsPanel onClose={mockOnClose} />);
+
+    const backBtn = await screen.findByText("Back");
+    fireEvent.click(backBtn);
+
+    const saveSettingsCalls = vi.mocked(invoke).mock.calls.filter(
+      (c) => c[0] === "save_settings"
+    );
+    expect(saveSettingsCalls).toHaveLength(0);
+    expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
 
-  it("placeholder: panel closes after successful save", () => {
-    // Test coverage: After save_settings succeeds, onClose() is called
-    expect(true).toBe(true);
+  it("shows validation error and disables Save when sitting_mm >= standing_mm", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "get_settings") {
+        return {
+          sit_limit_mins: 40,
+          stand_limit_mins: 15,
+          sitting_mm: 1050,
+          standing_mm: 750,
+          notify_inactivity: true,
+          notify_daily_posture_balance: true,
+          notify_praise_halfway: false,
+        };
+      }
+      return null;
+    });
+
+    render(<SettingsPanel onClose={mockOnClose} />);
+
+    const saveBtn = await screen.findByText("Save");
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Standing height must be greater than sitting height")
+      ).toBeInTheDocument();
+    });
+
+    expect(saveBtn).toBeDisabled();
+
+    const saveSettingsCalls = vi.mocked(invoke).mock.calls.filter(
+      (c) => c[0] === "save_settings"
+    );
+    expect(saveSettingsCalls).toHaveLength(0);
   });
 
-  it("placeholder: time limit sliders work within range", () => {
-    // Test coverage: Sliders clamp values:
-    // - sitting: 10-90 minutes, step 5
-    // - standing: 5-60 minutes, step 5
-    expect(true).toBe(true);
+  it("sitting limit slider is within 10-90 range", async () => {
+    render(<SettingsPanel onClose={mockOnClose} />);
+    const slider = await screen.findByLabelText("Remind me to stand after (minutes)");
+    expect(slider).toHaveAttribute("min", "10");
+    expect(slider).toHaveAttribute("max", "90");
+    expect(slider).toHaveAttribute("step", "5");
+  });
+
+  it("standing limit slider is within 5-60 range", async () => {
+    render(<SettingsPanel onClose={mockOnClose} />);
+    const slider = await screen.findByLabelText("Remind me to sit after (minutes)");
+    expect(slider).toHaveAttribute("min", "5");
+    expect(slider).toHaveAttribute("max", "60");
+    expect(slider).toHaveAttribute("step", "5");
+  });
+
+  it("notification toggles render with correct default values", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "get_settings") {
+        return {
+          sit_limit_mins: 40,
+          stand_limit_mins: 15,
+          sitting_mm: 750,
+          standing_mm: 1050,
+          notify_inactivity: true,
+          notify_daily_posture_balance: false,
+          notify_praise_halfway: true,
+        };
+      }
+      return null;
+    });
+
+    render(<SettingsPanel onClose={mockOnClose} />);
+
+    await waitFor(() => {
+      const checkboxes = screen.getAllByRole("checkbox");
+      // notify_inactivity = true
+      expect(checkboxes[0]).toBeChecked();
+      // notify_daily_posture_balance = false
+      expect(checkboxes[1]).not.toBeChecked();
+      // notify_praise_halfway = true
+      expect(checkboxes[2]).toBeChecked();
+    });
   });
 });

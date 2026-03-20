@@ -19,20 +19,20 @@ export interface SettingsPanelProps {
 }
 
 export interface DeskSettings {
-  sitting_limit_minutes: number;
-  standing_limit_minutes: number;
-  sitting_height_mm: number;
-  standing_height_mm: number;
+  sit_limit_mins: number;
+  stand_limit_mins: number;
+  sitting_mm: number;
+  standing_mm: number;
   notify_inactivity: boolean;
   notify_daily_posture_balance: boolean;
   notify_praise_halfway: boolean;
 }
 
 const DEFAULT_SETTINGS: DeskSettings = {
-  sitting_limit_minutes: 45,
-  standing_limit_minutes: 15,
-  sitting_height_mm: 720,
-  standing_height_mm: 1050,
+  sit_limit_mins: 45,
+  stand_limit_mins: 15,
+  sitting_mm: 720,
+  standing_mm: 1050,
   notify_inactivity: true,
   notify_daily_posture_balance: true,
   notify_praise_halfway: false,
@@ -75,7 +75,7 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
 
   function validateSettings(): boolean {
     setValidationError(null);
-    if (settings.sitting_height_mm >= settings.standing_height_mm) {
+    if (settings.sitting_mm >= settings.standing_mm) {
       setValidationError("Standing height must be greater than sitting height");
       return false;
     }
@@ -89,7 +89,8 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
     setError(null);
     try {
       await invoke("save_settings", { settings });
-      // Close settings panel on successful save
+      // Mark setup as complete so first-run detection does not trigger again
+      localStorage.setItem("desk_setup_done", "1");
       onClose();
     } catch (err) {
       setError(String(err));
@@ -131,17 +132,17 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
               min="10"
               max="90"
               step="5"
-              value={settings.sitting_limit_minutes}
+              value={settings.sit_limit_mins}
               onChange={(e) =>
                 setSettings({
                   ...settings,
-                  sitting_limit_minutes: parseInt(e.target.value, 10),
+                  sit_limit_mins: parseInt(e.target.value, 10),
                 })
               }
               className="settings-panel__slider"
             />
             <span className="settings-panel__value">
-              {settings.sitting_limit_minutes}
+              {settings.sit_limit_mins}
             </span>
           </div>
         </div>
@@ -157,17 +158,17 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
               min="5"
               max="60"
               step="5"
-              value={settings.standing_limit_minutes}
+              value={settings.stand_limit_mins}
               onChange={(e) =>
                 setSettings({
                   ...settings,
-                  standing_limit_minutes: parseInt(e.target.value, 10),
+                  stand_limit_mins: parseInt(e.target.value, 10),
                 })
               }
               className="settings-panel__slider"
             />
             <span className="settings-panel__value">
-              {settings.standing_limit_minutes}
+              {settings.stand_limit_mins}
             </span>
           </div>
         </div>
@@ -189,11 +190,11 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
             type="number"
             min="400"
             max="900"
-            value={settings.sitting_height_mm}
+            value={settings.sitting_mm}
             onChange={(e) =>
               setSettings({
                 ...settings,
-                sitting_height_mm: parseInt(e.target.value, 10),
+                sitting_mm: parseInt(e.target.value, 10),
               })
             }
             className="settings-panel__input"
@@ -210,11 +211,11 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
             type="number"
             min="900"
             max="1400"
-            value={settings.standing_height_mm}
+            value={settings.standing_mm}
             onChange={(e) =>
               setSettings({
                 ...settings,
-                standing_height_mm: parseInt(e.target.value, 10),
+                standing_mm: parseInt(e.target.value, 10),
               })
             }
             className="settings-panel__input"

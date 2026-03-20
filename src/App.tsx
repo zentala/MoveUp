@@ -50,13 +50,11 @@ export default function App() {
     return () => clearInterval(id);
   }, [pollOverlay]);
 
-  // Check if settings exist on startup
+  // Show settings on first run (before user has completed setup)
   useEffect(() => {
-    async function checkSettings() {
-      try {
-        await invoke("get_settings");
-      } catch {
-        // No settings exist yet, show settings panel on first run
+    function checkSettings() {
+      const done = localStorage.getItem("desk_setup_done");
+      if (!done) {
         setShowSettings(true);
       }
     }
