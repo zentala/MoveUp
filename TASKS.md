@@ -37,7 +37,7 @@
 
 > See `.claude/overlay/TASKS.md` for full overlay task list.
 
-- [ ] **T-OVR-010** P0 — Split `overlay_renderer.rs` (1060 lines, limit 250) → `overlay_opaque.rs`, `overlay_layered.rs`, `overlay_variants.rs`
+- [x] **T-OVR-010** P0 — Split `overlay_renderer.rs` (1060 lines, limit 250) → `overlay_opaque.rs`, `overlay_layered.rs`, `overlay_variants.rs`
 - [ ] **T-OVR-012** P1 — Precommit hook: fail build if any `.rs`/`.ts`/`.tsx` file > 250 lines
 - [ ] **T-OVR-009** P2 — Choose production render mode (OPAQUE vs LAYERED)
 - [ ] **T-OVR-011** P3 — Verify debug overlay info shows in popup
@@ -73,7 +73,7 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 
 ### Foundation (P1 — do first)
 
-- [ ] **T013+T014** P1 — AlertManager + Stage 1 (bar pulse) + Stage 2 (popup) **BUNDLED**
+- [x] **T013+T014** P1 — AlertManager + Stage 1 (bar pulse) + Stage 2 (popup) **BUNDLED**
   - **CEO review:** Ship together — bar pulse alone too subtle.
   - **Depends on:** T-OVR-010 (split overlay_renderer.rs)
   - **New files:**
@@ -121,7 +121,7 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 
 ### Snooze & Escalation (P2)
 
-- [ ] **T015** P2 — Snooze with deescalating frequency + tone shift
+- [x] **T015** P2 — Snooze with deescalating frequency + tone shift
   - **CEO review decisions (2026-03-20):**
   - **Deescalating cooldown** — more dismisses = longer intervals (app backs off):
     ```
