@@ -5,7 +5,7 @@
  * the Rust Tauri backend via the useDesk hook. Auto-connects on start.
  * Shows SettingsPanel on first run until settings are configured.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDesk } from "@/hooks/useDesk";
 import { useTimer } from "@/hooks/useTimer";
@@ -39,26 +39,35 @@ export default function App() {
   const liveSitting = useTimer(sittingSeconds, state === "Sitting");
   const liveBreak   = useTimer(breakSeconds,   state !== "Sitting" && state !== null);
 
-  // Debug: poll overlay state every 2s
+  // Debug: poll overlay state every 2s — DEV only
   const [overlayDebug, setOverlayDebug] = useState<Record<string, unknown> | null>(null);
-  const pollOverlay = useCallback(() => {
-    invoke("get_overlay_state").then((s) => setOverlayDebug(s as Record<string, unknown>)).catch((e) => console.warn("overlay debug:", e));
-  }, []);
   useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const pollOverlay = () => {
+      invoke("get_overlay_state")
+        .then((s) => setOverlayDebug(s as Record<string, unknown>))
+        .catch((e) => console.warn("overlay debug:", e));
+    };
     pollOverlay();
     const id = setInterval(pollOverlay, 2000);
     return () => clearInterval(id);
-  }, [pollOverlay]);
+  }, []);
 
-  // Show settings on first run (before user has completed setup)
+  // Show settings on first run: detect uncalibrated state from Tauri store.
+  // Falls back gracefully if command is unavailable.
   useEffect(() => {
-    function checkSettings() {
-      const done = localStorage.getItem("desk_setup_done");
-      if (!done) {
-        setShowSettings(true);
+    async function checkFirstRun() {
+      try {
+        const config = await invoke<{ sitting_mm: number; standing_mm: number }>("get_settings");
+        const isUncalibrated = config.sitting_mm === 720 && config.standing_mm === 1050;
+        if (isUncalibrated) {
+          setShowSettings(true);
+        }
+      } catch {
+        // Cannot determine calibration status — do not show settings
       }
     }
-    checkSettings();
+    checkFirstRun();
   }, []);
 
   async function handleStop() {
@@ -143,8 +152,8 @@ export default function App() {
         <TodayStats />
       </div>
 
-      {/* Debug: overlay state */}
-      {overlayDebug && (
+      {/* Debug: overlay state — DEV only */}
+      {import.meta.env.DEV && overlayDebug && (
         <div style={{ fontSize: "10px", opacity: 0.7, padding: "4px 8px", fontFamily: "monospace" }}>
           overlay: {String(overlayDebug.data_source)} | {String(overlayDebug.progress_pct)} | visible={String(overlayDebug.visible)} | h={String(overlayDebug.bar_height)}px
         </div>

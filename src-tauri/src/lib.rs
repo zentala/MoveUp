@@ -118,6 +118,19 @@ pub fn run() {
                 let _ = apply_acrylic(&window, Some((18, 18, 18, 200)));
             }
 
+            // Load config from store and apply to SessionManager before sensor scan starts.
+            // This ensures calibration values are correct from the first sensor reading.
+            {
+                let state: tauri::State<'_, AppState> = app.state();
+                if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+                    let config = crate::config::AppConfig::load(store.inner());
+                    let mut session = state.session.lock().unwrap();
+                    *session = crate::session::SessionManager::new_from_config(&config);
+                    *state.config.lock().unwrap() = Some(config);
+                    info!("startup: config loaded from store into SessionManager");
+                }
+            }
+
             // Kick off auto-detection immediately on startup.
             let state: tauri::State<'_, AppState> = app.state();
             serial::scan_and_connect(

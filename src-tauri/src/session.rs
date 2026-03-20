@@ -171,7 +171,6 @@ impl SessionManager {
     }
 
     /// Creates a manager initialized from AppConfig.
-    #[allow(dead_code)]
     pub fn new_from_config(config: &crate::config::AppConfig) -> Self {
         let now = Utc::now();
         Self {
@@ -204,7 +203,6 @@ impl SessionManager {
     }
 
     /// Seeds today's totals from SQLite so in-memory counters survive restarts.
-    #[allow(dead_code)]
     pub fn load_today_totals(&mut self, sitting_secs: i64, standing_secs: i64) {
         self.state.sitting_seconds = sitting_secs;
         self.state.standing_seconds = standing_secs;

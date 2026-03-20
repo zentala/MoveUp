@@ -110,8 +110,6 @@ pub struct TodaySummary {
 
 /// Inserts a completed sitting session into the database.
 /// Returns an error if the insert fails.
-/// (Deferred: will be called when session manager emits completed_session events)
-#[allow(dead_code)]
 pub fn insert_session(
     conn: &Connection,
     started_at: &str,

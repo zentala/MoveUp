@@ -89,8 +89,6 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
     setError(null);
     try {
       await invoke("save_settings", { settings });
-      // Mark setup as complete so first-run detection does not trigger again
-      localStorage.setItem("desk_setup_done", "1");
       onClose();
     } catch (err) {
       setError(String(err));
