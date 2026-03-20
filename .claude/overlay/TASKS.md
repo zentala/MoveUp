@@ -1,372 +1,69 @@
-# Overlay Progress Bar — Development Tasks
+# Overlay Progress Bar — Tasks
 
 **Status:** In Development
-**Goal:** Widoczny, konfigurowalny progress bar na górze ekranu
+**Reference:** [DEVELOPER-GUIDE.md](./DEVELOPER-GUIDE.md) | [CLAUDE.md](../../CLAUDE.md)
 
 ---
 
-## Architecture Overview
+## Done
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Top of screen (4px tall × full width)                         │
-│                                                                 │
-│  ┌──────────────────┐                                          │
-│  │ Progress Bar 25% │ ← transparent rest (LAYERED)             │
-│  └──────────────────┘   or black rest (OPAQUE)                 │
-│                                                                 │
-│  Controlled by:                                                 │
-│    - overlay.update(progress, color)  ← sets width + color     │
-│    - overlay.show() / hide()          ← visibility              │
-│                                                                 │
-│  Two render backends:                                           │
-│    OPAQUE  — GDI FillRect, black background, simple             │
-│    LAYERED — UpdateLayeredWindow, transparent, per-pixel alpha   │
-└─────────────────────────────────────────────────────────────────┘
-```
+- [x] **T-OVR-001**: Dev mode — always-visible progress bar (3 commits, `demo_progress()` cycling)
+- [x] **T-OVR-002**: Device disconnected notification (native Windows toast, throttled 5min)
+- [x] **T-OVR-003**: Compare OPAQUE vs LAYERED ([MODE-COMPARISON.md](./MODE-COMPARISON.md))
+- [x] **T-OVR-004**: Bar variants — solid/gradient/pulsing (`OVERLAY_VARIANT=0|1|2`)
+- [x] **T-OVR-005**: Adjustable bar height (`OVERLAY_HEIGHT=1-20`, default 4)
+- [x] **T-OVR-006**: Fix auto-test.sh — Windows-compatible, tests OPAQUE by default
+- [x] **T-OVR-007**: Rust unit tests for overlay rendering logic (replaced broken Playwright test)
+- [x] **T-OVR-008**: DataSource refactor — `dev_mode` → `DataSource { Demo, Live, Mock }` + `OVERLAY_DATA` env var
 
 ---
 
-## P0 — Blocker: Bar Must Be Visible in Dev Mode
-
-### [x] T-OVR-001: Dev mode — always-visible progress bar
-**Priority:** P0
-**Why:** Developer cannot test/style overlay without seeing it. Currently invisible without desk sensor.
-
-**⚠️ BEFORE STARTING: Read `.claude/overlay/KNOWLEDGE-BASE.md` — contains critical context about architecture, root causes, and pitfalls to avoid.**
-
-**Root cause of current invisibility:**
-The progress bar code in OPAQUE mode is gated by `if s.visible { ... }` (overlay_renderer.rs, WM_PAINT handler). `visible` is set to `true` ONLY when `tray_controller.rs` receives `desk:state-changed` event with `DeskState::Sitting`. Without a desk sensor connected to COM3, no events fire, `visible` stays `false`, progress bar never renders.
-
-**What IS currently visible:**
-Test code (overlay_renderer.rs, WM_PAINT, ~lines 303-319) runs UNCONDITIONALLY — fills entire window with cycling colors (Red, Maroon, Purple, Cream, Green) every 3 frames. This proves the rendering pipeline works. The test code is the ONLY visible element.
-
-**Files to modify:**
-- `src-tauri/src/overlay_renderer.rs` — main overlay code
-  - `OverlayState` struct (~line 14) — add `dev_mode: bool` field
-  - `wnd_proc()` → WM_PAINT handler (~line 275) — OPAQUE rendering
-  - `draw_layered_frame()` (~line 576) — LAYERED rendering
-  - `wnd_proc()` → WM_TIMER handler (~line 253) — frame counter + demo cycling
-  - `wnd_proc_layered()` → WM_TIMER handler (~line 690) — layered frame counter
-
-**Requirements:**
-- When `OVERLAY_DEV_MODE=true`: bar renders unconditionally (no `visible` check)
-- Bar shows even without desk sensor connected
-- Progress cycles: 0% → 25% → 50% → 75% → 100% (every 5 seconds = 300 frames @ 60fps)
-- Color cycles: green → yellow → red (synced with progress via `color_for_progress()` in `colors.rs`)
-- Works in BOTH OPAQUE and LAYERED modes
-- Default: `pnpm tauri:dev` should enable dev mode automatically
-
-**Implementation approach (step by step):**
-
-1. **Add `dev_mode` to OverlayState** (rename existing `demo_mode`):
-   ```rust
-   pub dev_mode: bool,  // OVERLAY_DEV_MODE=true → renders unconditionally
-   ```
-   Read from env var in `Default` impl.
-
-2. **OPAQUE WM_TIMER: Add dev mode cycling** (~line 253):
-   ```rust
-   if s.dev_mode {
-       let stage = ((s.frame_count / 300) % 5) as u32;  // 5 sec per stage
-       s.progress = stage as f32 / 4.0;  // 0.0, 0.25, 0.50, 0.75, 1.0
-       s.color_rgb = color_for_progress(s.progress);  // green→yellow→red
-       s.visible = true;  // force visible
-   }
-   ```
-
-3. **OPAQUE WM_PAINT: Replace test code with dev bar** (~lines 303-349):
-   Remove the test color cycling block entirely.
-   Replace with dev-mode-aware progress bar:
-   ```rust
-   // Calculate bar_width from progress
-   let bar_width = ((window_width as f32) * s.progress.clamp(0.0, 1.0)) as i32;
-   let bar_width = if s.dev_mode { bar_width.max(1) } else { bar_width };
-
-   // Draw bar — unconditionally in dev mode, gated by visible in prod
-   if s.dev_mode || s.visible {
-       let color = COLORREF(
-           (s.color_rgb.0 as u32) | ((s.color_rgb.1 as u32) << 8) | ((s.color_rgb.2 as u32) << 16)
-       );
-       let brush = CreateSolidBrush(color);
-       if bar_width > 0 && !brush.is_invalid() {
-           let bar_rect = RECT { left: 0, top: 0, right: bar_width, bottom: window_height };
-           FillRect(hdc, &bar_rect, brush);
-       }
-       DeleteObject(brush.into());
-   }
-   ```
-
-4. **LAYERED draw_layered_frame: Same pattern** (~line 604):
-   ```rust
-   if dev_mode {
-       let stage = ((frame_count / 300) % 5) as u32;
-       bar_progress = stage as f32 / 4.0;
-       // color override happens in pixel fill
-   }
-   let bar_width = if dev_mode || visible {
-       ((buf.width as f32) * bar_progress.clamp(0.0, 1.0) as i32).max(1)
-   } else { 0 };
-   ```
-
-5. **Verify:** Run `pnpm tauri:dev` and confirm bar visible + changing width.
-
-**⚠️ PITFALLS (from previous debugging):**
-- Do NOT test LAYERED mode and claim it works for OPAQUE — they are separate code paths
-- Do NOT remove test code until you verify the new code is visible on screen
-- The old test code fills ENTIRE rect (`FillRect(hdc, &rect, ...)`). Your progress bar must fill PARTIAL rect (`FillRect(hdc, &bar_rect, ...)` where `bar_rect.right = bar_width`)
-- `bar_width` can be 0 if `progress = 0.0` — ensure minimum 1px in dev mode
-- Run `pnpm tauri:dev` (not `OVERLAY_MODE=layered`) to test OPAQUE — that's what user sees by default
-- After changing code: `cd src-tauri && cargo check` to verify compilation
-
-**Acceptance criteria:**
-- `pnpm tauri:dev` → bar visible at top of screen (OPAQUE mode)
-- `OVERLAY_MODE=layered pnpm tauri:dev` → bar visible (LAYERED mode)
-- Bar width changes every 5 seconds (0%, 25%, 50%, 75%, 100%)
-- Bar color changes with progress (green → yellow → red)
-- No fast flickering/blinking (color changes every 5 seconds, not every 48ms)
-- Existing unit tests pass: `cd src-tauri && cargo test overlay_renderer --lib`
-
-**Testing strategy:**
-1. Compile: `cd src-tauri && cargo check`
-2. Unit tests: `cd src-tauri && cargo test overlay_renderer --lib`
-3. Auto-test: `bash .claude/overlay/test-infrastructure/auto-test.sh`
-4. Visual: run `pnpm tauri:dev`, look at top of screen, confirm bar visible + changing
-5. Document results in `.claude/overlay/TASKS.md` (mark done or document failure)
-
----
-
-### [x] T-OVR-002: Device disconnected notification
-**Priority:** P0
-**Why:** App's purpose is to track desk sensor. User must know if sensor is disconnected.
-
-**Requirements:**
-- When sensor not detected on COM3: show native notification
-- Notification text: "zntlDesk: Sensor not connected"
-- Show on app startup if sensor missing
-- Show when sensor disconnects during session
-- Use `tauri-plugin-notification` (already in project)
-- Don't spam: show once, then remind every 5 minutes
-
-**Acceptance criteria:**
-- Start app without sensor → notification appears
-- Unplug sensor during session → notification appears
-- Notification is native Windows toast (not custom UI)
-
----
-
-## P1 — Core Overlay Development
-
-### [x] T-OVR-003: Compare OPAQUE vs LAYERED visually
-**Priority:** P1
-**Why:** Developer needs to see both modes to decide which to use for production.
-
-**Requirements:**
-- Both modes must be testable with dev mode (T-OVR-001)
-- Document visual differences:
-  - OPAQUE: black background under bar
-  - LAYERED: transparent background (desktop visible)
-- Screenshot comparison in test report
-
-**Commands:**
-```bash
-# Test OPAQUE
-OVERLAY_DEV_MODE=true pnpm tauri:dev
-
-# Test LAYERED
-OVERLAY_MODE=layered OVERLAY_DEV_MODE=true pnpm tauri:dev
-```
-
----
-
-### [x] T-OVR-004: Multiple bar variants for UX testing
-**Priority:** P1
-**Why:** Developer wants to test different bar styles before committing to design.
-
-**Requirements:**
-- Switchable via env var: `OVERLAY_VARIANT=1|2|3|4`
-- Variants:
-  1. **Solid color** — current (green/yellow/red, opaque)
-  2. **Semi-transparent** — 50% alpha white (LAYERED only)
-  3. **Gradient** — left=full opacity, right=fading
-  4. **Pulsing** — opacity oscillates (breathing effect)
-- Each variant uses same progress/color API
-- Developer switches variants to compare visual quality
-
-**Implementation:**
-- Add `overlay_variant` to OverlayState
-- In draw functions: match variant → different fill logic
-- Same bar_width calculation for all variants
-
----
-
-### [x] T-OVR-005: Adjustable bar height
-**Priority:** P1
-**Why:** 4px may be too thin/thick. Developer needs to test different heights.
-
-**Requirements:**
-- Env var: `OVERLAY_HEIGHT=4` (default 4, range 1-20)
-- Window recreated with new height
-- Test: 2px, 4px, 8px, 12px — see which is most visible without being intrusive
-
----
-
-## P2 — Testing Infrastructure
-
-### [x] T-OVR-006: Fix auto-test.sh for OPAQUE mode
-**Priority:** P2
-**Why:** Current auto-test only tests LAYERED mode. Must test what user sees.
-
-**Requirements:**
-- Default: test OPAQUE mode (no OVERLAY_MODE env var)
-- Add parameter: `bash auto-test.sh opaque|layered`
-- Parse WM_PAINT logs (not just DRAW logs)
-- Verify bar_width values in WM_PAINT output
-- Report both modes separately
-
----
-
-### [x] T-OVR-007: Rust unit tests for overlay rendering logic
-**Priority:** P2
-**Why:** Log analysis alone is insufficient — need visual proof.
-
-**Requirements:**
-- Playwright captures top 10px of screen every 500ms
-- Compares frame-by-frame: is bar width growing?
-- Pixel analysis: count colored pixels vs black pixels
-- Generate report: "frame 0: 0% colored, frame 10: 25% colored, ..."
-- Fail if: bar never changes width over 30 seconds
-
----
-
-## P3 — Production Integration
-
-### [ ] T-OVR-008: DataSource refactor — replace dev_mode with OVERLAY_DATA
-**Priority:** P1
-**Depends on:** T-OVR-001 (done)
-**Why:** `dev_mode` conflates visibility + data source. Need independent axes.
-
-**Decision (from CEO review 2026-03-19):**
-- Replace `dev_mode: bool` with `data_source: DataSource` enum
-- Remove `OVERLAY_DEV_MODE` env var entirely
-- Add `OVERLAY_DATA=demo|live|mock` env var
-
-**DataSource enum:**
-```rust
-enum DataSource { Demo, Live, Mock }
-```
-
-**Defaults:**
-- Debug build (`cfg!(debug_assertions)`): `Demo`
-- Release build: `Live`
-- Override with `OVERLAY_DATA` env var
-
-**Behavior per source:**
-| Source | `update()/show()/hide()` | Bar visibility | Data origin |
-|--------|--------------------------|----------------|-------------|
-| Demo | Blocked (early return) | Always visible | `dev_mode_progress()` cycling |
-| Live | Pass through | From DeskState | `tray_controller.rs` events |
-| Mock | Blocked (early return) | Sit=visible, Stand=hidden | `mock_progress()` simulated cycle |
-
-**Mock cycle (compressed ~3 min):**
-- Sit phase: 0→100% over ~150s (2.5 min), bar visible, color green→yellow→red
-- Stand phase: ~30s, bar hidden
-- Resets and repeats
-
-**Files to modify:**
-- `src-tauri/src/overlay_renderer.rs` — enum, guards, mock_progress()
-- `.claude/overlay/DEVELOPER-GUIDE.md` — update env vars docs
-
-**Tests (~10 new + 4 renames):**
-- DataSource parsing from env var (valid, invalid, missing)
-- Guard behavior per source (Demo blocks, Live passes, Mock blocks)
-- `mock_progress()` sit/stand phases, cycle wrap, colors
-- Rename existing `dev_mode` tests → `demo_source`
-
-**Acceptance criteria:**
-- [ ] `OVERLAY_DATA=demo pnpm tauri:dev` → cycling demo (same as current)
-- [ ] `OVERLAY_DATA=live pnpm tauri:dev` → bar responds to sensor
-- [ ] `OVERLAY_DATA=mock pnpm tauri:dev` → simulated sit/stand cycle
-- [ ] Default in debug: demo. Default in release: live.
-- [ ] `cargo test --lib` passes (all tests + new ones)
-- [ ] No `dev_mode` references remain in code
-
----
+## In Progress / TODO
 
 ### [ ] T-OVR-009: Choose production render mode
+**Priority:** P2
+**Why:** Decide default for release builds.
+
+OPAQUE (recommended by MODE-COMPARISON.md) vs LAYERED. Test both visually, pick one, hardcode as release default.
+
+---
+
+### [ ] T-OVR-010: Split overlay_renderer.rs (~1060 lines, limit 250)
+**Priority:** P0
+**Why:** File is 4x over the 250-line limit. Must split before adding more features.
+
+**Proposed split:**
+- `overlay_renderer.rs` — `DataSource` enum, `OverlayState`, `OverlayRenderer` API, `parse_data_source()`, `demo_progress()`, `mock_progress()`, `run_event_loop()` dispatcher
+- `overlay_opaque.rs` — `run_event_loop_opaque()`, `wnd_proc()` (OPAQUE rendering)
+- `overlay_layered.rs` — `run_event_loop_layered()`, `wnd_proc_layered()`, `draw_layered_frame()`, `LayeredBufferState`
+- `overlay_variants.rs` — variant rendering logic (solid/gradient/pulsing) used by both modes
+
+Tests stay in `overlay_renderer.rs` (or `overlay_tests.rs` if needed).
+
+**Acceptance criteria:**
+- [ ] No file > 250 lines
+- [ ] `cargo test --lib` passes (101 tests)
+- [ ] No behavior changes
+
+---
+
+### [ ] T-OVR-011: Verify debug overlay info in popup
 **Priority:** P3
-**Depends on:** T-OVR-003 (visual comparison)
-**Why:** Decide between OPAQUE and LAYERED based on visual testing.
+**Why:** Added `get_overlay_state` IPC command + popup display but not confirmed working.
 
-**Decision criteria:**
-- Which looks better? (user preference)
-- Which is more reliable? (crash/flicker history)
-- Performance impact? (CPU usage)
-- Default for production release
+Check that popup shows `overlay: Live | X.X% | visible=true | h=4px` line. If not, debug — check browser console for errors from `invoke("get_overlay_state")`.
 
 ---
 
-## Dependency Graph
+### [ ] T-OVR-012: Precommit hook for file line count
+**Priority:** P1
+**Why:** Prevent files from exceeding 250-line limit again.
 
-```
-T-OVR-001 (dev mode visible)
-├─→ T-OVR-002 (device notification)      [independent]
-├─→ T-OVR-003 (compare OPAQUE vs LAYERED)
-│   └─→ T-OVR-009 (choose production mode)
-├─→ T-OVR-004 (bar variants)
-├─→ T-OVR-005 (bar height)
-├─→ T-OVR-006 (fix auto-test)
-│   └─→ T-OVR-007 (visual regression)
-└─→ T-OVR-008 (wire to session data)
-```
-
-**Start with T-OVR-001** — everything else depends on being able to SEE the bar.
+Add to precommit hook: check all staged `.rs`, `.ts`, `.tsx` files. Fail if any exceed 250 lines. Exclude test files and generated code.
 
 ---
 
-## Dev Mode Architecture
+## Archived
 
-```
-                    ┌──────────────┐
-                    │  App Startup │
-                    └──────┬───────┘
-                           │
-                    ┌──────▼───────┐
-                    │ Check env:   │
-                    │ DEV_MODE?    │
-                    └──────┬───────┘
-                           │
-              ┌────────────┴────────────┐
-              │                         │
-       ┌──────▼──────┐          ┌──────▼──────┐
-       │  DEV MODE   │          │  PROD MODE  │
-       │             │          │             │
-       │ • visible   │          │ • visible   │
-       │   =true     │          │   from      │
-       │   always    │          │   sensor    │
-       │             │          │             │
-       │ • progress  │          │ • progress  │
-       │   cycles    │          │   from      │
-       │   demo      │          │   session   │
-       │             │          │             │
-       │ • color     │          │ • color     │
-       │   cycles    │          │   from      │
-       │   demo      │          │   progress  │
-       │             │          │             │
-       │ • bar       │          │ • show      │
-       │   always    │          │   device    │
-       │   shown     │          │   notif if  │
-       │             │          │   missing   │
-       └─────────────┘          └─────────────┘
-```
-
----
-
-## Environment Variables
-
-| Variable | Values | Default | Effect |
-|----------|--------|---------|--------|
-| `OVERLAY_MODE` | `opaque`, `layered` | `opaque` | Render backend |
-| `OVERLAY_DEV_MODE` | `true`, `false` | `false` (`true` in tauri:dev) | Always-visible, demo cycling |
-| `OVERLAY_VARIANT` | `1`, `2`, `3`, `4` | `1` | Visual style (future) |
-| `OVERLAY_HEIGHT` | `1`-`20` | `4` | Bar height in pixels (future) |
+- [ORCHESTRATOR.md](./ORCHESTRATOR.md) — Wave-based parallel execution plan (completed 2026-03-19)
+- [v1-opaque-debugging/](./v1-opaque-debugging/) — First debugging session (2026-03-19)

@@ -33,6 +33,17 @@
 
 ---
 
+## Sprint: Overlay Progress Bar
+
+> See `.claude/overlay/TASKS.md` for full overlay task list.
+
+- [ ] **T-OVR-010** P0 — Split `overlay_renderer.rs` (1060 lines, limit 250) → `overlay_opaque.rs`, `overlay_layered.rs`, `overlay_variants.rs`
+- [ ] **T-OVR-012** P1 — Precommit hook: fail build if any `.rs`/`.ts`/`.tsx` file > 250 lines
+- [ ] **T-OVR-009** P2 — Choose production render mode (OPAQUE vs LAYERED)
+- [ ] **T-OVR-011** P3 — Verify debug overlay info shows in popup
+
+---
+
 ## Sprint: Polish + Delight
 
 - [ ] **T010** P3 — Dynamic tray icon: green/amber/red by session state `.claude/tasks/0010-dynamic-tray-icon.md`
