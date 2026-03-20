@@ -15,15 +15,25 @@ use crate::{
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-/// Registers the `desk:state-changed` event listener.
+/// Registers event listeners for tray + overlay updates.
+///
+/// - `desk:state-changed` — state transitions (show/hide overlay, update tray)
+/// - `desk:distance` — every sensor reading (update overlay progress while sitting)
 ///
 /// Call once from `lib.rs` setup.
 pub fn setup(app: &AppHandle) {
+    // State transitions: update tray icon + show/hide overlay
     let handle = app.clone();
     app.listen("desk:state-changed", move |event| {
         if let Ok(payload) = serde_json::from_str::<StateChangedPayload>(event.payload()) {
             on_state_changed(&handle, &payload);
         }
+    });
+
+    // Every sensor reading: update overlay progress while sitting
+    let handle2 = app.clone();
+    app.listen("desk:distance", move |_event| {
+        update_overlay_progress(&handle2);
     });
 }
 
@@ -81,6 +91,35 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
         info!("→ Hiding overlay (state: {:?})", payload.state);
         overlay.hide();
     }
+}
+
+/// Updates overlay progress on every sensor reading (while sitting).
+///
+/// Called from `desk:distance` listener — fires ~every second.
+/// Only updates if state is Sitting; otherwise no-op.
+fn update_overlay_progress(app: &AppHandle) {
+    use crate::commands::AppState;
+    use tauri::Manager;
+
+    let app_state = app.state::<AppState>();
+    let session = app_state.session.lock().unwrap();
+    let snapshot = session.snapshot();
+
+    if snapshot.state != DeskState::Sitting {
+        return;
+    }
+
+    let progress = if snapshot.session_limit_secs > 0 {
+        snapshot.sitting_seconds as f32 / snapshot.session_limit_secs as f32
+    } else {
+        0.0
+    };
+
+    let (r, g, b, _) = color_for_progress(progress);
+    let overlay = app_state.overlay.clone();
+    drop(session); // Release lock before calling overlay
+
+    overlay.update(progress, (r, g, b));
 }
 
 /// Formats a duration in seconds as `"MM:SS"`.
