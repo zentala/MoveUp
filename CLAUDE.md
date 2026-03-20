@@ -38,10 +38,25 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 - Debounce state changes: require 5s stable reading
 
 ## UI Components
-1. **System tray text** — `↕ 72 cm` or session warning
+1. **System tray** — `↕ 72 cm` tooltip + color dot (green/yellow/red by progress)
 2. **Floating window** — current height, today's totals, session history
-3. **Top-of-screen progress bar** — green→red over 40min session, popup at limit
-4. **Popup notification** — "Sitting 40 min, take a break"
+3. **Top-of-screen progress bar** — green→red over 40min session (overlay_renderer.rs)
+4. **Alert popup** — progressive escalation when limit reached (alert_manager.rs, planned)
+
+## Alert System (planned — T013-T019)
+
+Progressive escalation: gentle → firm nudges when sitting limit reached.
+
+```
+session.rs (sitting_secs) → alert_manager.rs (escalation) → UI actions
+                                    ↑                           │
+                          on_standing() resets          ┌───────┴───────┐
+                                                       ▼               ▼
+                                                  overlay bar      popup window
+                                                  (pulse/flash)    (WinAPI)
+```
+
+**AlertManager** is a pure state machine — no WinAPI, no UI. Returns `Vec<AlertAction>` that `tray_controller.rs` executes. Stages are configurable modules. See TASKS.md for full escalation flow.
 
 ## Overlay Progress Bar
 

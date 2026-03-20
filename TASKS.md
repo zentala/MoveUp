@@ -46,50 +46,80 @@
 
 ## Sprint: Session Alerts & Notifications
 
-> Core UX: app must actively nudge user to stand. Without this the app is passive.
+> Core UX: app must actively nudge user to stand. Progressive escalation — gentle → firm.
+> Architecture: `alert_manager.rs` owns escalation state machine, returns `Vec<AlertAction>`.
+> `tray_controller.rs` executes actions (show popup, pulse bar, update tray).
 
-### Session limit popup (P1 — do first)
+### Architecture: Progressive Escalation
 
-- [ ] **T013** P1 — Session limit popup: red overlay "Take a break!" when sitting limit reached
-  - Custom-drawn window (like overlay bar — native WinAPI, not Tauri webview)
-  - Shows: "You've been sitting 45 min. Take a break!"
-  - Dismiss button → snooze 2h (configurable)
-  - Auto-dismiss when `DeskState::Standing` detected (desk raised)
-  - Must not block other apps (non-modal, always-on-top)
+```
+IDLE ──(progress≥1.0)──→ STAGE 1 (bar pulses red)
+                              │ +2 min
+                              ▼
+                         STAGE 2 (popup: "Take a break!")
+                              │ +5 min
+                              ▼
+                         STAGE 3 (popup more prominent)
+                              │ +10 min
+                              ▼
+                         STAGE 4 (overlay expands)
+                              │ +15 min
+                              ▼
+                         STAGE 5 (full-screen nudge)
 
-- [ ] **T014** P1 — Bar flashing at limit: overlay bar pulses red when session limit reached
-  - Reuse variant=2 (pulsing) or add new "alert" variant
-  - Triggered by `progress >= 1.0` in Live mode
+ANY STAGE ──standing──→ IDLE (+ success animation)
+ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE 1
+```
 
-- [ ] **T015** P2 — Snooze logic: dismiss → configurable cooldown before next alert
-  - Default: 2h. Setting in AppConfig.
-  - After snooze expires: popup + flash again
+### Foundation (P1 — do first)
+
+- [ ] **T013** P1 — AlertManager module + Stage 1 (bar pulse at limit)
+  - New `alert_manager.rs`: `AlertStage` enum, `AlertAction` enum, `AlertManager` struct
+  - `tick(progress, sitting_secs)` → `Vec<AlertAction>` (pure logic, no WinAPI)
+  - Stage 1: bar pulses red when `progress >= 1.0`
+  - `on_standing()` → reset to IDLE
+  - Wire into `tray_controller.rs` via `desk:distance` listener
+  - Unit tests for state transitions, stage timing, reset on stand
+
+- [ ] **T014** P1 — Stage 2: popup window ("Take a break!")
+  - Native WinAPI window (like overlay bar — proven pattern)
+  - Shows at `limit + 2min`: "You've been sitting 47 min. Take a 5-min break!"
+  - Dismiss button → triggers `AlertManager::dismiss()`
+  - Auto-dismiss when `DeskState::Standing` detected
+  - Non-modal, always-on-top, arrow cursor
+
+### Snooze & Escalation (P2)
+
+- [ ] **T015** P2 — Snooze + re-escalation logic
+  - Dismiss → `SNOOZED` state with configurable cooldown (default 2h, in AppConfig)
+  - After cooldown expires → restart from Stage 1
   - "Your body will thank you for a break."
+  - Tests: snooze timing, re-escalation, configurable duration
 
-### Tray icon (P2)
-
-- [ ] **T016** P2 — Tray icon color dot: small colored circle on tray icon
-  - NOT full icon recolor — small dot/badge overlay
+- [ ] **T016** P2 — Tray icon color dot
+  - Small colored circle overlay on tray icon (not full recolor)
   - Green → Yellow → Red synced with `color_for_progress()`
-  - Replaces current T010 (dynamic tray icon) with better design
+  - Independent of alert system — always shows progress color
 
-### Notification system (P3 — prototype first)
+### Advanced Stages & Notifications (P3)
 
-- [ ] **T017** P3 — Demo: native Windows toast notifications (via `tauri-plugin-notification`)
-  - Show 4 variants: green/yellow/red/gray
-  - Evaluate: can we customize colors? icons? actions? persistence?
+- [ ] **T017** P3 — Stages 3-5 implementation
+  - Stage 3 (+5min): popup grows, can't dismiss for 5 seconds
+  - Stage 4 (+10min): overlay bar expands (taller)
+  - Stage 5 (+15min): full-screen overlay nudge
+  - Each stage configurable (enable/disable in settings)
 
-- [ ] **T018** P3 — Demo: custom-drawn overlay notification popup
-  - Like overlay bar but bigger — custom WinAPI window with text + progress
-  - 4 color variants, animated progress bar at bottom
-  - Auto-dismiss timer (configurable), or persist until action
-  - Compare with native toast → choose approach
+- [ ] **T018** P3 — Notification backend comparison
+  - Demo A: native Windows toast (`tauri-plugin-notification`) — 4 color variants
+  - Demo B: custom WinAPI popup — animated progress, auto-dismiss timer
+  - Compare and choose approach for production
 
-- [ ] **T019** P4 — Success notifications (gamification)
-  - "You stood 40min today — great job!" (green)
+- [ ] **T019** P4 — Success notifications + gamification
+  - Standing triggers success flash / brief green animation
+  - "You stood 40min today — great job!" notifications
   - Streak tracking: "3 days in a row!"
   - Milestone celebrations
-  - Future: more gamification mechanics through experimentation
+  - Future: adaptive nudge intensity based on user patterns
 
 ---
 
