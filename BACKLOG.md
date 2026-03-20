@@ -33,6 +33,32 @@ Items not yet scheduled, before refinement.
 
 ---
 
+## Session Limit & Alerts
+
+- **Bar flashing at limit** — when 45min reached, bar pulses/flashes red to grab attention
+- **Red popup at limit** — "You've been sitting 45 min. Take a break!" with Dismiss button
+  - Auto-dismiss when desk raised (Standing detected)
+  - Snooze logic: Dismiss → remind after 2 hours. "Your body will thank you."
+  - Must design the full UX flow: what happens on ignore? configurable?
+- **Notification system architecture** — multiple notification types needed:
+  - Colors: green (success), yellow (warning), red (alert), gray (info)
+  - Two backends to prototype: (1) native Windows toast, (2) custom-drawn overlay popup
+  - Need demo of both to compare before committing
+  - Custom popup: animated progress bar at bottom, auto-dismiss timer, configurable
+  - Some notifications should persist until action, some auto-dismiss — make it a setting
+- **Success notifications** — gamification nudges:
+  - "You stood 40min today — top 2% of users!" (green)
+  - Daily standing goal milestones
+  - Streak tracking ("3 days in a row of 40min+ standing")
+  - Future: more gamification mechanics TBD through experimentation
+
+## Tray Icon
+
+- **Color dot on tray icon** — small circle (not whole icon) that matches bar color progression:
+  - Green (OK) → Yellow (warning, 60%+) → Red (alert, 85%+)
+  - Synced with overlay bar progress, same color_for_progress() logic
+  - Note: T010 in main TASKS.md covers dynamic tray icon but needs redesign to be a small dot, not full icon recolor
+
 ## Inne
 
 - Konfiguracja progów wysokości przez UI (kalibracja: "ustaw biurko na siedzącą pozycję i kliknij")

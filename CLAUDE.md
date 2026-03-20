@@ -1,10 +1,18 @@
 # Desk App — CLAUDE.md
 
 ## Purpose
-Ergonomics tracker for a sit/stand desk. Detects whether user is sitting or standing via VL53L1X laser sensor, tracks session durations, and nudges the user to take breaks.
+Ergonomics tracker for a sit/stand desk. Detects sitting/standing via laser sensor, tracks session durations, and nudges user to take breaks via visual cues and notifications.
+
+**Core philosophy:** This is an **experimentation platform for self-motivation**. The developer (zentala) uses this app to test different approaches to motivating himself to take breaks — different visual cues, notification styles, gamification ideas. Architecture must stay **modular and configurable** so it's easy to swap components, try new approaches, and A/B test motivation strategies without rewriting core logic.
 
 ## Target User
 Single user (zentala) working at a motorized sit/stand desk.
+
+## Architecture Principles
+- **Modular components** — visual cues (overlay bar, tray icon, notifications, popups) are independent modules. Each can be enabled/disabled/swapped.
+- **Configurable behavior** — session limits, notification thresholds, dismiss/snooze logic, visual styles — all configurable, not hardcoded.
+- **Experimentation-first** — build for easy prototyping. Mock data sources, dev mode, pnpm scripts per mode. Developer must see results fast.
+- **Independent axes** — data source, render mode, visual style, notification type are orthogonal. Any combination works.
 
 ## Project Map
 See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, architecture, IPC events, and test strategy.
