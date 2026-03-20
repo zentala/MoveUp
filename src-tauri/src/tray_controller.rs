@@ -84,11 +84,11 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
 
     // Update WinAPI overlay
     if payload.state == DeskState::Sitting {
-        info!("→ Showing overlay, progress: {:.0}%", progress * 100.0);
+        log::debug!("→ Showing overlay, progress: {:.0}%", progress * 100.0);
         overlay.update(progress, (r, g, b));
         overlay.show();
     } else {
-        info!("→ Hiding overlay (state: {:?})", payload.state);
+        log::debug!("→ Hiding overlay (state: {:?})", payload.state);
         overlay.hide();
     }
 }

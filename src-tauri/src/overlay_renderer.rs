@@ -112,12 +112,7 @@ impl OverlayRenderer {
 
     pub fn update(&self, progress: f32, color_rgb: (u8, u8, u8)) {
         if let Ok(mut s) = self.state.lock() {
-            if s.data_source != DataSource::Live {
-                log::trace!("[OVERLAY] update() ignored (source={:?})", s.data_source);
-                return;
-            }
-            log::info!("[OVERLAY] update() progress={:.1}% color=({},{},{})",
-                progress * 100.0, color_rgb.0, color_rgb.1, color_rgb.2);
+            if s.data_source != DataSource::Live { return; }
             s.progress = progress.clamp(0.0, 1.0);
             s.color_rgb = color_rgb;
             s.needs_redraw = true;
@@ -126,11 +121,7 @@ impl OverlayRenderer {
 
     pub fn show(&self) {
         if let Ok(mut s) = self.state.lock() {
-            if s.data_source != DataSource::Live {
-                log::trace!("[OVERLAY] show() ignored (source={:?})", s.data_source);
-                return;
-            }
-            log::info!("[OVERLAY] show() called — bar now visible");
+            if s.data_source != DataSource::Live { return; }
             s.visible = true;
             s.needs_redraw = true;
         }
