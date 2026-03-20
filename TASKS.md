@@ -74,41 +74,50 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 ### Foundation (P1 — do first)
 
 - [ ] **T013+T014** P1 — AlertManager + Stage 1 (bar pulse) + Stage 2 (popup) **BUNDLED**
-  - **CEO review decision:** Ship together — bar pulse alone too subtle to change behavior.
+  - **CEO review:** Ship together — bar pulse alone too subtle.
   - **Depends on:** T-OVR-010 (split overlay_renderer.rs)
   - **New files:**
-    - `alert_manager.rs` — `AlertStage` enum, `AlertAction` enum, `AlertManager` struct
-    - `alert_popup.rs` — WinAPI popup window (center-screen card)
-  - **AlertManager:**
-    - `tick(progress)` → `Vec<AlertAction>` (pure logic, no WinAPI)
-    - `on_standing()` → reset to IDLE + dismiss popup
-    - `dismiss()` → SNOOZED state
-    - Time: `Instant` (monotonic). `stage_entered_at: Instant`.
-    - Wire into `tray_controller.rs` via `desk:distance` listener
-  - **Stage 1 (at limit):** bar variant switches to pulsing (variant=2)
-  - **Stage 2 (+2min):** popup card, right-bottom (notification area):
+    - `alert_manager.rs` (~150 lines) — `AlertStage` enum, `AlertAction` enum, `AlertManager` struct
+    - `alert_popup.rs` (~200 lines) — WinAPI popup window, own thread
+  - **Modified files:**
+    - `overlay_renderer.rs` — add `set_variant(&self, variant: u8)` method
+    - `tray_controller.rs` — wire AlertManager tick + execute AlertActions
+    - `lib.rs` + `commands.rs` — add AlertManager + AlertPopup to AppState
+  - **Eng review decisions (2026-03-20):**
+    - Bar pulse: `set_variant(2)` method on OverlayRenderer (explicit, same pattern as update/show/hide)
+    - Popup thread: own thread, spawn on show, `AtomicBool` dismiss flag, join on dismiss
+    - Time source: `Instant` (monotonic), `stage_entered_at` field
+    - Dismiss returns to Idle (NOT Snoozed — snooze is T015)
+    - Safety: if progress drops below 1.0, also dismiss popup (missed event mitigation)
+  - **AlertManager API:**
+    ```rust
+    tick(progress: f32) → Vec<AlertAction>
+    on_standing() → Vec<AlertAction>   // reset + StopPulse + DismissPopup
+    dismiss()                          // returns to Idle
+    ```
+  - **AlertPopup API:**
+    ```rust
+    show(msg: String)    // spawns WinAPI thread
+    dismiss()            // sets AtomicBool, thread exits
+    is_visible() → bool
+    ```
+  - **Stage 1 (at limit):** `overlay.set_variant(2)` — bar starts pulsing
+  - **Stage 2 (+2min):** popup at right-bottom (notification area):
     ```
                                     ┌────────────────────────┐
-                                    │                        │
                                     │  You've been sitting   │
                                     │  for 45 minutes.       │
-                                    │                        │
                                     │  Take a 5-min break!   │
-                                    │                        │
                                     │  [Dismiss]  [Stand up] │
-                                    │                        │
                                     └────────────────────────┘
                                     ↑ right-bottom, near tray
     ```
-    - WinAPI window, ~400x200px, positioned near system tray (right-bottom)
-    - Always-on-top, non-modal
-    - Dismiss → `AlertManager::dismiss()` → SNOOZED
-    - Auto-dismiss when `DeskState::Standing` detected
-    - "Stand up" button = same as dismiss (informational)
+    - ~400x200px, always-on-top, non-modal, arrow cursor
+    - Auto-dismiss on `DeskState::Standing` OR `progress < 1.0`
   - **Tests (~15):**
-    - AlertManager: idle, stage1, stage2 transitions, on_standing reset
-    - Snooze, progress oscillation, rapid sit/stand
-    - Popup: creation, dismiss, auto-dismiss on stand
+    - AlertManager: idle→stage1→stage2 transitions, timing, on_standing reset
+    - dismiss() returns to Idle, progress oscillation debounce, rapid sit/stand
+    - set_variant() updates state, popup show/dismiss lifecycle
 
 ### Snooze & Escalation (P2)
 
