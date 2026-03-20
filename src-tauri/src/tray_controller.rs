@@ -3,11 +3,15 @@
 //! Listens for [`StateChangedPayload`] events emitted by `serial.rs` and
 //! updates the tray icon colour/tooltip and the overlay progress bar to
 //! reflect the current session state.
+//!
+//! Also drives the [`AlertManager`] state machine and executes returned
+//! [`AlertAction`]s (pulse bar, show/dismiss popup).
 
 use log::info;
 use tauri::{AppHandle, Listener};
 
 use crate::{
+    alert_manager::AlertAction,
     colors::color_for_progress,
     session::{DeskState, StateChangedPayload},
     tray,
@@ -15,14 +19,14 @@ use crate::{
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-/// Registers event listeners for tray + overlay updates.
+/// Registers event listeners for tray + overlay + alert updates.
 ///
-/// - `desk:state-changed` — state transitions (show/hide overlay, update tray)
-/// - `desk:distance` — every sensor reading (update overlay progress while sitting)
+/// - `desk:state-changed` — state transitions (show/hide overlay, update tray, alert reset)
+/// - `desk:distance` — every sensor reading (update overlay progress + alert tick)
 ///
 /// Call once from `lib.rs` setup.
 pub fn setup(app: &AppHandle) {
-    // State transitions: update tray icon + show/hide overlay
+    // State transitions: update tray icon + show/hide overlay + reset alerts
     let handle = app.clone();
     app.listen("desk:state-changed", move |event| {
         if let Ok(payload) = serde_json::from_str::<StateChangedPayload>(event.payload()) {
@@ -30,7 +34,7 @@ pub fn setup(app: &AppHandle) {
         }
     });
 
-    // Every sensor reading: update overlay progress while sitting
+    // Every sensor reading: update overlay progress + drive alert state machine
     let handle2 = app.clone();
     app.listen("desk:distance", move |_event| {
         update_overlay_progress(&handle2);
@@ -39,13 +43,13 @@ pub fn setup(app: &AppHandle) {
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
-/// Reacts to a state-change event by updating tray and overlay.
+/// Reacts to a state-change event by updating tray, overlay, and alerts.
 fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
     use crate::commands::AppState;
     use tauri::Manager;
 
-    // Read session limit and overlay from managed state.
-    let (session_limit_secs, overlay) = {
+    // Read session limit, overlay, alert_manager, and alert_popup from managed state.
+    let (session_limit_secs, overlay, alert_manager, alert_popup) = {
         let app_state = app.state::<AppState>();
         let session_limit_secs = app_state
             .session
@@ -54,7 +58,9 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
             .snapshot()
             .session_limit_secs;
         let overlay = app_state.overlay.clone();
-        (session_limit_secs, overlay)
+        let alert_manager = app_state.alert_manager.clone();
+        let alert_popup = app_state.alert_popup.clone();
+        (session_limit_secs, overlay, alert_manager, alert_popup)
     };
 
     let sitting_secs = payload.sitting_seconds;
@@ -91,9 +97,15 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
         log::debug!("→ Hiding overlay (state: {:?})", payload.state);
         overlay.hide();
     }
+
+    // Notify AlertManager of standing — resets escalation state
+    if payload.state == DeskState::Standing {
+        let actions = alert_manager.lock().unwrap().on_standing();
+        execute_alert_actions(&actions, &overlay, &alert_popup);
+    }
 }
 
-/// Updates overlay progress on every sensor reading (while sitting).
+/// Updates overlay progress on every sensor reading, and drives the alert state machine.
 ///
 /// Called from `desk:distance` listener — fires ~every second.
 /// Only updates if state is Sitting; otherwise no-op.
@@ -117,9 +129,37 @@ fn update_overlay_progress(app: &AppHandle) {
 
     let (r, g, b, _) = color_for_progress(progress);
     let overlay = app_state.overlay.clone();
-    drop(session); // Release lock before calling overlay
+    let alert_manager = app_state.alert_manager.clone();
+    let alert_popup = app_state.alert_popup.clone();
+    drop(session); // Release lock before calling overlay or alert_manager
 
     overlay.update(progress, (r, g, b));
+
+    // Tick the alert state machine and execute any returned actions
+    let actions = alert_manager.lock().unwrap().tick(progress);
+    execute_alert_actions(&actions, &overlay, &alert_popup);
+}
+
+/// Executes a list of [`AlertAction`]s against the overlay and popup.
+fn execute_alert_actions(
+    actions: &[AlertAction],
+    overlay: &crate::overlay_renderer::OverlayRenderer,
+    alert_popup: &std::sync::Arc<std::sync::Mutex<crate::alert_popup::AlertPopup>>,
+) {
+    for action in actions {
+        match action {
+            AlertAction::PulseBar => overlay.set_variant(2),
+            AlertAction::StopPulse => overlay.set_variant(0),
+            AlertAction::ShowPopup(msg) => {
+                alert_popup.lock().unwrap().show(msg.clone());
+            }
+            AlertAction::DismissPopup => {
+                alert_popup.lock().unwrap().dismiss();
+            }
+            // Stages 3-5 not implemented — T017
+            AlertAction::ExpandOverlay | AlertAction::FullScreenNudge => {}
+        }
+    }
 }
 
 /// Formats a duration in seconds as `"MM:SS"`.

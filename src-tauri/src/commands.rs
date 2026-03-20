@@ -6,6 +6,8 @@ use rusqlite::Connection;
 use tauri::{Emitter, Manager, State};
 
 use crate::{
+    alert_manager::AlertManager,
+    alert_popup::AlertPopup,
     config::AppConfig,
     db::TodaySummary,
     overlay_renderer::OverlayRenderer,
@@ -22,6 +24,10 @@ pub struct AppState {
     pub db: Arc<Mutex<Option<Connection>>>,
     pub config: Arc<Mutex<Option<AppConfig>>>,
     pub overlay: Arc<OverlayRenderer>,
+    /// Alert escalation state machine (Idle → Stage1 → Stage2).
+    pub alert_manager: Arc<Mutex<AlertManager>>,
+    /// WinAPI popup window shown at Stage2.
+    pub alert_popup: Arc<Mutex<AlertPopup>>,
 }
 
 // ─── Initialization ───────────────────────────────────────────────────────────

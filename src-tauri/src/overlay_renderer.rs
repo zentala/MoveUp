@@ -143,6 +143,21 @@ impl OverlayRenderer {
         }
     }
 
+    /// Sets the visual variant of the overlay bar.
+    ///
+    /// - `0` — solid fill (default)
+    /// - `1` — gradient
+    /// - `2` — pulsing animation (used by alert Stage1)
+    ///
+    /// Operates in Live mode only (same guard as [`update`](Self::update)).
+    pub fn set_variant(&self, variant: u8) {
+        if let Ok(mut s) = self.state.lock() {
+            if s.data_source != DataSource::Live { return; }
+            s.overlay_variant = variant.min(2);
+            s.needs_redraw = true;
+        }
+    }
+
     /// Returns overlay state as JSON for debugging (debug builds only).
     #[cfg(debug_assertions)]
     pub fn debug_state(&self) -> Option<serde_json::Value> {

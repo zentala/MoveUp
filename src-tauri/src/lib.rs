@@ -4,6 +4,8 @@
 //! as soon as the app is set up.
 
 mod activity;
+mod alert_manager;
+mod alert_popup;
 mod colors;
 mod commands;
 mod config;
@@ -23,6 +25,8 @@ mod tray_icon;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use alert_manager::{AlertConfig, AlertManager};
+use alert_popup::AlertPopup;
 use commands::AppState;
 use log::info;
 use overlay_renderer::OverlayRenderer;
@@ -53,6 +57,8 @@ pub fn run() {
             db: Arc::new(Mutex::new(None)),
             config: Arc::new(Mutex::new(None)),
             overlay: Arc::new(OverlayRenderer::new()),
+            alert_manager: Arc::new(Mutex::new(AlertManager::new(AlertConfig::default()))),
+            alert_popup: Arc::new(Mutex::new(AlertPopup::new())),
         })
         .invoke_handler({
             #[cfg(any(test, debug_assertions))]

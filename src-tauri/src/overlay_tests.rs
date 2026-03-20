@@ -229,6 +229,50 @@ fn mock_progress_colors_match_color_for_progress() {
     }
 }
 
+// ── Test 11: set_variant(2) sets overlay_variant to 2 ────────────────────────
+
+#[test]
+fn set_variant_2_sets_pulsing() {
+    let renderer = renderer_live();
+    renderer.set_variant(2);
+    let state = renderer.state.lock().unwrap();
+    assert_eq!(state.overlay_variant, 2);
+    assert!(state.needs_redraw);
+}
+
+// ── Test 12: set_variant(0) sets overlay_variant to 0 ────────────────────────
+
+#[test]
+fn set_variant_0_sets_solid() {
+    let renderer = renderer_live();
+    renderer.set_variant(2); // first go pulsing
+    {
+        let mut s = renderer.state.lock().unwrap();
+        s.needs_redraw = false;
+    }
+    renderer.set_variant(0);
+    let state = renderer.state.lock().unwrap();
+    assert_eq!(state.overlay_variant, 0);
+    assert!(state.needs_redraw);
+}
+
+#[test]
+fn set_variant_clamped_to_2() {
+    let renderer = renderer_live();
+    renderer.set_variant(5); // out of range
+    let state = renderer.state.lock().unwrap();
+    assert_eq!(state.overlay_variant, 2); // clamped
+}
+
+#[test]
+fn set_variant_ignored_in_demo_mode() {
+    let renderer = OverlayRenderer::new();
+    renderer.state.lock().unwrap().data_source = DataSource::Demo;
+    renderer.set_variant(2);
+    let state = renderer.state.lock().unwrap();
+    assert_eq!(state.overlay_variant, 0); // unchanged — Demo ignores it
+}
+
 #[test]
 fn colorref_format_is_bgr() {
     let (r, g, b) = (255u8, 128u8, 0u8);
