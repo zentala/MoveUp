@@ -87,7 +87,7 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
     - Bar pulse: `set_variant(2)` method on OverlayRenderer (explicit, same pattern as update/show/hide)
     - Popup thread: own thread, spawn on show, `AtomicBool` dismiss flag, join on dismiss
     - Time source: `Instant` (monotonic), `stage_entered_at` field
-    - Dismiss returns to Idle (NOT Snoozed — snooze is T015)
+    - Dismiss returns to Snoozed (T015 fills in full snooze logic; T013 implements stub: instant re-entry to Stage1)
     - Safety: if progress drops below 1.0, also dismiss popup (missed event mitigation)
   - **AlertManager API:**
     ```rust
@@ -145,7 +145,20 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
     STANDING:        bar hidden, everything resets
     ```
   - **Implementation:** extend `AlertManager` with `snooze_index: usize`, `snoozed_until: Option<Instant>`, `snooze_durations: Vec<Duration>`, message arrays
-  - **Tests:** snooze timing per index, tone shift at threshold, bar variant changes, standing resets index, configurable durations
+  - **Eng review decisions (2026-03-20):**
+    - T013 must implement `dismiss()` → `Snoozed` from the start (even as stub); T015 fills in logic
+    - Message selection at Stage2 ENTRY via `fn popup_message(&self) -> &str`; threshold: `snooze_index >= 3` → positive
+    - `progress < 1.0` while Snoozed → cancel snooze → Idle (problem resolved)
+    - Message arrays in `AlertConfig` with defaults (settings panel exposure deferred to BACKLOG)
+  - **Tests (~8):**
+    - Dismiss #1 → 5min snooze, neutral message on next popup
+    - Dismiss #2 → 15min snooze, neutral message
+    - Dismiss #3 → 30min snooze, **positive** message on next popup
+    - Dismiss #4+ → 60min snooze (capped)
+    - Standing while Snoozed → Idle, snooze_index=0
+    - `progress < 1.0` while Snoozed → cancel snooze → Idle
+    - Bar variant: solid red during Snoozed, pulsing after expiry (Stage1)
+    - Snooze expiry → Stage1 (not Stage2 directly)
 
 - [ ] **T016** P2 — Tray icon color dot
   - Small colored circle overlay on tray icon (not full recolor)

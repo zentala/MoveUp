@@ -20,6 +20,12 @@ Items not yet scheduled, before refinement.
 
 ---
 
+## Alert System — Future
+
+- **AlertManager message strings in settings panel** — `AlertConfig` holds default neutral/positive message arrays. When T001 settings panel ships, expose these as editable arrays so zentala can tune tone/wording without code changes. Depends on T001 + T015.
+
+---
+
 ## Dokumentacja
 
 - **Overlay Progress Bar Architecture Document** — pełny opis systemu paska na górze ekranu
