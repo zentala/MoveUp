@@ -47,6 +47,8 @@ export interface SessionStateDto {
   session_limit_secs: number;
   desk_height_cm: number;
   position_changes: number;
+  /** Seconds of sitting limit consumed (accounts for break credits). */
+  limit_used_secs: number;
 }
 
 /** A single tracked session within a day. */

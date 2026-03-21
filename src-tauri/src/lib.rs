@@ -11,8 +11,11 @@ mod alert_popup;
 mod alert_popup_window;
 mod colors;
 mod commands;
+mod commands_config;
 mod config;
 mod db;
+mod db_queries;
+mod db_sessions;
 mod overlay_layered;
 mod overlay_opaque;
 mod overlay_renderer;
@@ -20,10 +23,16 @@ mod overlay_variants;
 #[cfg(test)]
 mod overlay_tests;
 #[cfg(test)]
+mod overlay_variant_tests;
+#[cfg(test)]
 mod alert_manager_tests;
 #[cfg(test)]
 mod alert_snooze_tests;
+#[cfg(test)]
+mod db_tests;
 mod serial;
+mod serial_parser;
+mod serial_periodic;
 pub mod session;
 pub mod session_manager;
 mod session_reading;
@@ -86,14 +95,14 @@ pub fn run() {
                     commands::start_auto_connect,
                     commands::stop_reading,
                     commands::get_session_state,
-                    commands::set_session_limit,
-                    commands::set_stand_limit,
-                    commands::calibrate,
-                    commands::get_settings,
-                    commands::save_settings,
                     commands::get_today_summary,
                     commands::inject_reading,
-                    commands::get_overlay_state,
+                    commands_config::set_session_limit,
+                    commands_config::set_stand_limit,
+                    commands_config::calibrate,
+                    commands_config::get_settings,
+                    commands_config::save_settings,
+                    commands_config::get_overlay_state,
                 ]
             }
             #[cfg(not(any(test, debug_assertions)))]
@@ -103,12 +112,12 @@ pub fn run() {
                     commands::start_auto_connect,
                     commands::stop_reading,
                     commands::get_session_state,
-                    commands::set_session_limit,
-                    commands::set_stand_limit,
-                    commands::calibrate,
-                    commands::get_settings,
-                    commands::save_settings,
                     commands::get_today_summary,
+                    commands_config::set_session_limit,
+                    commands_config::set_stand_limit,
+                    commands_config::calibrate,
+                    commands_config::get_settings,
+                    commands_config::save_settings,
                 ]
             }
         })

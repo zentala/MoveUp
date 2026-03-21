@@ -1,6 +1,6 @@
 //! session_types.rs — Structs, enums, and DTOs for the desk session state machine.
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -77,6 +77,9 @@ pub struct SessionStateDto {
     pub desk_height_cm: f32,
     /// Number of position changes (Sitting<->Standing transitions) today.
     pub position_changes: u32,
+    /// Seconds of sitting limit consumed (accounts for break credits).
+    /// 0..limit_secs normally, >limit_secs when overtime.
+    pub limit_used_secs: i64,
 }
 
 /// Payload for the `desk:state-changed` event.

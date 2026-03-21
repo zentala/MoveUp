@@ -42,6 +42,10 @@ fn default_thickness_mm() -> i32 {
     30
 }
 
+fn default_active_widget() -> String {
+    "one-bar".to_string()
+}
+
 // ─── AppConfig ───────────────────────────────────────────────────────────────
 
 /// All user-configurable settings.
@@ -74,6 +78,9 @@ pub struct AppConfig {
     pub standing_mm: i32,
     #[serde(default = "default_thickness_mm")]
     pub desk_thickness_mm: i32,
+    /// Which widget layout is active (validated by TS widget registry).
+    #[serde(default = "default_active_widget")]
+    pub active_widget: String,
 }
 
 impl AppConfig {
@@ -134,6 +141,7 @@ impl Default for AppConfig {
             sitting_mm: default_sitting_mm(),
             standing_mm: default_standing_mm(),
             desk_thickness_mm: default_thickness_mm(),
+            active_widget: default_active_widget(),
         }
     }
 }
@@ -211,6 +219,7 @@ mod tests {
             sitting_mm: 750,
             standing_mm: 1100,
             desk_thickness_mm: 35,
+            active_widget: "two-bar".to_string(),
         };
 
         let json = serde_json::to_value(&original).unwrap();
@@ -219,5 +228,23 @@ mod tests {
         assert_eq!(original.sit_limit_mins, restored.sit_limit_mins);
         assert_eq!(original.standing_mm, restored.standing_mm);
         assert_eq!(original.notify_inactivity, restored.notify_inactivity);
+        assert_eq!(original.active_widget, restored.active_widget);
+    }
+
+    #[test]
+    fn test_active_widget_default() {
+        let config = AppConfig::default();
+        assert_eq!(config.active_widget, "one-bar");
+    }
+
+    #[test]
+    fn test_active_widget_serde_roundtrip() {
+        let config = AppConfig {
+            active_widget: "custom-widget".to_string(),
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&config).unwrap();
+        let restored: AppConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(restored.active_widget, "custom-widget");
     }
 }

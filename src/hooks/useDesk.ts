@@ -33,8 +33,14 @@ export interface UseDeskResult {
   breakSeconds: number;
   /** Configured session limit in seconds. */
   sessionLimitSecs: number;
-  /** Number of position changes (Sitting↔Standing transitions) today. */
+  /** Number of position changes (Sitting<->Standing transitions) today. */
   positionChanges: number;
+  /** Seconds of sitting limit consumed (from Rust, includes break credit). */
+  limitUsedSecs: number;
+  /** Seconds of sitting limit remaining (can be negative = overtime). */
+  limitRemaining: number;
+  /** Ratio of limit consumed (0.0 to 1.0+). 0 when no limit configured. */
+  limitRatio: number;
   /** Last sensor or connection error message, if any. */
   error: string | null;
   /** Calibrate sitting/standing heights (reads current height and saves). */
@@ -63,6 +69,7 @@ export function useDesk(): UseDeskResult {
   const [breakSeconds, setBreakSeconds] = useState(0);
   const [sessionLimitSecs, setSessionLimitSecs] = useState(0);
   const [positionChanges, setPositionChanges] = useState(0);
+  const [limitUsedSecs, setLimitUsedSecs] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   // Memoized commands
@@ -120,6 +127,7 @@ export function useDesk(): UseDeskResult {
         setBreakSeconds(dto.break_seconds);
         setSessionLimitSecs(dto.session_limit_secs);
         setPositionChanges(dto.position_changes);
+        setLimitUsedSecs(dto.limit_used_secs);
       } catch (err) {
         // Backend may not be connected yet; expected on cold start
         console.debug("get_session_state not ready:", err);
@@ -208,6 +216,9 @@ export function useDesk(): UseDeskResult {
     breakSeconds,
     sessionLimitSecs,
     positionChanges,
+    limitUsedSecs,
+    limitRemaining: sessionLimitSecs - limitUsedSecs,
+    limitRatio: sessionLimitSecs > 0 ? limitUsedSecs / sessionLimitSecs : 0,
     error,
     calibrate,
     setSitLimit,

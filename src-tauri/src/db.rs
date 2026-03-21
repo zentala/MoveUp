@@ -1,18 +1,21 @@
-//! db.rs — SQLite persistence layer via rusqlite.
+//! db.rs — SQLite persistence layer: schema, types, and re-exports.
 //!
-//! Manages database initialization, session recording, and daily summary queries.
-//! Emits `desk:db-error` on any rusqlite failure.
+//! Sub-modules:
+//! - `db_sessions` — session CRUD (insert, load, save state)
+//! - `db_queries` — summary and aggregate queries
 
-use log::error;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+
+// Re-export sub-module functions for backwards compatibility.
+pub use crate::db_queries::get_today_summary;
+pub use crate::db_sessions::{load_today_totals, save_session_state};
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 /// Initializes the database schema on first startup.
 /// Idempotent — safe to call multiple times.
 pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
-    // Create sessions table with new columns for state tracking
     conn.execute(
         r#"
         CREATE TABLE IF NOT EXISTS sessions (
@@ -30,7 +33,7 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
-    // Migrate existing sessions table if it has old schema (missing new columns)
+    // Migrate existing sessions table if it has old schema
     let old_schema = conn
         .prepare("PRAGMA table_info(sessions)")
         .and_then(|mut stmt| {
@@ -42,7 +45,6 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     if let Ok(cols) = old_schema {
         if !cols.contains(&"sitting_seconds".to_string()) {
-            // Add missing columns silently (existing databases)
             let _ = conn.execute_batch(
                 "
                 ALTER TABLE sessions ADD COLUMN sitting_seconds INTEGER DEFAULT 0;
@@ -82,7 +84,6 @@ pub struct SessionRow {
 }
 
 /// A single row from the `height_readings` table.
-/// (Deferred: will be used for sensor reading analytics and dashboard in future releases)
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeightReadingRow {
@@ -104,364 +105,4 @@ pub struct TodaySummary {
     pub yesterday_standing_secs: i64,
     pub position_changes: u32,
     pub sessions: Vec<SessionRow>,
-}
-
-// ─── Insert operations ───────────────────────────────────────────────────────
-
-/// Inserts a completed sitting session into the database.
-/// Returns an error if the insert fails.
-pub fn insert_session(
-    conn: &Connection,
-    started_at: &str,
-    ended_at: &str,
-    state: &str,
-    duration_seconds: i64,
-) -> Result<(), rusqlite::Error> {
-    conn.execute(
-        "INSERT INTO sessions (started_at, ended_at, state, duration_seconds) VALUES (?, ?, ?, ?)",
-        rusqlite::params![started_at, ended_at, state, duration_seconds],
-    )?;
-    Ok(())
-}
-
-/// Persists a state change event to the database (for session history).
-/// Called whenever SessionManager emits a state change to ensure durable state tracking.
-pub fn save_session_state(
-    conn: &Connection,
-    state_change: &crate::session::StateChangedPayload,
-) -> Result<(), String> {
-    let now = chrono::Local::now().to_rfc3339();
-    let state_str = format!("{:?}", state_change.state);
-
-    conn.execute(
-        "INSERT INTO sessions (started_at, state, duration_seconds, sitting_seconds, standing_seconds, position_changes, session_limit_secs) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        rusqlite::params![
-            &now,
-            state_str,
-            state_change.break_seconds,  // Duration of current break
-            state_change.sitting_seconds,
-            state_change.standing_seconds,
-            state_change.position_changes,
-            0  // Will be loaded from config on next app startup
-        ],
-    )
-    .map_err(|e| format!("Failed to save session state: {}", e))?;
-
-    Ok(())
-}
-
-// ─── Query operations ────────────────────────────────────────────────────────
-
-/// Loads today's total sitting and standing seconds from the database.
-/// Returns (sitting_secs, standing_secs) or an error.
-pub fn load_today_totals(conn: &Connection) -> Result<(i64, i64), String> {
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT state, duration_seconds FROM sessions WHERE started_at LIKE ? AND ended_at IS NOT NULL",
-        )
-        .map_err(|e| {
-            let msg = format!("Failed to prepare query: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-    let rows = stmt
-        .query_map(rusqlite::params![format!("{}%", today)], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-        })
-        .map_err(|e| {
-            let msg = format!("Failed to query today's totals: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-    let mut sitting_secs = 0i64;
-    let mut standing_secs = 0i64;
-
-    for row_result in rows {
-        let (state, duration) = row_result.map_err(|e| {
-            let msg = format!("Failed to read row: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-        if state == "Sitting" {
-            sitting_secs += duration;
-        } else {
-            standing_secs += duration;
-        }
-    }
-
-    Ok((sitting_secs, standing_secs))
-}
-
-/// Loads yesterday's total sitting and standing seconds from the database.
-/// Returns (sitting_secs, standing_secs) or an error.
-/// Returns (0, 0) if no sessions exist for yesterday.
-pub fn get_yesterday_totals(conn: &Connection) -> Result<(i64, i64), String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT state, duration_seconds FROM sessions WHERE date(started_at) = date('now', '-1 day') AND ended_at IS NOT NULL",
-        )
-        .map_err(|e| {
-            let msg = format!("Failed to prepare query: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-    let rows = stmt
-        .query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-        })
-        .map_err(|e| {
-            let msg = format!("Failed to query yesterday's totals: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-    let mut sitting_secs = 0i64;
-    let mut standing_secs = 0i64;
-
-    for row_result in rows {
-        let (state, duration) = row_result.map_err(|e| {
-            let msg = format!("Failed to read row: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-        if state == "Sitting" {
-            sitting_secs += duration;
-        } else {
-            standing_secs += duration;
-        }
-    }
-
-    Ok((sitting_secs, standing_secs))
-}
-
-/// Returns today's complete summary including all sessions and aggregate times.
-pub fn get_today_summary(conn: &Connection) -> Result<TodaySummary, String> {
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, started_at, ended_at, state, duration_seconds FROM sessions WHERE started_at LIKE ? AND ended_at IS NOT NULL ORDER BY started_at",
-        )
-        .map_err(|e| {
-            let msg = format!("Failed to prepare query: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-    let sessions = stmt
-        .query_map(rusqlite::params![format!("{}%", today)], |row| {
-            Ok(SessionRow {
-                id: row.get(0)?,
-                started_at: row.get(1)?,
-                ended_at: row.get(2)?,
-                state: row.get(3)?,
-                duration_seconds: row.get(4)?,
-            })
-        })
-        .map_err(|e| {
-            let msg = format!("Failed to query sessions: {}", e);
-            error!("{}", msg);
-            msg
-        })?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| {
-            let msg = format!("Failed to collect rows: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-    let mut sitting_secs = 0i64;
-    let mut standing_secs = 0i64;
-
-    for session in &sessions {
-        if let Some(duration) = session.duration_seconds {
-            if session.state == "Sitting" {
-                sitting_secs += duration;
-            } else {
-                standing_secs += duration;
-            }
-        }
-    }
-
-    let (yesterday_sitting_secs, yesterday_standing_secs) = get_yesterday_totals(conn)?;
-
-    Ok(TodaySummary {
-        sitting_secs,
-        standing_secs,
-        yesterday_sitting_secs,
-        yesterday_standing_secs,
-        position_changes: 0,  // Will be set by caller from SessionManager
-        sessions,
-    })
-}
-
-// ─── Tests ───────────────────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn test_conn() -> Connection {
-        Connection::open_in_memory().unwrap()
-    }
-
-    #[test]
-    fn test_schema_init_idempotent() {
-        let conn = test_conn();
-        assert!(init_schema(&conn).is_ok());
-        assert!(init_schema(&conn).is_ok(), "second call should be safe");
-    }
-
-    #[test]
-    fn test_insert_and_query_today() {
-        let conn = test_conn();
-        init_schema(&conn).unwrap();
-
-        let started_at = "2025-03-16T09:00:00Z";
-        let ended_at = "2025-03-16T09:30:00Z";
-        let duration = 1800;
-
-        assert!(insert_session(&conn, started_at, ended_at, "Sitting", duration).is_ok());
-
-        let (_sitting, _standing) = load_today_totals(&conn).expect("query should succeed");
-        // Note: this will only work if the date in started_at matches today
-        // For a real test, we'd need to mock the date
-    }
-
-    #[test]
-    fn test_load_today_totals_empty() {
-        let conn = test_conn();
-        init_schema(&conn).unwrap();
-
-        let (sitting, standing) = load_today_totals(&conn).unwrap();
-        assert_eq!(sitting, 0);
-        assert_eq!(standing, 0);
-    }
-
-    #[test]
-    fn test_get_yesterday_totals_empty() {
-        let conn = test_conn();
-        init_schema(&conn).unwrap();
-
-        let (sitting, standing) = get_yesterday_totals(&conn).unwrap();
-        assert_eq!(sitting, 0, "no yesterday data should return 0 sitting");
-        assert_eq!(standing, 0, "no yesterday data should return 0 standing");
-    }
-
-    #[test]
-    fn test_get_today_summary_includes_yesterday() {
-        let conn = test_conn();
-        init_schema(&conn).unwrap();
-
-        let summary = get_today_summary(&conn).unwrap();
-        assert_eq!(summary.yesterday_sitting_secs, 0, "empty db should have 0 yesterday sitting");
-        assert_eq!(summary.yesterday_standing_secs, 0, "empty db should have 0 yesterday standing");
-    }
-
-    #[test]
-    fn test_aggregate_multiple_sitting_sessions() {
-        let conn = test_conn();
-        init_schema(&conn).unwrap();
-
-        let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
-
-        // Insert multiple sitting sessions
-        insert_session(&conn, &format!("{}08:00:00Z", today), &format!("{}08:30:00Z", today), "Sitting", 1800).unwrap();
-        insert_session(&conn, &format!("{}09:00:00Z", today), &format!("{}09:15:00Z", today), "Sitting", 900).unwrap();
-        insert_session(&conn, &format!("{}10:00:00Z", today), &format!("{}10:20:00Z", today), "Sitting", 1200).unwrap();
-
-        let (sitting, standing) = load_today_totals(&conn).unwrap();
-
-        // Total: 1800 + 900 + 1200 = 3900 seconds
-        assert_eq!(sitting, 3900, "sitting totals should aggregate correctly");
-        assert_eq!(standing, 0, "no standing sessions should be 0");
-    }
-
-    #[test]
-    fn test_aggregate_mixed_states() {
-        let conn = test_conn();
-        init_schema(&conn).unwrap();
-
-        let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
-
-        insert_session(&conn, &format!("{}08:00:00Z", today), &format!("{}08:30:00Z", today), "Sitting", 1800).unwrap();
-        insert_session(&conn, &format!("{}08:30:00Z", today), &format!("{}08:40:00Z", today), "Standing", 600).unwrap();
-        insert_session(&conn, &format!("{}09:00:00Z", today), &format!("{}09:30:00Z", today), "Sitting", 1800).unwrap();
-
-        let (sitting, standing) = load_today_totals(&conn).unwrap();
-
-        assert_eq!(sitting, 3600, "sitting total: 1800 + 1800");
-        assert_eq!(standing, 600, "standing total");
-    }
-
-    #[test]
-    fn test_incomplete_sessions_ignored() {
-        let conn = test_conn();
-        init_schema(&conn).unwrap();
-
-        let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
-
-        // Insert a complete session
-        insert_session(&conn, &format!("{}08:00:00Z", today), &format!("{}08:30:00Z", today), "Sitting", 1800).unwrap();
-
-        // Insert an incomplete session (ended_at IS NULL)
-        conn.execute(
-            "INSERT INTO sessions (started_at, state) VALUES (?, ?)",
-            rusqlite::params![format!("{}09:00:00Z", today), "Sitting"],
-        ).unwrap();
-
-        let (sitting, standing) = load_today_totals(&conn).unwrap();
-
-        // Only the complete session should be counted
-        assert_eq!(sitting, 1800, "incomplete sessions should be excluded");
-        assert_eq!(standing, 0);
-    }
-
-    #[test]
-    fn test_schema_migration_adds_new_columns() {
-        let conn = test_conn();
-
-        // First initialization creates schema
-        init_schema(&conn).unwrap();
-
-        // Second initialization should be idempotent (no error)
-        let result = init_schema(&conn);
-        assert!(result.is_ok(), "second schema init should be idempotent");
-
-        // Verify the schema was created correctly
-        let mut stmt = conn.prepare("PRAGMA table_info(sessions)").unwrap();
-        let columns: Vec<String> = stmt
-            .query_map([], |row| row.get(1))
-            .unwrap()
-            .filter_map(Result::ok)
-            .collect();
-
-        assert!(columns.contains(&"sitting_seconds".to_string()), "sitting_seconds column should exist");
-        assert!(columns.contains(&"standing_seconds".to_string()), "standing_seconds column should exist");
-        assert!(columns.contains(&"position_changes".to_string()), "position_changes column should exist");
-    }
-
-    #[test]
-    fn test_get_today_summary_returns_all_sessions() {
-        let conn = test_conn();
-        init_schema(&conn).unwrap();
-
-        let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
-
-        insert_session(&conn, &format!("{}08:00:00Z", today), &format!("{}08:30:00Z", today), "Sitting", 1800).unwrap();
-        insert_session(&conn, &format!("{}09:00:00Z", today), &format!("{}09:30:00Z", today), "Standing", 1800).unwrap();
-
-        let summary = get_today_summary(&conn).unwrap();
-
-        assert_eq!(summary.sessions.len(), 2, "should return all sessions");
-        assert_eq!(summary.sitting_secs, 1800);
-        assert_eq!(summary.standing_secs, 1800);
-    }
 }

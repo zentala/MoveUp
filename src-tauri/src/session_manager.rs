@@ -136,7 +136,15 @@ impl SessionManager {
             stand_limit_secs: self.state.stand_limit_secs,
             desk_height_cm: self.state.desk_height_cm,
             position_changes: self.state.position_changes,
+            limit_used_secs: self.compute_limit_used(now),
         }
+    }
+
+    /// Compute how many seconds of sitting limit have been consumed.
+    /// Break credit is already subtracted from `sitting_seconds` in `apply_break_credit()`,
+    /// so limit_used = live sitting seconds.
+    fn compute_limit_used(&self, now: chrono::DateTime<Utc>) -> i64 {
+        self.get_live_sitting_seconds(now)
     }
 
     /// Computes live sitting seconds: committed + elapsed since sitting_started.
