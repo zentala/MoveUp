@@ -19,6 +19,9 @@ export interface DistancePayload {
   timestamp: string;
 }
 
+/** Break credit type applied on a Standing->Sitting transition. */
+export type BreakCredit = "none" | "partial" | "full";
+
 /** Payload for `desk:state-changed` event. */
 export interface StateChangedPayload {
   state: DeskState;
@@ -27,6 +30,12 @@ export interface StateChangedPayload {
   break_seconds: number;
   desk_height_cm: number;
   position_changes: number;
+  /** Duration of the last standing/break session in seconds. */
+  last_break_secs: number;
+  /** Duration of the last sitting session in seconds. */
+  last_sitting_secs: number;
+  /** Break credit applied on this transition. */
+  break_credit: BreakCredit;
 }
 
 /** Payload for `desk:sensor-error` event. */

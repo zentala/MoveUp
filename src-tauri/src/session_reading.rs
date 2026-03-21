@@ -93,6 +93,9 @@ impl SessionManager {
                 break_seconds: self.state.break_seconds,
                 desk_height_cm,
                 position_changes: self.state.position_changes,
+                last_break_secs: self.state.last_break_secs,
+                last_sitting_secs: self.state.last_sitting_secs,
+                break_credit: self.state.last_break_credit.clone(),
             }),
             completed_session,
         }
@@ -111,6 +114,7 @@ impl SessionManager {
                 if let Some(started) = self.state.sitting_started.take() {
                     let elapsed = (now - started).num_seconds().max(0);
                     self.state.sitting_seconds += elapsed;
+                    self.state.last_sitting_secs = elapsed;
                     if *candidate != DeskState::Sitting {
                         completed_session = Some(CompletedSession {
                             started_at: started.to_rfc3339(),
@@ -125,6 +129,8 @@ impl SessionManager {
                     self.alert_fired = false;
                     self.stand_alert_fired = false;
                     self.state.last_position_change_at = Some(now);
+                    // Reset break credit when leaving sitting
+                    self.state.last_break_credit = BreakCredit::None;
                 }
             }
             DeskState::Standing => {
@@ -132,6 +138,7 @@ impl SessionManager {
                     if let Some(bs) = self.state.break_started.take() {
                         let break_dur = (now - bs).num_seconds().max(0);
                         self.state.standing_seconds += break_dur;
+                        self.state.last_break_secs = break_dur;
                         if *candidate == DeskState::Sitting {
                             self.apply_break_credit(break_dur);
                         }
@@ -147,6 +154,7 @@ impl SessionManager {
                 if *candidate == DeskState::Sitting {
                     if let Some(bs) = self.state.break_started.take() {
                         let break_dur = (now - bs).num_seconds().max(0);
+                        self.state.last_break_secs = break_dur;
                         self.apply_break_credit(break_dur);
                         self.state.break_seconds = 0;
                     }
@@ -162,15 +170,8 @@ impl SessionManager {
     /// Accumulates time while remaining in the current state (no transition).
     pub(crate) fn accumulate_ongoing(&mut self, now: DateTime<Utc>) {
         match self.state.state {
-            DeskState::Sitting => {
-                // sitting_seconds committed on transition; live value via snapshot().
-            }
-            DeskState::Standing => {
-                if let Some(bs) = self.state.break_started {
-                    self.state.break_seconds = (now - bs).num_seconds().max(0);
-                }
-            }
-            DeskState::Walking | DeskState::Away => {
+            DeskState::Sitting => {} // committed on transition; live via snapshot()
+            DeskState::Standing | DeskState::Walking | DeskState::Away => {
                 if let Some(bs) = self.state.break_started {
                     self.state.break_seconds = (now - bs).num_seconds().max(0);
                 }
@@ -240,11 +241,14 @@ impl SessionManager {
     pub fn apply_break_credit(&mut self, break_secs: i64) {
         if break_secs < BREAK_SHORT_SECS {
             // Less than 5 minutes — no credit.
+            self.state.last_break_credit = BreakCredit::None;
         } else if break_secs < BREAK_LONG_SECS {
             self.state.sitting_seconds =
                 (self.state.sitting_seconds - SHORT_BREAK_CREDIT_SECS).max(0);
+            self.state.last_break_credit = BreakCredit::Partial;
         } else {
             self.state.sitting_seconds = 0;
+            self.state.last_break_credit = BreakCredit::Full;
         }
     }
 }
