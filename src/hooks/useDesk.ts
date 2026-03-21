@@ -4,7 +4,7 @@
  * Fetches initial session state on mount and subscribes to all `desk:*`
  * Tauri events, cleaning up listeners on unmount.
  */
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
@@ -13,44 +13,21 @@ import type {
   DeviceConnectedPayload,
   StateChangedPayload,
   SensorErrorPayload,
+  TodaySummaryDto,
+  PreviousSession,
+  SessionEntry,
 } from "@/types";
+import type { TransitionInfo, UseDeskResult } from "./useDeskTypes";
 
-/** Transition info shown for 30s after a state change. */
-export interface TransitionInfo {
-  lastBreakSecs: number;
-  lastSittingSecs: number;
-  breakCredit: "none" | "partial" | "full";
-  transitionTo: DeskState;
-}
+export type { TransitionInfo, UseDeskResult } from "./useDeskTypes";
 
-/** Shape returned by the useDesk hook. */
-export interface UseDeskResult {
-  connected: boolean;
-  port: string | null;
-  state: DeskState | null;
-  deskHeightCm: number;
-  /** Current sitting session seconds (resets after break credit). */
-  sittingSeconds: number;
-  standingSeconds: number;
-  breakSeconds: number;
-  sessionLimitSecs: number;
-  positionChanges: number;
-  limitUsedSecs: number;
-  limitRemaining: number;
-  limitRatio: number;
-  dailyScore: number;
-  error: string | null;
-  /** Transition info (auto-clears after 30s). */
-  transition: TransitionInfo | null;
-  calibrate: (position: "sitting" | "standing") => Promise<void>;
-  setSitLimit: (mins: number) => Promise<void>;
-  setStandLimit: (mins: number) => Promise<void>;
-}
+/** Default break reset threshold in seconds (10 min for full reset). */
+const BREAK_RESET_THRESHOLD_SECS = 600;
 
 /**
  * Subscribes to all Tauri `desk:*` events and exposes current desk state.
  * Auto-fetches initial state via `get_session_state()` on mount, then:
- * - Polls `get_session_state()` every 1 second (live updates when event system lags)
+ * - Polls `get_session_state()` every 1 second
  * - Polls `get_today_summary()` every 10 seconds
  * - Starts auto-connect on mount
  * - Exposes calibration and settings commands
@@ -69,17 +46,14 @@ export function useDesk(): UseDeskResult {
   const [dailyScore, setDailyScore] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [transition, setTransition] = useState<TransitionInfo | null>(null);
+  const [todaySummary, setTodaySummary] = useState<TodaySummaryDto | null>(null);
   const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Memoized commands
   const calibrate = useCallback(
     async (position: "sitting" | "standing") => {
       try {
-        // Get current height
         const dto = await invoke<SessionStateDto>("get_session_state");
         const heightMm = Math.round(dto.desk_height_cm * 10);
-
-        // Save calibration
         if (position === "sitting") {
           await invoke("calibrate", { sitting_mm: heightMm });
         } else {
@@ -112,10 +86,8 @@ export function useDesk(): UseDeskResult {
   }, []);
 
   useEffect(() => {
-    // Start auto-connect on mount
     invoke("start_auto_connect").catch(console.error);
 
-    // Fetch current session state on mount
     const fetchState = async () => {
       try {
         const dto = await invoke<SessionStateDto>("get_session_state");
@@ -129,22 +101,21 @@ export function useDesk(): UseDeskResult {
         setLimitUsedSecs(dto.limit_used_secs);
         setDailyScore(dto.daily_score);
       } catch (err) {
-        // Backend may not be connected yet; expected on cold start
         console.debug("get_session_state not ready:", err);
       }
     };
 
+    const fetchSummary = () => {
+      invoke<TodaySummaryDto>("get_today_summary")
+        .then(setTodaySummary)
+        .catch((err) => console.debug("get_today_summary not ready:", err));
+    };
+
     fetchState();
+    fetchSummary();
 
-    // Poll session state every 1 second
     const stateInterval = setInterval(fetchState, 1000);
-
-    // Poll today summary every 10 seconds (used by TodayStats)
-    const summaryInterval = setInterval(() => {
-      invoke("get_today_summary").catch((err) => {
-        console.debug("get_today_summary not ready:", err);
-      });
-    }, 10000);
+    const summaryInterval = setInterval(fetchSummary, 10000);
 
     let cleanupFns: Array<() => void> = [];
 
@@ -172,7 +143,6 @@ export function useDesk(): UseDeskResult {
           setStandingSeconds(payload.standing_seconds);
           setBreakSeconds(payload.break_seconds);
           setPositionChanges(payload.position_changes);
-          // Show transition banner for 30s
           if (transitionTimer.current) clearTimeout(transitionTimer.current);
           setTransition({
             lastBreakSecs: payload.last_break_secs,
@@ -181,24 +151,21 @@ export function useDesk(): UseDeskResult {
             transitionTo: payload.state,
           });
           transitionTimer.current = setTimeout(() => setTransition(null), 30_000);
+          // Refresh summary on state change
+          fetchSummary();
         },
       );
 
       const unError = await listen<SensorErrorPayload>(
         "desk:sensor-error",
-        ({ payload }) => {
-          setError(payload.message);
-        },
+        ({ payload }) => setError(payload.message),
       );
 
       const unDbError = await listen<{ message: string }>(
         "desk:db-error",
-        ({ payload }) => {
-          setError(payload.message);
-        },
+        ({ payload }) => setError(payload.message),
       );
 
-      // desk:session-alert has no payload — just show a generic reminder
       const unAlert = await listen<null>("desk:session-alert", () => {
         setError("Time to take a break!");
       });
@@ -216,24 +183,36 @@ export function useDesk(): UseDeskResult {
     };
   }, []);
 
+  // Derived: previous session from today's sessions list
+  const previousSession = useMemo((): PreviousSession | null => {
+    if (!todaySummary || todaySummary.sessions.length < 2) return null;
+    const prev = todaySummary.sessions[todaySummary.sessions.length - 2];
+    const isBreak = prev.state === "Standing" || prev.state === "Walking" || prev.state === "Away";
+    return {
+      state: prev.state,
+      durationSecs: prev.duration_secs,
+      wasEffective: isBreak && prev.duration_secs >= 300,
+    };
+  }, [todaySummary]);
+
+  const todaySessions: SessionEntry[] = todaySummary?.sessions ?? [];
+  const todayChanges = positionChanges;
+  const todaySittingSecs = todaySummary?.sitting_secs ?? 0;
+  const todayStandingSecs = todaySummary?.standing_secs ?? 0;
+  const breakResetProgress = Math.min(breakSeconds / BREAK_RESET_THRESHOLD_SECS, 1.0);
+
   return {
-    connected,
-    port,
-    state,
-    deskHeightCm,
-    sittingSeconds,
-    standingSeconds,
-    breakSeconds,
-    sessionLimitSecs,
-    positionChanges,
+    connected, port, state, deskHeightCm,
+    sittingSeconds, standingSeconds, breakSeconds,
+    sessionLimitSecs, positionChanges,
     limitUsedSecs,
     limitRemaining: sessionLimitSecs - limitUsedSecs,
     limitRatio: sessionLimitSecs > 0 ? limitUsedSecs / sessionLimitSecs : 0,
-    dailyScore,
-    error,
-    transition,
-    calibrate,
-    setSitLimit,
-    setStandLimit,
+    breakResetThreshold: BREAK_RESET_THRESHOLD_SECS,
+    breakResetProgress,
+    previousSession,
+    todaySessions, todayChanges, todaySittingSecs, todayStandingSecs,
+    dailyScore, error, transition,
+    calibrate, setSitLimit, setStandLimit,
   };
 }

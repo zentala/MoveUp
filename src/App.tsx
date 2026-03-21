@@ -1,44 +1,28 @@
 /**
  * App.tsx — root component for the Desk ergonomics tracker.
  *
- * Renders live session data (state, progress, today's stats) sourced from
- * the Rust Tauri backend via the useDesk hook. Auto-connects on start.
- * Shows SettingsPanel on first run until settings are configured.
+ * Uses a pluggable widget system: core provides data via useDesk,
+ * the active widget handles presentation. ScreenProgressBar (overlay)
+ * stays outside the widget system as a separate concern.
  */
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDesk } from "@/hooks/useDesk";
 import { useTimer } from "@/hooks/useTimer";
-import { formatDuration } from "@/utils/format";
+import { useActiveWidget } from "@/hooks/useActiveWidget";
+import { resolveWidget } from "@/widgets/registry";
 import SettingsPanel from "@/components/SettingsPanel";
-import HeightRail from "@/components/HeightRail";
-import SessionProgress from "@/components/SessionProgress";
-import TransitionBanner from "@/components/TransitionBanner";
-import StateIndicator from "@/components/StateIndicator";
-import TodayStats from "@/components/TodayStats";
-import AppProgressBar from "@/components/AppProgressBar";
 import ScreenProgressBar from "@/components/ScreenProgressBar";
+import type { WidgetProps } from "@/types";
 import "@/styles/globals.css";
-
-function statusDotClass(connected: boolean, hasError: boolean): string {
-  if (hasError) return "status-dot--red";
-  if (connected) return "status-dot--green";
-  return "status-dot--yellow";
-}
-
-function connectionLabel(connected: boolean, port: string | null): string {
-  if (connected && port) return port;
-  if (connected) return "connected";
-  return "scanning…";
-}
 
 export default function App() {
   const [showSettings, setShowSettings] = useState(false);
-  const { connected, port, state, deskHeightCm, sittingSeconds, breakSeconds, sessionLimitSecs, dailyScore, error, transition } =
-    useDesk();
+  const desk = useDesk();
+  const [activeWidgetId] = useActiveWidget();
 
-  const liveSitting = useTimer(sittingSeconds, state === "Sitting");
-  const liveBreak   = useTimer(breakSeconds,   state !== "Sitting" && state !== null);
+  const liveSitting = useTimer(desk.sittingSeconds, desk.state === "Sitting");
+  const liveBreak = useTimer(desk.breakSeconds, desk.state !== "Sitting" && desk.state !== null);
 
   // Debug: poll overlay state every 2s — DEV only
   const [overlayDebug, setOverlayDebug] = useState<Record<string, unknown> | null>(null);
@@ -54,30 +38,47 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // Show settings on first run: detect uncalibrated state from Tauri store.
-  // Falls back gracefully if command is unavailable.
+  // Show settings on first run: detect uncalibrated state
   useEffect(() => {
     async function checkFirstRun() {
       try {
         const config = await invoke<{ sitting_mm: number; standing_mm: number }>("get_settings");
-        const isUncalibrated = config.sitting_mm === 720 && config.standing_mm === 1050;
-        if (isUncalibrated) {
+        if (config.sitting_mm === 720 && config.standing_mm === 1050) {
           setShowSettings(true);
         }
       } catch {
-        // Cannot determine calibration status — do not show settings
+        // Cannot determine calibration status
       }
     }
     checkFirstRun();
   }, []);
 
-  async function handleStop() {
-    await invoke("stop_reading").catch(console.error);
-  }
+  const showOverlay = desk.sessionLimitSecs > 0 && desk.state === "Sitting";
+  const ActiveWidget = resolveWidget(activeWidgetId);
 
-  const showProgress = sessionLimitSecs > 0 && state === "Sitting";
+  // Build WidgetProps from useDesk + useTimer
+  const widgetProps: WidgetProps = {
+    connected: desk.connected,
+    port: desk.port,
+    state: desk.state,
+    deskHeightCm: desk.deskHeightCm,
+    currentSessionSecs: liveSitting,
+    limitSecs: desk.sessionLimitSecs,
+    limitRemaining: desk.limitRemaining,
+    limitRatio: desk.limitRatio,
+    breakSecs: liveBreak,
+    breakResetThreshold: desk.breakResetThreshold,
+    breakResetProgress: desk.breakResetProgress,
+    previousSession: desk.previousSession,
+    todaySessions: desk.todaySessions,
+    todayChanges: desk.todayChanges,
+    todayStandingSecs: desk.todayStandingSecs,
+    todaySittingSecs: desk.todaySittingSecs,
+    todayScore: desk.dailyScore,
+    error: desk.error,
+    onOpenSettings: () => setShowSettings(true),
+  };
 
-  // If settings panel is open, show only that
   if (showSettings) {
     return (
       <main className="app">
@@ -88,96 +89,22 @@ export default function App() {
 
   return (
     <>
-      {/* SCREEN OVERLAY: 4px progress bar on top of EVERYTHING */}
-      {showProgress && (
+      {showOverlay && (
         <ScreenProgressBar
           sittingSeconds={liveSitting}
-          limitSeconds={sessionLimitSecs}
+          limitSeconds={desk.sessionLimitSecs}
         />
       )}
 
       <main className="app">
+        <ActiveWidget {...widgetProps} />
 
-        {/* DEBUG: V2 Progress bar — 14px inside app window */}
-        {showProgress && (
-          <AppProgressBar
-            sittingSeconds={liveSitting}
-            limitSeconds={sessionLimitSecs}
-          />
-        )}
-
-      {/* Header — app identity + connection status + settings button */}
-      <div className="app__header">
-        <span className="app__title">↕ desk</span>
-        <div className="app__header-right">
-          <div className="connection-status">
-            <span className={`status-dot ${statusDotClass(connected, error !== null && !connected)}`} />
-            <span>{connectionLabel(connected, port)}</span>
+        {/* Debug: overlay state — DEV only */}
+        {import.meta.env.DEV && overlayDebug && (
+          <div style={{ fontSize: "10px", opacity: 0.7, padding: "4px 8px", fontFamily: "monospace" }}>
+            overlay: {String(overlayDebug.data_source)} | {String(overlayDebug.progress_pct)} | visible={String(overlayDebug.visible)} | h={String(overlayDebug.bar_height)}px
           </div>
-          <button
-            className="btn btn--link"
-            onClick={() => setShowSettings(true)}
-            title="Open settings"
-          >
-            ⚙
-          </button>
-        </div>
-      </div>
-
-      {/* Main state card — HeightRail is the left accent */}
-      <div className="panel-row">
-        <HeightRail deskHeightCm={deskHeightCm} state={state}>
-          <StateIndicator state={state} deskHeightCm={deskHeightCm} />
-
-          {/* Transition banner — 30s after state change */}
-          {transition && <TransitionBanner transition={transition} />}
-
-          {/* Session timer — visible while sitting */}
-          {showProgress && (
-            <SessionProgress
-              sittingSeconds={liveSitting}
-              limitSeconds={sessionLimitSecs}
-            />
-          )}
-
-          {/* Standing timer — visible when standing */}
-          {state === "Standing" && (
-            <div className="break-info">
-              <span className="break-info__duration">{formatDuration(liveBreak)}</span>
-              <span className="break-info__label">standing</span>
-            </div>
-          )}
-
-          {/* Walking/Away info */}
-          {(state === "Walking" || state === "Away") && (
-            <div className="break-info">
-              <span className="break-info__duration">{formatDuration(liveBreak)}</span>
-              <span className="break-info__label">{state === "Walking" ? "walking" : "away"}</span>
-            </div>
-          )}
-        </HeightRail>
-      </div>
-
-      {/* Today's totals */}
-      <div className="panel-row">
-        <TodayStats dailyScore={dailyScore} />
-      </div>
-
-      {/* Debug: overlay state — DEV only */}
-      {import.meta.env.DEV && overlayDebug && (
-        <div style={{ fontSize: "10px", opacity: 0.7, padding: "4px 8px", fontFamily: "monospace" }}>
-          overlay: {String(overlayDebug.data_source)} | {String(overlayDebug.progress_pct)} | visible={String(overlayDebug.visible)} | h={String(overlayDebug.bar_height)}px
-        </div>
-      )}
-
-      {/* Error banner */}
-      {error && <div className="error-banner">{error}</div>}
-
-      {/* Actions */}
-      <div className="actions">
-        <button className="btn btn--danger" onClick={handleStop}>stop</button>
-      </div>
-
+        )}
       </main>
     </>
   );

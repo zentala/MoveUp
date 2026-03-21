@@ -102,3 +102,48 @@ export interface PortInfo {
   name: string;
   description: string | null;
 }
+
+// ─── Widget System Types ────────────────────────────────────────────────────
+
+/** Info about the most recent completed session (before the current one). */
+export interface PreviousSession {
+  state: DeskState;
+  durationSecs: number;
+  /** True if the break was long enough for credit (partial or full). */
+  wasEffective: boolean;
+}
+
+/** Data provided by core to every widget — pure presentation contract. */
+export interface WidgetProps {
+  connected: boolean;
+  port: string | null;
+  state: DeskState | null;
+  deskHeightCm: number;
+  currentSessionSecs: number;
+  limitSecs: number;
+  /** limitSecs - limitUsedSecs. Goes negative when over limit. */
+  limitRemaining: number;
+  /** limitUsedSecs / limitSecs. Can exceed 1.0. 0 when limitSecs=0. */
+  limitRatio: number;
+  breakSecs: number;
+  breakResetThreshold: number;
+  breakResetProgress: number;
+  previousSession: PreviousSession | null;
+  todaySessions: SessionEntry[];
+  todayChanges: number;
+  todayStandingSecs: number;
+  todaySittingSecs: number;
+  todayScore: number;
+  error: string | null;
+  onOpenSettings: () => void;
+}
+
+/** A widget is a pure presentation component receiving WidgetProps. */
+export type DeskWidget = React.FC<WidgetProps>;
+
+/** Entry in the widget registry. */
+export interface WidgetRegistration {
+  id: string;
+  name: string;
+  component: DeskWidget;
+}

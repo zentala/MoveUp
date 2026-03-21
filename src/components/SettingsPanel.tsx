@@ -12,6 +12,7 @@ import type { SettingsPanelProps, DeskSettings } from "./settings/SettingsTypes"
 import { DEFAULT_SETTINGS } from "./settings/SettingsTypes";
 import CalibrationSection from "./settings/CalibrationSection";
 import NotificationsSection from "./settings/NotificationsSection";
+import WidgetPickerSection from "./settings/WidgetPickerSection";
 
 export type { SettingsPanelProps, DeskSettings } from "./settings/SettingsTypes";
 
@@ -129,6 +130,8 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
       />
 
       <NotificationsSection settings={settings} onChange={setSettings} />
+
+      <WidgetPickerSection />
 
       {/* Misc */}
       <div className="settings-panel__section">
