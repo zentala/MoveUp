@@ -76,6 +76,7 @@ mod tests {
             pts_standing_per_min: 2.0,
             pts_session_bonus: 10.0,
             pts_sitting_per_min: -1.0,
+            show_welcome_on_startup: false,
         };
 
         let json = serde_json::to_value(&original).unwrap();
@@ -86,6 +87,7 @@ mod tests {
         assert_eq!(original.notify_inactivity, restored.notify_inactivity);
         assert_eq!(original.active_widget, restored.active_widget);
         assert_eq!(restored.notification_backend, "popup");
+        assert!(!restored.show_welcome_on_startup);
     }
 
     #[test]
@@ -101,5 +103,18 @@ mod tests {
         assert!((config.pts_standing_per_min - 1.0).abs() < f32::EPSILON);
         assert!((config.pts_session_bonus - 5.0).abs() < f32::EPSILON);
         assert!((config.pts_sitting_per_min - (-0.5)).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_welcome_defaults_true() {
+        let config = AppConfig::default();
+        assert!(config.show_welcome_on_startup);
+    }
+
+    #[test]
+    fn test_welcome_serde_missing_defaults_true() {
+        let json = serde_json::json!({ "sit_limit_mins": 30 });
+        let config: AppConfig = serde_json::from_value(json).unwrap();
+        assert!(config.show_welcome_on_startup);
     }
 }

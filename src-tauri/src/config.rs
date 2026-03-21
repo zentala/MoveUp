@@ -8,47 +8,16 @@ use serde::{Deserialize, Serialize};
 use tauri::Runtime;
 use tauri_plugin_store::Store;
 
-// ─── Default value helpers ───────────────────────────────────────────────────
-
-fn default_sit_limit() -> u32 {
-    45
-}
-
-fn default_stand_limit() -> u32 {
-    15
-}
-
-fn default_standing_target() -> u32 {
-    15
-}
-
-fn default_stand_max() -> u32 {
-    90
-}
-
-fn bool_true() -> bool {
-    true
-}
-
-fn default_sitting_mm() -> i32 {
-    720
-}
-
-fn default_standing_mm() -> i32 {
-    1050
-}
-
-fn default_thickness_mm() -> i32 {
-    30
-}
-
-fn default_active_widget() -> String {
-    "one-bar".to_string()
-}
-
-fn default_notification_backend() -> String {
-    "toast".to_string()
-}
+fn default_sit_limit() -> u32 { 45 }
+fn default_stand_limit() -> u32 { 15 }
+fn default_standing_target() -> u32 { 15 }
+fn default_stand_max() -> u32 { 90 }
+fn bool_true() -> bool { true }
+fn default_sitting_mm() -> i32 { 720 }
+fn default_standing_mm() -> i32 { 1050 }
+fn default_thickness_mm() -> i32 { 30 }
+fn default_active_widget() -> String { "one-bar".to_string() }
+fn default_notification_backend() -> String { "toast".to_string() }
 
 fn default_pts_standing_per_min() -> f32 {
     1.0
@@ -109,6 +78,9 @@ pub struct AppConfig {
     /// Points per minute of sitting (negative = penalty). Default: -0.5.
     #[serde(default = "default_pts_sitting_per_min")]
     pub pts_sitting_per_min: f32,
+    /// Show welcome popup on startup. Set to false after first dismiss with "don't show again".
+    #[serde(default = "bool_true")]
+    pub show_welcome_on_startup: bool,
 }
 
 impl AppConfig {
@@ -174,6 +146,7 @@ impl Default for AppConfig {
             pts_standing_per_min: default_pts_standing_per_min(),
             pts_session_bonus: default_pts_session_bonus(),
             pts_sitting_per_min: default_pts_sitting_per_min(),
+            show_welcome_on_startup: bool_true(),
         }
     }
 }

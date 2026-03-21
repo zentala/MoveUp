@@ -109,6 +109,8 @@ pub fn run() {
                     commands::get_today_summary,
                     commands::inject_reading,
                     commands::trigger_test_notification,
+                    commands::dismiss_welcome,
+                    commands::show_welcome,
                     commands_config::set_session_limit,
                     commands_config::set_stand_limit,
                     commands_config::calibrate,
@@ -126,6 +128,8 @@ pub fn run() {
                     commands::get_session_state,
                     commands::get_today_summary,
                     commands::trigger_test_notification,
+                    commands::dismiss_welcome,
+                    commands::show_welcome,
                     commands_config::set_session_limit,
                     commands_config::set_stand_limit,
                     commands_config::calibrate,
@@ -159,8 +163,15 @@ pub fn run() {
                     let config = crate::config::AppConfig::load(store.inner());
                     let mut session = state.session.lock().unwrap();
                     *session = crate::session::SessionManager::new_from_config(&config);
-                    *state.config.lock().unwrap() = Some(config);
+                    *state.config.lock().unwrap() = Some(config.clone());
                     info!("startup: config loaded from store into SessionManager");
+
+                    // Show welcome popup on first launch (or if user hasn't dismissed it).
+                    if config.show_welcome_on_startup {
+                        if let Err(e) = commands::show_welcome_window(app.handle()) {
+                            log::warn!("Failed to show welcome popup: {}", e);
+                        }
+                    }
                 }
             }
 

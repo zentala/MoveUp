@@ -22,6 +22,16 @@
         "decorations": false,
         "transparent": true,
         "visible": false
+      },
+      {
+        "label": "welcome",
+        "title": "zntlDesk — Witaj!",
+        "width": 480,
+        "height": 420,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "center": true,
+        "visible": false
       }
     ],
     "security": {
