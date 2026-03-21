@@ -20,6 +20,26 @@ Items not yet scheduled, before refinement.
 
 ---
 
+## Standing Mode Theme — Floating Window
+
+When user stands, floating window changes background to subtle gold/green tint.
+- Emit `desk:overlay-mode-changed` event from tray_controller.rs
+- React component listens and applies CSS class `standing-mode` to root
+- Style: `background: rgba(218, 165, 32, 0.05)` — barely visible warmth
+- Implement after T028 (points in floating window) when UI is being touched anyway
+
+---
+
+## App Icon — True Vector SVG
+
+- `src-tauri/icons/icon-source.svg` is NOT a real vector — it's a PNG rasterized image wrapped in an SVG container (base64-encoded `data:image/png` inside `<image href=...>`). Colors cannot be changed via CSS/attributes.
+- **To do:** Replace with a proper SVG drawn with `<path>` / `<rect>` elements so it can be recolored and scaled infinitely.
+- Search terms: Noun Project `standing desk`, SVG Repo `adjustable desk`, Flaticon `sit stand`
+- Or: design from scratch in Inkscape/Figma — a simple desk silhouette (horizontal top + two legs at different heights) works at 16px.
+- Once real SVG exists: use `pnpm tauri icon source.png` to auto-generate all required sizes.
+
+---
+
 ## Alert System — Future
 
 - **AlertManager message strings in settings panel** — `AlertConfig` holds default neutral/positive message arrays. When T001 settings panel ships, expose these as editable arrays so zentala can tune tone/wording without code changes. Depends on T001 + T015.

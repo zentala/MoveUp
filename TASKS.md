@@ -10,10 +10,10 @@
 
 > Critical gaps from CEO review: split truth, no calibration persistence, no daily reset.
 
-- [ ] **T002** P0 — Config store: persist settings + calibration via `tauri-plugin-store` + **Rust owns today's totals** `.claude/tasks/0002-settings-store.md`
-- [ ] **T008** P0 — (merged into T002) Calibration persistence — sitting/standing/thickness mm in AppConfig
-- [ ] **T009** P1 — Daily reset: detect midnight rollover, reset in-memory counters `.claude/tasks/0009-daily-reset.md`
-- [ ] **T006** P1 — Expose `standing_secs` from in-memory state (fix placeholder 0) `.claude/tasks/0006-standing-secs.md`
+- [x] **T002** P0 — Config store: persist settings + calibration via `tauri-plugin-store` + **Rust owns today's totals** `.claude/tasks/0002-settings-store.md`
+- [x] **T008** P0 — (merged into T002) Calibration persistence — sitting/standing/thickness mm in AppConfig
+- [x] **T009** P1 — Daily reset: detect midnight rollover, reset in-memory counters `.claude/tasks/0009-daily-reset.md`
+- [x] **T006** P1 — Expose `standing_secs` from in-memory state (fix placeholder 0) `.claude/tasks/0006-standing-secs.md`
 
 ---
 
@@ -21,15 +21,15 @@
 
 > Configurable thresholds and notification toggles.
 
-- [ ] **T001** P1 — Settings panel UI: absorbs CalibrationWizard, sliders + toggles `.claude/tasks/0001-settings-panel.md`
-- [ ] **T003** P2 — Notification preference toggles (3 types — position_changed removed) `.claude/tasks/0003-notification-prefs.md`
-- [ ] **T004** P2 — Stand reminder: configurable "sit down after X min" limit `.claude/tasks/0004-stand-limit.md`
+- [x] **T001** P1 — Settings panel UI: absorbs CalibrationWizard, sliders + toggles `.claude/tasks/0001-settings-panel.md`
+- [x] **T003** P2 — Notification preference toggles (3 types — position_changed removed) `.claude/tasks/0003-notification-prefs.md`
+- [x] **T004** P2 — Stand reminder: configurable "sit down after X min" limit `.claude/tasks/0004-stand-limit.md`
 
 ---
 
 ## Sprint: Session Stats
 
-- [ ] **T005** P2 — Track `position_changes` counter in `SessionState` (Rust + UI) `.claude/tasks/0005-position-changes.md`
+- [x] **T005** P2 — Track `position_changes` counter in `SessionState` (Rust + UI) `.claude/tasks/0005-position-changes.md`
 
 ---
 
@@ -38,9 +38,20 @@
 > See `.claude/overlay/TASKS.md` for full overlay task list.
 
 - [x] **T-OVR-010** P0 — Split `overlay_renderer.rs` (1060 lines, limit 250) → `overlay_opaque.rs`, `overlay_layered.rs`, `overlay_variants.rs`
-- [ ] **T-OVR-012** P1 — Precommit hook: fail build if any `.rs`/`.ts`/`.tsx` file > 250 lines
+- [x] **T-OVR-012** P1 — Precommit hook: fail build if any `.rs`/`.ts`/`.tsx` file > 250 lines
 - [ ] **T-OVR-009** P2 — Choose production render mode (OPAQUE vs LAYERED)
 - [ ] **T-OVR-011** P3 — Verify debug overlay info shows in popup
+
+---
+
+## Sprint: Foundation — Refactor (BEFORE alerts sprint)
+
+> **ORCHESTRATOR ACTIVE** — See `.claude/ORCHESTRATOR.md` for the full sprint coordination plan.
+> Execute waves in order: T027 → (T023+T024) → (T022+T028+T025) → T016.
+> Each agent gets a worktree, coordinator merges waves.
+
+- [ ] **T027** P0 — Split `session.rs` (1348 lines → 4 files ≤250) + add `standing_target_mins` / `stand_max_mins` to config `.claude/tasks/T027-split-session-rs.md`
+  - **Blocks:** T022, T023, T024, T028 — pre-commit hook will reject commits on session.rs at 1348 lines
 
 ---
 
@@ -160,10 +171,25 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
     - Bar variant: solid red during Snoozed, pulsing after expiry (Stage1)
     - Snooze expiry → Stage1 (not Stage2 directly)
 
-- [ ] **T016** P2 — Tray icon color dot
-  - Small colored circle overlay on tray icon (not full recolor)
-  - Green → Yellow → Red synced with `color_for_progress()`
-  - Independent of alert system — always shows progress color
+- [ ] **T020** P2 — Integration test: full alert flow (sit→alert→dismiss→snooze→re-alert) `.claude/tasks/T020-integration-test-alert-flow.md`
+- [ ] **T021** P3 — Fix: dismiss snooze not triggered when sensor disconnected `.claude/tasks/T021-dismiss-without-sensor.md`
+
+- [ ] **T022** P2 — Standing progress bar: gold bar fills 0→standing_target_mins, lap flash at 100% `.claude/tasks/T022-standing-progress-bar.md`
+- [ ] **T028** P2 — Points system: +1/min standing, +5/session, −0.5/min sitting; score in tooltip + floating window `.claude/tasks/T028-points-system.md`
+- [ ] **T016** P2 — Tray icon redesign: white base icon (desk silhouette) + small colored dot (4-5px); dot = gold when standing `.claude/tasks/T016-tray-icon-redesign.md`
+- [ ] **T025** P2 — Welcome/onboarding popup on first launch: friendly intro, draggable, "don't show again" `.claude/tasks/T025-welcome-popup.md`
+
+### Bugs (P1)
+
+- [ ] **T023** P1 — Fix tooltip while standing: frozen timer + shows sitting_secs instead of standing_secs `.claude/tasks/T023-fix-tooltip-standing.md`
+- [ ] **T024** P1 — Investigate + fix notifications: user never sees them; debug trigger, lower thresholds, feature flag for backend `.claude/tasks/T024-notifications-debug-and-fix.md`
+- [ ] **T029** P1 — Floating window spec + tests: document expected behavior, write failing tests, extend StateChangedPayload `.claude/tasks/T029-floating-window-spec-and-tests.md`
+  - **Confirmed bugs:** sitting timer shows wrong value (shows 50 when sat 5 min ago), no standing duration shown after transition
+  - **Scope:** SPEC + TESTS ONLY — fixes go in T030
+  - **Depends on:** T027 (session.rs split — tests go into session_tests.rs)
+- [ ] **T030** P1 — Floating window fixes: split sitting_seconds/current_session_secs, TransitionBanner, standing timer `.claude/tasks/T030-floating-window-fix.md`
+  - **Fixes:** sitting timer wrong value, no "Stood for X min" after transition, frozen standing timer
+  - **Depends on:** T029 (StateChangedPayload extended + root causes confirmed)
 
 ### Advanced Stages & Notifications (P3)
 
@@ -173,10 +199,12 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
   - Stage 5 (+15min): full-screen overlay nudge
   - Each stage configurable (enable/disable in settings)
 
-- [ ] **T018** P3 — Notification backend comparison
-  - Demo A: native Windows toast (`tauri-plugin-notification`) — 4 color variants
-  - Demo B: custom WinAPI popup — animated progress, auto-dismiss timer
-  - Compare and choose approach for production
+- [ ] **T018** P3 — Notification A/B: both backends simultaneously with feature flag
+  - `NOTIFICATION_BACKEND=toast|popup|both`
+  - Toast: native Windows (`tauri-plugin-notification`)
+  - Popup: custom WinAPI (same as alert popup)
+  - Feature flag for dev comparison; long-term: custom popup
+  - Depends on T024 (notifications working at all)
 
 - [ ] **T019** P4 — Success notifications + gamification
   - Standing triggers success flash / brief green animation
@@ -192,6 +220,17 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 - [-] **T010** ~~P3 — Dynamic tray icon~~ (replaced by T016 — color dot approach)
 - [ ] **T011** P3 — Height-rail pulse animation on sit→stand transition `.claude/tasks/0011-rail-pulse.md`
 - [ ] **T012** P3 — Yesterday delta arrow next to today's sitting time `.claude/tasks/0012-yesterday-delta.md`
+- [ ] **T026** P3 — App icon design: desk silhouette SVG → PNG/ICO assets `.claude/tasks/T026-app-icon-design.md`
+
+---
+
+## Vision / Architecture (future)
+
+- **T-ARCH-001** — Extended body positions: kneeling / leaning / sitting / standing
+  - Same sensor, richer height-to-position mapping
+  - `DeskPosition` enum extensible, per-position session stats + points
+  - Max standing session: 90 min (configurable, option: 60 min) — symmetric to sit limit
+  - See `.agent/vision/2026-03-20-ux-communication-vision.md`
 
 ---
 
