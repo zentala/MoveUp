@@ -5,7 +5,7 @@ use tauri::{AppHandle, Listener};
 
 use crate::{
     alert_manager::AlertAction,
-    colors::color_for_progress,
+    colors::{color_for_progress, color_for_standing},
     session::{DeskState, StateChangedPayload},
     tray,
 };
@@ -75,10 +75,12 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
     // Update WinAPI overlay
     if payload.state == DeskState::Sitting {
         log::debug!("→ Showing overlay, progress: {:.0}%", progress * 100.0);
+        overlay.clear_standing();
         overlay.update(progress, (r, g, b));
         overlay.show();
     } else {
         log::debug!("→ Hiding overlay (state: {:?})", payload.state);
+        overlay.clear_standing();
         overlay.hide();
     }
 
@@ -110,6 +112,26 @@ fn update_overlay_progress(app: &AppHandle) {
 
     // Update tooltip every second regardless of state
     update_tooltip(app, &snapshot);
+
+    // Standing mode: show gold bar filling over standing_target
+    if snapshot.state == DeskState::Standing {
+        let target_secs = snapshot.stand_limit_secs;
+        if target_secs > 0 {
+            // break_seconds = current standing session duration (resets on sit)
+            let session_secs = snapshot.break_seconds;
+            let session_lap = (session_secs / target_secs) as u32;
+            let lap_progress = (session_secs % target_secs) as f32 / target_secs as f32;
+            let total_laps = (snapshot.standing_seconds / target_secs) as u32;
+            let (r, g, b) = color_for_standing(lap_progress);
+
+            let overlay = app_state.overlay.clone();
+            overlay.update(lap_progress, (r, g, b));
+            overlay.update_standing(lap_progress, total_laps);
+            overlay.show();
+            overlay.maybe_flash_lap(session_lap);
+        }
+        return;
+    }
 
     if snapshot.state != DeskState::Sitting {
         return;
@@ -168,7 +190,7 @@ fn update_tooltip(app: &AppHandle, snapshot: &crate::session::SessionStateDto) {
 }
 
 /// Builds tooltip like `"↕ 72.3 cm — Sitting (12:34)"` with state-appropriate duration.
-fn build_tooltip_label(
+pub(crate) fn build_tooltip_label(
     desk_height_cm: f32,
     state: &DeskState,
     sitting_secs: i64,
@@ -188,60 +210,11 @@ fn build_tooltip_label(
 }
 
 /// Formats a duration in seconds as `"MM:SS"`.
-fn format_duration(secs: i64) -> String {
+pub(crate) fn format_duration(secs: i64) -> String {
     let secs = secs.max(0);
     let minutes = secs / 60;
     let seconds = secs % 60;
     format!("{:02}:{:02}", minutes, seconds)
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn format_duration_zero() {
-        assert_eq!(format_duration(0), "00:00");
-    }
-
-    #[test]
-    fn format_duration_one_minute() {
-        assert_eq!(format_duration(60), "01:00");
-    }
-
-    #[test]
-    fn format_duration_mixed() {
-        assert_eq!(format_duration(754), "12:34");
-    }
-
-    #[test]
-    fn format_duration_negative_clamps() {
-        assert_eq!(format_duration(-10), "00:00");
-    }
-
-    #[test]
-    fn tooltip_sitting_shows_sitting_seconds() {
-        let label = build_tooltip_label(72.3, &DeskState::Sitting, 754, 0, 0);
-        assert_eq!(label, "↕ 72.3 cm — Sitting (12:34)");
-    }
-
-    #[test]
-    fn tooltip_standing_shows_standing_seconds() {
-        let label = build_tooltip_label(114.0, &DeskState::Standing, 120, 452, 452);
-        assert_eq!(label, "↕ 114.0 cm — Standing (07:32)");
-    }
-
-    #[test]
-    fn tooltip_walking_shows_break_seconds() {
-        let label = build_tooltip_label(114.0, &DeskState::Walking, 300, 200, 95);
-        assert_eq!(label, "↕ 114.0 cm — Walking (01:35)");
-    }
-
-    #[test]
-    fn tooltip_away_shows_zero() {
-        let label = build_tooltip_label(0.0, &DeskState::Away, 500, 200, 100);
-        assert_eq!(label, "↕ 0.0 cm — Away (00:00)");
-    }
-}
+// Tests moved to tray_controller_tests.rs

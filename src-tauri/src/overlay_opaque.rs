@@ -1,16 +1,10 @@
-//! overlay_opaque.rs — OPAQUE render backend for the overlay progress bar.
-//!
-//! Uses standard GDI `BeginPaint`/`FillRect` with a black background.
-//! Window style: `WS_POPUP | WS_VISIBLE` — no `WS_EX_LAYERED`.
-//!
-//! Entry point: `run_event_loop_opaque(state, bar_height)` called from
-//! `overlay_renderer::run_event_loop()` when `OVERLAY_MODE` is not `"layered"`.
+//! overlay_opaque.rs — OPAQUE render backend (GDI BeginPaint/FillRect, black bg).
 
 use std::sync::{Arc, Mutex};
 use log::info;
 
 use crate::overlay_renderer::{DataSource, OverlayState};
-use crate::overlay_variants::render_variant_gdi;
+use crate::overlay_variants::{render_variant_gdi, render_standing_bar_gdi};
 
 /// OPAQUE render loop — black background, standard GDI rendering (STABLE).
 ///
@@ -174,7 +168,16 @@ pub(crate) unsafe extern "system" fn wnd_proc(
                             s.color_rgb = color;
                             s.visible = visible;
                         }
-                        DataSource::Live => {} // External updates via update()/show()/hide()
+                        DataSource::Live => {
+                            // Tick lap flash timer (expires 2s gold pulse)
+                            if let Some(until) = s.lap_flash_until {
+                                if std::time::Instant::now() > until {
+                                    s.lap_flash_until = None;
+                                    s.overlay_variant = 0;
+                                    s.needs_redraw = true;
+                                }
+                            }
+                        }
                     }
 
                     let _ = InvalidateRect(Some(hwnd), None, false.into());
@@ -209,14 +212,18 @@ pub(crate) unsafe extern "system" fn wnd_proc(
                         let bar_width = ((window_width as f32) * s.progress.clamp(0.0, 1.0)) as i32;
                         let bar_width = bar_width.max(1); // Always show at least 1px when visible
 
-                        render_variant_gdi(
-                            hdc,
-                            bar_width,
-                            window_height,
-                            s.color_rgb,
-                            s.frame_count,
-                            s.overlay_variant,
-                        );
+                        if s.standing_mode {
+                            render_standing_bar_gdi(
+                                hdc, window_width, window_height,
+                                s.progress, s.lap, s.color_rgb,
+                                s.frame_count, s.overlay_variant,
+                            );
+                        } else {
+                            render_variant_gdi(
+                                hdc, bar_width, window_height,
+                                s.color_rgb, s.frame_count, s.overlay_variant,
+                            );
+                        }
                     }
                 }
 

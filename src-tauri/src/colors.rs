@@ -24,6 +24,17 @@ pub fn color_for_progress(progress: f32) -> (u8, u8, u8, &'static str) {
     }
 }
 
+/// Returns (r, g, b) for a standing progress ratio (0.0 → 1.0).
+///
+/// Interpolates from goldenrod `#DAA520` to bright gold `#FFD720`.
+pub fn color_for_standing(progress: f32) -> (u8, u8, u8) {
+    let t = progress.clamp(0.0, 1.0);
+    let r = (0xDA as f32 + (0xFF - 0xDA) as f32 * t) as u8; // 218→255
+    let g = (0xA5 as f32 + (0xD7 - 0xA5) as f32 * t) as u8; // 165→215
+    let b = 0x20u8; // constant: 32
+    (r, g, b)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -47,5 +58,23 @@ mod tests {
         let (r, g, b, css) = color_for_progress(0.9);
         assert_eq!((r, g, b), (244, 67, 54));
         assert_eq!(css, "#f44336");
+    }
+
+    #[test]
+    fn standing_color_at_zero_is_goldenrod() {
+        assert_eq!(color_for_standing(0.0), (218, 165, 32));
+    }
+
+    #[test]
+    fn standing_color_at_one_is_bright_gold() {
+        assert_eq!(color_for_standing(1.0), (255, 215, 32));
+    }
+
+    #[test]
+    fn standing_color_at_half_is_mid_gold() {
+        let (r, g, b) = color_for_standing(0.5);
+        assert!(r > 218 && r < 255, "r={r} should be between 218 and 255");
+        assert!(g > 165 && g < 215, "g={g} should be between 165 and 215");
+        assert_eq!(b, 32);
     }
 }

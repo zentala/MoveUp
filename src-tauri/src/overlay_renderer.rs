@@ -1,30 +1,13 @@
-//! overlay_renderer.rs — System-level progress bar overlay using raw WinAPI.
+//! overlay_renderer.rs — Public API, `DataSource`, `OverlayState`, event loop dispatcher.
 //!
-//! Creates a native Windows window (NOT Tauri WebviewWindow) at position (0,0).
-//! Window is N px tall × full screen width, always-on-top, no decorations.
-//! Height configurable via OVERLAY_HEIGHT env var (1-20, default 4).
-//!
-//! ⚠️ CRITICAL: CreateWindowExW() MUST be called in the SAME THREAD as the
-//! message loop (PeekMessage/DispatchMessage). Never call it from another thread.
-//! All WinAPI window operations stay inside run_event_loop().
-//!
-//! ## Module layout
-//! - `overlay_renderer` (this file) — public API, `DataSource`, `OverlayState`, dispatcher
-//! - `overlay_opaque`   — OPAQUE backend: GDI `BeginPaint`/`FillRect`
-//! - `overlay_layered`  — LAYERED backend: `UpdateLayeredWindow` + DIBSection
-//! - `overlay_variants` — shared GDI / pixel variant renderers (DRY)
-//! - `overlay_tests`    — all `#[cfg(test)]` unit tests
+//! WinAPI window at (0,0), N px tall x full screen width, always-on-top.
+//! Standing mode methods live in `overlay_standing.rs` (separate impl block).
 
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use log::info;
 
-/// Data source for overlay progress bar.
-///
-/// ```text
-/// Demo:  WM_TIMER → demo_progress(frame) → cycling animation
-/// Live:  serial.rs → session.rs → tray_controller.rs → overlay.update()
-/// Mock:  WM_TIMER → mock_progress(frame) → simulated sit/stand cycle
-/// ```
+/// Data source for overlay progress bar (Demo, Live, or Mock).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataSource {
     /// Cycling demo animation (0%→25%→50%→75%→100%). Default in debug builds.
@@ -45,6 +28,14 @@ pub struct OverlayState {
     pub data_source: DataSource, // OVERLAY_DATA=demo|live|mock
     pub bar_height: i32,         // Default 4, configurable via OVERLAY_HEIGHT
     pub overlay_variant: u8,     // 0=solid, 1=gradient, 2=pulsing (OVERLAY_VARIANT env)
+    /// True when showing gold standing bar (false = sitting bar).
+    pub standing_mode: bool,
+    /// Completed laps today (for left-indicator rendering).
+    pub lap: u32,
+    /// Flash active until this instant (None = no flash).
+    pub lap_flash_until: Option<Instant>,
+    /// Session lap that last triggered a flash (prevents re-flash on same lap).
+    pub last_flashed_lap: u32,
 }
 
 /// Parses `OVERLAY_DATA` env var into a [`DataSource`].
@@ -93,6 +84,10 @@ impl Default for OverlayState {
             data_source,
             bar_height,
             overlay_variant,
+            standing_mode: false,
+            lap: 0,
+            lap_flash_until: None,
+            last_flashed_lap: 0,
         }
     }
 }
@@ -147,7 +142,7 @@ impl OverlayRenderer {
     ///
     /// - `0` — solid fill (default)
     /// - `1` — gradient
-    /// - `2` — pulsing animation (used by alert Stage1)
+    /// - `2` — pulsing animation (used by alert Stage1 and standing lap flash)
     ///
     /// Operates in Live mode only (same guard as [`update`](Self::update)).
     pub fn set_variant(&self, variant: u8) {
@@ -157,6 +152,9 @@ impl OverlayRenderer {
             s.needs_redraw = true;
         }
     }
+
+    // Standing mode methods: update_standing, start_lap_flash, maybe_flash_lap,
+    // clear_standing, tick_lap_flash — see overlay_standing.rs
 
     /// Returns overlay state as JSON for debugging (debug builds only).
     #[cfg(debug_assertions)]

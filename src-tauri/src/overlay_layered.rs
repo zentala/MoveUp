@@ -1,15 +1,11 @@
-//! overlay_layered.rs — LAYERED render backend (`WS_EX_LAYERED` + `UpdateLayeredWindow`).
-//!
-//! Uses a 32-bit ARGB DIBSection for per-pixel alpha compositing.
-//! Experimental — use OPAQUE mode for production. `OVERLAY_MODE=layered` to enable.
+//! overlay_layered.rs — LAYERED render backend (experimental, `OVERLAY_MODE=layered`).
 
 use std::sync::{Arc, Mutex};
 use log::info;
 
 use crate::overlay_renderer::{DataSource, OverlayState};
-use crate::overlay_variants::render_variant_pixels;
+use crate::overlay_variants::{render_variant_pixels, render_standing_bar_pixels};
 
-/// Offscreen 32-bit ARGB DIBSection for `UpdateLayeredWindow`.
 #[cfg(target_os = "windows")]
 pub(crate) struct LayeredBufferState {
     pub hdc_screen: windows::Win32::Graphics::Gdi::HDC, // screen DC cached at init
@@ -22,9 +18,6 @@ pub(crate) struct LayeredBufferState {
 }
 
 /// LAYERED render loop — transparent with `UpdateLayeredWindow` (EXPERIMENTAL).
-///
-/// ⚠️ Uses `WS_EX_LAYERED` + `UpdateLayeredWindow` for transparency.
-/// Renders to offscreen 32-bit ARGB bitmap, composites with per-pixel alpha.
 #[cfg(target_os = "windows")]
 pub(crate) fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>, bar_height: i32) {
     use windows::Win32::Foundation::*;
@@ -127,10 +120,7 @@ pub(crate) fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>, bar_height
             return;
         }
 
-        info!(
-            "🎨 [LAYERED] WinAPI overlay window created: {}x{} @ ({},{}), UpdateLayeredWindow mode",
-            screen_width, screen_height, screen_x, screen_y
-        );
+        info!("[LAYERED] overlay {}x{} @ ({},{})", screen_width, screen_height, screen_x, screen_y);
 
         let mut msg: MSG = std::mem::zeroed();
         loop {
@@ -148,7 +138,7 @@ pub(crate) fn run_event_loop_layered(state: Arc<Mutex<OverlayState>>, bar_height
     }
 }
 
-/// Draw a frame to the layered buffer and composite to screen with `UpdateLayeredWindow`.
+/// Draw a frame to the layered buffer and composite to screen.
 #[cfg(target_os = "windows")]
 pub(crate) unsafe fn draw_layered_frame(
     hwnd: windows::Win32::Foundation::HWND,
@@ -162,21 +152,23 @@ pub(crate) unsafe fn draw_layered_frame(
     // Clear entire buffer: all pixels transparent (alpha=0)
     std::ptr::write_bytes(buf.bits_ptr, 0, (buf.width * buf.height) as usize);
 
-    let (bar_progress, visible, color_rgb, _data_source, overlay_variant, frame_count) =
+    let (bar_progress, visible, color_rgb, overlay_variant, frame_count, standing_mode, lap) =
         if let Ok(s) = state.lock() {
-            (s.progress, s.visible, s.color_rgb, s.data_source, s.overlay_variant, s.frame_count)
+            (s.progress, s.visible, s.color_rgb, s.overlay_variant, s.frame_count, s.standing_mode, s.lap)
         } else {
             log::error!("[DRAW] Failed to acquire state lock!");
             return;
         };
 
-    let bar_width = if visible {
-        (((buf.width as f32) * bar_progress.clamp(0.0, 1.0)) as i32).max(1)
+    if !visible { /* buffer already cleared */ } else if standing_mode {
+        render_standing_bar_pixels(
+            buf.bits_ptr, buf.width, buf.height,
+            bar_progress, lap, color_rgb, frame_count, overlay_variant,
+        );
     } else {
-        0
-    };
-
-    render_variant_pixels(buf.bits_ptr, buf.width, buf.height, bar_width, color_rgb, frame_count, overlay_variant);
+        let bar_width = (((buf.width as f32) * bar_progress.clamp(0.0, 1.0)) as i32).max(1);
+        render_variant_pixels(buf.bits_ptr, buf.width, buf.height, bar_width, color_rgb, frame_count, overlay_variant);
+    }
 
     let src_point = POINT { x: 0, y: 0 };
     let dst_point = POINT { x: 0, y: 0 };
@@ -219,7 +211,15 @@ pub(crate) unsafe extern "system" fn wnd_proc_layered(
                     match s.data_source {
                         DataSource::Demo => { let (p, c) = demo_progress(s.frame_count); s.progress = p; s.color_rgb = c; s.visible = true; }
                         DataSource::Mock => { let (p, c, v) = mock_progress(s.frame_count); s.progress = p; s.color_rgb = c; s.visible = v; }
-                        DataSource::Live => {}
+                        DataSource::Live => {
+                            if let Some(until) = s.lap_flash_until {
+                                if std::time::Instant::now() > until {
+                                    s.lap_flash_until = None;
+                                    s.overlay_variant = 0;
+                                    s.needs_redraw = true;
+                                }
+                            }
+                        }
                     }
                     drop(s);
                     draw_layered_frame(hwnd, state, &*buf_ptr);

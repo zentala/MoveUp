@@ -19,6 +19,9 @@ mod db_sessions;
 mod overlay_layered;
 mod overlay_opaque;
 mod overlay_renderer;
+mod overlay_standing;
+#[cfg(test)]
+mod overlay_standing_tests;
 mod overlay_variants;
 #[cfg(test)]
 mod overlay_tests;
@@ -49,6 +52,8 @@ mod session_tests_daily;
 mod session_tests_props;
 mod tray;
 mod tray_controller;
+#[cfg(test)]
+mod tray_controller_tests;
 mod tray_icon;
 
 use std::sync::{Arc, Mutex};
