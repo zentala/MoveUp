@@ -25,26 +25,26 @@ fn format_duration_negative_clamps() {
 
 #[test]
 fn tooltip_sitting_shows_sitting_seconds() {
-    let label = build_tooltip_label(72.3, &DeskState::Sitting, 754, 0, 0);
-    assert_eq!(label, "↕ 72.3 cm — Sitting (12:34)");
+    let label = build_tooltip_label(72.3, &DeskState::Sitting, 754, 0, 0, 0.0);
+    assert_eq!(label, "\u{2195} 72.3 cm \u{2014} Sitting (12:34) +0");
 }
 
 #[test]
 fn tooltip_standing_shows_standing_seconds() {
-    let label = build_tooltip_label(114.0, &DeskState::Standing, 120, 452, 452);
-    assert_eq!(label, "↕ 114.0 cm — Standing (07:32)");
+    let label = build_tooltip_label(114.0, &DeskState::Standing, 120, 452, 452, 38.0);
+    assert_eq!(label, "\u{2195} 114.0 cm \u{2014} Standing (07:32) +38");
 }
 
 #[test]
 fn tooltip_walking_shows_break_seconds() {
-    let label = build_tooltip_label(114.0, &DeskState::Walking, 300, 200, 95);
-    assert_eq!(label, "↕ 114.0 cm — Walking (01:35)");
+    let label = build_tooltip_label(114.0, &DeskState::Walking, 300, 200, 95, -8.0);
+    assert_eq!(label, "\u{2195} 114.0 cm \u{2014} Walking (01:35) -8");
 }
 
 #[test]
 fn tooltip_away_shows_zero() {
-    let label = build_tooltip_label(0.0, &DeskState::Away, 500, 200, 100);
-    assert_eq!(label, "↕ 0.0 cm — Away (00:00)");
+    let label = build_tooltip_label(0.0, &DeskState::Away, 500, 200, 100, 0.0);
+    assert_eq!(label, "\u{2195} 0.0 cm \u{2014} Away (00:00) +0");
 }
 
 // ─── Standing progress calculation tests ─────────────────────────────────────
@@ -84,7 +84,6 @@ fn standing_progress_at_target_fires_flash() {
 
 #[test]
 fn standing_new_session_after_sit_no_immediate_flash() {
-    // User stood 15min (total=900), sat, stood again 5min (session_secs=300, total=1200)
     let session_secs: i64 = 300;
     let standing_seconds: i64 = 1200;
     let target: i64 = 900;

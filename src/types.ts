@@ -58,6 +58,10 @@ export interface SessionStateDto {
   position_changes: number;
   /** Seconds of sitting limit consumed (accounts for break credits). */
   limit_used_secs: number;
+  /** Daily posture score (in-memory, resets at midnight). */
+  daily_score: number;
+  /** Current continuous standing session seconds (resets on sit). */
+  standing_session_secs: number;
 }
 
 /** A single tracked session within a day. */

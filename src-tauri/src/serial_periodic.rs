@@ -78,6 +78,7 @@ pub fn handle_reading(
         let mut sess = session.lock().unwrap();
         let before = sess.current_state();
         let res = sess.on_reading(mm, active);
+        sess.accumulate_score_tick(config);
         (before, res)
     };
 

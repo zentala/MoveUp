@@ -22,6 +22,9 @@ vi.mock("@tauri-apps/api/core", () => ({
         stand_limit_secs: 0,
         desk_height_cm: 75.0,
         position_changes: 0,
+        limit_used_secs: 0,
+        daily_score: 0,
+        standing_session_secs: 0,
       },
       get_settings: {
         sitting_mm: 750,

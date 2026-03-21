@@ -28,11 +28,17 @@ interface TodaySummary {
   }>;
 }
 
+/** Props for TodayStats component. */
+interface TodayStatsProps {
+  /** Daily posture score from session state (in-memory, resets at midnight). */
+  dailyScore: number;
+}
+
 /**
- * Renders today's total sitting and standing times and position changes,
- * auto-refreshing every 60 seconds.
+ * Renders today's total sitting and standing times, position changes, and daily score.
+ * Auto-refreshes every 60 seconds.
  */
-const TodayStats: FC = () => {
+const TodayStats: FC<TodayStatsProps> = ({ dailyScore }) => {
   const [summary, setSummary] = useState<TodaySummary | null>(null);
 
   useEffect(() => {
@@ -88,6 +94,12 @@ const TodayStats: FC = () => {
       <div className="today-stats__item">
         <span className="today-stats__value">{summary.position_changes}</span>
         <span className="today-stats__label">changes</span>
+      </div>
+      <div className="today-stats__item">
+        <span className="today-stats__value">
+          {dailyScore >= 0 ? `+${Math.round(dailyScore)}` : `${Math.round(dailyScore)}`}
+        </span>
+        <span className="today-stats__label">score</span>
       </div>
     </div>
   );

@@ -1,14 +1,9 @@
-//! session_manager.rs — SessionManager struct and state machine logic.
-//!
-//! Owns `SessionState` and drives sit/stand transitions, break credits,
-//! alert firing, and notification conditions.
+//! session_manager.rs — SessionManager: state machine, score, alerts.
 
 use chrono::{DateTime, NaiveDate, Utc};
 use log::info;
 
 use crate::session_types::*;
-
-// ─── SessionManager ──────────────────────────────────────────────────────────
 
 /// Owns `SessionState` and drives state transitions.
 pub struct SessionManager {
@@ -60,6 +55,9 @@ impl SessionManager {
                 last_break_secs: 0,
                 last_sitting_secs: 0,
                 last_break_credit: BreakCredit::None,
+                daily_score: 0.0,
+                standing_session_secs: 0,
+                lap_bonus_awarded_for_lap: 0,
             },
             pending_state: None,
             pending_count: 0,
@@ -96,6 +94,9 @@ impl SessionManager {
                 last_break_secs: 0,
                 last_sitting_secs: 0,
                 last_break_credit: BreakCredit::None,
+                daily_score: 0.0,
+                standing_session_secs: 0,
+                lap_bonus_awarded_for_lap: 0,
             },
             pending_state: None,
             pending_count: 0,
@@ -147,12 +148,12 @@ impl SessionManager {
             desk_height_cm: self.state.desk_height_cm,
             position_changes: self.state.position_changes,
             limit_used_secs: self.compute_limit_used(now),
+            daily_score: self.state.daily_score,
+            standing_session_secs: self.state.standing_session_secs,
         }
     }
 
     /// Compute how many seconds of sitting limit have been consumed.
-    /// Break credit is already subtracted from `sitting_seconds` in `apply_break_credit()`,
-    /// so limit_used = live sitting seconds.
     fn compute_limit_used(&self, now: chrono::DateTime<Utc>) -> i64 {
         self.get_live_sitting_seconds(now)
     }
@@ -196,10 +197,37 @@ impl SessionManager {
             self.notify_posture_balance_fired = false;
             self.praise_halfway_fired_today = false;
             self.standing_target_reached_fired = false;
+            self.state.daily_score = 0.0;
+            self.state.standing_session_secs = 0;
+            self.state.lap_bonus_awarded_for_lap = 0;
             self.last_reset_date = today;
             return true;
         }
         false
+    }
+
+    /// Accumulates score every tick (~1s). Called from serial_periodic after on_reading.
+    pub fn accumulate_score_tick(&mut self, config: &crate::config::AppConfig) {
+        match self.state.state {
+            DeskState::Sitting => {
+                self.state.daily_score += config.pts_sitting_per_min / 60.0;
+            }
+            DeskState::Standing => {
+                self.state.daily_score += config.pts_standing_per_min / 60.0;
+                self.state.standing_session_secs += 1;
+
+                // Lap bonus: award when standing_session_secs crosses a target multiple.
+                let target_secs = config.standing_target_mins as i64 * 60;
+                if target_secs > 0 {
+                    let current_lap = self.state.standing_session_secs / target_secs;
+                    if current_lap > self.state.lap_bonus_awarded_for_lap as i64 {
+                        self.state.daily_score += config.pts_session_bonus;
+                        self.state.lap_bonus_awarded_for_lap = current_lap as u32;
+                    }
+                }
+            }
+            _ => {} // Walking / Away: neutral
+        }
     }
 
     /// Returns `true` (once per sitting stint) when sitting limit is reached.
@@ -213,7 +241,6 @@ impl SessionManager {
         }
         false
     }
-
 }
 
 impl Default for SessionManager {
