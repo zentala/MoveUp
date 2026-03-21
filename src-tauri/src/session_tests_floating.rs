@@ -136,45 +136,35 @@ mod floating_window_tests {
     // ── Scenario E: App restart mid-session ────────────────────────────────
 
     #[test]
-    #[ignore] // BUG: load_today_totals() seeds sitting_seconds from DB total,
-              // which means after restart the session timer shows total-today
-              // instead of 0 for a fresh session. See T029 Scenario F.
     fn scenario_e_restart_should_not_seed_session_timer() {
-        // SPEC (recommended): After restart, sitting_seconds = 0
+        // SPEC: After restart, current_session_secs = 0 (fresh session)
+        // sitting_seconds is the daily accumulator and WILL be seeded from DB.
         let mut m = SessionManager::new();
-        // Simulate loading DB totals (e.g., user sat 20 min before restart)
         m.load_today_totals(1200, 600);
 
-        // After load, sitting_seconds should still be 0 for the session timer
-        // EXPECTED: 0 (fresh session after restart)
-        // ACTUAL: 1200 (DB total seeded into sitting_seconds)
+        // sitting_seconds holds the daily total (expected: 1200)
+        assert_eq!(m.state.sitting_seconds, 1200);
+        // current_session_secs must be 0 (no active session after restart)
         assert_eq!(
-            m.state.sitting_seconds, 0,
-            "Scenario E: after restart, sitting_seconds should be 0 for session timer"
+            m.state.current_session_secs, 0,
+            "Scenario E: current_session_secs should be 0 after restart"
         );
     }
 
-    // ── Scenario F: Sitting timer shows total today (KNOWN BUG) ────────────
+    // ── Scenario F: Sitting timer shows total today (FIXED) ─────────────
 
     #[test]
-    #[ignore] // BUG: After sit(30m) -> stand(10m, full reset) -> sit(5m),
-              // sitting_seconds should be ~5m but load_today_totals seeds from DB.
-              // The issue is that sitting_seconds conflates current session with
-              // total-today after restart. Fix in T030.
     fn scenario_f_timer_shows_current_session_not_total() {
-        // SPEC: After full reset + 5 min sitting, timer shows ~5:00
+        // SPEC: After full reset + restart, current_session_secs = 0
         let mut m = SessionManager::new();
-
-        // Simulate: user sat 30m, stood 10m (full reset), then sat 5m,
-        // then app restarted and DB says total sitting = 35 min today.
         m.load_today_totals(35 * 60, 10 * 60);
 
-        // Now user starts a new sitting session — timer should show 0:00
-        // EXPECTED: sitting_seconds = 0 (current session)
-        // ACTUAL: sitting_seconds = 2100 (total today from DB)
+        // Daily accumulator is seeded
+        assert_eq!(m.state.sitting_seconds, 35 * 60);
+        // But session timer starts at 0
         assert_eq!(
-            m.state.sitting_seconds, 0,
-            "Scenario F: session timer should show current session, not total today"
+            m.state.current_session_secs, 0,
+            "Scenario F: current_session_secs should be 0, not total today"
         );
     }
 

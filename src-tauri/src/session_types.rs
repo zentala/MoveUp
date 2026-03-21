@@ -74,6 +74,9 @@ pub struct SessionState {
     pub standing_session_secs: i64,
     /// The last lap number for which the +5 bonus was awarded (resets per session).
     pub lap_bonus_awarded_for_lap: u32,
+    /// Seconds in the current sitting session only (resets on Sitting entry, after break credit).
+    /// Use this for the session progress timer in the UI.
+    pub current_session_secs: i64,
 }
 
 /// Serialisable DTO emitted with state-change events.
@@ -96,6 +99,8 @@ pub struct SessionStateDto {
     pub daily_score: f32,
     /// Current continuous standing session seconds (resets on sit).
     pub standing_session_secs: i64,
+    /// Seconds in the current sitting session only (for UI timer).
+    pub current_session_secs: i64,
 }
 
 /// Break credit type applied when returning from standing to sitting.
@@ -126,6 +131,8 @@ pub struct StateChangedPayload {
     pub last_sitting_secs: i64,
     /// Break credit applied on this transition ("none", "partial", "full").
     pub break_credit: BreakCredit,
+    /// Current sitting session seconds (for UI timer, resets after break credit).
+    pub current_session_secs: i64,
 }
 
 /// Completed sitting session with timing information.

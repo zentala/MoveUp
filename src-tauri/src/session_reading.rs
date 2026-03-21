@@ -8,12 +8,7 @@ use crate::session_types::*;
 use crate::session_manager::SessionManager;
 
 impl SessionManager {
-    /// Called for each new distance reading from the sensor.
-    ///
-    /// `mm` is the raw sensor reading (floor distance from sensor underside).
-    /// `active` is `true` when the user has been active recently (keyboard/mouse).
-    ///
-    /// Returns a [`ReadingResult`] with optional state change and completed session.
+    /// Process a sensor reading. Returns state change and/or completed session.
     pub fn on_reading(&mut self, mm: i32, active: bool) -> ReadingResult {
         let now = Utc::now();
 
@@ -81,6 +76,7 @@ impl SessionManager {
         self.state.state = candidate;
 
         let live_sitting = self.get_live_sitting_seconds(now);
+        let live_current = self.get_live_current_session_secs(now);
         ReadingResult {
             state_change: Some(StateChangedPayload {
                 state: self.state.state.clone(),
@@ -92,6 +88,7 @@ impl SessionManager {
                 last_break_secs: self.state.last_break_secs,
                 last_sitting_secs: self.state.last_sitting_secs,
                 break_credit: self.state.last_break_credit.clone(),
+                current_session_secs: live_current,
             }),
             completed_session,
         }
@@ -110,6 +107,7 @@ impl SessionManager {
                 if let Some(started) = self.state.sitting_started.take() {
                     let elapsed = (now - started).num_seconds().max(0);
                     self.state.sitting_seconds += elapsed;
+                    self.state.current_session_secs += elapsed;
                     self.state.last_sitting_secs = elapsed;
                     if *candidate != DeskState::Sitting {
                         completed_session = Some(CompletedSession {
@@ -138,6 +136,9 @@ impl SessionManager {
                         self.state.last_break_secs = break_dur;
                         if *candidate == DeskState::Sitting {
                             self.apply_break_credit(break_dur);
+                            // current_session_secs = sitting_seconds after credit
+                            self.state.current_session_secs =
+                                self.state.sitting_seconds;
                         }
                         self.state.break_seconds = 0;
                     }
@@ -153,6 +154,9 @@ impl SessionManager {
                         let break_dur = (now - bs).num_seconds().max(0);
                         self.state.last_break_secs = break_dur;
                         self.apply_break_credit(break_dur);
+                        // current_session_secs = sitting_seconds after credit
+                        self.state.current_session_secs =
+                            self.state.sitting_seconds;
                         self.state.break_seconds = 0;
                     }
                     self.state.sitting_started = Some(now);
@@ -174,7 +178,6 @@ impl SessionManager {
             }
         }
     }
-
     /// Checks notification conditions and returns events that should fire.
     pub fn check_notification_conditions(
         &mut self,
@@ -203,7 +206,6 @@ impl SessionManager {
         }
         events
     }
-
     /// Checks if praise-halfway notification should fire.
     pub fn should_send_praise_halfway(
         &mut self,
@@ -219,7 +221,6 @@ impl SessionManager {
         }
         false
     }
-
     /// Checks if a stand limit alert should fire.
     pub fn should_stand_alert(&mut self) -> bool {
         if self.state.state == DeskState::Standing
@@ -232,7 +233,6 @@ impl SessionManager {
         }
         false
     }
-
     /// Applies break credit rules when returning to sitting.
     pub fn apply_break_credit(&mut self, break_secs: i64) {
         if break_secs < BREAK_SHORT_SECS {

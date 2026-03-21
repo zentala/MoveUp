@@ -13,6 +13,7 @@ import { formatDuration } from "@/utils/format";
 import SettingsPanel from "@/components/SettingsPanel";
 import HeightRail from "@/components/HeightRail";
 import SessionProgress from "@/components/SessionProgress";
+import TransitionBanner from "@/components/TransitionBanner";
 import StateIndicator from "@/components/StateIndicator";
 import TodayStats from "@/components/TodayStats";
 import AppProgressBar from "@/components/AppProgressBar";
@@ -33,7 +34,7 @@ function connectionLabel(connected: boolean, port: string | null): string {
 
 export default function App() {
   const [showSettings, setShowSettings] = useState(false);
-  const { connected, port, state, deskHeightCm, sittingSeconds, breakSeconds, sessionLimitSecs, dailyScore, error } =
+  const { connected, port, state, deskHeightCm, sittingSeconds, breakSeconds, sessionLimitSecs, dailyScore, error, transition } =
     useDesk();
 
   const liveSitting = useTimer(sittingSeconds, state === "Sitting");
@@ -75,7 +76,6 @@ export default function App() {
   }
 
   const showProgress = sessionLimitSecs > 0 && state === "Sitting";
-  const showBreak    = state !== "Sitting" && state !== null && liveBreak > 0;
 
   // If settings panel is open, show only that
   if (showSettings) {
@@ -129,6 +129,9 @@ export default function App() {
         <HeightRail deskHeightCm={deskHeightCm} state={state}>
           <StateIndicator state={state} deskHeightCm={deskHeightCm} />
 
+          {/* Transition banner — 30s after state change */}
+          {transition && <TransitionBanner transition={transition} />}
+
           {/* Session timer — visible while sitting */}
           {showProgress && (
             <SessionProgress
@@ -137,11 +140,19 @@ export default function App() {
             />
           )}
 
-          {/* Break duration — visible when not sitting */}
-          {showBreak && (
+          {/* Standing timer — visible when standing */}
+          {state === "Standing" && (
             <div className="break-info">
               <span className="break-info__duration">{formatDuration(liveBreak)}</span>
-              <span className="break-info__label">break</span>
+              <span className="break-info__label">standing</span>
+            </div>
+          )}
+
+          {/* Walking/Away info */}
+          {(state === "Walking" || state === "Away") && (
+            <div className="break-info">
+              <span className="break-info__duration">{formatDuration(liveBreak)}</span>
+              <span className="break-info__label">{state === "Walking" ? "walking" : "away"}</span>
             </div>
           )}
         </HeightRail>

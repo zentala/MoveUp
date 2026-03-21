@@ -36,6 +36,8 @@ export interface StateChangedPayload {
   last_sitting_secs: number;
   /** Break credit applied on this transition. */
   break_credit: BreakCredit;
+  /** Current sitting session seconds (resets after break credit). */
+  current_session_secs: number;
 }
 
 /** Payload for `desk:sensor-error` event. */
@@ -62,6 +64,8 @@ export interface SessionStateDto {
   daily_score: number;
   /** Current continuous standing session seconds (resets on sit). */
   standing_session_secs: number;
+  /** Current sitting session seconds (resets after break credit). */
+  current_session_secs: number;
 }
 
 /** A single tracked session within a day. */

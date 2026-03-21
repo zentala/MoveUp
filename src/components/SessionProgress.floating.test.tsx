@@ -7,7 +7,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import SessionProgress from "@/components/SessionProgress";
+import TransitionBanner from "@/components/TransitionBanner";
 import type { BreakCredit, StateChangedPayload } from "@/types";
+import type { TransitionInfo } from "@/hooks/useDesk";
 
 describe("SessionProgress — Floating Window Spec (T029)", () => {
   // ── Scenario A: Fresh start ──────────────────────────────────────────
@@ -55,6 +57,7 @@ describe("SessionProgress — Floating Window Spec (T029)", () => {
       last_break_secs: 720,
       last_sitting_secs: 1800,
       break_credit: "full",
+      current_session_secs: 0,
     };
 
     expect(payload.last_break_secs).toBe(720);
@@ -73,27 +76,36 @@ describe("SessionProgress — Floating Window Spec (T029)", () => {
 
   // ── Scenario G: Transition UI tests (will fail — feature not implemented) ──
 
-  // .skip because the TransitionBanner component does not exist yet.
-  // T030 will implement the banner that shows "Stood for X min" after transition.
-  it.skip("renders last_break_secs after Standing->Sitting transition", () => {
-    // BUG: TransitionBanner component does not exist yet.
-    // When implemented, it should show "Stood for 12 min" for 30 seconds
-    // after a Standing->Sitting transition, using payload.last_break_secs.
-    // This test should render the banner and verify the text.
-    expect(true).toBe(false); // placeholder — will be replaced in T030
+  it("renders last_break_secs after Standing->Sitting transition", () => {
+    const transition: TransitionInfo = {
+      lastBreakSecs: 720,
+      lastSittingSecs: 0,
+      breakCredit: "full",
+      transitionTo: "Sitting",
+    };
+    render(<TransitionBanner transition={transition} />);
+    expect(screen.getByTestId("transition-banner")).toHaveTextContent("Stood 12 min");
   });
 
-  it.skip("shows break credit label when partial credit applied", () => {
-    // BUG: No UI element shows break credit info yet.
-    // When implemented, after a 7-min break (partial credit), the UI should
-    // show "Session reduced by 20 min" or similar. Uses payload.break_credit.
-    expect(true).toBe(false); // placeholder — will be replaced in T030
+  it("shows break credit label when partial credit applied", () => {
+    const transition: TransitionInfo = {
+      lastBreakSecs: 420,
+      lastSittingSecs: 0,
+      breakCredit: "partial",
+      transitionTo: "Sitting",
+    };
+    render(<TransitionBanner transition={transition} />);
+    expect(screen.getByTestId("transition-banner")).toHaveTextContent("session reduced");
   });
 
-  it.skip("shows 'Fresh start!' when full credit applied", () => {
-    // BUG: No UI element shows break credit info yet.
-    // When implemented, after a 12-min break (full credit), the UI should
-    // show "Fresh start!" or similar. Uses payload.break_credit = "full".
-    expect(true).toBe(false); // placeholder — will be replaced in T030
+  it("shows full reset label when full credit applied", () => {
+    const transition: TransitionInfo = {
+      lastBreakSecs: 720,
+      lastSittingSecs: 0,
+      breakCredit: "full",
+      transitionTo: "Sitting",
+    };
+    render(<TransitionBanner transition={transition} />);
+    expect(screen.getByTestId("transition-banner")).toHaveTextContent("full reset");
   });
 });

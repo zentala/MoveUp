@@ -4,7 +4,7 @@
  * Fetches initial session state on mount and subscribes to all `desk:*`
  * Tauri events, cleaning up listeners on unmount.
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
@@ -15,41 +15,35 @@ import type {
   SensorErrorPayload,
 } from "@/types";
 
+/** Transition info shown for 30s after a state change. */
+export interface TransitionInfo {
+  lastBreakSecs: number;
+  lastSittingSecs: number;
+  breakCredit: "none" | "partial" | "full";
+  transitionTo: DeskState;
+}
+
 /** Shape returned by the useDesk hook. */
 export interface UseDeskResult {
-  /** Whether a device is actively connected. */
   connected: boolean;
-  /** Serial port name, e.g. "COM3", or null when not connected. */
   port: string | null;
-  /** Current ergonomic state. */
   state: DeskState | null;
-  /** Current measured desk height in centimeters. */
   deskHeightCm: number;
-  /** Seconds spent in current sitting session. */
+  /** Current sitting session seconds (resets after break credit). */
   sittingSeconds: number;
-  /** Seconds spent standing today. */
   standingSeconds: number;
-  /** Seconds spent in current break. */
   breakSeconds: number;
-  /** Configured session limit in seconds. */
   sessionLimitSecs: number;
-  /** Number of position changes (Sitting<->Standing transitions) today. */
   positionChanges: number;
-  /** Seconds of sitting limit consumed (from Rust, includes break credit). */
   limitUsedSecs: number;
-  /** Seconds of sitting limit remaining (can be negative = overtime). */
   limitRemaining: number;
-  /** Ratio of limit consumed (0.0 to 1.0+). 0 when no limit configured. */
   limitRatio: number;
-  /** Daily posture score (resets at midnight). */
   dailyScore: number;
-  /** Last sensor or connection error message, if any. */
   error: string | null;
-  /** Calibrate sitting/standing heights (reads current height and saves). */
+  /** Transition info (auto-clears after 30s). */
+  transition: TransitionInfo | null;
   calibrate: (position: "sitting" | "standing") => Promise<void>;
-  /** Update session limit in minutes. */
   setSitLimit: (mins: number) => Promise<void>;
-  /** Update standing session limit in minutes. */
   setStandLimit: (mins: number) => Promise<void>;
 }
 
@@ -74,6 +68,8 @@ export function useDesk(): UseDeskResult {
   const [limitUsedSecs, setLimitUsedSecs] = useState(0);
   const [dailyScore, setDailyScore] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [transition, setTransition] = useState<TransitionInfo | null>(null);
+  const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Memoized commands
   const calibrate = useCallback(
@@ -125,7 +121,7 @@ export function useDesk(): UseDeskResult {
         const dto = await invoke<SessionStateDto>("get_session_state");
         setState(dto.state);
         setDeskHeightCm(dto.desk_height_cm);
-        setSittingSeconds(dto.sitting_seconds);
+        setSittingSeconds(dto.current_session_secs);
         setStandingSeconds(dto.standing_seconds);
         setBreakSeconds(dto.break_seconds);
         setSessionLimitSecs(dto.session_limit_secs);
@@ -172,10 +168,19 @@ export function useDesk(): UseDeskResult {
         ({ payload }) => {
           setState(payload.state);
           setDeskHeightCm(payload.desk_height_cm);
-          setSittingSeconds(payload.sitting_seconds);
+          setSittingSeconds(payload.current_session_secs);
           setStandingSeconds(payload.standing_seconds);
           setBreakSeconds(payload.break_seconds);
           setPositionChanges(payload.position_changes);
+          // Show transition banner for 30s
+          if (transitionTimer.current) clearTimeout(transitionTimer.current);
+          setTransition({
+            lastBreakSecs: payload.last_break_secs,
+            lastSittingSecs: payload.last_sitting_secs,
+            breakCredit: payload.break_credit,
+            transitionTo: payload.state,
+          });
+          transitionTimer.current = setTimeout(() => setTransition(null), 30_000);
         },
       );
 
@@ -206,6 +211,7 @@ export function useDesk(): UseDeskResult {
     return () => {
       clearInterval(stateInterval);
       clearInterval(summaryInterval);
+      if (transitionTimer.current) clearTimeout(transitionTimer.current);
       cleanupFns.forEach((fn) => fn());
     };
   }, []);
@@ -225,6 +231,7 @@ export function useDesk(): UseDeskResult {
     limitRatio: sessionLimitSecs > 0 ? limitUsedSecs / sessionLimitSecs : 0,
     dailyScore,
     error,
+    transition,
     calibrate,
     setSitLimit,
     setStandLimit,

@@ -8,30 +8,18 @@ use crate::session_types::*;
 /// Owns `SessionState` and drives state transitions.
 pub struct SessionManager {
     pub state: SessionState,
-    /// Pending candidate state (needs `debounce_count` confirmations).
     pub(crate) pending_state: Option<DeskState>,
     pub(crate) pending_count: u8,
-    /// Calibrated sitting desk height in cm (default 72.0).
     pub sitting_height_cm: f32,
-    /// Calibrated standing desk height in cm (default 105.0).
     pub standing_height_cm: f32,
-    /// Desk surface thickness in cm to subtract from raw sensor reading.
     pub desk_thickness_cm: f32,
-    /// Whether `should_alert()` has been armed for the current sitting session.
     pub(crate) alert_fired: bool,
-    /// Whether a standing alert has been armed for the current standing stint.
     pub(crate) stand_alert_fired: bool,
-    /// Last date when daily reset was performed (T009).
     pub last_reset_date: NaiveDate,
-    /// Last time when check_daily_reset() was called (T009).
     pub last_reset_check: DateTime<Utc>,
-    /// Notification debounce flag: inactivity alert fired today (T003).
     pub notify_inactivity_fired: bool,
-    /// Notification debounce flag: posture balance alert fired today (T003).
     pub notify_posture_balance_fired: bool,
-    /// Notification debounce flag: praise message fired today (T003).
     pub praise_halfway_fired_today: bool,
-    /// Notification debounce flag: standing target reached fired today.
     pub standing_target_reached_fired: bool,
 }
 
@@ -58,6 +46,7 @@ impl SessionManager {
                 daily_score: 0.0,
                 standing_session_secs: 0,
                 lap_bonus_awarded_for_lap: 0,
+                current_session_secs: 0,
             },
             pending_state: None,
             pending_count: 0,
@@ -97,6 +86,7 @@ impl SessionManager {
                 daily_score: 0.0,
                 standing_session_secs: 0,
                 lap_bonus_awarded_for_lap: 0,
+                current_session_secs: 0,
             },
             pending_state: None,
             pending_count: 0,
@@ -114,10 +104,12 @@ impl SessionManager {
         }
     }
 
-    /// Seeds today's totals from SQLite so in-memory counters survive restarts.
+    /// Seeds today's totals from SQLite (in-memory counters survive restarts).
     pub fn load_today_totals(&mut self, sitting_secs: i64, standing_secs: i64) {
         self.state.sitting_seconds = sitting_secs;
         self.state.standing_seconds = standing_secs;
+        // current_session_secs stays 0: no active session after restart.
+        self.state.current_session_secs = 0;
         info!(
             "seeded today totals: sitting={}s standing={}s",
             sitting_secs, standing_secs
@@ -128,16 +120,15 @@ impl SessionManager {
     pub fn set_limit_minutes(&mut self, minutes: u32) {
         self.state.session_limit_secs = minutes as i64 * 60;
     }
-
     /// Updates the standing target (minutes -> seconds).
     pub fn set_stand_limit_minutes(&mut self, minutes: u32) {
         self.state.stand_limit_secs = minutes as i64 * 60;
     }
-
     /// Returns a snapshot of the current session state as a DTO.
     pub fn snapshot(&self) -> SessionStateDto {
         let now = Utc::now();
         let live_sitting = self.get_live_sitting_seconds(now);
+        let live_current = self.get_live_current_session_secs(now);
         SessionStateDto {
             state: self.state.state.clone(),
             sitting_seconds: live_sitting,
@@ -150,14 +141,23 @@ impl SessionManager {
             limit_used_secs: self.compute_limit_used(now),
             daily_score: self.state.daily_score,
             standing_session_secs: self.state.standing_session_secs,
+            current_session_secs: live_current,
         }
     }
 
-    /// Compute how many seconds of sitting limit have been consumed.
     fn compute_limit_used(&self, now: chrono::DateTime<Utc>) -> i64 {
         self.get_live_sitting_seconds(now)
     }
-
+    /// Computes live current session seconds: committed + elapsed since sitting_started.
+    pub(crate) fn get_live_current_session_secs(&self, now: DateTime<Utc>) -> i64 {
+        if self.state.state == DeskState::Sitting {
+            if let Some(started) = self.state.sitting_started {
+                let elapsed = (now - started).num_seconds().max(0);
+                return self.state.current_session_secs + elapsed;
+            }
+        }
+        self.state.current_session_secs
+    }
     /// Computes live sitting seconds: committed + elapsed since sitting_started.
     pub(crate) fn get_live_sitting_seconds(&self, now: DateTime<Utc>) -> i64 {
         if self.state.state == DeskState::Sitting {
@@ -168,14 +168,11 @@ impl SessionManager {
         }
         self.state.sitting_seconds
     }
-
     /// Returns the current desk state.
     pub fn current_state(&self) -> DeskState {
         self.state.state.clone()
     }
-
-    /// Checks if a new day has begun and resets daily counters.
-    /// Only checks every 60 seconds to avoid overhead.
+    /// Checks if a new day has begun and resets daily counters (throttled to 60s).
     pub fn check_daily_reset(&mut self) -> bool {
         let now = Utc::now();
         let today = now.date_naive();
@@ -200,6 +197,7 @@ impl SessionManager {
             self.state.daily_score = 0.0;
             self.state.standing_session_secs = 0;
             self.state.lap_bonus_awarded_for_lap = 0;
+            self.state.current_session_secs = 0;
             self.last_reset_date = today;
             return true;
         }
