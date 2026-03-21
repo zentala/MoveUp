@@ -4,10 +4,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { WIDGET_REGISTRY, DEFAULT_WIDGET_ID, resolveWidget } from "./registry";
 import { PlaceholderWidget } from "./PlaceholderWidget";
+import { OneBarWidget } from "./OneBarWidget";
 
 describe("WIDGET_REGISTRY", () => {
-  it("contains at least one widget", () => {
-    expect(WIDGET_REGISTRY.length).toBeGreaterThanOrEqual(1);
+  it("contains at least two widgets", () => {
+    expect(WIDGET_REGISTRY.length).toBeGreaterThanOrEqual(2);
   });
 
   it("has unique IDs", () => {
@@ -22,9 +23,19 @@ describe("WIDGET_REGISTRY", () => {
       expect(typeof w.component).toBe("function");
     }
   });
+
+  it("includes the OneBarWidget", () => {
+    const entry = WIDGET_REGISTRY.find((w) => w.id === "one-bar");
+    expect(entry).toBeDefined();
+    expect(entry?.component).toBe(OneBarWidget);
+  });
 });
 
 describe("DEFAULT_WIDGET_ID", () => {
+  it("is set to one-bar", () => {
+    expect(DEFAULT_WIDGET_ID).toBe("one-bar");
+  });
+
   it("exists in the registry", () => {
     const found = WIDGET_REGISTRY.find((w) => w.id === DEFAULT_WIDGET_ID);
     expect(found).toBeDefined();
@@ -32,7 +43,12 @@ describe("DEFAULT_WIDGET_ID", () => {
 });
 
 describe("resolveWidget", () => {
-  it("returns the correct component for a known ID", () => {
+  it("returns OneBarWidget for one-bar ID", () => {
+    const result = resolveWidget("one-bar");
+    expect(result).toBe(OneBarWidget);
+  });
+
+  it("returns PlaceholderWidget for placeholder ID", () => {
     const result = resolveWidget("placeholder");
     expect(result).toBe(PlaceholderWidget);
   });
@@ -40,7 +56,7 @@ describe("resolveWidget", () => {
   it("falls back to default for an unknown ID", () => {
     const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const result = resolveWidget("nonexistent-widget-xyz");
-    expect(result).toBe(PlaceholderWidget);
+    expect(result).toBe(OneBarWidget);
     expect(spy).toHaveBeenCalledWith(
       expect.stringContaining("nonexistent-widget-xyz"),
     );
@@ -50,7 +66,7 @@ describe("resolveWidget", () => {
   it("falls back to default for empty string", () => {
     const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const result = resolveWidget("");
-    expect(result).toBe(PlaceholderWidget);
+    expect(result).toBe(OneBarWidget);
     spy.mockRestore();
   });
 });

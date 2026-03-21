@@ -6,14 +6,16 @@
  */
 import type { WidgetRegistration, DeskWidget } from "@/types";
 import { PlaceholderWidget } from "./PlaceholderWidget";
+import { OneBarWidget } from "./OneBarWidget";
 
 /** All available widgets, in display order. */
 export const WIDGET_REGISTRY: WidgetRegistration[] = [
+  { id: "one-bar", name: "One Bar", component: OneBarWidget },
   { id: "placeholder", name: "Placeholder (dev)", component: PlaceholderWidget },
 ];
 
 /** Default widget ID when none is configured or config value is invalid. */
-export const DEFAULT_WIDGET_ID = "placeholder";
+export const DEFAULT_WIDGET_ID = "one-bar";
 
 /**
  * Resolves a widget ID to its component. Falls back to default if not found.
