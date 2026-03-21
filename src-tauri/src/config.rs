@@ -18,6 +18,14 @@ fn default_stand_limit() -> u32 {
     15
 }
 
+fn default_standing_target() -> u32 {
+    15
+}
+
+fn default_stand_max() -> u32 {
+    90
+}
+
 fn bool_true() -> bool {
     true
 }
@@ -45,6 +53,14 @@ pub struct AppConfig {
     pub sit_limit_mins: u32,
     #[serde(default = "default_stand_limit")]
     pub stand_limit_mins: u32,
+    /// Standing target: duration for a "complete" standing session (gold bar fills, +5 pts bonus).
+    /// Default 15 min. Gold bar fills 0->100% over this duration.
+    #[serde(default = "default_standing_target")]
+    pub standing_target_mins: u32,
+    /// Maximum continuous standing before "consider sitting" nudge.
+    /// Default 90 min. Semantic: protective ceiling, not a goal.
+    #[serde(default = "default_stand_max")]
+    pub stand_max_mins: u32,
     #[serde(default = "bool_true")]
     pub notify_inactivity: bool,
     #[serde(default = "bool_true")]
@@ -89,6 +105,8 @@ impl AppConfig {
     pub fn clamped(mut self) -> Self {
         self.sit_limit_mins = self.sit_limit_mins.clamp(10, 90);
         self.stand_limit_mins = self.stand_limit_mins.clamp(5, 60);
+        self.standing_target_mins = self.standing_target_mins.clamp(5, 60);
+        self.stand_max_mins = self.stand_max_mins.clamp(30, 120);
         self.sitting_mm = self.sitting_mm.clamp(400, 900);
         self.standing_mm = self.standing_mm.clamp(900, 1400);
 
@@ -108,6 +126,8 @@ impl Default for AppConfig {
         Self {
             sit_limit_mins: default_sit_limit(),
             stand_limit_mins: default_stand_limit(),
+            standing_target_mins: default_standing_target(),
+            stand_max_mins: default_stand_max(),
             notify_inactivity: bool_true(),
             notify_daily_posture_balance: bool_true(),
             notify_praise_halfway: bool_true(),
@@ -159,9 +179,23 @@ mod tests {
         let config = AppConfig::default();
         assert_eq!(config.sit_limit_mins, 45);
         assert_eq!(config.stand_limit_mins, 15);
+        assert_eq!(config.standing_target_mins, 15);
+        assert_eq!(config.stand_max_mins, 90);
         assert!(config.notify_inactivity);
         assert_eq!(config.sitting_mm, 720);
         assert_eq!(config.standing_mm, 1050);
+    }
+
+    #[test]
+    fn test_config_new_fields_clamping() {
+        let config = AppConfig {
+            standing_target_mins: 1,
+            stand_max_mins: 200,
+            ..Default::default()
+        }
+        .clamped();
+        assert_eq!(config.standing_target_mins, 5);
+        assert_eq!(config.stand_max_mins, 120);
     }
 
     #[test]
@@ -169,6 +203,8 @@ mod tests {
         let original = AppConfig {
             sit_limit_mins: 50,
             stand_limit_mins: 20,
+            standing_target_mins: 25,
+            stand_max_mins: 60,
             notify_inactivity: false,
             notify_daily_posture_balance: true,
             notify_praise_halfway: false,

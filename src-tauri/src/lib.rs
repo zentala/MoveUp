@@ -25,6 +25,17 @@ mod alert_manager_tests;
 mod alert_snooze_tests;
 mod serial;
 pub mod session;
+pub mod session_manager;
+mod session_reading;
+pub mod session_types;
+#[cfg(test)]
+mod session_tests;
+#[cfg(test)]
+mod session_tests_alerts;
+#[cfg(test)]
+mod session_tests_daily;
+#[cfg(test)]
+mod session_tests_props;
 mod tray;
 mod tray_controller;
 mod tray_icon;

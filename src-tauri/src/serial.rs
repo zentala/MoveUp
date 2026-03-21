@@ -313,6 +313,9 @@ fn reader_loop(
                         NotificationEvent::StandLimitReached => {
                             // Handled separately via should_stand_alert
                         }
+                        NotificationEvent::StandingTargetReached => {
+                            // Will be handled by future standing target UI
+                        }
                     }
                 }
 
