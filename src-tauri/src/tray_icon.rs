@@ -13,7 +13,8 @@ use crate::session::DeskState;
 /// - `tray-ok` (green) — sitting, <60% of session limit
 /// - `tray-warn` (amber) — sitting, 60-85% of limit
 /// - `tray-alert` (red) — sitting, >85% of limit
-/// - `tray-idle` (gray) — standing, walking, or away
+/// - `tray-standing` (gold) — standing (positive feedback)
+/// - `tray-idle` (gray) — walking or away
 pub fn icon_for_state_and_progress(state: DeskState, ratio: f32) -> &'static str {
     const THRESHOLD_YELLOW: f32 = 0.60;
     const THRESHOLD_RED: f32 = 0.85;
@@ -28,7 +29,8 @@ pub fn icon_for_state_and_progress(state: DeskState, ratio: f32) -> &'static str
                 "tray-ok"
             }
         }
-        _ => "tray-idle", // Standing, Walking, Away
+        DeskState::Standing => "tray-standing",
+        _ => "tray-idle", // Walking, Away
     }
 }
 
@@ -64,8 +66,8 @@ mod tests {
     }
 
     #[test]
-    fn standing_returns_idle() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 0.5), "tray-idle");
+    fn standing_returns_standing() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 0.5), "tray-standing");
     }
 
     #[test]
@@ -79,8 +81,8 @@ mod tests {
     }
 
     #[test]
-    fn idle_state_returns_idle_regardless_of_progress() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 0.0), "tray-idle");
-        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 1.0), "tray-idle");
+    fn standing_returns_standing_regardless_of_progress() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 0.0), "tray-standing");
+        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 1.0), "tray-standing");
     }
 }

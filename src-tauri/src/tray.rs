@@ -1,7 +1,7 @@
 //! tray.rs — System tray icon and menu for the Desk application.
 //!
-//! Generates dynamic tray icons (RGBA) based on sitting state and session progress.
-//! Falls back to PNG loading if resource dir is available.
+//! Generates dynamic tray icons (white desk silhouette + colored status dot)
+//! based on sitting state and session progress. Falls back to PNG loading if available.
 //! The tooltip shows the current desk height and session state.
 //! Left-click toggles the main window; the context menu has "Show Desk" and "Quit".
 
@@ -110,44 +110,69 @@ pub fn update_tray_tooltip(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Generates a 32x32 RGBA tray icon dynamically based on state and progress.
+/// Generates a 32x32 RGBA tray icon: white desk silhouette + colored status dot.
 ///
-/// Returns solid squares with colors matching the icon strategy:
-/// - Green (0, 200, 0) — sitting, <60% progress
-/// - Amber (200, 150, 0) — sitting, 60-85% progress
-/// - Red (200, 0, 0) — sitting, >85% progress
-/// - Gray (128, 128, 128) — standing, walking, or away
+/// Transparent background with a white desk shape (horizontal bar + two legs)
+/// and a 4x4 colored dot at the bottom-right corner indicating state:
+/// - Green (#00C864) — sitting, <60% progress
+/// - Amber (#C89600) — sitting, 60-85% progress
+/// - Red (#C80000) — sitting, >85% progress
+/// - Gold (#DAA520) — standing (positive feedback)
+/// - Gray (#808080) — walking or away
 fn generate_tray_icon(state: DeskState, progress_ratio: f32) -> Option<Image<'static>> {
-    const ICON_SIZE: u32 = 32;
-    const PIXELS: usize = (ICON_SIZE * ICON_SIZE) as usize;
+    const SIZE: u32 = 32;
+    let pixels = (SIZE * SIZE) as usize;
+    let mut rgba = vec![0u8; pixels * 4]; // transparent background
 
-    // Determine color based on state and progress
-    let (r, g, b) = match state {
-        DeskState::Sitting => {
-            if progress_ratio < 0.60 {
-                (0, 200, 0) // green
-            } else if progress_ratio < 0.85 {
-                (200, 150, 0) // amber
-            } else {
-                (200, 0, 0) // red
-            }
+    // Draw white desk silhouette
+    // Desk surface: y=10..14, x=4..28
+    for y in 10u32..14 {
+        for x in 4u32..28 {
+            set_pixel(&mut rgba, SIZE, x, y, 255, 255, 255, 255);
         }
-        _ => (128, 128, 128), // gray for standing, walking, away
-    };
-
-    // Build RGBA buffer (32x32 = 1024 pixels × 4 bytes each)
-    let mut rgba = vec![0u8; PIXELS * 4];
-
-    for i in 0..PIXELS {
-        rgba[i * 4] = r;
-        rgba[i * 4 + 1] = g;
-        rgba[i * 4 + 2] = b;
-        rgba[i * 4 + 3] = 255; // alpha
+    }
+    // Left leg: x=6..8, y=14..22
+    for y in 14u32..22 {
+        for x in 6u32..8 {
+            set_pixel(&mut rgba, SIZE, x, y, 255, 255, 255, 255);
+        }
+    }
+    // Right leg: x=24..26, y=14..22
+    for y in 14u32..22 {
+        for x in 24u32..26 {
+            set_pixel(&mut rgba, SIZE, x, y, 255, 255, 255, 255);
+        }
     }
 
-    // Leak the buffer to get a static lifetime (required by Image)
+    // Dot color based on state
+    let (dr, dg, db) = match state {
+        DeskState::Sitting => {
+            if progress_ratio >= 0.85 { (200, 0, 0) }       // red #C80000
+            else if progress_ratio >= 0.60 { (200, 150, 0) } // amber #C89600
+            else { (0, 200, 100) }                            // green #00C864
+        }
+        DeskState::Standing => (218, 165, 32), // gold #DAA520
+        _ => (128, 128, 128),                  // gray #808080
+    };
+
+    // 4x4 dot at bottom-right (x=26..30, y=26..30)
+    for y in 26u32..30 {
+        for x in 26u32..30 {
+            set_pixel(&mut rgba, SIZE, x, y, dr, dg, db, 255);
+        }
+    }
+
     let rgba_static = Box::leak(rgba.into_boxed_slice());
-    Some(Image::new(rgba_static, ICON_SIZE, ICON_SIZE))
+    Some(Image::new(rgba_static, SIZE, SIZE))
+}
+
+/// Sets an RGBA pixel in the buffer at (x, y).
+fn set_pixel(buf: &mut [u8], width: u32, x: u32, y: u32, r: u8, g: u8, b: u8, a: u8) {
+    let idx = ((y * width + x) as usize) * 4;
+    buf[idx] = r;
+    buf[idx + 1] = g;
+    buf[idx + 2] = b;
+    buf[idx + 3] = a;
 }
 
 /// Resolves the PNG icon path for a given state and progress ratio.
