@@ -40,6 +40,7 @@ mod serial_parser;
 mod serial_periodic;
 pub mod session;
 pub mod session_manager;
+mod session_breaks;
 mod session_reading;
 pub mod session_types;
 #[cfg(test)]

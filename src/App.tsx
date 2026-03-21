@@ -1,28 +1,23 @@
 /**
  * App.tsx — root component for the Desk ergonomics tracker.
  *
- * Uses a pluggable widget system: core provides data via useDesk,
+ * Uses a pluggable widget system: core provides data via useWidgetData,
  * the active widget handles presentation. ScreenProgressBar (overlay)
  * stays outside the widget system as a separate concern.
  */
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useDesk } from "@/hooks/useDesk";
-import { useTimer } from "@/hooks/useTimer";
+import { useWidgetData } from "@/hooks/useWidgetData";
 import { useActiveWidget } from "@/hooks/useActiveWidget";
 import { resolveWidget } from "@/widgets/registry";
 import SettingsPanel from "@/components/SettingsPanel";
 import ScreenProgressBar from "@/components/ScreenProgressBar";
-import type { WidgetProps } from "@/types";
 import "@/styles/globals.css";
 
 export default function App() {
   const [showSettings, setShowSettings] = useState(false);
-  const desk = useDesk();
   const [activeWidgetId] = useActiveWidget();
-
-  const liveSitting = useTimer(desk.sittingSeconds, desk.state === "Sitting");
-  const liveBreak = useTimer(desk.breakSeconds, desk.state !== "Sitting" && desk.state !== null);
+  const widgetProps = useWidgetData(() => setShowSettings(true));
 
   // Debug: poll overlay state every 2s — DEV only
   const [overlayDebug, setOverlayDebug] = useState<Record<string, unknown> | null>(null);
@@ -53,31 +48,8 @@ export default function App() {
     checkFirstRun();
   }, []);
 
-  const showOverlay = desk.sessionLimitSecs > 0 && desk.state === "Sitting";
+  const showOverlay = widgetProps.limitSecs > 0 && widgetProps.state === "Sitting";
   const ActiveWidget = resolveWidget(activeWidgetId);
-
-  // Build WidgetProps from useDesk + useTimer
-  const widgetProps: WidgetProps = {
-    connected: desk.connected,
-    port: desk.port,
-    state: desk.state,
-    deskHeightCm: desk.deskHeightCm,
-    currentSessionSecs: liveSitting,
-    limitSecs: desk.sessionLimitSecs,
-    limitRemaining: desk.limitRemaining,
-    limitRatio: desk.limitRatio,
-    breakSecs: liveBreak,
-    breakResetThreshold: desk.breakResetThreshold,
-    breakResetProgress: desk.breakResetProgress,
-    previousSession: desk.previousSession,
-    todaySessions: desk.todaySessions,
-    todayChanges: desk.todayChanges,
-    todayStandingSecs: desk.todayStandingSecs,
-    todaySittingSecs: desk.todaySittingSecs,
-    todayScore: desk.dailyScore,
-    error: desk.error,
-    onOpenSettings: () => setShowSettings(true),
-  };
 
   if (showSettings) {
     return (
@@ -91,8 +63,8 @@ export default function App() {
     <>
       {showOverlay && (
         <ScreenProgressBar
-          sittingSeconds={liveSitting}
-          limitSeconds={desk.sessionLimitSecs}
+          sittingSeconds={widgetProps.currentSessionSecs}
+          limitSeconds={widgetProps.limitSecs}
         />
       )}
 
