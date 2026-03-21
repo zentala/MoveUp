@@ -46,13 +46,11 @@
 
 ## Sprint: Foundation — Refactor (BEFORE alerts sprint)
 
-> **ORCHESTRATOR ACTIVE** — See `.claude/ORCHESTRATOR.md` for the full sprint coordination plan.
-> Execute waves in order: T027 → (T023+T024) → (T022+T028+T025) → T016.
-> Each agent gets a worktree, coordinator merges waves.
+> Sprint completed 2026-03-21. See `.claude/journals/2026-03-21-ux-communication-sprint.md` for the full orchestrator log.
 
-- [ ] **T027a** P0 — Split `session.rs` (1348 lines → 4 files ≤250) + add `standing_target_mins` / `stand_max_mins` to config `.claude/tasks/T027-split-session-rs.md`
+- [x] **T027a** P0 — Split `session.rs` (1348 lines → 4 files ≤250) + add `standing_target_mins` / `stand_max_mins` to config `.claude/tasks/T027-split-session-rs.md`
   - **Blocks:** T027b, T022, T023, T024, T028
-- [ ] **T027b** P0 — Split db.rs, serial.rs, commands.rs, overlay_tests.rs (all >250L) + add `limit_used_secs` + `active_widget` `.claude/tasks/T027b-split-oversized-files.md`
+- [x] **T027b** P0 — Split db.rs, serial.rs, commands.rs, overlay_tests.rs (all >250L) + add `limit_used_secs` + `active_widget` `.claude/tasks/T027b-split-oversized-files.md`
   - **Depends on:** T027a
   - **Blocks:** T023, T024, T029 — pre-commit hook will reject commits on these files
 
@@ -177,20 +175,20 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 - [ ] **T020** P2 — Integration test: full alert flow (sit→alert→dismiss→snooze→re-alert) `.claude/tasks/T020-integration-test-alert-flow.md`
 - [ ] **T021** P3 — Fix: dismiss snooze not triggered when sensor disconnected `.claude/tasks/T021-dismiss-without-sensor.md`
 
-- [ ] **T022** P2 — Standing progress bar: gold bar fills 0→standing_target_mins, lap flash at 100% `.claude/tasks/T022-standing-progress-bar.md`
-- [ ] **T028** P2 — Points system: +1/min standing, +5/session, −0.5/min sitting; score in tooltip + floating window `.claude/tasks/T028-points-system.md`
-- [ ] **T016** P2 — Tray icon redesign: white base icon (desk silhouette) + small colored dot (4-5px); dot = gold when standing `.claude/tasks/T016-tray-icon-redesign.md`
-- [ ] **T025** P2 — Welcome/onboarding popup on first launch: friendly intro, draggable, "don't show again" `.claude/tasks/T025-welcome-popup.md`
+- [x] **T022** P2 — Standing progress bar: gold bar fills 0→standing_target_mins, lap flash at 100% `.claude/tasks/T022-standing-progress-bar.md`
+- [x] **T028** P2 — Points system: +1/min standing, +5/session, −0.5/min sitting; score in tooltip + floating window `.claude/tasks/T028-points-system.md`
+- [x] **T016** P2 — Tray icon redesign: white base icon (desk silhouette) + small colored dot (4-5px); dot = gold when standing `.claude/tasks/T016-tray-icon-redesign.md`
+- [x] **T025** P2 — Welcome/onboarding popup on first launch: friendly intro, draggable, "don't show again" `.claude/tasks/T025-welcome-popup.md`
 
 ### Bugs (P1)
 
-- [ ] **T023** P1 — Fix tooltip while standing: frozen timer + shows sitting_secs instead of standing_secs `.claude/tasks/T023-fix-tooltip-standing.md`
-- [ ] **T024** P1 — Investigate + fix notifications: user never sees them; debug trigger, lower thresholds, feature flag for backend `.claude/tasks/T024-notifications-debug-and-fix.md`
-- [ ] **T029** P1 — Floating window spec + tests: document expected behavior, write failing tests, extend StateChangedPayload `.claude/tasks/T029-floating-window-spec-and-tests.md`
+- [x] **T023** P1 — Fix tooltip while standing: frozen timer + shows sitting_secs instead of standing_secs `.claude/tasks/T023-fix-tooltip-standing.md`
+- [x] **T024** P1 — Investigate + fix notifications: user never sees them; debug trigger, lower thresholds, feature flag for backend `.claude/tasks/T024-notifications-debug-and-fix.md`
+- [x] **T029** P1 — Floating window spec + tests: document expected behavior, write failing tests, extend StateChangedPayload `.claude/tasks/T029-floating-window-spec-and-tests.md`
   - **Confirmed bugs:** sitting timer shows wrong value (shows 50 when sat 5 min ago), no standing duration shown after transition
   - **Scope:** SPEC + TESTS ONLY — fixes go in T030
   - **Depends on:** T027 (session.rs split — tests go into session_tests.rs)
-- [ ] **T030** P1 — Floating window fixes: split sitting_seconds/current_session_secs, TransitionBanner, standing timer `.claude/tasks/T030-floating-window-fix.md`
+- [x] **T030** P1 — Floating window fixes: split sitting_seconds/current_session_secs, TransitionBanner, standing timer `.claude/tasks/T030-floating-window-fix.md`
   - **Fixes:** sitting timer wrong value, no "Stood for X min" after transition, frozen standing timer
   - **Depends on:** T029 (StateChangedPayload extended + root causes confirmed)
 
@@ -224,12 +222,12 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 > User can switch between widget styles. Architecture supports experimentation.
 > See `.agent/vision/2026-03-21-product-vision-coach-and-business.md` for product context.
 
-- [ ] **T031** P1 — Widget architecture: WidgetProps interface + registry + `active_widget` in AppConfig `.claude/tasks/T031-widget-architecture.md`
+- [x] **T031** P1 — Widget architecture: WidgetProps interface + registry + `active_widget` in AppConfig `.claude/tasks/T031-widget-architecture.md`
   - **Blocks:** T032, T033 — widgets need the architecture first
   - **Depends on:** T027 (session.rs split), T030 (floating window fixes)
-- [ ] **T032** P2 — Widget "One Bar": horizontal, unified progress bar, temperature escalation, coach sentence `.claude/tasks/T032-widget-one-bar.md`
+- [x] **T032** P2 — Widget "One Bar": horizontal, unified progress bar, temperature escalation, coach sentence `.claude/tasks/T032-widget-one-bar.md`
   - **Depends on:** T031
-- [ ] **T033** P3 — Widget "Timeline Zen": minimalist, big timeline, zero text, ultra compact `.claude/tasks/T033-widget-timeline-zen.md`
+- [x] **T033** P3 — Widget "Timeline Zen": minimalist, big timeline, zero text, ultra compact `.claude/tasks/T033-widget-timeline-zen.md`
   - **Depends on:** T031
 
 ---

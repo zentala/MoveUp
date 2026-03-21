@@ -18,96 +18,121 @@
       <debounce>5 stable readings required before state change</debounce>
     </feature>
     <feature name="session-tracking">
-      <description>Tracks sitting session duration, enforces 40-min default limit</description>
-      <break-rules>
-        <rule threshold="lt5min">No effect</rule>
-        <rule threshold="5-9min">Subtract 20 min from session</rule>
-        <rule threshold="gte10min">Reset session to 0</rule>
-      </break-rules>
+      <description>Tracks sitting session duration, enforces 40-min default limit, break credit rules</description>
+    </feature>
+    <feature name="points-system">
+      <description>+1/min standing, +5/lap bonus, -0.5/min sitting; daily_score in tooltip + floating window</description>
+    </feature>
+    <feature name="standing-progress-bar">
+      <description>Gold overlay bar fills 0-to-standing_target_mins, lap flash at 100%</description>
     </feature>
     <feature name="ui">
-      <component name="system-tray-text">Shows current height or session warning</component>
-      <component name="floating-window">Height, today totals, session history</component>
-      <component name="progress-bar">4px top-of-screen bar, green-to-red over 40min</component>
-      <component name="popup-notification">Alert at session limit</component>
+      <component name="system-tray">Height tooltip, colored dot icon (green/yellow/red/gold), context menu</component>
+      <component name="floating-window">Widget-based: OneBar, TimelineZen, or Placeholder via registry</component>
+      <component name="overlay-bar">4px top-of-screen WinAPI bar, green-to-red (sitting) or gold (standing)</component>
+      <component name="alert-popup">WinAPI popup at session limit, progressive escalation with snooze</component>
+      <component name="welcome-popup">First-launch onboarding, Tauri WebviewWindow, dismiss persisted</component>
+      <component name="transition-banner">30s banner after sit-to-stand or stand-to-sit</component>
+    </feature>
+    <feature name="widget-system">
+      <description>WidgetProps interface + registry; active_widget in AppConfig; widgets are FC components</description>
     </feature>
     <feature name="persistence">
       <description>SQLite stores session history, today summaries</description>
     </feature>
     <feature name="settings">
-      <description>Sit/stand limits, height calibration, notification prefs — persisted via tauri-plugin-store</description>
+      <description>Sit/stand limits, calibration, notification prefs, widget picker — tauri-plugin-store</description>
     </feature>
     <feature name="auto-connect">
       <description>Auto-detects zntl-desk-sensor v1 on serial ports via PING/PONG handshake</description>
+    </feature>
+    <feature name="notifications">
+      <description>Native desktop notifications with trigger_test_notification command, configurable backend</description>
     </feature>
   </functionality>
 
   <architecture>
 
     <layer name="firmware" path="firmware/tof_reader/">
-      <file name="tof_reader.ino">
-        Arduino sketch for XIAO ESP32-C3 — reads VL53L1X, responds to PING with device ID, emits "distance: NNN mm" at 115200 baud
-      </file>
+      <file name="tof_reader.ino">Arduino sketch — reads VL53L1X, PING/PONG handshake, emits distance at 115200 baud</file>
     </layer>
 
     <layer name="rust-backend" path="src-tauri/src/">
-      <file name="lib.rs">App entry — registers plugins, AppState, setup hook (tray, blur, serial)</file>
+      <file name="lib.rs">App entry — plugins, AppState, setup hook (tray, blur, serial, welcome)</file>
       <file name="main.rs">Binary entry — calls lib::run()</file>
-      <file name="commands.rs">
-        All Tauri IPC commands:
-        list_ports, start_auto_connect, stop_reading,
-        get_session_state, set_session_limit, set_stand_limit,
-        calibrate, get_settings, save_settings,
-        get_today_summary, inject_reading (debug)
-        + AppState struct definition
-      </file>
-      <file name="session.rs">
-        Core state machine — SessionManager, DeskState enum,
-        break credit rules, alert firing, debounce, daily reset
-      </file>
-      <file name="serial.rs">
-        Background serial reader — auto-detect device via PING/PONG,
-        parse distance readings, emit Tauri events
-      </file>
-      <file name="activity.rs">Windows idle detection via GetLastInputInfo WinAPI</file>
-      <file name="db.rs">SQLite persistence — schema, session recording, TodaySummary queries</file>
-      <file name="config.rs">AppConfig struct — user settings persisted via tauri-plugin-store</file>
-      <file name="tray.rs">System tray — dynamic icon, tooltip, context menu, left-click toggle</file>
-      <file name="tray_controller.rs">Wires desk:state-changed events to tray + overlay updates</file>
-      <file name="tray_icon.rs">Generates RGBA tray icons programmatically by state + progress</file>
-      <file name="colors.rs">Progress ratio to green/yellow/red color mapping (thresholds 60%/85%)</file>
-      <file name="overlay_renderer.rs">
-        Native WinAPI overlay window — 4px tall, full-width, always-on-top,
-        CreateWindowExW, own message loop thread, shared OverlayState mutex
-      </file>
+      <file name="commands.rs">IPC commands: list_ports, start_auto_connect, stop_reading, get_session_state, get_today_summary, inject_reading, trigger_test_notification, dismiss_welcome, show_welcome</file>
+      <file name="commands_config.rs">Config IPC: set_session_limit, set_stand_limit, calibrate, get_settings, save_settings, get_overlay_state</file>
+      <file name="session.rs">SessionManager constructor + re-exports</file>
+      <file name="session_types.rs">Structs: SessionState, SessionStateDto, DeskState, StateChangedPayload, AppConfig fields</file>
+      <file name="session_manager.rs">SessionManager impl: on_reading, state transitions, score accumulation</file>
+      <file name="session_reading.rs">Reading processing logic split from session_manager</file>
+      <file name="session_breaks.rs">Break credit rules: &lt;5min, 5-9min, gte10min</file>
+      <file name="serial.rs">Background serial reader — auto-detect, parse, emit events</file>
+      <file name="serial_parser.rs">parse_distance + device detection helpers</file>
+      <file name="serial_periodic.rs">Periodic notification check loop</file>
+      <file name="activity.rs">Windows idle detection via GetLastInputInfo</file>
+      <file name="db.rs">SQLite connection + schema</file>
+      <file name="db_sessions.rs">Session CRUD operations</file>
+      <file name="db_queries.rs">TodaySummary + aggregate queries</file>
+      <file name="config.rs">AppConfig struct — tauri-plugin-store persistence</file>
+      <file name="tray.rs">System tray — icon, tooltip, context menu, left-click toggle</file>
+      <file name="tray_controller.rs">Wires desk events to tray + overlay + alerts</file>
+      <file name="tray_icon.rs">Generates RGBA tray icons by state + progress (white base + colored dot)</file>
+      <file name="colors.rs">Progress-to-color mapping + color_for_standing()</file>
+      <file name="overlay_renderer.rs">OverlayRenderer, OverlayState, DataSource, demo/mock progress</file>
+      <file name="overlay_opaque.rs">OPAQUE render backend (GDI BeginPaint/FillRect)</file>
+      <file name="overlay_layered.rs">LAYERED render backend (UpdateLayeredWindow)</file>
+      <file name="overlay_layered_wndproc.rs">Window procedure for LAYERED overlay</file>
+      <file name="overlay_variants.rs">Render variant pixels (solid, gradient, pulsing)</file>
+      <file name="overlay_standing.rs">Standing bar render logic (gold bar + lap indicators)</file>
+      <file name="alert_manager.rs">AlertManager state machine — progressive escalation</file>
+      <file name="alert_actions.rs">AlertAction enum + AlertStage</file>
+      <file name="alert_config.rs">AlertConfig — snooze durations, messages</file>
+      <file name="alert_popup.rs">AlertPopup — show/dismiss lifecycle</file>
+      <file name="alert_popup_window.rs">WinAPI popup window thread</file>
     </layer>
 
     <layer name="react-frontend" path="src/">
       <file name="main.tsx">React DOM root — mounts App</file>
-      <file name="App.tsx">Root component — orchestrates useDesk, useTimer, renders all panels</file>
-      <file name="types.ts">Shared TypeScript types: DeskState, SessionStateDto, TodaySummaryDto, etc.</file>
+      <file name="App.tsx">Root — widget system, settings panel, state management</file>
+      <file name="types.ts">Shared types: DeskState, SessionStateDto, TodaySummaryDto, WidgetProps</file>
+      <file name="welcome.tsx">Welcome popup entry point</file>
+
+      <dir name="widgets/">
+        <file name="registry.ts">Widget map + resolver (active_widget string to component)</file>
+        <file name="OneBarWidget.tsx">Horizontal progress bar, temperature escalation, coach sentence</file>
+        <file name="TimelineZenWidget.tsx">Minimalist, big timeline, zero text, ultra compact</file>
+        <file name="PlaceholderWidget.tsx">Dev verification widget</file>
+        <file name="useActiveWidget.ts">Hook: resolves active widget from config</file>
+        <file name="useWidgetData.ts">Hook: computes derived WidgetProps from useDesk + useTimer</file>
+        <file name="useDeskTypes.ts">Type definitions for desk hook data</file>
+      </dir>
 
       <dir name="components/">
-        <file name="HeightRail.tsx">Visual left-side accent bar — animates by deskHeightCm and state</file>
-        <file name="SessionProgress.tsx">Current sitting session timer and progress vs limit</file>
-        <file name="SettingsPanel.tsx">Settings UI — limits, calibration, notification prefs</file>
-        <file name="StateIndicator.tsx">Badge showing current state (Sitting/Standing/Walking/Away)</file>
-        <file name="TodayStats.tsx">Today's total sitting, standing, position change count</file>
-        <file name="AppProgressBar.tsx">14px in-app progress bar (debug variant)</file>
-        <file name="ScreenProgressBar.tsx">4px top-of-screen CSS overlay bar (production)</file>
+        <file name="HeightRail.tsx">Visual left-side accent bar</file>
+        <file name="SessionProgress.tsx">Sitting session timer and progress</file>
+        <file name="SettingsPanel.tsx">Settings UI — limits, calibration, notifications, widget picker</file>
+        <file name="StateIndicator.tsx">Badge showing current state</file>
+        <file name="TodayStats.tsx">Today totals: sitting, standing, changes, score</file>
+        <file name="TransitionBanner.tsx">30s banner after state transition</file>
+        <file name="WelcomePopup.tsx">First-launch onboarding popup</file>
+        <file name="AppProgressBar.tsx">14px in-app progress bar (debug)</file>
+        <file name="ScreenProgressBar.tsx">4px top-of-screen CSS overlay bar</file>
+        <dir name="settings/">
+          <file name="CalibrationSection.tsx">Calibration UI section</file>
+          <file name="NotificationsSection.tsx">Notification prefs section</file>
+          <file name="WidgetPickerSection.tsx">Widget selection dropdown</file>
+          <file name="SettingsTypes.ts">Settings type definitions</file>
+        </dir>
       </dir>
 
       <dir name="hooks/">
-        <file name="useDesk.ts">Main data hook — subscribes to desk:* events, fetches initial state</file>
-        <file name="useTimer.ts">Tick hook — increments counter every second when running</file>
+        <file name="useDesk.ts">Main data hook — desk:* events, IPC state</file>
+        <file name="useTimer.ts">Tick hook — 1s interval counter</file>
       </dir>
 
       <dir name="utils/">
-        <file name="format.ts">formatDuration(secs), formatDurationShort(secs) — human-readable time</file>
-      </dir>
-
-      <dir name="overlay/">
-        <file name="main.tsx">Canvas-based overlay entry — listens for overlay:progress events</file>
+        <file name="format.ts">formatDuration, formatDurationShort</file>
       </dir>
     </layer>
 
@@ -115,11 +140,19 @@
       <event name="desk:distance" direction="rust-to-js">Raw sensor reading (mm, cm, timestamp)</event>
       <event name="desk:device-connected" direction="rust-to-js">Sensor identified on serial port</event>
       <event name="desk:device-lost" direction="rust-to-js">Serial connection dropped</event>
-      <event name="desk:device-missing" direction="rust-to-js">No sensor found after scanning all ports</event>
+      <event name="desk:device-missing" direction="rust-to-js">No sensor found after scanning</event>
       <event name="desk:sensor-error" direction="rust-to-js">Serial or sensor error</event>
-      <event name="desk:state-changed" direction="rust-to-js">State transition (sitting/standing/etc.)</event>
+      <event name="desk:state-changed" direction="rust-to-js">State transition payload</event>
       <event name="desk:daily-reset" direction="rust-to-js">New day detected, counters reset</event>
-      <event name="overlay:progress" direction="rust-to-js">Progress ratio + color for overlay</event>
+    </layer>
+
+    <layer name="ipc-commands">
+      <command name="trigger_test_notification">Fire test notification (60s rate limit)</command>
+      <command name="dismiss_welcome">Mark welcome popup as dismissed in config</command>
+      <command name="show_welcome">Show welcome popup window</command>
+      <command name="get_session_state">Current SessionStateDto snapshot</command>
+      <command name="get_today_summary">TodaySummaryDto from SQLite</command>
+      <command name="inject_reading">Debug: simulate sensor reading</command>
     </layer>
 
   </architecture>
@@ -127,52 +160,43 @@
   <testing>
     <strategy coverage-gate="80%">3-layer: Unit to Integration to E2E</strategy>
 
-    <layer name="unit">
-      <rust path="src-tauri/src/" runner="cargo test">
-        Session state machine transitions, break credit rules, daily reset, alerts, height calculation
-      </rust>
-      <typescript path="src/**/*.test.tsx" runner="pnpm test:unit">
-        Components (ProgressBar, SessionProgress, SettingsPanel, HeightRail), hooks (useDesk), utils (format)
-      </typescript>
+    <layer name="unit-rust" path="src-tauri/src/" runner="cargo test">
+      <files>session_tests.rs, session_tests_alerts.rs, session_tests_daily.rs, session_tests_props.rs, session_tests_floating.rs, session_tests_score.rs, overlay_tests.rs, overlay_variant_tests.rs, overlay_standing_tests.rs, alert_manager_tests.rs, alert_snooze_tests.rs, config_tests.rs, db_tests.rs, tray_controller_tests.rs</files>
+      <count>183 tests</count>
+    </layer>
+
+    <layer name="unit-ts" path="src/**/*.test.tsx" runner="pnpm test:unit">
+      <files>Components, hooks, widgets, utils</files>
     </layer>
 
     <layer name="integration" path="tests/integration/" runner="pnpm test:integration">
-      <file name="session-flow.test.ts">Full sitting/standing flow via inject_reading IPC</file>
-      <file name="device-reconnect.test.ts">Device disconnect/reconnect handling</file>
-      <note>App must be running: pnpm tauri:dev in another terminal</note>
+      <note>App must be running: pnpm tauri:dev</note>
     </layer>
 
     <layer name="e2e" path="tests/e2e/" runner="pnpm test:e2e">
-      <file name="app-startup.test.ts">App loads, UI elements visible</file>
-      <file name="session-progress.test.ts">Session state, progress bar, tray tooltip</file>
-      <note>Requires: tauri-driver --compatibility-mode in separate terminal</note>
-    </layer>
-
-    <layer name="performance" path="tests/perf/" runner="pnpm test:perf">
-      <file name="memory-profile.test.ts">Memory sampling vs .perf-baseline.json (peak less than 250MB)</file>
+      <note>Requires: tauri-driver --compatibility-mode</note>
     </layer>
 
     <support>
-      <file path="tests/emulator/DeskDeviceEmulator.ts">Emulates device serial responses</file>
+      <file path="tests/emulator/DeskDeviceEmulator.ts">Device serial emulator</file>
       <file path="tests/emulator/scenarios.ts">Multi-reading scenario helpers</file>
       <file path="tests/fixtures/builders.ts">Test data builders</file>
     </support>
   </testing>
 
   <config-files>
-    <file name="tauri.conf.json">Window config (520x640, transparent, no decorations), bundle, CSP</file>
+    <file name="tauri.conf.json">Window config, bundle, CSP, welcome window</file>
     <file name="Cargo.toml">Rust deps: tauri2, rusqlite, serialport, chrono, tokio, window-vibrancy, windows</file>
-    <file name="vite.config.ts">Vite build + Vitest unit config, 80% coverage gate</file>
-    <file name="playwright.config.ts">E2E test config</file>
-    <file name="tsconfig.json">TypeScript config</file>
-    <file name=".gitattributes">LF line endings enforced</file>
+    <file name="vite.config.ts">Vite + Vitest, 80% coverage gate, welcome entry</file>
+    <file name="welcome.html">Welcome popup HTML entry</file>
   </config-files>
 
   <project-management>
     <file path="TASKS.md">Task board with P0-P4 priorities</file>
     <file path="BACKLOG.md">Unscheduled backlog</file>
     <file path="DDD.md">Domain-driven design glossary</file>
-    <dir path=".claude/tasks/">Detailed task specs (NNNN-scope-name.md)</dir>
+    <dir path=".claude/tasks/">Detailed task specs</dir>
+    <dir path=".claude/journals/">Sprint logs and work journals</dir>
     <dir path=".agent/vision/">Long-term vision docs</dir>
     <dir path="docs/">User-facing documentation</dir>
   </project-management>

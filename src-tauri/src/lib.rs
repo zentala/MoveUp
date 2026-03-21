@@ -17,6 +17,7 @@ mod db;
 mod db_queries;
 mod db_sessions;
 mod overlay_layered;
+mod overlay_layered_wndproc;
 mod overlay_opaque;
 mod overlay_renderer;
 mod overlay_standing;
