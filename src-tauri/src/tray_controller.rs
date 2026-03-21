@@ -1,11 +1,5 @@
-//! tray_controller.rs — Wires `desk:state-changed` events to tray + overlay.
-//!
-//! Listens for [`StateChangedPayload`] events emitted by `serial.rs` and
-//! updates the tray icon colour/tooltip and the overlay progress bar to
-//! reflect the current session state.
-//!
-//! Also drives the [`AlertManager`] state machine and executes returned
-//! [`AlertAction`]s (pulse bar, show/dismiss popup).
+//! Wires `desk:state-changed` + `desk:distance` events to tray tooltip,
+//! overlay progress bar, and [`AlertManager`] state machine.
 
 use tauri::{AppHandle, Listener};
 
@@ -18,11 +12,7 @@ use crate::{
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-/// Registers event listeners for tray + overlay + alert updates.
-///
-/// - `desk:state-changed` — state transitions (show/hide overlay, update tray, alert reset)
-/// - `desk:distance` — every sensor reading (update overlay progress + alert tick)
-///
+/// Registers `desk:state-changed` and `desk:distance` event listeners.
 /// Call once from `lib.rs` setup.
 pub fn setup(app: &AppHandle) {
     // State transitions: update tray icon + show/hide overlay + reset alerts
@@ -71,18 +61,13 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
 
     let (r, g, b, _css_color) = color_for_progress(progress);
 
-    // Build tooltip label: "↕ 72.3 cm — Sitting (12:34)"
-    let state_str = match payload.state {
-        DeskState::Sitting => "Sitting",
-        DeskState::Standing => "Standing",
-        DeskState::Walking => "Walking",
-        DeskState::Away => "Away",
-    };
-    let label = format!(
-        "↕ {:.1} cm — {} ({})",
+    // Build tooltip with correct duration for the current state
+    let label = build_tooltip_label(
         payload.desk_height_cm,
-        state_str,
-        format_duration(sitting_secs),
+        &payload.state,
+        payload.sitting_seconds,
+        payload.standing_seconds,
+        payload.break_seconds,
     );
 
     let _ = tray::update_tray(app, &label, payload.state.clone(), progress);
@@ -104,10 +89,7 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
     }
 }
 
-/// Updates overlay progress on every sensor reading, and drives the alert state machine.
-///
-/// Called from `desk:distance` listener — fires ~every second.
-/// Only updates if state is Sitting; otherwise no-op.
+/// Updates overlay progress on every sensor reading and drives the alert state machine.
 fn update_overlay_progress(app: &AppHandle) {
     use crate::commands::AppState;
     use tauri::Manager;
@@ -124,6 +106,10 @@ fn update_overlay_progress(app: &AppHandle) {
 
     let session = app_state.session.lock().unwrap();
     let snapshot = session.snapshot();
+    drop(session); // Release lock before calling tray/overlay
+
+    // Update tooltip every second regardless of state
+    update_tooltip(app, &snapshot);
 
     if snapshot.state != DeskState::Sitting {
         return;
@@ -139,7 +125,6 @@ fn update_overlay_progress(app: &AppHandle) {
     let overlay = app_state.overlay.clone();
     let alert_manager = app_state.alert_manager.clone();
     let alert_popup = app_state.alert_popup.clone();
-    drop(session); // Release lock before calling overlay or alert_manager
 
     overlay.update(progress, (r, g, b));
 
@@ -168,6 +153,38 @@ fn execute_alert_actions(
             AlertAction::ExpandOverlay | AlertAction::FullScreenNudge => {}
         }
     }
+}
+
+/// Updates tray tooltip from a session snapshot (called every ~1s).
+fn update_tooltip(app: &AppHandle, snapshot: &crate::session::SessionStateDto) {
+    let label = build_tooltip_label(
+        snapshot.desk_height_cm,
+        &snapshot.state,
+        snapshot.sitting_seconds,
+        snapshot.standing_seconds,
+        snapshot.break_seconds,
+    );
+    let _ = tray::update_tray_tooltip(app, &label);
+}
+
+/// Builds tooltip like `"↕ 72.3 cm — Sitting (12:34)"` with state-appropriate duration.
+fn build_tooltip_label(
+    desk_height_cm: f32,
+    state: &DeskState,
+    sitting_secs: i64,
+    standing_secs: i64,
+    break_secs: i64,
+) -> String {
+    let (state_str, duration_secs) = match state {
+        DeskState::Sitting => ("Sitting", sitting_secs),
+        DeskState::Standing => ("Standing", standing_secs),
+        DeskState::Walking => ("Walking", break_secs),
+        DeskState::Away => ("Away", 0),
+    };
+    format!(
+        "↕ {:.1} cm — {} ({})",
+        desk_height_cm, state_str, format_duration(duration_secs),
+    )
 }
 
 /// Formats a duration in seconds as `"MM:SS"`.
@@ -204,4 +221,27 @@ mod tests {
         assert_eq!(format_duration(-10), "00:00");
     }
 
+    #[test]
+    fn tooltip_sitting_shows_sitting_seconds() {
+        let label = build_tooltip_label(72.3, &DeskState::Sitting, 754, 0, 0);
+        assert_eq!(label, "↕ 72.3 cm — Sitting (12:34)");
+    }
+
+    #[test]
+    fn tooltip_standing_shows_standing_seconds() {
+        let label = build_tooltip_label(114.0, &DeskState::Standing, 120, 452, 452);
+        assert_eq!(label, "↕ 114.0 cm — Standing (07:32)");
+    }
+
+    #[test]
+    fn tooltip_walking_shows_break_seconds() {
+        let label = build_tooltip_label(114.0, &DeskState::Walking, 300, 200, 95);
+        assert_eq!(label, "↕ 114.0 cm — Walking (01:35)");
+    }
+
+    #[test]
+    fn tooltip_away_shows_zero() {
+        let label = build_tooltip_label(0.0, &DeskState::Away, 500, 200, 100);
+        assert_eq!(label, "↕ 0.0 cm — Away (00:00)");
+    }
 }

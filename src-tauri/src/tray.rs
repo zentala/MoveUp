@@ -94,6 +94,20 @@ pub fn update_tray(
     Ok(())
 }
 
+/// Updates only the tray tooltip text (no icon change).
+///
+/// Lightweight alternative to [`update_tray`] for frequent per-second updates
+/// where the icon does not need to change (e.g. while standing).
+pub fn update_tray_tooltip(
+    app: &AppHandle,
+    label: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        let _ = tray.set_tooltip(Some(label));
+    }
+    Ok(())
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /// Generates a 32x32 RGBA tray icon dynamically based on state and progress.
