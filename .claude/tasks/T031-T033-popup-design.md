@@ -52,6 +52,12 @@ Break credit logic lives ONLY in Rust SessionManager.
 TypeScript reads `limit_used_secs` from SessionStateDto — never recomputes.
 `limitRemaining = limitSecs - limitUsedSecs` (simple subtraction in TS).
 
+### 10. Eng Review Decisions (2026-03-21)
+- Widget big number uses ONLY `limit_used_secs` from Rust — NO useTimer for the main display. Prevents flicker/drift.
+- T027 split into T027a (session.rs) + T027b (db.rs, serial.rs, commands.rs, limit_used_secs). Sequential in Wave 1.
+- Empty-state test in T031 (PlaceholderWidget). Every widget must pass: state=null, sessions=[], connected=false.
+- todaySummary polled ONLY on `desk:state-changed` events, not on interval. Sessions[] doesn't change between events.
+
 ### 9. CEO Review Decisions (2026-03-21)
 - Extend useDesk (no new useWidgetData hook)
 - Shared SessionTimeline component for all widgets

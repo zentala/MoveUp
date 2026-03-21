@@ -68,7 +68,8 @@ You are the coordinating agent for the UX Communication System sprint.
 ## Wave Plan
 
 ```
-Wave 1 (sequential):  T027 — BLOCKS EVERYTHING
+Wave 1a (sequential): T027a — split session.rs
+Wave 1b (sequential): T027b — split db/serial/commands + limit_used_secs
 Wave 2 (parallel):    T023 + T024 + T029 — P1 bugs, independent files
 Wave 3 (parallel):    T022 + T028 + T025 — P2 features
 Wave 4 (parallel):    T030 + T016 — fixes + optional icon
