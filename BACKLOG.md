@@ -9,24 +9,7 @@ Items not yet scheduled, before refinement.
 - **`window-vibrancy`** (crate) — Windows Acrylic/Mica blur effect na floating window
   - wymaga `"transparent": true` w `tauri.conf.json` + `background: transparent` w CSS
 
-- **`tauri-plugin-notification`** — natywne powiadomienia Windows ("czas wstać")
-
 - **`tauri-plugin-autostart`** — start aplikacji przy logowaniu do Windows
-
-- **`tauri-plugin-store`** — persystencja konfiguracji (limit sesji, progi wysokości, kalibracja)
-
-- **Dynamiczna ikona tray** — wbudowane Tauri 2 (`tray-icon` feature), `set_icon()` — zmiana koloru/ikony wg stanu (OK / warning / overdue)
-  - **Status:** Scheduled for future (po stabilizacji progress bar overlay)
-
----
-
-## Standing Mode Theme — Floating Window
-
-When user stands, floating window changes background to subtle gold/green tint.
-- Emit `desk:overlay-mode-changed` event from tray_controller.rs
-- React component listens and applies CSS class `standing-mode` to root
-- Style: `background: rgba(218, 165, 32, 0.05)` — barely visible warmth
-- Implement after T028 (points in floating window) when UI is being touched anyway
 
 ---
 
@@ -42,51 +25,37 @@ When user stands, floating window changes background to subtle gold/green tint.
 
 ## Alert System — Future
 
-- **AlertManager message strings in settings panel** — `AlertConfig` holds default neutral/positive message arrays. When T001 settings panel ships, expose these as editable arrays so zentala can tune tone/wording without code changes. Depends on T001 + T015.
+- **AlertManager message strings in settings panel** — `AlertConfig` holds default neutral/positive message arrays. Expose as editable arrays so zentala can tune tone/wording without code changes. Depends on T015.
+- **Notification strategy as pluggable system** — like widgets but for notifications. Different backends (toast, custom popup, both), different escalation patterns. Deferred until widget system proves the pattern.
 
 ---
 
 ## Dokumentacja
 
 - **Overlay Progress Bar Architecture Document** — pełny opis systemu paska na górze ekranu
-  - Architektura: OverlayRenderer, OverlayState, thread-safe state management
-  - Synchronizacja z session state (Sitting/Standing/Walking)
-  - Logika kolorów (green → amber → red)
-  - Linkowanie do testów: `overlay_renderer::tests`, `colors::tests`
-  - Linkowanie do plików: `overlay_renderer.rs`, `colors.rs`, `tray_controller.rs`
-  - Diagram przepływu: State → TrayController → OverlayRenderer → WinAPI Window
-  - Aby uniknąć rozjazdów: dokumentacja = Single Source of Truth dla jak pasek działa
 
 ---
 
-## Session Limit & Alerts
+## Future Features
 
-- **Bar flashing at limit** — when 45min reached, bar pulses/flashes red to grab attention
-- **Red popup at limit** — "You've been sitting 45 min. Take a break!" with Dismiss button
-  - Auto-dismiss when desk raised (Standing detected)
-  - Snooze logic: Dismiss → remind after 2 hours. "Your body will thank you."
-  - Must design the full UX flow: what happens on ignore? configurable?
-- **Notification system architecture** — multiple notification types needed:
-  - Colors: green (success), yellow (warning), red (alert), gray (info)
-  - Two backends to prototype: (1) native Windows toast, (2) custom-drawn overlay popup
-  - Need demo of both to compare before committing
-  - Custom popup: animated progress bar at bottom, auto-dismiss timer, configurable
-  - Some notifications should persist until action, some auto-dismiss — make it a setting
-- **Success notifications** — gamification nudges:
-  - "You stood 40min today — top 2% of users!" (green)
-  - Daily standing goal milestones
-  - Streak tracking ("3 days in a row of 40min+ standing")
-  - Future: more gamification mechanics TBD through experimentation
-
-## Tray Icon
-
-- **Color dot on tray icon** — small circle (not whole icon) that matches bar color progression:
-  - Green (OK) → Yellow (warning, 60%+) → Red (alert, 85%+)
-  - Synced with overlay bar progress, same color_for_progress() logic
-  - Note: T010 in main TASKS.md covers dynamic tray icon but needs redesign to be a small dot, not full icon recolor
-
-## Inne
-
-- Konfiguracja progów wysokości przez UI (kalibracja: "ustaw biurko na siedzącą pozycję i kliknij")
-- Reguły sesji konfigurowalne z UI (limit minut, progi przerwy)
+- **Notification A/B testing** — two backends simultaneously with feature flag (T018)
+- **Success notifications + gamification** — streak tracking, milestone celebrations (T019)
+- **Notification strategy plugins** — like widget system but for how/when to nudge
+- **Phone-as-hub** — old phone + BLE sensor, works without desktop app
+- **Smartwatch integration** — proximity detection, walking state, HRV
+- **Activity tracking module** — keyboard/mouse activity independent of sensor
 - Eksport danych do CSV
+- Konfiguracja progów wysokości przez UI (kalibracja z UI)
+
+---
+
+## Removed (already implemented or superseded)
+
+- ~~`tauri-plugin-notification`~~ — already integrated
+- ~~`tauri-plugin-store`~~ — already integrated
+- ~~Dynamiczna ikona tray~~ — superseded by T016 (color dot approach)
+- ~~Standing Mode Theme~~ — superseded by T032 (widget temperature system)
+- ~~Bar flashing at limit~~ — implemented in T013 (alert Stage 1, variant 2 pulsing)
+- ~~Red popup at limit~~ — implemented in T013+T014 (AlertPopup)
+- ~~Snooze logic~~ — implemented in T015 (deescalating snooze)
+- ~~Color dot on tray icon~~ — scheduled as T016

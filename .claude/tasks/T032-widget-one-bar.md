@@ -68,9 +68,12 @@ const OneBarWidget: FC<WidgetProps> = (props) => {
 };
 ```
 
-### `src/widgets/one-bar/OneBarTimeline.tsx` (~80 lines)
+### Timeline — uses shared `<SessionTimeline>` from T031
 
-Timeline component:
+Import `SessionTimeline` from `@/widgets/shared/SessionTimeline`.
+Pass: `height={28}`, sitting/standing/away colors, ghost rhythm interval.
+
+The shared component handles:
 - Proportional blocks for each session today
 - Colors: sitting=#6a1a1a..#c43030, standing=#1a5528..#1a6630, away=#333
 - Current session has glowing right edge (box-shadow)
@@ -97,7 +100,7 @@ One sentence, context-dependent:
 | Sitting | ratio < 0.5 | "W normie." |
 | Sitting | ratio 0.5–0.8 | "Połowa limitu. {changes} zmian dziś." |
 | Sitting | ratio > 0.8 | "Wstań w ciągu {remaining} min." |
-| Sitting | ratio >= 1.0 | "Limit przekroczony. Wstań teraz." |
+| Sitting | ratio >= 1.0 | "Limit przekroczony o {overtime} min. Tracisz punkty." |
 | Standing | resetProgress < 1.0 | "Jeszcze {toReset} min do resetu." |
 | Standing | resetProgress >= 1.0 | "Reset! Możesz usiąść — masz pełne {limit} min." |
 | Away | resetProgress < 1.0 | "Przerwa się liczy. Do resetu {toReset} min." |
@@ -140,7 +143,7 @@ Temperature-based theming:
 | File | Lines |
 |------|-------|
 | `src/widgets/OneBarWidget.tsx` | ~120 |
-| `src/widgets/one-bar/OneBarTimeline.tsx` | ~80 |
+| ~~`src/widgets/one-bar/OneBarTimeline.tsx`~~ | Uses shared `SessionTimeline` from T031 |
 | `src/widgets/one-bar/OneBarTimer.tsx` | ~60 |
 | `src/widgets/one-bar/OneBarCoach.tsx` | ~50 |
 | `src/widgets/one-bar/temperature.ts` | ~30 |

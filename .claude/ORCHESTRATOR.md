@@ -78,10 +78,16 @@ Wave 5b (parallel):   T032 + T033 — One Bar + Timeline Zen widgets
 
 ---
 
-## Wave 1 — T027: Split session.rs (P0, REQUIRED BEFORE ALL OTHERS)
+## Wave 1 — T027: Split oversized Rust files (P0, REQUIRED BEFORE ALL OTHERS)
 
-**Why it blocks:** `session.rs` is 1348 lines. Pre-commit hook rejects any commit touching it.
-Every other task touches session.rs.
+**Why it blocks:** Pre-commit hook rejects files >250 lines. Multiple files exceed this:
+- `session.rs` = 1348 lines (every task touches it)
+- `db.rs` = 467 lines (T024 may touch it)
+- `serial.rs` = 464 lines (T024 modifies it)
+- `commands.rs` = 264 lines (T029 modifies it)
+- `overlay_tests.rs` = 281 lines
+
+**CEO review (2026-03-21):** T027 scope expanded to split ALL oversized files, not just session.rs.
 
 ```bash
 cd /c/code/zntl-tray
@@ -99,10 +105,25 @@ git worktree add .claude/worktrees/T027-split-session-rs feat/T027-split-session
    - `session_manager.rs` — SessionManager + impl (~200L)
    - `session_tests.rs` — all `#[cfg(test)]` content (~800L)
    - `session.rs` → thin re-export or deleted
-2. Adds to `config.rs`:
+2. Splits `serial.rs` (464L) into:
+   - `serial.rs` — main reader loop (~200L)
+   - `serial_notifications.rs` — notification check loop (~150L)
+   - `serial_parser.rs` — parse_distance + device detection (~80L)
+3. Splits `db.rs` (467L) into:
+   - `db.rs` — connection + schema (~150L)
+   - `db_sessions.rs` — session CRUD (~150L)
+   - `db_summary.rs` — get_today_summary + queries (~150L)
+4. Splits `commands.rs` (264L) into:
+   - `commands_session.rs` — session state + calibration commands
+   - `commands_config.rs` — settings get/save
+   - `commands.rs` → thin re-export
+5. Adds to `config.rs`:
    - `standing_target_mins: u32` with `#[serde(default=15, alias="stand_limit_mins")]`
    - `stand_max_mins: u32` with `#[serde(default=90)]`
-3. Updates all imports in: `lib.rs`, `serial.rs`, `commands.rs`, `tray_controller.rs`
+   - `active_widget: String` with `#[serde(default="one-bar")]`
+6. Adds to `SessionStateDto`:
+   - `limit_used_secs: i64` — computed by Rust, includes break credit. Goes negative = overtime.
+7. Updates all imports in: `lib.rs`, `serial.rs`, `commands.rs`, `tray_controller.rs`
 
 **Verification before merge:**
 ```bash

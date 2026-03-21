@@ -57,10 +57,13 @@ const TimelineZenWidget: FC<WidgetProps> = (props) => {
 };
 ```
 
-### `src/widgets/timeline-zen/ZenTimeline.tsx` (~80 lines)
+### Timeline — uses shared `<SessionTimeline>` from T031
 
-Same logic as OneBarTimeline but:
-- 48px tall (not 28px)
+Import `SessionTimeline` from `@/widgets/shared/SessionTimeline`.
+Pass: `height={48}`, no legend, ghost opacity 15%.
+
+Differences from One Bar usage:
+- 48px tall (not 28px) — the hero element
 - No legend (colors are self-explanatory after first use)
 - Hover still shows tooltip
 - Ghost rhythm lines slightly more visible (15% opacity)
@@ -101,7 +104,7 @@ Background always dark. No glow, no border changes.
 | File | Lines |
 |------|-------|
 | `src/widgets/TimelineZenWidget.tsx` | ~60 |
-| `src/widgets/timeline-zen/ZenTimeline.tsx` | ~80 |
+| ~~`src/widgets/timeline-zen/ZenTimeline.tsx`~~ | Uses shared `SessionTimeline` from T031 |
 | `src/widgets/timeline-zen/ZenStatus.tsx` | ~40 |
 | `src/widgets/timeline-zen/timeline-zen.css` | ~60 |
 

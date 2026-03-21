@@ -43,6 +43,21 @@ Everything else removed or folded into these three.
 ### 7. limitRemaining is the hero number
 Big number shows how much limit is left — not how long you've been sitting.
 When standing: number decreases as you "pay off" the sitting debt.
+**Goes negative when over limit** — shows `-12:00 / 40:00`. No clamping.
+Negative limitRemaining = overtime = scoring system deducts points.
+Progress bar clamps visually at 100%, but the number keeps going.
+
+### 8. limit_used_secs computed in Rust (single source of truth)
+Break credit logic lives ONLY in Rust SessionManager.
+TypeScript reads `limit_used_secs` from SessionStateDto — never recomputes.
+`limitRemaining = limitSecs - limitUsedSecs` (simple subtraction in TS).
+
+### 9. CEO Review Decisions (2026-03-21)
+- Extend useDesk (no new useWidgetData hook)
+- Shared SessionTimeline component for all widgets
+- Edge guards in useDesk (limit=0, no sessions, disconnected)
+- Wave 1 expanded: split db.rs, serial.rs, commands.rs (all >250L)
+- Log active_widget on startup and switch
 
 ## States
 

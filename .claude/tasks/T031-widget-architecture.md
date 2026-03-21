@@ -10,6 +10,16 @@
 Replace the hardcoded floating window UI with a pluggable widget system.
 Core app provides data; widgets handle presentation.
 
+## CEO Review Decisions (2026-03-21)
+
+1. **Extend useDesk** instead of new useWidgetData hook — no wrapper, add computed fields directly
+2. **Shared `<SessionTimeline>`** component — both widgets import it, pass height/style props
+3. **Edge guards in useDesk** — limitRatio=0 when limitSecs=0, previousSession=null when no history
+4. **`limit_used_secs` computed in Rust** — added to SessionStateDto, single source of truth
+5. **limitRemaining goes negative** when over limit — no clamping, no separate overtime field. Negative = overtime = points deducted. Widget clamps bar at 100% visually, shows negative number.
+6. **Log active_widget** on startup and on switch for debuggability
+7. **Wave 1 must also split** db.rs, serial.rs, commands.rs, overlay_tests.rs (all >250L)
+
 ## Architecture
 
 ### WidgetProps interface (new: `src/types.ts`)
@@ -25,11 +35,11 @@ export interface WidgetProps {
   state: DeskState | null;
   deskHeightCm: number;
 
-  // Session timing
+  // Session timing — ALL derived from Rust-side limit_used_secs
   currentSessionSecs: number;     // how long in current state
   limitSecs: number;              // sitting limit (e.g. 2400)
-  limitRemaining: number;         // decreases when sitting, increases when standing/away
-  limitRatio: number;             // 0.0–1.0+ (limitRemaining / limitSecs inverted)
+  limitRemaining: number;         // limitSecs - limit_used_secs. GOES NEGATIVE when over limit.
+  limitRatio: number;             // limit_used_secs / limitSecs. Can exceed 1.0.
 
   // Break
   breakSecs: number;              // current break duration (standing or away)
@@ -37,7 +47,7 @@ export interface WidgetProps {
   breakResetProgress: number;     // 0.0–1.0 how close to full reset
 
   // Previous session
-  previousSession: PreviousSession | null;
+  previousSession: PreviousSession | null;  // null on first session of day
 
   // Today
   todaySessions: SessionEntry[];
@@ -103,34 +113,29 @@ fn default_active_widget() -> String {
 }
 ```
 
-### Data provider (`src/hooks/useWidgetData.ts`)
+### Extend useDesk hook (NOT a new hook)
 
-New hook that wraps `useDesk` + `useTimer` + computed values:
+**CEO review decision:** No `useWidgetData`. Extend `useDesk` directly with computed fields.
 
+Add to `useDesk` return:
 ```typescript
-export function useWidgetData(): WidgetProps {
-  const desk = useDesk();
-  const liveSitting = useTimer(desk.sittingSeconds, desk.state === "Sitting");
-  const liveBreak = useTimer(desk.breakSeconds, desk.state !== "Sitting" && desk.state !== null);
-  const [todaySummary, setTodaySummary] = useState<TodaySummaryDto | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+// NEW computed fields in useDesk:
+limitUsedSecs: number;        // from Rust SessionStateDto.limit_used_secs
+limitRemaining: number;       // limitSecs - limitUsedSecs (can be negative!)
+limitRatio: number;           // limitUsedSecs / limitSecs (>1.0 when over limit, 0 when limitSecs=0)
+breakResetProgress: number;   // min(breakSecs / breakResetThreshold, 1.0)
+previousSession: PreviousSession | null; // derived from todaySummary.sessions
+todaySessions: SessionEntry[];
+todayChanges: number;
+```
 
-  // Compute limitRemaining: starts at limitSecs, decreases while sitting
-  // When standing/away: limitRemaining increases (break drains the limit used)
-  const limitRemaining = desk.sessionLimitSecs - liveSitting;
-  const limitRatio = desk.sessionLimitSecs > 0
-    ? Math.min(liveSitting / desk.sessionLimitSecs, 1.5)
-    : 0;
+Edge guards:
+- `limitSecs === 0` → `limitRatio = 0`, `limitRemaining = 0`
+- `todaySummary === null` → `previousSession = null`, `todaySessions = []`
+- `state === null` → widget shows "waiting for data" state
 
-  // Previous session from todaySummary.sessions
-  const previousSession = derivePreviousSession(todaySummary?.sessions ?? []);
-
-  // Break reset progress
-  const breakResetThreshold = 900; // 15 min — from config eventually
-  const breakResetProgress = Math.min(liveBreak / breakResetThreshold, 1.0);
-
-  return { ...computed values };
-}
+`limit_used_secs` comes from Rust (single source of truth for break credit logic).
+TypeScript NEVER recomputes break credit — just reads the value.
 ```
 
 ### App.tsx refactor
@@ -159,8 +164,8 @@ export default function App() {
 |------|---------|-------|
 | `src/types.ts` | Add WidgetProps, PreviousSession, WidgetRegistration | +40 |
 | `src/widgets/registry.ts` | Widget registry + resolver | ~30 |
-| `src/hooks/useWidgetData.ts` | Compute derived props from useDesk | ~80 |
 | `src/widgets/PlaceholderWidget.tsx` | Minimal widget that shows raw data (dev) | ~40 |
+| `src/widgets/shared/SessionTimeline.tsx` | Shared timeline component (blocks, hover, ghost lines) | ~80 |
 
 ## Files to modify
 
