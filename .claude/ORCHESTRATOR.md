@@ -69,9 +69,11 @@ You are the coordinating agent for the UX Communication System sprint.
 
 ```
 Wave 1 (sequential):  T027 — BLOCKS EVERYTHING
-Wave 2 (parallel):    T023 + T024 — P1 bugs, independent files
+Wave 2 (parallel):    T023 + T024 + T029 — P1 bugs, independent files
 Wave 3 (parallel):    T022 + T028 + T025 — P2 features
-Wave 4 (sequential):  T016 — depends on T026 assets (optional)
+Wave 4 (parallel):    T030 + T016 — fixes + optional icon
+Wave 5a (sequential): T031 — widget architecture (BLOCKS T032, T033)
+Wave 5b (parallel):   T032 + T033 — One Bar + Timeline Zen widgets
 ```
 
 ---
@@ -386,6 +388,128 @@ git branch -d feat/T030-floating-window-fix feat/T016-tray-icon
 
 ---
 
+## Wave 5 — T031 → (T032 + T033) — Widget System
+
+> **Product context:** App is a coach, not a tracker. Frequent position changes > standing duration.
+> See `.agent/vision/2026-03-21-product-vision-coach-and-business.md`
+
+```
+Wave 5a (sequential):  T031 — widget architecture (BLOCKS T032, T033)
+Wave 5b (parallel):    T032 + T033 — two widget implementations
+```
+
+### Architecture — Key Decisions for Wave 5
+
+### 8. Widget system
+- `WidgetProps` is the single interface between core and presentation
+- Core computes `limitRemaining` (decreasing counter) — widgets don't compute session logic
+- `active_widget: String` in AppConfig, persisted via tauri-plugin-store
+- Widget registry is a static TS map, no dynamic loading
+- Each widget is `FC<WidgetProps>` — pure presentation component
+- `useWidgetData()` hook wraps `useDesk()` + `useTimer()` + computed derived values
+- "Stop" button removed from UI (dev command, not user-facing)
+- ScreenProgressBar (overlay) stays outside widget system — it's a separate concern
+
+### 9. One Bar concept (T032)
+- **One bar, one meaning:** progress bar = limit usage. Fills when sitting, drains when standing/away
+- Big number = `limitRemaining`, NOT `sittingSeconds` or `breakSeconds`
+- Temperature escalation: 7 CSS classes (calm/warm/hot/burning/standing/away/reset)
+- Coach: ONE sentence, context-dependent. Coach says what to DO, not statistics
+- Timeline: proportional blocks, hover → tooltip, ghost rhythm lines
+- Away = legitimate break, same as standing (gray on timeline, drains the bar)
+- Break ≥15 min (standing OR away) = full reset
+
+### Agent T031 — Widget Architecture
+
+```bash
+git branch feat/T031-widget-architecture main
+git worktree add .claude/worktrees/T031-widget-architecture feat/T031-widget-architecture
+```
+
+**Spec:** `apps/desk/.claude/tasks/T031-widget-architecture.md`
+
+**Files:**
+- `src/types.ts` — add WidgetProps, PreviousSession, WidgetRegistration
+- `src/widgets/registry.ts` — NEW: widget map + resolver
+- `src/hooks/useWidgetData.ts` — NEW: compute derived props
+- `src/widgets/PlaceholderWidget.tsx` — NEW: dev verification widget
+- `src/App.tsx` — refactor: replace hardcoded UI with widget system
+- `src-tauri/src/config.rs` — add `active_widget: String`
+- `src/components/SettingsPanel.tsx` — add widget picker dropdown
+
+**Verification:**
+```bash
+cargo test
+pnpm test:unit
+```
+
+**Merge T031:**
+```bash
+cd /c/code/zntl-tray
+git checkout main
+git merge feat/T031-widget-architecture --no-ff -m "refactor(desk): widget architecture for floating window"
+git worktree remove .claude/worktrees/T031-widget-architecture
+git branch -d feat/T031-widget-architecture
+```
+
+### Agent T032 — Widget "One Bar" (parallel with T033)
+
+```bash
+git branch feat/T032-widget-one-bar main
+git worktree add .claude/worktrees/T032-widget-one-bar feat/T032-widget-one-bar
+```
+
+**Spec:** `apps/desk/.claude/tasks/T032-widget-one-bar.md`
+
+**Files (all NEW):**
+- `src/widgets/OneBarWidget.tsx`
+- `src/widgets/one-bar/OneBarTimeline.tsx`
+- `src/widgets/one-bar/OneBarTimer.tsx`
+- `src/widgets/one-bar/OneBarCoach.tsx`
+- `src/widgets/one-bar/temperature.ts`
+- `src/widgets/one-bar/one-bar.css`
+- `src/widgets/registry.ts` — register
+
+**No conflict with T033** — T032 and T033 create different files.
+
+### Agent T033 — Widget "Timeline Zen" (parallel with T032)
+
+```bash
+git branch feat/T033-widget-timeline-zen main
+git worktree add .claude/worktrees/T033-widget-timeline-zen feat/T033-widget-timeline-zen
+```
+
+**Spec:** `apps/desk/.claude/tasks/T033-widget-timeline-zen.md`
+
+**Files (all NEW):**
+- `src/widgets/TimelineZenWidget.tsx`
+- `src/widgets/timeline-zen/ZenTimeline.tsx`
+- `src/widgets/timeline-zen/ZenStatus.tsx`
+- `src/widgets/timeline-zen/timeline-zen.css`
+- `src/widgets/registry.ts` — register
+
+**Merge conflict with T032 in `registry.ts`:** Both add an entry. Take both — they're additive.
+
+### Merge Wave 5
+
+```bash
+cd /c/code/zntl-tray
+git checkout main
+
+# T032 first (default widget)
+git merge feat/T032-widget-one-bar --no-ff -m "feat(desk): One Bar widget — horizontal, temperature, coach"
+
+# T033 — possible merge conflict in registry.ts (additive, take both entries)
+git merge feat/T033-widget-timeline-zen --no-ff -m "feat(desk): Timeline Zen widget — minimalist, big timeline"
+
+# Cleanup
+git worktree remove .claude/worktrees/T032-widget-one-bar
+git worktree remove .claude/worktrees/T033-widget-timeline-zen
+git branch -d feat/T032-widget-one-bar feat/T033-widget-timeline-zen
+```
+
+---
+
 ## Agent message template
 
 ```
@@ -450,4 +574,10 @@ T027 (Wave 1)
          ▼
        T016 (Wave 4, after T026 assets)
        T030 (Wave 4, fix floating window bugs — depends on T029 + T027)
+         │
+         ▼
+       T031 (Wave 5a, sequential — widget architecture)
+         │
+         ├──► T032 (Wave 5b, parallel) — One Bar widget
+         └──► T033 (Wave 5b, parallel) — Timeline Zen widget
 ```

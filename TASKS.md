@@ -215,6 +215,22 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 
 ---
 
+## Sprint: Widget System (floating window redesign)
+
+> **Philosophy:** Core app provides data; widgets handle presentation.
+> User can switch between widget styles. Architecture supports experimentation.
+> See `.agent/vision/2026-03-21-product-vision-coach-and-business.md` for product context.
+
+- [ ] **T031** P1 — Widget architecture: WidgetProps interface + registry + `active_widget` in AppConfig `.claude/tasks/T031-widget-architecture.md`
+  - **Blocks:** T032, T033 — widgets need the architecture first
+  - **Depends on:** T027 (session.rs split), T030 (floating window fixes)
+- [ ] **T032** P2 — Widget "One Bar": horizontal, unified progress bar, temperature escalation, coach sentence `.claude/tasks/T032-widget-one-bar.md`
+  - **Depends on:** T031
+- [ ] **T033** P3 — Widget "Timeline Zen": minimalist, big timeline, zero text, ultra compact `.claude/tasks/T033-widget-timeline-zen.md`
+  - **Depends on:** T031
+
+---
+
 ## Sprint: Polish + Delight
 
 - [-] **T010** ~~P3 — Dynamic tray icon~~ (replaced by T016 — color dot approach)
