@@ -55,6 +55,9 @@ impl SessionManager {
                 desk_height_cm: 0.0,
                 last_position_change_at: None,
                 position_changes: 0,
+                last_break_secs: 0,
+                last_sitting_secs: 0,
+                last_break_credit: BreakCredit::None,
             },
             pending_state: None,
             pending_count: 0,
@@ -87,6 +90,9 @@ impl SessionManager {
                 desk_height_cm: 0.0,
                 last_position_change_at: None,
                 position_changes: 0,
+                last_break_secs: 0,
+                last_sitting_secs: 0,
+                last_break_credit: BreakCredit::None,
             },
             pending_state: None,
             pending_count: 0,
@@ -177,6 +183,9 @@ impl SessionManager {
             self.state.sitting_seconds = 0;
             self.state.standing_seconds = 0;
             self.state.position_changes = 0;
+            self.state.last_break_secs = 0;
+            self.state.last_sitting_secs = 0;
+            self.state.last_break_credit = BreakCredit::None;
             self.alert_fired = false;
             self.stand_alert_fired = false;
             self.notify_inactivity_fired = false;

@@ -42,6 +42,8 @@ mod session_tests;
 #[cfg(test)]
 mod session_tests_alerts;
 #[cfg(test)]
+mod session_tests_floating;
+#[cfg(test)]
 mod session_tests_daily;
 #[cfg(test)]
 mod session_tests_props;

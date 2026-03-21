@@ -62,6 +62,12 @@ pub struct SessionState {
     pub last_position_change_at: Option<DateTime<Utc>>,
     /// Number of position changes (Sitting<->Standing transitions) today.
     pub position_changes: u32,
+    /// Duration of the last completed break/standing session (seconds).
+    pub last_break_secs: i64,
+    /// Duration of the last completed sitting session (seconds).
+    pub last_sitting_secs: i64,
+    /// Break credit applied on the most recent Standing->Sitting transition.
+    pub last_break_credit: BreakCredit,
 }
 
 /// Serialisable DTO emitted with state-change events.
@@ -82,6 +88,18 @@ pub struct SessionStateDto {
     pub limit_used_secs: i64,
 }
 
+/// Break credit type applied when returning from standing to sitting.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BreakCredit {
+    /// Standing < 5 min — session continues unchanged.
+    None,
+    /// Standing 5-9 min — session reduced by 20 min.
+    Partial,
+    /// Standing >= 10 min — session reset to 0.
+    Full,
+}
+
 /// Payload for the `desk:state-changed` event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateChangedPayload {
@@ -92,6 +110,12 @@ pub struct StateChangedPayload {
     pub desk_height_cm: f32,
     /// Number of position changes (Sitting<->Standing transitions) today.
     pub position_changes: u32,
+    /// Duration of the last standing/break session in seconds (for transition UI).
+    pub last_break_secs: i64,
+    /// Duration of the last sitting session in seconds (for transition UI).
+    pub last_sitting_secs: i64,
+    /// Break credit applied on this transition ("none", "partial", "full").
+    pub break_credit: BreakCredit,
 }
 
 /// Completed sitting session with timing information.
