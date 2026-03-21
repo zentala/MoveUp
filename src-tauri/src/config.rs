@@ -8,47 +8,16 @@ use serde::{Deserialize, Serialize};
 use tauri::Runtime;
 use tauri_plugin_store::Store;
 
-// ─── Default value helpers ───────────────────────────────────────────────────
-
-fn default_sit_limit() -> u32 {
-    45
-}
-
-fn default_stand_limit() -> u32 {
-    15
-}
-
-fn default_standing_target() -> u32 {
-    15
-}
-
-fn default_stand_max() -> u32 {
-    90
-}
-
-fn bool_true() -> bool {
-    true
-}
-
-fn default_sitting_mm() -> i32 {
-    720
-}
-
-fn default_standing_mm() -> i32 {
-    1050
-}
-
-fn default_thickness_mm() -> i32 {
-    30
-}
-
-fn default_active_widget() -> String {
-    "one-bar".to_string()
-}
-
-fn default_notification_backend() -> String {
-    "toast".to_string()
-}
+fn default_sit_limit() -> u32 { 45 }
+fn default_stand_limit() -> u32 { 15 }
+fn default_standing_target() -> u32 { 15 }
+fn default_stand_max() -> u32 { 90 }
+fn bool_true() -> bool { true }
+fn default_sitting_mm() -> i32 { 720 }
+fn default_standing_mm() -> i32 { 1050 }
+fn default_thickness_mm() -> i32 { 30 }
+fn default_active_widget() -> String { "one-bar".to_string() }
+fn default_notification_backend() -> String { "toast".to_string() }
 
 // ─── AppConfig ───────────────────────────────────────────────────────────────
 
@@ -88,6 +57,9 @@ pub struct AppConfig {
     /// Notification backend: "toast" (native), "popup" (WinAPI), or "both".
     #[serde(default = "default_notification_backend")]
     pub notification_backend: String,
+    /// Show welcome popup on startup. Set to false after first dismiss with "don't show again".
+    #[serde(default = "bool_true")]
+    pub show_welcome_on_startup: bool,
 }
 
 impl AppConfig {
@@ -150,6 +122,7 @@ impl Default for AppConfig {
             desk_thickness_mm: default_thickness_mm(),
             active_widget: default_active_widget(),
             notification_backend: default_notification_backend(),
+            show_welcome_on_startup: bool_true(),
         }
     }
 }
@@ -200,6 +173,9 @@ mod tests {
         assert!(config.notify_inactivity);
         assert_eq!(config.sitting_mm, 720);
         assert_eq!(config.standing_mm, 1050);
+        assert_eq!(config.active_widget, "one-bar");
+        assert_eq!(config.notification_backend, "toast");
+        assert!(config.show_welcome_on_startup);
     }
 
     #[test]
@@ -229,6 +205,7 @@ mod tests {
             desk_thickness_mm: 35,
             active_widget: "two-bar".to_string(),
             notification_backend: "popup".to_string(),
+            show_welcome_on_startup: false,
         };
 
         let json = serde_json::to_value(&original).unwrap();
@@ -239,12 +216,13 @@ mod tests {
         assert_eq!(original.notify_inactivity, restored.notify_inactivity);
         assert_eq!(original.active_widget, restored.active_widget);
         assert_eq!(restored.notification_backend, "popup");
+        assert!(!restored.show_welcome_on_startup);
     }
 
     #[test]
-    fn test_notification_backend_default() {
-        let config = AppConfig::default();
-        assert_eq!(config.active_widget, "one-bar");
-        assert_eq!(config.notification_backend, "toast");
+    fn test_show_welcome_serde_missing_defaults_true() {
+        let json = serde_json::json!({ "sit_limit_mins": 30 });
+        let config: AppConfig = serde_json::from_value(json).unwrap();
+        assert!(config.show_welcome_on_startup);
     }
 }

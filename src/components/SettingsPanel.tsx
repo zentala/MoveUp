@@ -284,6 +284,16 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
         </div>
       </div>
 
+      {/* Section 4: Misc */}
+      <div className="settings-panel__section">
+        <button
+          className="btn btn--secondary"
+          onClick={() => invoke("show_welcome")}
+        >
+          Show intro again
+        </button>
+      </div>
+
       {/* Error banner */}
       {error && <div className="error-banner">{error}</div>}
 
