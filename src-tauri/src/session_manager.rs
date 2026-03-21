@@ -36,6 +36,8 @@ pub struct SessionManager {
     pub notify_posture_balance_fired: bool,
     /// Notification debounce flag: praise message fired today (T003).
     pub praise_halfway_fired_today: bool,
+    /// Notification debounce flag: standing target reached fired today.
+    pub standing_target_reached_fired: bool,
 }
 
 impl SessionManager {
@@ -68,6 +70,7 @@ impl SessionManager {
             notify_inactivity_fired: false,
             notify_posture_balance_fired: false,
             praise_halfway_fired_today: false,
+            standing_target_reached_fired: false,
         }
     }
 
@@ -100,6 +103,7 @@ impl SessionManager {
             notify_inactivity_fired: false,
             notify_posture_balance_fired: false,
             praise_halfway_fired_today: false,
+            standing_target_reached_fired: false,
         }
     }
 
@@ -182,6 +186,7 @@ impl SessionManager {
             self.notify_inactivity_fired = false;
             self.notify_posture_balance_fired = false;
             self.praise_halfway_fired_today = false;
+            self.standing_target_reached_fired = false;
             self.last_reset_date = today;
             return true;
         }

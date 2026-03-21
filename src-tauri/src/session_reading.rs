@@ -187,7 +187,7 @@ impl SessionManager {
         let mut events = Vec::new();
         if config.notify_inactivity && !self.notify_inactivity_fired {
             if let Some(last_change) = self.state.last_position_change_at {
-                if (now - last_change).num_seconds() >= 90 * 60 {
+                if (now - last_change).num_seconds() >= 60 * 60 {
                     self.notify_inactivity_fired = true;
                     events.push(NotificationEvent::Inactivity);
                 }
@@ -198,6 +198,11 @@ impl SessionManager {
                 self.notify_posture_balance_fired = true;
                 events.push(NotificationEvent::PostureBalance);
             }
+        }
+        if !self.standing_target_reached_fired && self.state.stand_limit_secs > 0
+            && self.state.standing_seconds >= self.state.stand_limit_secs {
+            self.standing_target_reached_fired = true;
+            events.push(NotificationEvent::StandingTargetReached);
         }
         events
     }

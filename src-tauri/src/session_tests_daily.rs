@@ -67,6 +67,7 @@ mod tests {
         m.notify_inactivity_fired = true;
         m.notify_posture_balance_fired = true;
         m.praise_halfway_fired_today = true;
+        m.standing_target_reached_fired = true;
         m.alert_fired = true;
         m.stand_alert_fired = true;
         m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
@@ -75,6 +76,7 @@ mod tests {
         assert!(!m.notify_inactivity_fired);
         assert!(!m.notify_posture_balance_fired);
         assert!(!m.praise_halfway_fired_today);
+        assert!(!m.standing_target_reached_fired);
         assert!(!m.alert_fired);
         assert!(!m.stand_alert_fired);
     }
@@ -82,14 +84,14 @@ mod tests {
     // ─── Notification Condition Tests ────────────────────────────────────────
 
     #[test]
-    fn check_notification_conditions_inactivity_fires_after_90min() {
+    fn check_notification_conditions_inactivity_fires_after_60min() {
         let mut m = SessionManager::new();
         let config = crate::config::AppConfig {
             notify_inactivity: true,
             ..Default::default()
         };
         m.state.last_position_change_at =
-            Some(Utc::now() - chrono::Duration::minutes(91));
+            Some(Utc::now() - chrono::Duration::minutes(61));
         let events = m.check_notification_conditions(&config);
         assert!(events.iter().any(|e| matches!(e, NotificationEvent::Inactivity)));
         assert!(m.notify_inactivity_fired);
@@ -103,7 +105,7 @@ mod tests {
             ..Default::default()
         };
         m.state.last_position_change_at =
-            Some(Utc::now() - chrono::Duration::minutes(91));
+            Some(Utc::now() - chrono::Duration::minutes(61));
         let events = m.check_notification_conditions(&config);
         assert!(!events.iter().any(|e| matches!(e, NotificationEvent::Inactivity)));
         assert!(!m.notify_inactivity_fired);
@@ -143,10 +145,45 @@ mod tests {
         m.notify_inactivity_fired = true;
         m.notify_posture_balance_fired = true;
         m.praise_halfway_fired_today = true;
+        m.standing_target_reached_fired = true;
         m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
         m.last_reset_check = Utc::now() - chrono::Duration::seconds(120);
         let _ = m.check_daily_reset();
+        assert!(!m.standing_target_reached_fired);
         let events = m.check_notification_conditions(&config);
         assert_eq!(events.len(), 0, "no notifications should fire after reset");
+    }
+
+    #[test]
+    fn standing_target_reached_fires_when_standing_exceeds_limit() {
+        let mut m = SessionManager::new();
+        m.state.stand_limit_secs = 900; // 15 min
+        m.state.standing_seconds = 900;
+        let config = crate::config::AppConfig::default();
+        let events = m.check_notification_conditions(&config);
+        assert!(events.iter().any(|e| matches!(e, NotificationEvent::StandingTargetReached)));
+        assert!(m.standing_target_reached_fired);
+    }
+
+    #[test]
+    fn standing_target_reached_does_not_fire_twice() {
+        let mut m = SessionManager::new();
+        m.state.stand_limit_secs = 900;
+        m.state.standing_seconds = 1000;
+        let config = crate::config::AppConfig::default();
+        let _ = m.check_notification_conditions(&config);
+        assert!(m.standing_target_reached_fired);
+        let events = m.check_notification_conditions(&config);
+        assert!(!events.iter().any(|e| matches!(e, NotificationEvent::StandingTargetReached)));
+    }
+
+    #[test]
+    fn standing_target_reached_resets_on_daily_reset() {
+        let mut m = SessionManager::new();
+        m.standing_target_reached_fired = true;
+        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
+        m.last_reset_check = Utc::now() - chrono::Duration::seconds(120);
+        let _ = m.check_daily_reset();
+        assert!(!m.standing_target_reached_fired);
     }
 }

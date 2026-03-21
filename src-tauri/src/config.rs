@@ -46,6 +46,10 @@ fn default_active_widget() -> String {
     "one-bar".to_string()
 }
 
+fn default_notification_backend() -> String {
+    "toast".to_string()
+}
+
 // ─── AppConfig ───────────────────────────────────────────────────────────────
 
 /// All user-configurable settings.
@@ -81,6 +85,9 @@ pub struct AppConfig {
     /// Which widget layout is active (validated by TS widget registry).
     #[serde(default = "default_active_widget")]
     pub active_widget: String,
+    /// Notification backend: "toast" (native), "popup" (WinAPI), or "both".
+    #[serde(default = "default_notification_backend")]
+    pub notification_backend: String,
 }
 
 impl AppConfig {
@@ -142,6 +149,7 @@ impl Default for AppConfig {
             standing_mm: default_standing_mm(),
             desk_thickness_mm: default_thickness_mm(),
             active_widget: default_active_widget(),
+            notification_backend: default_notification_backend(),
         }
     }
 }
@@ -220,6 +228,7 @@ mod tests {
             standing_mm: 1100,
             desk_thickness_mm: 35,
             active_widget: "two-bar".to_string(),
+            notification_backend: "popup".to_string(),
         };
 
         let json = serde_json::to_value(&original).unwrap();
@@ -229,22 +238,13 @@ mod tests {
         assert_eq!(original.standing_mm, restored.standing_mm);
         assert_eq!(original.notify_inactivity, restored.notify_inactivity);
         assert_eq!(original.active_widget, restored.active_widget);
+        assert_eq!(restored.notification_backend, "popup");
     }
 
     #[test]
-    fn test_active_widget_default() {
+    fn test_notification_backend_default() {
         let config = AppConfig::default();
         assert_eq!(config.active_widget, "one-bar");
-    }
-
-    #[test]
-    fn test_active_widget_serde_roundtrip() {
-        let config = AppConfig {
-            active_widget: "custom-widget".to_string(),
-            ..Default::default()
-        };
-        let json = serde_json::to_value(&config).unwrap();
-        let restored: AppConfig = serde_json::from_value(json).unwrap();
-        assert_eq!(restored.active_widget, "custom-widget");
+        assert_eq!(config.notification_backend, "toast");
     }
 }
