@@ -1,0 +1,111 @@
+/* timeline-zen.css — styles for the Timeline Zen widget. */
+
+.zen-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  max-height: 140px;
+}
+
+/* ── Timeline ── */
+.zen-timeline {
+  position: relative;
+  width: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.zen-timeline__blocks {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.zen-timeline__block {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+.zen-timeline__block--sitting { background: #e74c3c; }
+.zen-timeline__block--standing { background: #2ecc71; }
+.zen-timeline__block--walking { background: #27ae60; }
+.zen-timeline__block--away { background: #7f8c8d; }
+
+.zen-timeline__now {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+}
+
+.zen-timeline__hours {
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+.zen-timeline__hour {
+  position: absolute;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.4);
+  transform: translateX(-50%);
+}
+
+/* ── Status ── */
+.zen-status__line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.zen-dot { font-size: 10px; }
+.zen-dot--sitting { color: #e74c3c; }
+.zen-dot--standing { color: #2ecc71; }
+.zen-dot--walking { color: #27ae60; }
+.zen-dot--away { color: #7f8c8d; }
+
+.zen-separator {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.zen-limit {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.zen-height {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+/* ── Bar ── */
+.zen-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.zen-bar__fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.zen-bar__fill--sitting { background: #e74c3c; }
+.zen-bar__fill--standing { background: #2ecc71; }
+.zen-bar__fill--walking { background: #27ae60; }
+.zen-bar__fill--away { background: #7f8c8d; }

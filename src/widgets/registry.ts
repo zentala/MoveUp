@@ -6,10 +6,12 @@
  */
 import type { WidgetRegistration, DeskWidget } from "@/types";
 import { PlaceholderWidget } from "./PlaceholderWidget";
+import { TimelineZenWidget } from "./TimelineZenWidget";
 
 /** All available widgets, in display order. */
 export const WIDGET_REGISTRY: WidgetRegistration[] = [
   { id: "placeholder", name: "Placeholder (dev)", component: PlaceholderWidget },
+  { id: "timeline-zen", name: "Timeline Zen", component: TimelineZenWidget },
 ];
 
 /** Default widget ID when none is configured or config value is invalid. */
