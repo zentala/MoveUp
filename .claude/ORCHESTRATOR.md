@@ -96,7 +96,7 @@ git branch feat/T027-split-session-rs main
 git worktree add .claude/worktrees/T027-split-session-rs feat/T027-split-session-rs
 ```
 
-**Agent T027 works in:** `.claude/worktrees/T027-split-session-rs/`
+**Agent T027a works in:** `.claude/worktrees/T027-split-session-rs/`
 
 **Spec:** `apps/desk/.claude/tasks/T027-split-session-rs.md`
 
@@ -131,13 +131,48 @@ git worktree add .claude/worktrees/T027-split-session-rs feat/T027-split-session
 cargo test  # MUST pass — this is a pure refactor
 ```
 
-**Merge after Wave 1:**
+**Merge T027a:**
 ```bash
 cd /c/code/zntl-tray
 git checkout main
 git merge feat/T027-split-session-rs --no-ff -m "refactor(desk): split session.rs + add standing_target_mins config"
 git worktree remove .claude/worktrees/T027-split-session-rs
 git branch -d feat/T027-split-session-rs
+```
+
+### Agent T027b — Split oversized files + limit_used_secs
+
+```bash
+git branch feat/T027b-split-oversized main
+git worktree add .claude/worktrees/T027b-split-oversized feat/T027b-split-oversized
+```
+
+**Agent T027b works in:** `.claude/worktrees/T027b-split-oversized/`
+
+**Spec:** `apps/desk/.claude/tasks/T027b-split-oversized-files.md`
+
+**What it does:**
+1. Splits `db.rs` (467L) → `db.rs` + `db_sessions.rs` + `db_queries.rs` + `db_tests.rs`
+2. Splits `serial.rs` (464L) → `serial.rs` + `serial_parser.rs` + `serial_periodic.rs`
+3. Splits `commands.rs` (264L) → `commands.rs` + `commands_config.rs`
+4. Splits `overlay_tests.rs` (281L) → `overlay_tests.rs` + `overlay_variant_tests.rs`
+5. Adds `limit_used_secs: i64` to `SessionStateDto` (Rust + TS)
+6. Adds `active_widget: String` to `AppConfig`
+7. Extends `useDesk` with `limitUsedSecs`, `limitRemaining`, `limitRatio`
+
+**Verification:**
+```bash
+cargo test
+pnpm test:unit
+```
+
+**Merge T027b:**
+```bash
+cd /c/code/zntl-tray
+git checkout main
+git merge feat/T027b-split-oversized --no-ff -m "refactor(desk): split oversized files + add limit_used_secs"
+git worktree remove .claude/worktrees/T027b-split-oversized
+git branch -d feat/T027b-split-oversized
 ```
 
 ---
@@ -578,7 +613,10 @@ After finishing:
 ## Dependency Graph
 
 ```
-T027 (Wave 1)
+T027a (Wave 1a — split session.rs)
+  │
+  ▼
+T027b (Wave 1b — split db/serial/commands + limit_used_secs)
   │
   ├──► T023 (Wave 2, parallel) ──────────────────────┐
   │                                                  │ (all Wave 2 merged before Wave 3)

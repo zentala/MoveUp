@@ -50,8 +50,11 @@
 > Execute waves in order: T027 → (T023+T024) → (T022+T028+T025) → T016.
 > Each agent gets a worktree, coordinator merges waves.
 
-- [ ] **T027** P0 — Split `session.rs` (1348 lines → 4 files ≤250) + add `standing_target_mins` / `stand_max_mins` to config `.claude/tasks/T027-split-session-rs.md`
-  - **Blocks:** T022, T023, T024, T028 — pre-commit hook will reject commits on session.rs at 1348 lines
+- [ ] **T027a** P0 — Split `session.rs` (1348 lines → 4 files ≤250) + add `standing_target_mins` / `stand_max_mins` to config `.claude/tasks/T027-split-session-rs.md`
+  - **Blocks:** T027b, T022, T023, T024, T028
+- [ ] **T027b** P0 — Split db.rs, serial.rs, commands.rs, overlay_tests.rs (all >250L) + add `limit_used_secs` + `active_widget` `.claude/tasks/T027b-split-oversized-files.md`
+  - **Depends on:** T027a
+  - **Blocks:** T023, T024, T029 — pre-commit hook will reject commits on these files
 
 ---
 
