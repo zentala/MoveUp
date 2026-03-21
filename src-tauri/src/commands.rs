@@ -1,9 +1,12 @@
 //! commands.rs — Tauri IPC commands: session, connection, and re-exports.
 
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 use tauri::{Emitter, Manager, State};
+use tauri_plugin_notification::NotificationExt;
 
 use crate::{
     alert_manager::AlertManager,
@@ -14,6 +17,9 @@ use crate::{
     serial::{available_port_infos, scan_and_connect, ConnectionState, PortInfo},
     session::{SessionManager, SessionStateDto},
 };
+
+/// Rate limiter for test notification (epoch seconds of last send).
+static LAST_TEST_NOTIFICATION: AtomicI64 = AtomicI64::new(0);
 
 // ─── Shared state ────────────────────────────────────────────────────────────
 
@@ -157,4 +163,26 @@ pub fn inject_reading(
     }
 
     Ok(())
+}
+
+/// Sends a test notification to verify notifications are working.
+/// Rate-limited: max once per 60 seconds to prevent spam.
+/// Available in all builds (not debug-only) so users can test from settings.
+#[tauri::command]
+pub fn trigger_test_notification(app: tauri::AppHandle) -> Result<(), String> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    let last = LAST_TEST_NOTIFICATION.load(Ordering::Relaxed);
+    if now - last < 60 {
+        return Err(format!("Rate limited: wait {}s", 60 - (now - last)));
+    }
+    LAST_TEST_NOTIFICATION.store(now, Ordering::Relaxed);
+    app.notification()
+        .builder()
+        .title("zntlDesk — Test")
+        .body("Notifications are working!")
+        .show()
+        .map_err(|e| format!("Notification error: {}", e))
 }

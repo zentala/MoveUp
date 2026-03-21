@@ -37,7 +37,7 @@ pub fn check_periodic(
         match event {
             NotificationEvent::Inactivity => {
                 let _ = app.notification().builder()
-                    .title("No position change in 90 minutes")
+                    .title("No position change in 60 minutes")
                     .body("Time to move.")
                     .show();
             }
@@ -53,7 +53,13 @@ pub fn check_periodic(
                     .body("Keep it up.")
                     .show();
             }
-            NotificationEvent::StandLimitReached | NotificationEvent::StandingTargetReached => {}
+            NotificationEvent::StandLimitReached => {}
+            NotificationEvent::StandingTargetReached => {
+                let _ = app.notification().builder()
+                    .title("Standing target reached!")
+                    .body("Great break! You stood for the full target duration.")
+                    .show();
+            }
         }
     }
 }
