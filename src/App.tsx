@@ -33,20 +33,10 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // Show settings on first run: detect uncalibrated state
-  useEffect(() => {
-    async function checkFirstRun() {
-      try {
-        const config = await invoke<{ sitting_mm: number; standing_mm: number }>("get_settings");
-        if (config.sitting_mm === 720 && config.standing_mm === 1050) {
-          setShowSettings(true);
-        }
-      } catch {
-        // Cannot determine calibration status
-      }
-    }
-    checkFirstRun();
-  }, []);
+  // Show settings on first run: only if welcome_on_startup is still true
+  // (welcome popup handles first-run experience, not settings)
+  // Removed: auto-opening settings based on default calibration values
+  // was false-positive for users with valid default calibration.
 
   const showOverlay = widgetProps.limitSecs > 0 && widgetProps.state === "Sitting";
   const ActiveWidget = resolveWidget(activeWidgetId);

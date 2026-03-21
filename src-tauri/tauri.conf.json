@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "Desk",
-        "width": 520,
-        "height": 640,
+        "width": 420,
+        "height": 240,
         "x": 1400,
         "y": 440,
         "resizable": true,

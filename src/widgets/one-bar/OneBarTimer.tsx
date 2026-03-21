@@ -18,7 +18,7 @@ const STATE_LABELS: Record<string, string> = {
 
 /** Renders state label, big timer, previous session info, and the progress bar. */
 export const OneBarTimer: FC<WidgetProps> = (props) => {
-  const stateLabel = props.state ? STATE_LABELS[props.state] ?? "..." : "...";
+  const stateLabel = props.state ? STATE_LABELS[props.state] ?? "CONNECTING" : "CONNECTING";
   const limitTotal = formatDuration(props.limitSecs);
   const remaining = formatDuration(Math.max(0, Math.abs(props.limitRemaining)));
   const isOvertime = props.limitRemaining < 0;
