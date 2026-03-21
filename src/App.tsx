@@ -33,7 +33,7 @@ function connectionLabel(connected: boolean, port: string | null): string {
 
 export default function App() {
   const [showSettings, setShowSettings] = useState(false);
-  const { connected, port, state, deskHeightCm, sittingSeconds, breakSeconds, sessionLimitSecs, error } =
+  const { connected, port, state, deskHeightCm, sittingSeconds, breakSeconds, sessionLimitSecs, dailyScore, error } =
     useDesk();
 
   const liveSitting = useTimer(sittingSeconds, state === "Sitting");
@@ -149,7 +149,7 @@ export default function App() {
 
       {/* Today's totals */}
       <div className="panel-row">
-        <TodayStats />
+        <TodayStats dailyScore={dailyScore} />
       </div>
 
       {/* Debug: overlay state — DEV only */}

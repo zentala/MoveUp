@@ -37,37 +37,30 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
     use crate::commands::AppState;
     use tauri::Manager;
 
-    // Read session limit, overlay, alert_manager, and alert_popup from managed state.
-    let (session_limit_secs, overlay, alert_manager, alert_popup) = {
+    // Read session snapshot, overlay, alert_manager, and alert_popup from managed state.
+    let (snapshot, overlay, alert_manager, alert_popup) = {
         let app_state = app.state::<AppState>();
-        let session_limit_secs = app_state
-            .session
-            .lock()
-            .unwrap()
-            .snapshot()
-            .session_limit_secs;
+        let snap = app_state.session.lock().unwrap().snapshot();
         let overlay = app_state.overlay.clone();
         let alert_manager = app_state.alert_manager.clone();
         let alert_popup = app_state.alert_popup.clone();
-        (session_limit_secs, overlay, alert_manager, alert_popup)
+        (snap, overlay, alert_manager, alert_popup)
     };
 
-    let sitting_secs = payload.sitting_seconds;
-    let progress = if session_limit_secs > 0 {
-        sitting_secs as f32 / session_limit_secs as f32
+    let progress = if snapshot.session_limit_secs > 0 {
+        payload.sitting_seconds as f32 / snapshot.session_limit_secs as f32
     } else {
         0.0
     };
-
     let (r, g, b, _css_color) = color_for_progress(progress);
 
-    // Build tooltip with correct duration for the current state
     let label = build_tooltip_label(
         payload.desk_height_cm,
         &payload.state,
         payload.sitting_seconds,
         payload.standing_seconds,
         payload.break_seconds,
+        snapshot.daily_score,
     );
 
     let _ = tray::update_tray(app, &label, payload.state.clone(), progress);
@@ -163,17 +156,19 @@ fn update_tooltip(app: &AppHandle, snapshot: &crate::session::SessionStateDto) {
         snapshot.sitting_seconds,
         snapshot.standing_seconds,
         snapshot.break_seconds,
+        snapshot.daily_score,
     );
     let _ = tray::update_tray_tooltip(app, &label);
 }
 
-/// Builds tooltip like `"↕ 72.3 cm — Sitting (12:34)"` with state-appropriate duration.
+/// Builds tooltip like `"↕ 72.3 cm — Sitting (12:34) +38"` with state-appropriate duration and score.
 fn build_tooltip_label(
     desk_height_cm: f32,
     state: &DeskState,
     sitting_secs: i64,
     standing_secs: i64,
     break_secs: i64,
+    daily_score: f32,
 ) -> String {
     let (state_str, duration_secs) = match state {
         DeskState::Sitting => ("Sitting", sitting_secs),
@@ -181,9 +176,14 @@ fn build_tooltip_label(
         DeskState::Walking => ("Walking", break_secs),
         DeskState::Away => ("Away", 0),
     };
+    let score_str = if daily_score >= 0.0 {
+        format!(" +{:.0}", daily_score)
+    } else {
+        format!(" {:.0}", daily_score)
+    };
     format!(
-        "↕ {:.1} cm — {} ({})",
-        desk_height_cm, state_str, format_duration(duration_secs),
+        "\u{2195} {:.1} cm \u{2014} {} ({}){}", // ↕ and —
+        desk_height_cm, state_str, format_duration(duration_secs), score_str,
     )
 }
 
@@ -223,25 +223,25 @@ mod tests {
 
     #[test]
     fn tooltip_sitting_shows_sitting_seconds() {
-        let label = build_tooltip_label(72.3, &DeskState::Sitting, 754, 0, 0);
-        assert_eq!(label, "↕ 72.3 cm — Sitting (12:34)");
+        let label = build_tooltip_label(72.3, &DeskState::Sitting, 754, 0, 0, 0.0);
+        assert_eq!(label, "\u{2195} 72.3 cm \u{2014} Sitting (12:34) +0");
     }
 
     #[test]
     fn tooltip_standing_shows_standing_seconds() {
-        let label = build_tooltip_label(114.0, &DeskState::Standing, 120, 452, 452);
-        assert_eq!(label, "↕ 114.0 cm — Standing (07:32)");
+        let label = build_tooltip_label(114.0, &DeskState::Standing, 120, 452, 452, 38.0);
+        assert_eq!(label, "\u{2195} 114.0 cm \u{2014} Standing (07:32) +38");
     }
 
     #[test]
     fn tooltip_walking_shows_break_seconds() {
-        let label = build_tooltip_label(114.0, &DeskState::Walking, 300, 200, 95);
-        assert_eq!(label, "↕ 114.0 cm — Walking (01:35)");
+        let label = build_tooltip_label(114.0, &DeskState::Walking, 300, 200, 95, -8.0);
+        assert_eq!(label, "\u{2195} 114.0 cm \u{2014} Walking (01:35) -8");
     }
 
     #[test]
     fn tooltip_away_shows_zero() {
-        let label = build_tooltip_label(0.0, &DeskState::Away, 500, 200, 100);
-        assert_eq!(label, "↕ 0.0 cm — Away (00:00)");
+        let label = build_tooltip_label(0.0, &DeskState::Away, 500, 200, 100, 0.0);
+        assert_eq!(label, "\u{2195} 0.0 cm \u{2014} Away (00:00) +0");
     }
 }

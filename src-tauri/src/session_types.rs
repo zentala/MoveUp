@@ -68,6 +68,12 @@ pub struct SessionState {
     pub last_sitting_secs: i64,
     /// Break credit applied on the most recent Standing->Sitting transition.
     pub last_break_credit: BreakCredit,
+    /// Daily posture score (in-memory, resets at midnight).
+    pub daily_score: f32,
+    /// Standing seconds in current continuous standing session (resets on sit/away).
+    pub standing_session_secs: i64,
+    /// The last lap number for which the +5 bonus was awarded (resets per session).
+    pub lap_bonus_awarded_for_lap: u32,
 }
 
 /// Serialisable DTO emitted with state-change events.
@@ -86,6 +92,10 @@ pub struct SessionStateDto {
     /// Seconds of sitting limit consumed (accounts for break credits).
     /// 0..limit_secs normally, >limit_secs when overtime.
     pub limit_used_secs: i64,
+    /// Daily posture score (in-memory, resets at midnight).
+    pub daily_score: f32,
+    /// Current continuous standing session seconds (resets on sit).
+    pub standing_session_secs: i64,
 }
 
 /// Break credit type applied when returning from standing to sitting.

@@ -29,6 +29,8 @@ mod alert_manager_tests;
 #[cfg(test)]
 mod alert_snooze_tests;
 #[cfg(test)]
+mod config_tests;
+#[cfg(test)]
 mod db_tests;
 mod serial;
 mod serial_parser;
@@ -47,6 +49,8 @@ mod session_tests_floating;
 mod session_tests_daily;
 #[cfg(test)]
 mod session_tests_props;
+#[cfg(test)]
+mod session_tests_score;
 mod tray;
 mod tray_controller;
 mod tray_icon;

@@ -1,7 +1,4 @@
 //! session_reading.rs — Sensor reading processing and state transitions.
-//!
-//! Contains `SessionManager::on_reading()` — the core state machine that
-//! processes each sensor distance reading and drives sit/stand transitions.
 
 use chrono::DateTime;
 use chrono::Utc;
@@ -64,7 +61,6 @@ impl SessionManager {
             };
         }
 
-        // ── Leaving current state ────────────────────────────────────────────
         let completed_session = self.handle_state_exit(&candidate, now);
 
         // Track position changes: only Sitting<->Standing transitions.
@@ -129,12 +125,13 @@ impl SessionManager {
                     self.alert_fired = false;
                     self.stand_alert_fired = false;
                     self.state.last_position_change_at = Some(now);
-                    // Reset break credit when leaving sitting
                     self.state.last_break_credit = BreakCredit::None;
                 }
             }
             DeskState::Standing => {
                 if *candidate != DeskState::Standing {
+                    self.state.standing_session_secs = 0;
+                    self.state.lap_bonus_awarded_for_lap = 0;
                     if let Some(bs) = self.state.break_started.take() {
                         let break_dur = (now - bs).num_seconds().max(0);
                         self.state.standing_seconds += break_dur;
@@ -166,7 +163,6 @@ impl SessionManager {
 
         completed_session
     }
-
     /// Accumulates time while remaining in the current state (no transition).
     pub(crate) fn accumulate_ongoing(&mut self, now: DateTime<Utc>) {
         match self.state.state {

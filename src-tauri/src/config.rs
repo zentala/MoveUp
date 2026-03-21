@@ -50,6 +50,18 @@ fn default_notification_backend() -> String {
     "toast".to_string()
 }
 
+fn default_pts_standing_per_min() -> f32 {
+    1.0
+}
+
+fn default_pts_session_bonus() -> f32 {
+    5.0
+}
+
+fn default_pts_sitting_per_min() -> f32 {
+    -0.5
+}
+
 // ─── AppConfig ───────────────────────────────────────────────────────────────
 
 /// All user-configurable settings.
@@ -88,6 +100,15 @@ pub struct AppConfig {
     /// Notification backend: "toast" (native), "popup" (WinAPI), or "both".
     #[serde(default = "default_notification_backend")]
     pub notification_backend: String,
+    /// Points awarded per minute of standing. Default: 1.0.
+    #[serde(default = "default_pts_standing_per_min")]
+    pub pts_standing_per_min: f32,
+    /// Bonus points awarded when standing_target_mins is reached (per lap). Default: 5.0.
+    #[serde(default = "default_pts_session_bonus")]
+    pub pts_session_bonus: f32,
+    /// Points per minute of sitting (negative = penalty). Default: -0.5.
+    #[serde(default = "default_pts_sitting_per_min")]
+    pub pts_sitting_per_min: f32,
 }
 
 impl AppConfig {
@@ -150,101 +171,11 @@ impl Default for AppConfig {
             desk_thickness_mm: default_thickness_mm(),
             active_widget: default_active_widget(),
             notification_backend: default_notification_backend(),
+            pts_standing_per_min: default_pts_standing_per_min(),
+            pts_session_bonus: default_pts_session_bonus(),
+            pts_sitting_per_min: default_pts_sitting_per_min(),
         }
     }
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_config_clamping() {
-        let config = AppConfig {
-            sit_limit_mins: 999,
-            stand_limit_mins: 1,
-            sitting_mm: 300,
-            standing_mm: 1500,
-            ..Default::default()
-        }
-        .clamped();
-
-        assert_eq!(config.sit_limit_mins, 90);
-        assert_eq!(config.stand_limit_mins, 5);
-        assert_eq!(config.sitting_mm, 400);
-        assert_eq!(config.standing_mm, 1400);
-    }
-
-    #[test]
-    fn test_config_inverted_calibration_reset() {
-        let config = AppConfig {
-            sitting_mm: 1100,
-            standing_mm: 700,
-            ..Default::default()
-        }
-        .clamped();
-
-        assert_eq!(config.sitting_mm, default_sitting_mm());
-        assert_eq!(config.standing_mm, default_standing_mm());
-    }
-
-    #[test]
-    fn test_config_default() {
-        let config = AppConfig::default();
-        assert_eq!(config.sit_limit_mins, 45);
-        assert_eq!(config.stand_limit_mins, 15);
-        assert_eq!(config.standing_target_mins, 15);
-        assert_eq!(config.stand_max_mins, 90);
-        assert!(config.notify_inactivity);
-        assert_eq!(config.sitting_mm, 720);
-        assert_eq!(config.standing_mm, 1050);
-    }
-
-    #[test]
-    fn test_config_new_fields_clamping() {
-        let config = AppConfig {
-            standing_target_mins: 1,
-            stand_max_mins: 200,
-            ..Default::default()
-        }
-        .clamped();
-        assert_eq!(config.standing_target_mins, 5);
-        assert_eq!(config.stand_max_mins, 120);
-    }
-
-    #[test]
-    fn test_config_serde_roundtrip() {
-        let original = AppConfig {
-            sit_limit_mins: 50,
-            stand_limit_mins: 20,
-            standing_target_mins: 25,
-            stand_max_mins: 60,
-            notify_inactivity: false,
-            notify_daily_posture_balance: true,
-            notify_praise_halfway: false,
-            sitting_mm: 750,
-            standing_mm: 1100,
-            desk_thickness_mm: 35,
-            active_widget: "two-bar".to_string(),
-            notification_backend: "popup".to_string(),
-        };
-
-        let json = serde_json::to_value(&original).unwrap();
-        let restored: AppConfig = serde_json::from_value(json).unwrap();
-
-        assert_eq!(original.sit_limit_mins, restored.sit_limit_mins);
-        assert_eq!(original.standing_mm, restored.standing_mm);
-        assert_eq!(original.notify_inactivity, restored.notify_inactivity);
-        assert_eq!(original.active_widget, restored.active_widget);
-        assert_eq!(restored.notification_backend, "popup");
-    }
-
-    #[test]
-    fn test_notification_backend_default() {
-        let config = AppConfig::default();
-        assert_eq!(config.active_widget, "one-bar");
-        assert_eq!(config.notification_backend, "toast");
-    }
-}
+// Tests moved to config_tests.rs to stay under 250-line limit.
