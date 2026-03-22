@@ -27,6 +27,7 @@ Items not yet scheduled, before refinement.
 
 - **AlertManager message strings in settings panel** — `AlertConfig` holds default neutral/positive message arrays. Expose as editable arrays so zentala can tune tone/wording without code changes. Depends on T015.
 - **Notification strategy as pluggable system** — like widgets but for notifications. Different backends (toast, custom popup, both), different escalation patterns. Deferred until widget system proves the pattern.
+- **Redesign alert popups — Tauri WebviewWindow instead of raw WinAPI** — current popups (`alert_popup_window.rs`) use raw WinAPI GDI, which looks like a 2003 Win32 dialog. Migrate to a Tauri WebviewWindow so we can style alerts with HTML/CSS using the instrument panel design system (--panel-*, --beam-*, --ink-*). This enables: dark themed popups matching the main window, animated transitions, rich content (progress bars, coach messages in popup), and the acrylic blur effect. Implementation: create a `popup.html` route, spawn via `WebviewWindowBuilder` (like welcome popup), communicate via Tauri events.
 
 ---
 

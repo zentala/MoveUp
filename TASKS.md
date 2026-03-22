@@ -241,6 +241,7 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 - [x] **T034** P1 — Visual layout polish: design system alignment + layout fill `.claude/tasks/T034-visual-layout-polish.md`
   - Fixed by /design-review on main, 2026-03-22. 7 findings, all fixed.
   - Remaining: visual verification checklist items (deferred — need manual testing)
+- [ ] **T035** P2 — Settings panel: tabbed layout (4 tabs) instead of scrolling `.claude/tasks/T035-settings-tabbed-layout.md`
 
 ---
 
