@@ -8,18 +8,18 @@ import { type FC, useState } from "react";
 import type { SessionEntry, WidgetProps } from "@/types";
 import { formatDurationShort } from "@/utils/format";
 
-/** Color for a session block based on state. */
-function blockColor(state: string): string {
+/** CSS modifier class for a session block based on state. */
+function blockModifier(state: string): string {
   switch (state) {
     case "Sitting":
-      return "#8a2a2a";
+      return "sitting";
     case "Standing":
     case "Walking":
-      return "#1a6630";
+      return "standing";
     case "Away":
-      return "#333";
+      return "away";
     default:
-      return "#222";
+      return "away";
   }
 }
 
@@ -81,11 +81,8 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
           return (
             <div
               key={`${entry.start}-${i}`}
-              className={`one-bar__timeline-block${isLast ? " one-bar__timeline-block--current" : ""}`}
-              style={{
-                width: `${widthPct}%`,
-                backgroundColor: blockColor(entry.state),
-              }}
+              className={`one-bar__timeline-block one-bar__timeline-block--${blockModifier(entry.state)}${isLast ? " one-bar__timeline-block--current" : ""}`}
+              style={{ width: `${widthPct}%` }}
               onMouseEnter={() => handleMouseEnter(entry, widthPct, currentOffset)}
               onMouseLeave={handleMouseLeave}
             />

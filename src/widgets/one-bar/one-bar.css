@@ -87,6 +87,10 @@
 }
 .one-bar__timeline-block:hover { opacity: 0.8; }
 
+.one-bar__timeline-block--sitting  { background-color: var(--signal-alert); opacity: 0.7; }
+.one-bar__timeline-block--standing { background-color: var(--signal-ok); opacity: 0.7; }
+.one-bar__timeline-block--away     { background-color: var(--ink-muted); }
+
 .one-bar__timeline-block--current {
   box-shadow: inset -2px 0 4px rgba(255,255,255,0.2);
 }
