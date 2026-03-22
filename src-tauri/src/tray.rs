@@ -3,14 +3,14 @@
 //! Generates dynamic tray icons (white desk silhouette + colored status dot)
 //! based on sitting state and session progress. Falls back to PNG loading if available.
 //! The tooltip shows the current desk height and session state.
-//! Left-click toggles the main window; the context menu has "Show Desk" and "Quit".
+//! Left-click toggles the main window; right-click shows context menu (Settings, Quit).
 
 use std::path::PathBuf;
 use tauri::{
     image::Image,
     menu::{MenuBuilder, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle, Emitter, Manager,
 };
 
 use crate::tray_icon::icon_for_state_and_progress;
@@ -20,14 +20,15 @@ use crate::session::DeskState;
 
 /// Creates the system tray icon, tooltip, and context menu.
 ///
-/// Left-click toggles the main window. The menu exposes "Show Desk" and "Quit".
+/// Left-click directly toggles the main window (no menu).
+/// Right-click shows context menu: Settings, separator, Quit.
 pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let show_item = MenuItem::with_id(app, "show", "Show Desk", true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     let menu = MenuBuilder::new(app)
-        .item(&show_item)
+        .item(&settings_item)
         .item(&separator)
         .item(&quit_item)
         .build()?;
@@ -45,7 +46,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .tooltip("Desk — connecting…")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "show" => toggle_main_window(app),
+            "settings" => show_main_window_settings(app),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -190,13 +191,26 @@ fn icon_path_for_state(
 }
 
 /// Toggles the main window between visible/hidden.
+///
+/// On show: emits `desk:show-widget` so the frontend resets to the widget view
+/// (not settings). On hide: just hides.
 fn toggle_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         if window.is_visible().unwrap_or(false) {
             let _ = window.hide();
         } else {
+            let _ = app.emit("desk:show-widget", ());
             let _ = window.show();
             let _ = window.set_focus();
         }
+    }
+}
+
+/// Opens the main window directly to the Settings view.
+fn show_main_window_settings(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = app.emit("desk:show-settings", ());
+        let _ = window.show();
+        let _ = window.set_focus();
     }
 }

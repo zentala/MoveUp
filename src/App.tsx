@@ -7,6 +7,7 @@
  */
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useWidgetData } from "@/hooks/useWidgetData";
 import { useActiveWidget } from "@/hooks/useActiveWidget";
 import { resolveWidget } from "@/widgets/registry";
@@ -18,6 +19,16 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [activeWidgetId] = useActiveWidget();
   const widgetProps = useWidgetData(() => setShowSettings(true));
+
+  // Listen for tray commands: show-widget resets to main, show-settings opens settings
+  useEffect(() => {
+    const unWidget = listen("desk:show-widget", () => setShowSettings(false));
+    const unSettings = listen("desk:show-settings", () => setShowSettings(true));
+    return () => {
+      unWidget.then((u) => u());
+      unSettings.then((u) => u());
+    };
+  }, []);
 
   // Debug: poll overlay state every 2s — DEV only
   const [overlayDebug, setOverlayDebug] = useState<Record<string, unknown> | null>(null);
@@ -32,11 +43,6 @@ export default function App() {
     const id = setInterval(pollOverlay, 2000);
     return () => clearInterval(id);
   }, []);
-
-  // Show settings on first run: only if welcome_on_startup is still true
-  // (welcome popup handles first-run experience, not settings)
-  // Removed: auto-opening settings based on default calibration values
-  // was false-positive for users with valid default calibration.
 
   const showOverlay = widgetProps.limitSecs > 0 && widgetProps.state === "Sitting";
   const ActiveWidget = resolveWidget(activeWidgetId);
