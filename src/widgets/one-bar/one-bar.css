@@ -136,8 +136,11 @@
   gap: 6px;
   font-size: 10px;
   color: var(--ink-tertiary);
-  text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.one-bar__session-duration {
+  text-transform: none;
 }
 
 .one-bar__state-dot {
