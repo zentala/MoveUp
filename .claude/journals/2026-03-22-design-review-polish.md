@@ -54,6 +54,9 @@ and polish tray icon behavior.
 - b60b010 style: timeline block CSS classes
 - 46addff style: merge duplicate .app__header
 
+### Post-session fix
+- 2f07fab fix: `show_menu_on_left_click(false)` — left-click was sometimes triggering menu instead of toggle
+
 ## Tests
 - 131 TypeScript tests passing
 - 183 Rust tests passing (cargo check clean, 2 pre-existing warnings)
