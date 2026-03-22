@@ -232,6 +232,66 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 
 ---
 
+## Sprint: Critical Bugs
+
+- [ ] **T036** P0 — Investigate: standing not detected, sessions show continuous sitting
+  - User reports: stands up but app keeps showing sitting history, no standing detected
+  - Possible causes: calibration thresholds wrong, height readings too noisy for debounce, midpoint too high
+  - **Must do:** add debug logging, check actual sensor readings during stand, verify debounce behavior
+  - Depends on: understanding T037 (noisy readings may prevent debounce from completing)
+
+- [ ] **T037** P1 — Height reading stabilization: smoothing + rounding to 1cm
+  - Raw sensor readings jump ±1-2mm when desk is stationary → display flickers
+  - **Three algorithms needed:**
+    1. Moving average (last N readings, e.g. 10) for smooth display
+    2. Round to nearest cm for UI display (no sub-cm precision needed)
+    3. Trend detection: if readings stable within ±3mm for 5s → lock display value
+  - Raw reading stays available for state machine; stabilized reading for UI + tooltip
+  - This may also fix T036 (noisy readings breaking debounce)
+
+---
+
+## Sprint: UX Fixes
+
+- [ ] **T038** P1 — Popup closes on click outside (blur/focus-loss)
+  - Currently: only closes via tray icon click
+  - Expected: click outside → window hides (standard popup behavior)
+  - Implementation: listen for `blur` event on Tauri window, or use `set_always_on_top(false)` + focus tracking
+
+- [ ] **T039** P2 — Connection status UI: replace cryptic "connection 5M" with clear indicator
+  - PlaceholderWidget shows raw debug text — replace with proper status in active widget
+  - When connected: green dot + "COM3" (or just green dot)
+  - When disconnected: red dot + "Disconnected"
+  - Remove ambiguous "connection on" text
+
+- [ ] **T040** P2 — "No sessions yet" despite working: investigate + fix
+  - User sees "No sessions yet" in timeline despite using the desk
+  - Likely linked to T036 (if standing never detected → no state transitions → no completed sessions saved)
+  - Verify: `get_today_summary()` returns sessions, check if sessions are being created on state change
+
+---
+
+## Sprint: Documentation
+
+- [ ] **T041** P1 — Map full application UX flow: infographic-style markdown
+  - **Goal:** One document showing the COMPLETE user experience across all states and time
+  - **Must include:**
+    1. State machine diagram: Sitting ↔ Standing ↔ Walking ↔ Away (with transition triggers)
+    2. What changes in each UI element per state:
+       - Tray icon (color dot, tooltip text)
+       - Overlay progress bar (color, variant, visibility)
+       - Floating window popup (widget content, stats, timeline)
+       - Alert popup (when it appears, stages, escalation)
+       - Notifications (when, which type)
+    3. Time-based scenarios: user sits all day, sits+stands regularly, sits then walks away
+    4. Points system flow: how score changes per state per minute
+    5. Session lifecycle: when created, when saved, break credit rules
+    6. Config knobs: what each setting affects in the flow
+  - **Output:** `.arch/UX-FLOW.md` — single source of truth for the full UX behavior
+  - **Why:** No single document currently describes the complete user experience. Needed to identify gaps and inconsistencies.
+
+---
+
 ## Sprint: Polish + Delight
 
 - [-] **T010** ~~P3 — Dynamic tray icon~~ (replaced by T016 — color dot approach)

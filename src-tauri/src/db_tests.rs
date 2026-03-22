@@ -149,3 +149,24 @@ fn test_get_today_summary_returns_all_sessions() {
     assert_eq!(summary.sitting_secs, 1800);
     assert_eq!(summary.standing_secs, 1800);
 }
+
+#[test]
+fn test_completed_session_visible_in_summary() {
+    // Regression test for T036 Bug A: CompletedSession must be saved via
+    // insert_session() (with ended_at) so that get_today_summary() finds it.
+    // Previously, only save_session_state() was called (no ended_at) → invisible.
+    let conn = test_conn();
+    init_schema(&conn).unwrap();
+
+    let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
+    let started = format!("{}10:00:00Z", today);
+    let ended = format!("{}10:45:00Z", today);
+
+    // Simulate what serial_periodic.rs now does after a state transition:
+    insert_session(&conn, &started, &ended, "Sitting", 2700).unwrap();
+
+    let summary = get_today_summary(&conn).unwrap();
+    assert_eq!(summary.sessions.len(), 1, "completed session must appear in summary");
+    assert_eq!(summary.sitting_secs, 2700, "sitting seconds must match");
+    assert!(summary.sessions[0].ended_at.is_some(), "ended_at must be set");
+}

@@ -2,7 +2,7 @@
 
 use chrono::DateTime;
 use chrono::Utc;
-use log::info;
+use log::{debug, info};
 
 use crate::session_types::*;
 use crate::session_manager::SessionManager;
@@ -33,6 +33,12 @@ impl SessionManager {
         if Some(&candidate) == self.pending_state.as_ref() {
             self.pending_count += 1;
         } else {
+            if self.pending_count > 1 {
+                debug!(
+                    "debounce reset after {}x {:?}: new candidate={:?} (height={:.1}cm mid={:.1}cm)",
+                    self.pending_count, self.pending_state, candidate, desk_height_cm, mid_cm
+                );
+            }
             self.pending_state = Some(candidate.clone());
             self.pending_count = 1;
         }

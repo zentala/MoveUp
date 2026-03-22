@@ -37,6 +37,23 @@ Items not yet scheduled, before refinement.
 
 ---
 
+## Sensor & Readings
+
+- **Height stabilization algorithms** — moving average, 1cm rounding, trend locking (scheduled: T037)
+- **Sensor diagnostics panel** — show raw vs smoothed readings, debounce state, threshold visualization
+  - Helps debug standing detection issues like T036
+
+---
+
+## Activity Tracking
+
+- **Activity status in UI** — show keyboard/mouse activity status (active/idle) in floating window
+  - `activity.rs` already detects idle ≥60s via `GetLastInputInfo`, but UI doesn't expose this
+  - Show: "Active" / "Idle 2m" in widget footer or status bar
+  - Useful for debugging Walking/Away state transitions
+
+---
+
 ## Future Features
 
 - **Notification A/B testing** — two backends simultaneously with feature flag (T018)
@@ -44,7 +61,6 @@ Items not yet scheduled, before refinement.
 - **Notification strategy plugins** — like widget system but for how/when to nudge
 - **Phone-as-hub** — old phone + BLE sensor, works without desktop app
 - **Smartwatch integration** — proximity detection, walking state, HRV
-- **Activity tracking module** — keyboard/mouse activity independent of sensor
 - Eksport danych do CSV
 - Konfiguracja progów wysokości przez UI (kalibracja z UI)
 

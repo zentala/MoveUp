@@ -108,8 +108,20 @@ pub fn handle_reading(
         }
     }
 
-    if let Some(completed) = result.completed_session {
+    if let Some(ref completed) = result.completed_session {
         info!("Completed session: {:?}", completed);
+        let db_lock = db.lock().unwrap();
+        if let Some(ref conn) = *db_lock {
+            if let Err(e) = crate::db_sessions::insert_session(
+                conn,
+                &completed.started_at,
+                &completed.ended_at,
+                &format!("{:?}", state_before),
+                completed.duration_secs,
+            ) {
+                error!("Failed to save completed session: {}", e);
+            }
+        }
     }
 
     let alert = { session.lock().unwrap().should_alert() };
