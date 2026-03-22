@@ -163,8 +163,7 @@ fn generate_tray_icon(state: DeskState, progress_ratio: f32) -> Option<Image<'st
         }
     }
 
-    let rgba_static = Box::leak(rgba.into_boxed_slice());
-    Some(Image::new(rgba_static, SIZE, SIZE))
+    Some(Image::new_owned(rgba, SIZE, SIZE))
 }
 
 /// Sets an RGBA pixel in the buffer at (x, y).
