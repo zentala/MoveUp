@@ -28,6 +28,10 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
     props.state === "Walking" ||
     props.state === "Away";
 
+  const sessionDuration = isStandingOrAway
+    ? props.breakSecs
+    : props.currentSessionSecs;
+
   const barClass = isStandingOrAway
     ? "one-bar__progress-fill--draining"
     : "one-bar__progress-fill--filling";
@@ -40,7 +44,7 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
             <span className="one-bar__state-dot" />
             {stateLabel}
             <span className="one-bar__session-duration">
-              for {formatDurationShort(props.currentSessionSecs)}
+              for {formatDurationShort(sessionDuration)}
             </span>
           </div>
           <div className="one-bar__big-number" data-testid="one-bar-big-number">
