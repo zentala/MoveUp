@@ -238,6 +238,9 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 - [ ] **T011** P3 — Height-rail pulse animation on sit→stand transition `.claude/tasks/0011-rail-pulse.md`
 - [ ] **T012** P3 — Yesterday delta arrow next to today's sitting time `.claude/tasks/0012-yesterday-delta.md`
 - [ ] **T026** P3 — App icon design: desk silhouette SVG → PNG/ICO assets `.claude/tasks/T026-app-icon-design.md`
+- [x] **T034** P1 — Visual layout polish: design system alignment + layout fill `.claude/tasks/T034-visual-layout-polish.md`
+  - Fixed by /design-review on main, 2026-03-22. 7 findings, all fixed.
+  - Remaining: visual verification checklist items (deferred — need manual testing)
 
 ---
 
