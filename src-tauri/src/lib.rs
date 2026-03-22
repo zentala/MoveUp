@@ -152,9 +152,18 @@ pub fn run() {
             // Wire state-changed events to tray + overlay updates.
             tray_controller::setup(app.handle());
 
-            // Apply Acrylic blur on the main window (Windows 10/11).
+            // Apply Acrylic blur and position to bottom-right corner.
             if let Some(window) = app.get_webview_window("main") {
                 let _ = apply_acrylic(&window, Some((18, 18, 18, 200)));
+
+                // Position window in bottom-right corner of primary monitor.
+                if let Ok(Some(monitor)) = window.current_monitor() {
+                    let mon = monitor.size();
+                    let win = window.outer_size().unwrap_or_default();
+                    let x = mon.width as i32 - win.width as i32 - 16;
+                    let y = mon.height as i32 - win.height as i32 - 56;
+                    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+                }
             }
 
             // Load config from store and apply to SessionManager before sensor scan starts.
