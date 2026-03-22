@@ -143,7 +143,7 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
       {error && <div className="error-banner">{error}</div>}
 
       <div className="settings-panel__footer">
-        <button className="btn btn--danger" onClick={onClose} disabled={saving}>
+        <button className="btn btn--link" onClick={onClose} disabled={saving}>
           Back
         </button>
         <button
