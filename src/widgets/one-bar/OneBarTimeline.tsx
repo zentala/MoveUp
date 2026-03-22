@@ -33,8 +33,7 @@ function formatTime(iso: string): string {
 
 interface TimelineTooltip {
   text: string;
-  x: number;
-  y: number;
+  leftPct: number;
 }
 
 /** Renders the session timeline with proportional blocks. */
@@ -55,36 +54,39 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
 
   const handleMouseEnter = (
     entry: SessionEntry,
-    event: React.MouseEvent,
+    widthPct: number,
+    offsetPct: number,
   ): void => {
-    const rect = event.currentTarget.getBoundingClientRect();
     const label = entry.state.toLowerCase();
     const time = formatTime(entry.start);
     const dur = formatDurationShort(entry.duration_secs);
     setTooltip({
       text: `${time} \u2014 ${label} ${dur}`,
-      x: rect.left + rect.width / 2,
-      y: rect.top,
+      leftPct: offsetPct + widthPct / 2,
     });
   };
 
   const handleMouseLeave = (): void => setTooltip(null);
 
+  let offsetPct = 0;
+
   return (
     <div className="one-bar__timeline" data-testid="one-bar-timeline">
       <div className="one-bar__timeline-bar">
         {sessions.map((entry, i) => {
-          const widthPct = (entry.duration_secs / maxSecs) * 100;
+          const widthPct = Math.max((entry.duration_secs / maxSecs) * 100, 0.5);
+          const currentOffset = offsetPct;
+          offsetPct += widthPct;
           const isLast = i === sessions.length - 1 && entry.end === null;
           return (
             <div
               key={`${entry.start}-${i}`}
               className={`one-bar__timeline-block${isLast ? " one-bar__timeline-block--current" : ""}`}
               style={{
-                width: `${Math.max(widthPct, 0.5)}%`,
+                width: `${widthPct}%`,
                 backgroundColor: blockColor(entry.state),
               }}
-              onMouseEnter={(e) => handleMouseEnter(entry, e)}
+              onMouseEnter={() => handleMouseEnter(entry, widthPct, currentOffset)}
               onMouseLeave={handleMouseLeave}
             />
           );
@@ -93,7 +95,7 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
       {tooltip && (
         <div
           className="one-bar__timeline-tooltip"
-          style={{ left: tooltip.x, top: tooltip.y }}
+          style={{ left: `${tooltip.leftPct}%` }}
         >
           {tooltip.text}
         </div>
