@@ -137,6 +137,9 @@ export function useDesk(): UseDeskResult {
       const unState = await listen<StateChangedPayload>(
         "desk:state-changed",
         ({ payload }) => {
+          // If we receive state changes, sensor must be connected
+          // (fixes race condition where device-connected fires before listener mounts)
+          setConnected(true);
           setState(payload.state);
           setDeskHeightCm(payload.desk_height_cm);
           setSittingSeconds(payload.current_session_secs);
