@@ -23,7 +23,7 @@ export function useWidgetData(onOpenSettings: () => void): WidgetProps {
   );
   const liveBreak = useTimer(
     desk.breakSeconds,
-    desk.state !== "Sitting" && desk.state !== null,
+    desk.state !== "Sitting",
   );
 
   return {

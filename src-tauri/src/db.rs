@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 // Re-export sub-module functions for backwards compatibility.
 pub use crate::db_queries::get_today_summary;
-pub use crate::db_sessions::{load_today_totals, save_session_state};
+pub use crate::db_sessions::load_today_totals;
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 

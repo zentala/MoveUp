@@ -25,31 +25,6 @@ pub fn insert_session(
     Ok(())
 }
 
-/// Persists a state change event to the database (for session history).
-/// Called whenever SessionManager emits a state change to ensure durable state tracking.
-pub fn save_session_state(
-    conn: &Connection,
-    state_change: &crate::session::StateChangedPayload,
-) -> Result<(), String> {
-    let now = chrono::Local::now().to_rfc3339();
-    let state_str = format!("{:?}", state_change.state);
-
-    conn.execute(
-        "INSERT INTO sessions (started_at, state, duration_seconds, sitting_seconds, standing_seconds, position_changes, session_limit_secs) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        rusqlite::params![
-            &now,
-            state_str,
-            state_change.break_seconds,
-            state_change.sitting_seconds,
-            state_change.standing_seconds,
-            state_change.position_changes,
-            0
-        ],
-    )
-    .map_err(|e| format!("Failed to save session state: {}", e))?;
-
-    Ok(())
-}
 
 // ─── Load operations ─────────────────────────────────────────────────────────
 

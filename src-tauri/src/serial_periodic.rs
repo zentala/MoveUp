@@ -85,15 +85,6 @@ pub fn handle_reading(
     if let Some(payload) = result.state_change {
         let _ = app.emit("desk:state-changed", &payload);
 
-        {
-            let db_lock = db.lock().unwrap();
-            if let Some(ref conn) = *db_lock {
-                if let Err(e) = crate::db::save_session_state(conn, &payload) {
-                    error!("Failed to save session state to database: {}", e);
-                }
-            }
-        }
-
         if state_before == DeskState::Sitting && payload.state == DeskState::Standing {
             let praise = {
                 let mut sess = session.lock().unwrap();

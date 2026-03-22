@@ -122,6 +122,33 @@ describe("OneBarWidget", () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
+  it("shows standing duration when state is Standing", () => {
+    render(
+      <OneBarWidget
+        {...props({
+          state: "Standing",
+          breakSecs: 180,
+          currentSessionSecs: 600,
+        })}
+      />,
+    );
+    // Should show break duration (3m), not sitting duration (10m)
+    expect(screen.getByText(/for 3m/)).toBeInTheDocument();
+  });
+
+  it("shows sitting duration when state is Sitting", () => {
+    render(
+      <OneBarWidget
+        {...props({
+          state: "Sitting",
+          breakSecs: 0,
+          currentSessionSecs: 240,
+        })}
+      />,
+    );
+    expect(screen.getByText(/for 4m/)).toBeInTheDocument();
+  });
+
   it("shows previous session info when available", () => {
     render(
       <OneBarWidget
