@@ -45,6 +45,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     builder
         .tooltip("Desk — connecting…")
         .menu(&menu)
+        .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "settings" => show_main_window_settings(app),
             "quit" => app.exit(0),
