@@ -639,3 +639,12 @@ body {
 .app__header-right, .btn {
   -webkit-app-region: no-drag;
 }
+
+/* ── Debug overlay (DEV only) ──────────────────────────────────── */
+.app__debug {
+  font-size: 10px;
+  opacity: 0.7;
+  padding: 4px 8px;
+  color: var(--ink-tertiary);
+  letter-spacing: 0.02em;
+}

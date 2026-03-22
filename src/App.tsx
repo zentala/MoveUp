@@ -63,7 +63,7 @@ export default function App() {
 
         {/* Debug: overlay state — DEV only */}
         {import.meta.env.DEV && overlayDebug && (
-          <div style={{ fontSize: "10px", opacity: 0.7, padding: "4px 8px", fontFamily: "monospace" }}>
+          <div className="app__debug">
             overlay: {String(overlayDebug.data_source)} | {String(overlayDebug.progress_pct)} | visible={String(overlayDebug.visible)} | h={String(overlayDebug.bar_height)}px
           </div>
         )}
