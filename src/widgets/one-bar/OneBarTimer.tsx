@@ -40,7 +40,7 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
             <span className="one-bar__state-dot" />
             {stateLabel}
             <span className="one-bar__session-duration">
-              {formatDurationShort(props.currentSessionSecs)}
+              for {formatDurationShort(props.currentSessionSecs)}
             </span>
           </div>
           <div className="one-bar__big-number" data-testid="one-bar-big-number">
