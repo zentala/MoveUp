@@ -1,0 +1,24 @@
+## Session 2026-03-22 ~10:00–12:00
+
+- **Goal**: Investigate T036 (standing not detected, "No sessions yet"), fix UX issues
+- **Done**:
+  - **T036 Bug A FIXED** — `insert_session()` was never called from production code; `save_session_state()` created DB rows without `ended_at`, invisible to all queries. Fixed in `serial_periodic.rs`, regression test added. (commit: 4869ca8)
+  - **T036 Bug B INSTRUMENTED** — debug logging added for debounce resets (transitions only). From user's logs: sensor sends ~10 readings/s (not 1/s), readings jump ±27mm. Standing detection works mechanically but needs T037 (stabilization) to be reliable.
+  - **Sensor "disconnected" race condition fixed** — `desk:device-connected` event fired before React listener mounted. Added `setConnected(true)` on `desk:state-changed`. (commit: dfa8a53)
+  - **"CONNECTING" label fixed** — was fallback for null state; changed default state to "Away", removed all null/dash fallbacks. (commits: c8635c4, 4f3a2d0, d805118)
+  - **"4m" → "for 4m"** — added "for" prefix for context. (commit: d747e61)
+  - **Lowercase labels** — "SITTING" → "sitting"; removed CSS `text-transform: uppercase` from state label. (commits: 4f3a2d0, 7ffed60)
+  - **Standing timer fixed** — widget showed frozen sitting timer when standing; now shows `breakSecs` (standing duration) when not sitting. (commit: 4e8d011)
+  - **Cleanup** — removed dead `save_session_state()`, dead null check in `useWidgetData`, added 2 regression tests for standing/sitting timer display. (commit: 68d91a5)
+  - **UX Flow Map created** — `.arch/UX-FLOW.md` — comprehensive document mapping every state × every UI element × colors/text/visibility. (commit: 8f629fb)
+- **New tasks created**: T036-T041
+  - T036 P0 — standing detection investigation (Bug B still needs live verification)
+  - T037 P1 — height reading stabilization (moving average, 1cm rounding, trend lock)
+  - T038 P1 — popup closes on click outside
+  - T039 P2 — connection status UI cleanup
+  - T040 P2 — "No sessions yet" (explained by Bug A, should be fixed now)
+  - T041 P1 — UX flow map (DONE — `.arch/UX-FLOW.md`)
+- **Decisions**: sensor sends 10/s, debounce=5 readings=0.5s (not 5s). T037 should add throttling/smoothing before debounce.
+- **Observations**: multiple UX labels were confusing (CONNECTING, 4m, uppercase). Design system says uppercase for 10px labels but user finds it unclear — lowercase works better for state labels.
+- **Improvements logged**: 6 items reviewed via impro? — 4 fixed, 1 deferred (ensure_initialized), 1 kept (PlaceholderWidget as dev tool)
+- **Next**: T037 (height stabilization — key for standing detection reliability), T038 (popup blur close), verify T036 Bug A fix works (sessions should appear in timeline after restart)

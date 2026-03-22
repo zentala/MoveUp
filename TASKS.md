@@ -273,7 +273,7 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 
 ## Sprint: Documentation
 
-- [ ] **T041** P1 — Map full application UX flow: infographic-style markdown
+- [x] **T041** P1 — Map full application UX flow: infographic-style markdown
   - **Goal:** One document showing the COMPLETE user experience across all states and time
   - **Must include:**
     1. State machine diagram: Sitting ↔ Standing ↔ Walking ↔ Away (with transition triggers)
