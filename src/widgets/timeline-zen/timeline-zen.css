@@ -1,20 +1,26 @@
-/* timeline-zen.css — styles for the Timeline Zen widget. */
+/* timeline-zen.css — styles for the Timeline Zen widget.
+ * Uses globals.css design tokens for instrument panel consistency.
+ */
 
 .zen-widget {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 8px 12px;
-  max-height: 140px;
+  font-family: var(--font-mono);
+  color: var(--ink-primary);
+  background: var(--panel-base);
 }
 
 /* ── Timeline ── */
 .zen-timeline {
   position: relative;
   width: 100%;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--panel-raised);
+  border: 1px solid var(--rail-subtle);
 }
 
 .zen-timeline__blocks {
@@ -31,10 +37,10 @@
   opacity: 0.85;
 }
 
-.zen-timeline__block--sitting { background: #e74c3c; }
-.zen-timeline__block--standing { background: #2ecc71; }
-.zen-timeline__block--walking { background: #27ae60; }
-.zen-timeline__block--away { background: #7f8c8d; }
+.zen-timeline__block--sitting  { background: var(--signal-alert); }
+.zen-timeline__block--standing { background: var(--signal-ok); }
+.zen-timeline__block--walking  { background: var(--signal-up); }
+.zen-timeline__block--away     { background: var(--ink-tertiary); }
 
 .zen-timeline__now {
   position: absolute;
@@ -42,8 +48,8 @@
   top: 0;
   width: 2px;
   height: 100%;
-  background: #fff;
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+  background: var(--beam);
+  box-shadow: 0 0 6px var(--beam-glow);
 }
 
 .zen-timeline__hours {
@@ -57,7 +63,7 @@
 .zen-timeline__hour {
   position: absolute;
   font-size: 9px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-muted);
   transform: translateX(-50%);
 }
 
@@ -68,33 +74,34 @@
   justify-content: center;
   gap: 6px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--ink-primary);
 }
 
 .zen-dot { font-size: 10px; }
-.zen-dot--sitting { color: #e74c3c; }
-.zen-dot--standing { color: #2ecc71; }
-.zen-dot--walking { color: #27ae60; }
-.zen-dot--away { color: #7f8c8d; }
+.zen-dot--sitting  { color: var(--signal-alert); }
+.zen-dot--standing { color: var(--signal-ok); }
+.zen-dot--walking  { color: var(--signal-up); }
+.zen-dot--away     { color: var(--ink-tertiary); }
 
 .zen-separator {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-muted);
 }
 
 .zen-limit {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-tertiary);
 }
 
 .zen-height {
   margin-left: auto;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--beam);
   font-size: 12px;
+  font-weight: 500;
 }
 
 /* ── Bar ── */
 .zen-bar {
   height: 3px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--rail-subtle);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -105,7 +112,7 @@
   transition: width 0.3s ease;
 }
 
-.zen-bar__fill--sitting { background: #e74c3c; }
-.zen-bar__fill--standing { background: #2ecc71; }
-.zen-bar__fill--walking { background: #27ae60; }
-.zen-bar__fill--away { background: #7f8c8d; }
+.zen-bar__fill--sitting  { background: var(--signal-alert); }
+.zen-bar__fill--standing { background: var(--signal-ok); }
+.zen-bar__fill--walking  { background: var(--signal-up); }
+.zen-bar__fill--away     { background: var(--ink-tertiary); }
