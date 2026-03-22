@@ -28,7 +28,6 @@ function hourLabel(hour: number): string {
 
 interface ZenTimelineProps {
   sessions: SessionEntry[];
-  height?: number;
 }
 
 /**
@@ -37,7 +36,6 @@ interface ZenTimelineProps {
  */
 export const ZenTimeline: FC<ZenTimelineProps> = ({
   sessions,
-  height = 48,
 }) => {
   const now = new Date();
   const dayStart = new Date(now);
@@ -57,7 +55,6 @@ export const ZenTimeline: FC<ZenTimelineProps> = ({
     <div
       className="zen-timeline"
       data-testid="zen-timeline"
-      style={{ height: `${height}px` }}
     >
       <div className="zen-timeline__blocks">
         {sessions.map((session, i) => {

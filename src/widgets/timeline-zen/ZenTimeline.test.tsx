@@ -39,14 +39,9 @@ describe("ZenTimeline", () => {
     expect(blocks.length).toBe(4);
   });
 
-  it("defaults to 48px height", () => {
+  it("has zen-timeline class for CSS height", () => {
     render(<ZenTimeline sessions={[]} />);
-    expect(screen.getByTestId("zen-timeline").style.height).toBe("48px");
-  });
-
-  it("accepts custom height", () => {
-    render(<ZenTimeline sessions={[]} height={32} />);
-    expect(screen.getByTestId("zen-timeline").style.height).toBe("32px");
+    expect(screen.getByTestId("zen-timeline").className).toContain("zen-timeline");
   });
 
   it("applies correct color classes to blocks", () => {

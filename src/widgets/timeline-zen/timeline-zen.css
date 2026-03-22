@@ -17,6 +17,7 @@
 .zen-timeline {
   position: relative;
   width: 100%;
+  height: 48px;
   border-radius: var(--r-sm);
   overflow: hidden;
   background: var(--panel-raised);

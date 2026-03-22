@@ -18,7 +18,7 @@ import "./timeline-zen/timeline-zen.css";
 export const TimelineZenWidget: FC<WidgetProps> = (props) => {
   return (
     <div className="zen-widget" data-testid="timeline-zen-widget">
-      <ZenTimeline sessions={props.todaySessions} height={48} />
+      <ZenTimeline sessions={props.todaySessions} />
       <ZenStatus
         state={props.state}
         limitRemaining={props.limitRemaining}

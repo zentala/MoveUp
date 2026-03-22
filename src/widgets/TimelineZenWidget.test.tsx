@@ -107,9 +107,9 @@ describe("TimelineZenWidget", () => {
     expect(screen.getByText("72.4 cm")).toBeInTheDocument();
   });
 
-  it("timeline has 48px height", () => {
+  it("timeline has zen-timeline class for CSS height", () => {
     render(<TimelineZenWidget {...mockWidgetProps()} />);
     const timeline = screen.getByTestId("zen-timeline");
-    expect(timeline.style.height).toBe("48px");
+    expect(timeline.className).toContain("zen-timeline");
   });
 });
