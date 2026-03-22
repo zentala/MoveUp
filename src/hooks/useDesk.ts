@@ -35,7 +35,7 @@ const BREAK_RESET_THRESHOLD_SECS = 600;
 export function useDesk(): UseDeskResult {
   const [connected, setConnected] = useState(false);
   const [port, setPort] = useState<string | null>(null);
-  const [state, setState] = useState<DeskState | null>(null);
+  const [state, setState] = useState<DeskState>("Away");
   const [deskHeightCm, setDeskHeightCm] = useState(0);
   const [sittingSeconds, setSittingSeconds] = useState(0);
   const [standingSeconds, setStandingSeconds] = useState(0);

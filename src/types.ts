@@ -117,7 +117,7 @@ export interface PreviousSession {
 export interface WidgetProps {
   connected: boolean;
   port: string | null;
-  state: DeskState | null;
+  state: DeskState;
   deskHeightCm: number;
   currentSessionSecs: number;
   limitSecs: number;

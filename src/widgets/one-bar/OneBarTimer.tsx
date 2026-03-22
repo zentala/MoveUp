@@ -10,10 +10,10 @@ import { formatDuration, formatDurationShort } from "@/utils/format";
 
 /** State indicator labels for each desk state. */
 const STATE_LABELS: Record<string, string> = {
-  Sitting: "SITTING",
-  Standing: "STANDING",
-  Walking: "WALKING",
-  Away: "AWAY",
+  Sitting: "sitting",
+  Standing: "standing",
+  Walking: "walking",
+  Away: "away",
 };
 
 /** Renders state label, big timer, previous session info, and the progress bar. */

@@ -17,7 +17,7 @@ export interface TransitionInfo {
 export interface UseDeskResult {
   connected: boolean;
   port: string | null;
-  state: DeskState | null;
+  state: DeskState;
   deskHeightCm: number;
   /** Current sitting session seconds (resets after break credit). */
   sittingSeconds: number;
