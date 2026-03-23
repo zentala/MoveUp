@@ -100,6 +100,11 @@ export function useDesk(): UseDeskResult {
         setPositionChanges(dto.position_changes);
         setLimitUsedSecs(dto.limit_used_secs);
         setDailyScore(dto.daily_score);
+        // If we get a non-Away state with height data, sensor is connected.
+        // Fixes race where device-connected fires before listener mounts.
+        if (dto.state !== "Away" && dto.desk_height_cm > 0) {
+          setConnected(true);
+        }
       } catch (err) {
         console.debug("get_session_state not ready:", err);
       }
