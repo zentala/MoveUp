@@ -1,15 +1,16 @@
 ---
-updated: 2026-03-23T00:00:00Z
-active_epic: E000
-active_epic_path: .plan/epics/E000-maintenance
-current_wave: ~
+updated: 2026-03-23
+active_epic: E001
+active_epic_path: .plan/epics/E001-2026-03-23-kpi-dashboard
+current_wave: 3a
 ---
 
 ## Status
-- T044 (snapshot logging + event log) — **done**, merged to main
-- No active tasks
+- E000 (maintenance) — **done**
+- E001 Wave 1 — **done** (T01, T02, T03)
+- E001 Wave 2 — **done** (T04, T05, T06, T07)
+- E001 Wave 3a — **in progress**: T08 (KpiStrip) + T09 (Timeline markers) + T10 (Debug metrics)
 
 ## Next Steps
-1. PM structure migration (old `.claude/tasks/` → `.plan/epics/`)
-2. T044 manual verify: run app, wait 60s, check `AppData/Roaming/com.zentala.desk/logs/`
-3. Continue with backlog items (alerts, gamification)
+1. Wave 3a: T08 + T09 + T10 — 3 parallel agents (all frontend)
+2. Wave 3b: T11 (Final integration + Coach removal)

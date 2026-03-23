@@ -26,6 +26,9 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     todayStandingSecs: 0,
     todaySittingSecs: 600,
     todayScore: 0,
+    elapsed: 600,
+    total: 2400,
+    colorScheme: "sitting" as const,
     metrics: [],
     error: null,
     onOpenSettings: vi.fn(),
@@ -94,25 +97,23 @@ describe("OneBarWidget", () => {
     expect(screen.getByText("72 cm")).toBeInTheDocument();
   });
 
-  it("shows limitRemaining as big number, not sittingSeconds", () => {
+  it("shows elapsed/total as big number", () => {
     render(
       <OneBarWidget
-        {...props({
-          limitRemaining: 1800,
-          currentSessionSecs: 600,
-          limitSecs: 2400,
-        })}
+        {...props({ elapsed: 600, total: 2400 })}
       />,
     );
     const bigNum = screen.getByTestId("one-bar-big-number");
-    // 1800s = 30:00
-    expect(bigNum.textContent).toContain("30:00");
+    // 600s = 10:00, 2400s = 40:00
+    expect(bigNum.textContent).toContain("10:00");
+    expect(bigNum.textContent).toContain("40:00");
   });
 
   it("renders all sub-components", () => {
     render(<OneBarWidget {...props()} />);
     expect(screen.getByTestId("one-bar-timeline")).toBeInTheDocument();
     expect(screen.getByTestId("one-bar-timer")).toBeInTheDocument();
+    expect(screen.getByTestId("progress-bar-container")).toBeInTheDocument();
   });
 
   it("renders KpiStrip with metrics", () => {
@@ -121,24 +122,22 @@ describe("OneBarWidget", () => {
         {...props({
           metrics: [
             {
-              id: "sit_ratio",
-              label: "Sit%",
-              result: { value: 0.65, display: "65%", level: "yellow", is_personal_best: false },
+              id: "standing_pct",
+              label: "Standing",
+              result: { value: 15, display: "15%", level: "green", is_personal_best: false },
             },
             {
-              id: "streak",
-              label: "Streak",
-              result: { value: 3, display: "3", level: "green", is_personal_best: true },
+              id: "position_rate",
+              label: "Changes",
+              result: { value: 1.2, display: "1.2/h", level: "green", is_personal_best: true },
             },
           ],
         })}
       />,
     );
     expect(screen.getByTestId("kpi-strip")).toBeInTheDocument();
-    expect(screen.getByTestId("kpi-badge-sit_ratio")).toBeInTheDocument();
-    expect(screen.getByTestId("kpi-badge-streak")).toBeInTheDocument();
-    expect(screen.getByText("65%")).toBeInTheDocument();
-    expect(screen.getByText("PB")).toBeInTheDocument();
+    expect(screen.getByText("15%")).toBeInTheDocument();
+    expect(screen.getByText("1.2/h")).toBeInTheDocument();
   });
 
   it("calls onOpenSettings when settings button clicked", () => {
@@ -148,75 +147,35 @@ describe("OneBarWidget", () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it("shows standing duration when state is Standing", () => {
+  it("big number shows elapsed/total format for standing", () => {
     render(
       <OneBarWidget
         {...props({
           state: "Standing",
-          breakSecs: 180,
-          currentSessionSecs: 600,
+          elapsed: 180,
+          total: 600,
+          colorScheme: "standing",
         })}
       />,
     );
-    // Should show break duration (3m), not sitting duration (10m)
-    expect(screen.getByText(/for 3m/)).toBeInTheDocument();
+    const bigNum = screen.getByTestId("one-bar-big-number");
+    expect(bigNum.textContent).toContain("03:00");
+    expect(bigNum.textContent).toContain("10:00");
   });
 
-  it("shows sitting duration when state is Sitting", () => {
-    render(
-      <OneBarWidget
-        {...props({
-          state: "Sitting",
-          breakSecs: 0,
-          currentSessionSecs: 240,
-        })}
-      />,
-    );
-    expect(screen.getByText(/for 4m/)).toBeInTheDocument();
-  });
-
-  it("standing timer must NOT show currentSessionSecs (the serde contract bug)", () => {
-    // Regression: serde(rename_all=snake_case) made state="standing" (lowercase),
-    // so isStandingOrAway was always false, and sessionDuration always showed
-    // currentSessionSecs (=0) instead of breakSecs.
-    render(
-      <OneBarWidget
-        {...props({
-          state: "Standing",
-          breakSecs: 420,    // 7 minutes of standing
-          currentSessionSecs: 0,  // reset on transition
-        })}
-      />,
-    );
-    // Must show 7m (breakSecs), not 0s (currentSessionSecs)
-    expect(screen.getByText(/for 7m/)).toBeInTheDocument();
-    expect(screen.queryByText(/for 0s/)).not.toBeInTheDocument();
-  });
-
-  it("walking timer shows breakSecs not currentSessionSecs", () => {
-    render(
-      <OneBarWidget
-        {...props({
-          state: "Walking",
-          breakSecs: 300,
-          currentSessionSecs: 0,
-        })}
-      />,
-    );
-    expect(screen.getByText(/for 5m/)).toBeInTheDocument();
-  });
-
-  it("away timer shows breakSecs not currentSessionSecs", () => {
+  it("away state has gray color scheme on progress bar", () => {
     render(
       <OneBarWidget
         {...props({
           state: "Away",
-          breakSecs: 120,
-          currentSessionSecs: 0,
+          elapsed: 120,
+          total: 600,
+          colorScheme: "gray",
         })}
       />,
     );
-    expect(screen.getByText(/for 2m/)).toBeInTheDocument();
+    const fill = screen.getByTestId("progress-bar-fill");
+    expect(fill.className).toContain("progress-bar__fill--gray");
   });
 
   it("shows previous session info when available", () => {

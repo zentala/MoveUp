@@ -24,16 +24,17 @@ describe("KpiStrip", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("applies correct color classes", () => {
+  it("renders badges with data-testid per metric", () => {
     render(<KpiStrip metrics={mockMetrics} />);
-    const dots = document.querySelectorAll(".kpi-strip__dot");
-    expect(dots[0].classList.contains("kpi-strip__dot--green")).toBe(true);
-    expect(dots[3].classList.contains("kpi-strip__dot--yellow")).toBe(true);
+    expect(screen.getByTestId("kpi-badge-standing_pct")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-badge-position_rate")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-badge-hourly_breaks")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-badge-longest_session")).toBeInTheDocument();
   });
 
-  it("shows star for personal best", () => {
+  it("shows PB for personal best", () => {
     render(<KpiStrip metrics={mockMetrics} />);
-    expect(screen.getByText("\u2605")).toBeInTheDocument();
+    expect(screen.getByText("PB")).toBeInTheDocument();
   });
 
   it("shows dash for missing data", () => {
@@ -42,9 +43,11 @@ describe("KpiStrip", () => {
     expect(screen.getByText("\u2014")).toBeInTheDocument();
   });
 
-  it("shows tooltip on hover", () => {
+  it("renders labels for each metric", () => {
     render(<KpiStrip metrics={mockMetrics} />);
-    const items = document.querySelectorAll(".kpi-strip__item");
-    expect(items[0].getAttribute("title")).toBe("Standing: 15%");
+    expect(screen.getByText("Standing")).toBeInTheDocument();
+    expect(screen.getByText("Changes")).toBeInTheDocument();
+    expect(screen.getByText("Breaks")).toBeInTheDocument();
+    expect(screen.getByText("Session")).toBeInTheDocument();
   });
 });

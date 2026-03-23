@@ -13,7 +13,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 ### Wave 1a — parallel (2 agents)
 
 **E001-T01: New ProgressBar + Animation Components**
-- Status: [ ]
+- Status: [x] DONE (commit 1c25242)
 - Agent: worktree
 - Creates (NEW files only):
   - `src/components/ProgressBar.tsx` (~80 lines) — unified bar, props: elapsed/total/variant/colorScheme/shimmer
@@ -25,7 +25,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 - Conflict zone: NONE (all new files)
 
 **E001-T02: WidgetProps + useWidgetData Extensions**
-- Status: [ ]
+- Status: [x] DONE (commit e912d49)
 - Agent: worktree
 - Modifies:
   - `src/types.ts` — add `elapsed: number`, `total: number`, `colorScheme: "sitting"|"standing"|"gray"` to WidgetProps
@@ -39,7 +39,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 ### Wave 1b — sequential (1 agent, after 1a merges)
 
 **E001-T03: Timer UX Integration + Cleanup**
-- Status: [ ]
+- Status: [x] DONE (commit a4c680c)
 - Agent: worktree
 - Modifies:
   - `src/widgets/one-bar/OneBarTimer.tsx` — use elapsed/total from props (not limitRemaining), remove duration from state label, add tooltip, apply useTimerAnimations
@@ -59,7 +59,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 ### Wave 2a — solo (1 agent, foundational)
 
 **E001-T04: SessionManager Extensions**
-- Status: [ ]
+- Status: [x] DONE (commit a7c1cdc)
 - Agent: worktree
 - Modifies:
   - `src-tauri/src/session_types.rs` — add fields:
@@ -80,7 +80,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 ### Wave 2b — parallel (2 agents, after 2a merges)
 
 **E001-T05: HourlyBreakTracker + GapHandler**
-- Status: [ ]
+- Status: [x] DONE (commit 52bf11e)
 - Agent: worktree
 - Creates (NEW files):
   - `src-tauri/src/hourly_break_tracker.rs` (~120 lines):
@@ -102,7 +102,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 - Conflict zone: lib.rs (only mod declarations — easy merge)
 
 **E001-T06: MetricEngine + 4 Metrics**
-- Status: [ ]
+- Status: [x] DONE (commit 29c0e38)
 - Agent: worktree
 - Creates (NEW files):
   - `src-tauri/src/metrics/mod.rs` (~50 lines) — Metric trait, MetricEngine, MetricResult, MetricLevel, threshold_level() utility
@@ -119,7 +119,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 ### Wave 2c — sequential (1 agent, after 2b merges)
 
 **E001-T07: Rust IPC + Persistence Wiring**
-- Status: [ ]
+- Status: [x] DONE (commit 23de3e5)
 - Agent: worktree
 - Modifies:
   - `src-tauri/src/commands.rs` — new `get_dashboard_state()` IPC returning SessionStateDto + Vec<MetricSnapshot>
@@ -137,7 +137,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 ### Wave 3a — parallel (3 agents)
 
 **E001-T08: KpiStrip Component**
-- Status: [ ]
+- Status: [x] DONE (commit 61cd9ce)
 - Agent: worktree
 - Creates (NEW files):
   - `src/widgets/one-bar/KpiStrip.tsx` (~80 lines) — renders Vec<MetricSnapshot> as colored dots + values, micro-animation on color change, tooltip with yesterday comparison
@@ -147,7 +147,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 - Conflict zone: NONE (all new files)
 
 **E001-T09: Timeline Hour Markers**
-- Status: [ ]
+- Status: [x] DONE
 - Agent: worktree
 - Modifies:
   - `src/widgets/one-bar/OneBarTimeline.tsx` — add "day start" marker line + hourly gridlines
@@ -156,7 +156,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 - Conflict zone: one-bar.css (only adds new classes in timeline section — non-overlapping with other changes)
 
 **E001-T10: Debug Tab Metrics**
-- Status: [ ]
+- Status: [x] DONE
 - Agent: worktree
 - Modifies:
   - `src/components/settings/DebugSection.tsx` — add "Metrics" section showing raw MetricSnapshot values
