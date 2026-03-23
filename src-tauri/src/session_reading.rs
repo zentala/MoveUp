@@ -12,6 +12,11 @@ impl SessionManager {
     pub fn on_reading(&mut self, mm: i32, active: bool) -> ReadingResult {
         let now = Utc::now();
 
+        if self.state.first_reading_at.is_none() {
+            self.state.first_reading_at = Some(now);
+        }
+        self.state.last_tick_ts = Some(now);
+
         // Compute raw calibrated desk height (used for state machine decisions).
         let floor_distance_cm = mm as f32 / 10.0;
         let desk_height_cm = floor_distance_cm - self.desk_thickness_cm;
@@ -121,12 +126,32 @@ impl SessionManager {
 
     /// Accumulates time while remaining in the current state (no transition).
     pub(crate) fn accumulate_ongoing(&mut self, now: DateTime<Utc>) {
+        // Continuous computer timer and Away bout tracking.
+        match self.state.state {
+            DeskState::Sitting | DeskState::Standing | DeskState::Walking => {
+                self.state.continuous_computer_secs += 1;
+                self.state.longest_computer_session_secs = self
+                    .state
+                    .longest_computer_session_secs
+                    .max(self.state.continuous_computer_secs);
+                self.state.away_bout_secs = 0;
+            }
+            DeskState::Away => {
+                self.state.away_bout_secs += 1;
+                // After 5 continuous minutes of Away: reset continuous computer timer
+                // and count as a position change (fires exactly once at 300s).
+                if self.state.away_bout_secs == 300 {
+                    self.state.continuous_computer_secs = 0;
+                    self.state.position_changes += 1;
+                }
+            }
+        }
+        // Break seconds accumulation (original logic).
         match self.state.state {
             DeskState::Sitting => {} // committed on transition; live via snapshot()
             DeskState::Standing | DeskState::Walking | DeskState::Away => {
                 if let Some(bs) = self.state.break_started {
-                    self.state.break_seconds =
-                        (now - bs).num_seconds().max(0);
+                    self.state.break_seconds = (now - bs).num_seconds().max(0);
                 }
             }
         }

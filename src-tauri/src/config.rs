@@ -16,6 +16,15 @@ fn bool_true() -> bool { true }
 fn default_sitting_mm() -> i32 { 720 }
 fn default_standing_mm() -> i32 { 1050 }
 fn default_thickness_mm() -> i32 { 30 }
+fn default_kpi_standing_green_pct() -> f32 { 15.0 }
+fn default_kpi_standing_yellow_pct() -> f32 { 10.0 }
+fn default_kpi_changes_green() -> f32 { 1.0 }
+fn default_kpi_changes_yellow() -> f32 { 0.5 }
+fn default_kpi_break_yellow_missed() -> u8 { 2 }
+fn default_kpi_break_red_missed() -> u8 { 3 }
+fn default_kpi_session_green_mins() -> u32 { 45 }
+fn default_kpi_session_yellow_mins() -> u32 { 75 }
+fn default_kpi_early_data_threshold_mins() -> u32 { 30 }
 fn default_active_widget() -> String { "one-bar".to_string() }
 fn default_notification_backend() -> String { "toast".to_string() }
 
@@ -81,6 +90,24 @@ pub struct AppConfig {
     /// Show welcome popup on startup. Set to false after first dismiss with "don't show again".
     #[serde(default = "bool_true")]
     pub show_welcome_on_startup: bool,
+    #[serde(default = "default_kpi_standing_green_pct")]
+    pub kpi_standing_green_pct: f32,
+    #[serde(default = "default_kpi_standing_yellow_pct")]
+    pub kpi_standing_yellow_pct: f32,
+    #[serde(default = "default_kpi_changes_green")]
+    pub kpi_changes_green: f32,
+    #[serde(default = "default_kpi_changes_yellow")]
+    pub kpi_changes_yellow: f32,
+    #[serde(default = "default_kpi_break_yellow_missed")]
+    pub kpi_break_yellow_missed: u8,
+    #[serde(default = "default_kpi_break_red_missed")]
+    pub kpi_break_red_missed: u8,
+    #[serde(default = "default_kpi_session_green_mins")]
+    pub kpi_session_green_mins: u32,
+    #[serde(default = "default_kpi_session_yellow_mins")]
+    pub kpi_session_yellow_mins: u32,
+    #[serde(default = "default_kpi_early_data_threshold_mins")]
+    pub kpi_early_data_threshold_mins: u32,
 }
 
 impl AppConfig {
@@ -147,6 +174,15 @@ impl Default for AppConfig {
             pts_session_bonus: default_pts_session_bonus(),
             pts_sitting_per_min: default_pts_sitting_per_min(),
             show_welcome_on_startup: bool_true(),
+            kpi_standing_green_pct: default_kpi_standing_green_pct(),
+            kpi_standing_yellow_pct: default_kpi_standing_yellow_pct(),
+            kpi_changes_green: default_kpi_changes_green(),
+            kpi_changes_yellow: default_kpi_changes_yellow(),
+            kpi_break_yellow_missed: default_kpi_break_yellow_missed(),
+            kpi_break_red_missed: default_kpi_break_red_missed(),
+            kpi_session_green_mins: default_kpi_session_green_mins(),
+            kpi_session_yellow_mins: default_kpi_session_yellow_mins(),
+            kpi_early_data_threshold_mins: default_kpi_early_data_threshold_mins(),
         }
     }
 }
