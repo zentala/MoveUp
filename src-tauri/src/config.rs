@@ -19,6 +19,16 @@ fn default_thickness_mm() -> i32 { 30 }
 fn default_active_widget() -> String { "one-bar".to_string() }
 fn default_notification_backend() -> String { "toast".to_string() }
 
+// KPI metric defaults
+fn default_kpi_early_data_threshold_mins() -> u32 { 5 }
+fn default_kpi_standing_green_pct() -> u32 { 15 }
+fn default_kpi_standing_yellow_pct() -> u32 { 10 }
+fn default_kpi_changes_green() -> u32 { 2 }
+fn default_kpi_changes_yellow() -> u32 { 1 }
+fn default_kpi_break_yellow_missed() -> u8 { 1 }
+fn default_kpi_session_green_mins() -> u32 { 45 }
+fn default_kpi_session_yellow_mins() -> u32 { 75 }
+
 fn default_pts_standing_per_min() -> f32 {
     1.0
 }
@@ -81,6 +91,31 @@ pub struct AppConfig {
     /// Show welcome popup on startup. Set to false after first dismiss with "don't show again".
     #[serde(default = "bool_true")]
     pub show_welcome_on_startup: bool,
+    // ─── KPI metric thresholds ──────────────────────────────────────────
+    /// Minutes of data before KPI metrics start reporting (avoids noisy early values).
+    #[serde(default = "default_kpi_early_data_threshold_mins")]
+    pub kpi_early_data_threshold_mins: u32,
+    /// Standing percentage >= this is Green.
+    #[serde(default = "default_kpi_standing_green_pct")]
+    pub kpi_standing_green_pct: u32,
+    /// Standing percentage >= this (but < green) is Yellow.
+    #[serde(default = "default_kpi_standing_yellow_pct")]
+    pub kpi_standing_yellow_pct: u32,
+    /// Position changes/hour >= this is Green.
+    #[serde(default = "default_kpi_changes_green")]
+    pub kpi_changes_green: u32,
+    /// Position changes/hour >= this (but < green) is Yellow.
+    #[serde(default = "default_kpi_changes_yellow")]
+    pub kpi_changes_yellow: u32,
+    /// Missed hourly breaks <= this is Yellow (0 = Green, > this = Red).
+    #[serde(default = "default_kpi_break_yellow_missed")]
+    pub kpi_break_yellow_missed: u8,
+    /// Longest session <= this minutes is Green.
+    #[serde(default = "default_kpi_session_green_mins")]
+    pub kpi_session_green_mins: u32,
+    /// Longest session <= this minutes (but > green) is Yellow.
+    #[serde(default = "default_kpi_session_yellow_mins")]
+    pub kpi_session_yellow_mins: u32,
 }
 
 impl AppConfig {
@@ -147,6 +182,14 @@ impl Default for AppConfig {
             pts_session_bonus: default_pts_session_bonus(),
             pts_sitting_per_min: default_pts_sitting_per_min(),
             show_welcome_on_startup: bool_true(),
+            kpi_early_data_threshold_mins: default_kpi_early_data_threshold_mins(),
+            kpi_standing_green_pct: default_kpi_standing_green_pct(),
+            kpi_standing_yellow_pct: default_kpi_standing_yellow_pct(),
+            kpi_changes_green: default_kpi_changes_green(),
+            kpi_changes_yellow: default_kpi_changes_yellow(),
+            kpi_break_yellow_missed: default_kpi_break_yellow_missed(),
+            kpi_session_green_mins: default_kpi_session_green_mins(),
+            kpi_session_yellow_mins: default_kpi_session_yellow_mins(),
         }
     }
 }

@@ -76,6 +76,16 @@ pub struct SessionState {
     /// Seconds in the current sitting session only (resets on Sitting entry, after break credit).
     /// Use this for the session progress timer in the UI.
     pub current_session_secs: i64,
+    /// Seconds of continuous computer use (sitting or standing, resets on Away).
+    pub continuous_computer_secs: i64,
+    /// Longest continuous computer session today (seconds).
+    pub longest_computer_session_secs: i64,
+    /// Duration of the most recent Away bout (seconds).
+    pub away_bout_secs: i64,
+    /// Timestamp of the first sensor reading today (for computing hours worked).
+    pub first_reading_at: Option<DateTime<Utc>>,
+    /// Timestamp of the last tick (for delta-based accumulation).
+    pub last_tick_ts: Option<DateTime<Utc>>,
 }
 
 /// Serialisable DTO emitted with state-change events.

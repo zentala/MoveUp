@@ -14,6 +14,7 @@ mod db_queries;
 mod db_sessions;
 mod event_logger;
 mod height_stabilizer;
+mod metrics;
 mod overlay_layered;
 mod overlay_layered_wndproc;
 mod overlay_opaque;

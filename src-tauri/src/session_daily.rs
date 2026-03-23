@@ -33,6 +33,11 @@ impl SessionManager {
             self.state.standing_session_secs = 0;
             self.state.lap_bonus_awarded_for_lap = 0;
             self.state.current_session_secs = 0;
+            self.state.continuous_computer_secs = 0;
+            self.state.longest_computer_session_secs = 0;
+            self.state.away_bout_secs = 0;
+            self.state.first_reading_at = None;
+            self.state.last_tick_ts = None;
             self.last_reset_date = today;
             return true;
         }
