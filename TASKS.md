@@ -240,23 +240,17 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
   - **Must do:** add debug logging, check actual sensor readings during stand, verify debounce behavior
   - Depends on: understanding T037 (noisy readings may prevent debounce from completing)
 
-- [ ] **T037** P1 — Height reading stabilization: smoothing + rounding to 1cm
-  - Raw sensor readings jump ±1-2mm when desk is stationary → display flickers
-  - **Three algorithms needed:**
-    1. Moving average (last N readings, e.g. 10) for smooth display
-    2. Round to nearest cm for UI display (no sub-cm precision needed)
-    3. Trend detection: if readings stable within ±3mm for 5s → lock display value
-  - Raw reading stays available for state machine; stabilized reading for UI + tooltip
-  - This may also fix T036 (noisy readings breaking debounce)
+- [x] **T037** P1 — Height reading stabilization: smoothing + rounding to 1cm
+  - Moving average (10-sample window), cm rounding, trend lock (±3mm tolerance)
+  - New module: `height_stabilizer/mod.rs` + `tests.rs` (18 unit tests)
+  - Raw reading for state machine; stabilized for UI + tooltip
 
 ---
 
 ## Sprint: UX Fixes
 
-- [ ] **T038** P1 — Popup closes on click outside (blur/focus-loss)
-  - Currently: only closes via tray icon click
-  - Expected: click outside → window hides (standard popup behavior)
-  - Implementation: listen for `blur` event on Tauri window, or use `set_always_on_top(false)` + focus tracking
+- [x] **T038** P1 — Popup closes on click outside (blur/focus-loss)
+  - `WindowEvent::Focused(false)` handler in `lib.rs` hides main window on blur
 
 - [ ] **T039** P2 — Connection status UI: replace cryptic "connection 5M" with clear indicator
   - PlaceholderWidget shows raw debug text — replace with proper status in active widget
@@ -264,10 +258,9 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
   - When disconnected: red dot + "Disconnected"
   - Remove ambiguous "connection on" text
 
-- [ ] **T040** P2 — "No sessions yet" despite working: investigate + fix
-  - User sees "No sessions yet" in timeline despite using the desk
-  - Likely linked to T036 (if standing never detected → no state transitions → no completed sessions saved)
-  - Verify: `get_today_summary()` returns sessions, check if sessions are being created on state change
+- [x] **T040** P2 — "No sessions yet" despite working: JSON field name mismatch fix
+  - Root cause: `SessionRow` serialized `started_at/ended_at/duration_seconds` but TS expected `start/end/duration_secs`
+  - Fix: `#[serde(rename)]` on `SessionRow` in `db.rs` + serialization test
 
 ---
 
@@ -382,7 +375,7 @@ Stan maszyny stanów
 - [x] **T034** P1 — Visual layout polish: design system alignment + layout fill `.claude/tasks/T034-visual-layout-polish.md`
   - Fixed by /design-review on main, 2026-03-22. 7 findings, all fixed.
   - Remaining: visual verification checklist items (deferred — need manual testing)
-- [ ] **T035** P2 — Settings panel: tabbed layout (4 tabs) instead of scrolling `.claude/tasks/T035-settings-tabbed-layout.md`
+- [x] **T035** P2 — Settings panel: tabbed layout (4 tabs) instead of scrolling `.claude/tasks/T035-settings-tabbed-layout.md`
 
 ---
 
