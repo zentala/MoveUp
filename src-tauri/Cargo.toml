@@ -34,6 +34,7 @@ windows = { version = "0.61", features = ["Win32_UI_Input_KeyboardAndMouse", "Wi
 [dev-dependencies]
 proptest = "1.4"
 criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3"
 
 [[bench]]
 name = "session_state_machine"

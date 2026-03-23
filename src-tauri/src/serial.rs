@@ -19,9 +19,11 @@ use log::{error, info, warn};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::event_logger::EventLogger;
 use crate::session::SessionManager;
 use crate::serial_parser::{parse_distance, probe_port};
 use crate::serial_periodic::{check_periodic, handle_reading};
+use crate::snapshot_logger::SnapshotLogger;
 
 // Re-export parser types for backwards compatibility.
 pub use crate::serial_parser::{available_port_infos, PortInfo};
@@ -69,6 +71,8 @@ fn reader_loop(
     session: &Arc<Mutex<SessionManager>>,
     db: &Arc<Mutex<Option<rusqlite::Connection>>>,
     config: &crate::config::AppConfig,
+    snapshot_logger: &Arc<SnapshotLogger>,
+    event_logger: &Arc<EventLogger>,
 ) {
     let port = match serialport::new(port_name, BAUD_RATE)
         .timeout(Duration::from_millis(2000))
@@ -109,10 +113,10 @@ fn reader_loop(
             };
             let _ = app.emit("desk:distance", reading);
 
-            handle_reading(app, mm, session, db, config);
+            handle_reading(app, mm, session, db, config, event_logger);
 
             if last_periodic.elapsed() >= Duration::from_secs(60) {
-                check_periodic(app, session, config);
+                check_periodic(app, session, config, snapshot_logger, event_logger);
                 last_periodic = std::time::Instant::now();
             }
         } else if trimmed.to_ascii_uppercase().starts_with("ERROR") {
@@ -139,6 +143,8 @@ pub fn scan_and_connect(
     session: Arc<Mutex<SessionManager>>,
     db: Arc<Mutex<Option<rusqlite::Connection>>>,
     config: Arc<Mutex<Option<crate::config::AppConfig>>>,
+    snapshot_logger: Arc<SnapshotLogger>,
+    event_logger: Arc<EventLogger>,
 ) {
     std::thread::spawn(move || {
         loop {
@@ -174,9 +180,12 @@ pub fn scan_and_connect(
                     *conn.connected_port.lock().unwrap() = Some(port_name.clone());
                 }
 
-                let cfg = config.lock().unwrap().clone().unwrap_or_default();
-                reader_loop(&app, &port_name, &stop, &session, &db, &cfg);
+                event_logger.log(&format!("DEVICE connected {}", port_name));
 
+                let cfg = config.lock().unwrap().clone().unwrap_or_default();
+                reader_loop(&app, &port_name, &stop, &session, &db, &cfg, &snapshot_logger, &event_logger);
+
+                event_logger.log("DEVICE lost");
                 {
                     *conn.stop_flag.lock().unwrap() = None;
                     *conn.connected_port.lock().unwrap() = None;

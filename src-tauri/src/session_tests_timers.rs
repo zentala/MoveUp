@@ -88,7 +88,7 @@ mod timer_tests {
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
         m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(300));
-        let mut last = ReadingResult { state_change: None, completed_session: None };
+        let mut last = ReadingResult { state_change: None, completed_session: None, break_credit: None };
         for _ in 0..DEBOUNCE_COUNT {
             last = m.on_reading(1200, true);
         }
@@ -165,7 +165,7 @@ mod timer_tests {
         m.state.sitting_started = Some(Utc::now());
         transition_to_standing(&mut m);
         m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(600));
-        let mut last = ReadingResult { state_change: None, completed_session: None };
+        let mut last = ReadingResult { state_change: None, completed_session: None, break_credit: None };
         for _ in 0..DEBOUNCE_COUNT {
             last = m.on_reading(800, true);
         }
@@ -182,7 +182,7 @@ mod timer_tests {
         transition_to_standing(&mut m);
         transition_to_walking(&mut m);
         m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(900));
-        let mut last = ReadingResult { state_change: None, completed_session: None };
+        let mut last = ReadingResult { state_change: None, completed_session: None, break_credit: None };
         for _ in 0..DEBOUNCE_COUNT {
             last = m.on_reading(800, true);
         }

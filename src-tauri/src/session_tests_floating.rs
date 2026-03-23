@@ -186,6 +186,7 @@ mod floating_window_tests {
             let mut r = ReadingResult {
                 state_change: None,
                 completed_session: None,
+                break_credit: None,
             };
             for _ in 0..DEBOUNCE_COUNT {
                 r = m.on_reading(800, true);

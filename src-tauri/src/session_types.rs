@@ -147,4 +147,6 @@ pub struct CompletedSession {
 pub struct ReadingResult {
     pub state_change: Option<StateChangedPayload>,
     pub completed_session: Option<CompletedSession>,
+    /// Break credit applied this reading (type + standing duration in secs).
+    pub break_credit: Option<(BreakCredit, i64)>,
 }

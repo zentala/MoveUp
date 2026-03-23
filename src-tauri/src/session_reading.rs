@@ -55,6 +55,7 @@ impl SessionManager {
             return ReadingResult {
                 state_change: None,
                 completed_session: None,
+                break_credit: None,
             };
         }
 
@@ -66,10 +67,18 @@ impl SessionManager {
             return ReadingResult {
                 state_change: None,
                 completed_session: None,
+                break_credit: None,
             };
         }
 
         let completed_session = self.handle_state_exit(&candidate, now);
+
+        // Capture break credit if one was applied during this transition.
+        let break_credit = if self.state.last_break_credit != BreakCredit::None {
+            Some((self.state.last_break_credit.clone(), self.state.last_break_secs))
+        } else {
+            None
+        };
 
         // Track position changes: only Sitting<->Standing transitions.
         let is_position_change = (self.state.state == DeskState::Sitting
@@ -106,6 +115,7 @@ impl SessionManager {
                 current_session_secs: live_current,
             }),
             completed_session,
+            break_credit,
         }
     }
 

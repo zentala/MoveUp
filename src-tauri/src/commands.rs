@@ -99,12 +99,17 @@ pub fn list_ports() -> Vec<PortInfo> {
 /// Triggers the auto-detection scan.
 #[tauri::command]
 pub fn start_auto_connect(app: tauri::AppHandle, state: State<'_, AppState>) {
+    let loggers: tauri::State<'_, crate::Loggers> = app.state();
+    let sl = loggers.snapshot.clone();
+    let el = loggers.event.clone();
     scan_and_connect(
         app,
         state.conn.clone(),
         state.session.clone(),
         state.db.clone(),
         state.config.clone(),
+        sl,
+        el,
     );
 }
 

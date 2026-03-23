@@ -12,6 +12,7 @@ mod config;
 mod db;
 mod db_queries;
 mod db_sessions;
+mod event_logger;
 mod height_stabilizer;
 mod overlay_layered;
 mod overlay_layered_wndproc;
@@ -36,6 +37,8 @@ mod db_tests;
 mod serial;
 mod serial_parser;
 mod serial_periodic;
+mod setup_helpers;
+mod snapshot_logger;
 pub mod session;
 pub mod session_manager;
 mod session_breaks;
@@ -67,20 +70,22 @@ mod tray_controller_tests;
 mod tray_icon;
 
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 use alert_manager::{AlertConfig, AlertManager};
 use alert_popup::AlertPopup;
 use commands::AppState;
+use event_logger::EventLogger;
 use log::info;
 use overlay_renderer::OverlayRenderer;
 use serial::ConnectionState;
 use session::SessionManager;
-use tauri::{Listener, Manager};
-use tauri_plugin_notification::NotificationExt;
-use window_vibrancy::apply_acrylic;
+use snapshot_logger::SnapshotLogger;
+use tauri::Manager;
+/// Holds file-based loggers, managed as separate Tauri state.
+pub struct Loggers {
+    pub snapshot: Arc<SnapshotLogger>,
+    pub event: Arc<EventLogger>,
+}
 
-/// Minimum interval between device-missing/lost notifications (5 minutes).
-const DEVICE_NOTIFICATION_COOLDOWN_SECS: u64 = 300;
 /// Application entry point called from main.rs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -150,6 +155,18 @@ pub fn run() {
             std::fs::create_dir_all(&app_data_dir)?;
             info!("App data dir: {:?}", app_data_dir);
 
+            // Initialize loggers now that app_data_dir is known.
+            let logs_dir = app_data_dir.join("logs");
+            let snapshot_logger = Arc::new(SnapshotLogger::new(logs_dir.clone()));
+            snapshot_logger.cleanup_old_logs(7);
+            let event_logger = Arc::new(EventLogger::new(logs_dir));
+            let version = env!("CARGO_PKG_VERSION");
+            event_logger.log(&format!("START v{}", version));
+            app.manage(Loggers {
+                snapshot: snapshot_logger.clone(),
+                event: event_logger.clone(),
+            });
+
             // System tray icon and context menu.
             tray::setup_tray(app.handle())?;
 
@@ -157,18 +174,7 @@ pub fn run() {
             tray_controller::setup(app.handle());
 
             // Apply Acrylic blur and position to bottom-right corner.
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = apply_acrylic(&window, Some((18, 18, 18, 200)));
-
-                // Position window in bottom-right corner of primary monitor.
-                if let Ok(Some(monitor)) = window.current_monitor() {
-                    let mon = monitor.size();
-                    let win = window.outer_size().unwrap_or_default();
-                    let x = mon.width as i32 - win.width as i32 - 16;
-                    let y = mon.height as i32 - win.height as i32 - 56;
-                    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
-                }
-            }
+            setup_helpers::position_main_window(app.handle());
 
             // Load config from store and apply to SessionManager before sensor scan starts.
             // This ensures calibration values are correct from the first sensor reading.
@@ -198,42 +204,12 @@ pub fn run() {
                 state.session.clone(),
                 state.db.clone(),
                 state.config.clone(),
+                snapshot_logger,
+                event_logger,
             );
 
             // Throttled notifications for missing/lost sensor.
-            let last_notif = Arc::new(Mutex::new(Instant::now() - std::time::Duration::from_secs(DEVICE_NOTIFICATION_COOLDOWN_SECS)));
-
-            {
-                let handle = app.handle().clone();
-                let last = Arc::clone(&last_notif);
-                app.listen("desk:device-missing", move |_| {
-                    let mut guard = last.lock().unwrap();
-                    if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
-                        let _ = handle.notification()
-                            .builder()
-                            .title("zntlDesk")
-                            .body("Sensor not connected. Plug in desk sensor.")
-                            .show();
-                        *guard = Instant::now();
-                    }
-                });
-            }
-
-            {
-                let handle = app.handle().clone();
-                let last = Arc::clone(&last_notif);
-                app.listen("desk:device-lost", move |_| {
-                    let mut guard = last.lock().unwrap();
-                    if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
-                        let _ = handle.notification()
-                            .builder()
-                            .title("zntlDesk")
-                            .body("Sensor disconnected. Check USB cable.")
-                            .show();
-                        *guard = Instant::now();
-                    }
-                });
-            }
+            setup_helpers::setup_device_notifications(app.handle());
 
             Ok(())
         })
