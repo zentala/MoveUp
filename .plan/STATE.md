@@ -2,15 +2,19 @@
 updated: 2026-03-23
 active_epic: E001
 active_epic_path: .plan/epics/E001-2026-03-23-kpi-dashboard
-current_wave: 3a
+current_wave: ~
 ---
 
 ## Status
 - E000 (maintenance) — **done**
-- E001 Wave 1 — **done** (T01, T02, T03)
-- E001 Wave 2 — **done** (T04, T05, T06, T07)
-- E001 Wave 3a — **in progress**: T08 (KpiStrip) + T09 (Timeline markers) + T10 (Debug metrics)
+- E001 (Timer UX + KPI Dashboard + MetricEngine) — **DONE** (all 11 tasks merged)
+
+## Completed E001 Tasks
+- Wave 1: T01 (ProgressBar), T02 (WidgetProps), T03 (Timer UX integration)
+- Wave 2: T04 (SessionManager), T05 (HourlyBreak+Gap), T06 (MetricEngine), T07 (IPC wiring)
+- Wave 3: T08 (KpiStrip), T09 (Timeline markers), T10 (Debug metrics), T11 (Final integration)
 
 ## Next Steps
-1. Wave 3a: T08 + T09 + T10 — 3 parallel agents (all frontend)
-2. Wave 3b: T11 (Final integration + Coach removal)
+1. Cargo test verification (Rust toolchain needed)
+2. Visual verification with `pnpm tauri:dev:demo`
+3. Continue with TASKS.md backlog (T036, T043, T044, etc.)

@@ -166,7 +166,7 @@ Total: **10 tasks**, 3 waves, max **3 subagents parallel**.
 ### Wave 3b — sequential (1 agent, after 3a + Wave 2 merges)
 
 **E001-T11: Final Integration + Coach Removal**
-- Status: [ ]
+- Status: [x] DONE (commit 9384824)
 - Agent: worktree
 - Modifies:
   - `src/types.ts` — add MetricSnapshot, MetricLevel, DashboardState interfaces
