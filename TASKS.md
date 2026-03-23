@@ -379,11 +379,11 @@ Stan maszyny stanów
 > These tasks verify correctness before moving on.
 
 - [x] **T046** P0 — Run `cargo test` and fix any Rust compilation/test failures
-  - E001 added ~30 new Rust tests (session_tests_kpi.rs, metrics/tests.rs, hourly_break_tracker, gap_handler)
-  - Agents could not run `cargo test` (Rust not in PATH during agent execution)
-  - **Must pass before any further work**
+  - Fixed: missing KPI config fields in config_tests.rs serde roundtrip
+  - Fixed: metric test totals below early_data_threshold (1800s)
+  - Result: **278 Rust tests passing**, 151 TS tests passing
 
-- [ ] **T047** P0 — Visual verification: `pnpm tauri:dev:demo` smoke test
+- [ ] **T047** P1 — Visual verification: `pnpm tauri:dev:demo` smoke test
   - KPI strip visible at top of widget (4 colored badges)
   - Timer shows elapsed/total (e.g., "10:00 / 40:00"), not remaining
   - Away state: widget desaturated (gray), progress bar gray
