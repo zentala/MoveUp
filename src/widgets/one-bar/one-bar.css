@@ -120,6 +120,27 @@
   z-index: 100;
 }
 
+/* Hour markers — faint vertical gridlines */
+.one-bar__timeline-hour {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--rail-subtle);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.one-bar__timeline-hour-label {
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
 /* Timer area */
 .one-bar__timer { margin-bottom: 6px; }
 

@@ -52,6 +52,27 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
   const totalSecs = sessions.reduce((s, e) => s + e.duration_secs, 0);
   const maxSecs = Math.max(totalSecs, 1);
 
+  // Compute hour markers for the timeline
+  const hourMarkers: { leftPct: number; label: string }[] = [];
+  if (sessions.length > 0) {
+    const firstStart = new Date(sessions[0].start);
+    const firstHour = firstStart.getHours();
+    const now = new Date();
+    const spanMs = now.getTime() - firstStart.getTime();
+
+    if (spanMs > 0) {
+      for (let h = firstHour + 1; h <= now.getHours(); h++) {
+        const hourDate = new Date(firstStart);
+        hourDate.setHours(h, 0, 0, 0);
+        const offsetMs = hourDate.getTime() - firstStart.getTime();
+        const leftPct = (offsetMs / spanMs) * 100;
+        if (leftPct >= 0 && leftPct <= 100) {
+          hourMarkers.push({ leftPct, label: `${h}` });
+        }
+      }
+    }
+  }
+
   const handleMouseEnter = (
     entry: SessionEntry,
     widthPct: number,
@@ -89,6 +110,15 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
           );
         })}
       </div>
+      {hourMarkers.map((marker) => (
+        <div
+          key={marker.label}
+          className="one-bar__timeline-hour"
+          style={{ left: `${marker.leftPct}%` }}
+        >
+          <span className="one-bar__timeline-hour-label">{marker.label}</span>
+        </div>
+      ))}
       {tooltip && (
         <div
           className="one-bar__timeline-tooltip"
