@@ -54,6 +54,12 @@ Items not yet scheduled, before refinement.
 
 ---
 
+## Logging & Observability
+
+- **SQLite time-series storage** — replace file-per-minute snapshots with queryable SQLite table. Enables: search across days, trend analysis (sitting % over weeks), anomaly detection (daily score dropping), dashboard visualization. Natural phase 2 after T044 file-based logging proves useful. Effort: M, Priority: P3.
+
+---
+
 ## Future Features
 
 - **Notification A/B testing** — two backends simultaneously with feature flag (T018)
