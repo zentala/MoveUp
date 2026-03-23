@@ -13,6 +13,7 @@ use crate::{
     alert_popup::AlertPopup,
     config::AppConfig,
     db::TodaySummary,
+    metrics::{DashboardState, MetricEngine},
     overlay_renderer::OverlayRenderer,
     serial::{available_port_infos, scan_and_connect, ConnectionState, PortInfo},
     session::{SessionManager, SessionStateDto},
@@ -63,27 +64,18 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
 
     *db_guard = Some(conn);
 
-    if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
-        let loaded_config = AppConfig::load(store.inner());
-        *state.config.lock().unwrap() = Some(loaded_config.clone());
+    let cfg = app
+        .try_state::<tauri_plugin_store::Store<tauri::Wry>>()
+        .map(|store| AppConfig::load(store.inner()))
+        .unwrap_or_default();
+    *state.config.lock().unwrap() = Some(cfg.clone());
 
-        let mut session = state.session.lock().unwrap();
-        session.sitting_height_cm = loaded_config.sitting_mm as f32 / 10.0;
-        session.standing_height_cm = loaded_config.standing_mm as f32 / 10.0;
-        session.desk_thickness_cm = loaded_config.desk_thickness_mm as f32 / 10.0;
-        session.set_limit_minutes(loaded_config.sit_limit_mins);
-        session.set_stand_limit_minutes(loaded_config.stand_limit_mins);
-    } else {
-        let default_config = AppConfig::default();
-        *state.config.lock().unwrap() = Some(default_config.clone());
-
-        let mut session = state.session.lock().unwrap();
-        session.sitting_height_cm = default_config.sitting_mm as f32 / 10.0;
-        session.standing_height_cm = default_config.standing_mm as f32 / 10.0;
-        session.desk_thickness_cm = default_config.desk_thickness_mm as f32 / 10.0;
-        session.set_limit_minutes(default_config.sit_limit_mins);
-        session.set_stand_limit_minutes(default_config.stand_limit_mins);
-    }
+    let mut session = state.session.lock().unwrap();
+    session.sitting_height_cm = cfg.sitting_mm as f32 / 10.0;
+    session.standing_height_cm = cfg.standing_mm as f32 / 10.0;
+    session.desk_thickness_cm = cfg.desk_thickness_mm as f32 / 10.0;
+    session.set_limit_minutes(cfg.sit_limit_mins);
+    session.set_stand_limit_minutes(cfg.stand_limit_mins);
 
     Ok(())
 }
@@ -127,6 +119,23 @@ pub fn get_session_state(
 ) -> Result<SessionStateDto, String> {
     ensure_initialized(&app, &state)?;
     Ok(state.session.lock().unwrap().snapshot())
+}
+
+/// Returns session snapshot + all KPI metrics in a single IPC call.
+#[tauri::command]
+pub fn get_dashboard_state(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<DashboardState, String> {
+    ensure_initialized(&app, &state)?;
+    let (snapshot, ss) = {
+        let s = state.session.lock().unwrap();
+        (s.snapshot(), s.state.clone())
+    };
+    let cfg = state.config.lock().unwrap();
+    let cfg = cfg.as_ref().ok_or("Config not loaded")?;
+    let metrics = MetricEngine::with_defaults().compute_all(&ss, cfg);
+    Ok(DashboardState { session: snapshot, metrics })
 }
 
 /// Returns the currently connected serial port name, or null.

@@ -43,6 +43,7 @@ pub fn check_periodic(
             true,
             Some(port_name.to_string()),
             crate::APP_VERSION,
+            Vec::new(),
         );
     }
 

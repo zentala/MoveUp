@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use chrono::{Local, NaiveDate, Utc};
 use serde::Serialize;
 
+use crate::metrics::MetricSnapshot;
 use crate::session::SessionStateDto;
 
 /// Thin wrapper around SessionStateDto for JSON snapshot files.
@@ -26,6 +27,8 @@ struct SnapshotWrapper {
     port: Option<String>,
     /// App version for format compatibility tracking.
     version: String,
+    /// KPI metric snapshots (added by E001-T07).
+    metrics: Vec<MetricSnapshot>,
 }
 
 /// Writes per-minute JSON snapshots of session state.
@@ -46,6 +49,7 @@ impl SnapshotLogger {
         connected: bool,
         port: Option<String>,
         version: &str,
+        metrics: Vec<MetricSnapshot>,
     ) {
         let now = Local::now();
         let date_str = now.format("%Y-%m-%d").to_string();
@@ -65,6 +69,7 @@ impl SnapshotLogger {
             connected,
             port,
             version: version.to_string(),
+            metrics,
         };
 
         let json = match serde_json::to_string_pretty(&wrapper) {
@@ -135,7 +140,7 @@ mod tests {
     fn snapshot_creates_correct_path() {
         let tmp = TempDir::new().unwrap();
         let logger = SnapshotLogger::new(tmp.path().to_path_buf());
-        logger.log_snapshot(&make_snapshot(), true, Some("COM3".into()), "0.1.0");
+        logger.log_snapshot(&make_snapshot(), true, Some("COM3".into()), "0.1.0", Vec::new());
 
         let today = Local::now().format("%Y-%m-%d").to_string();
         let day_dir = tmp.path().join(&today);
@@ -149,7 +154,7 @@ mod tests {
     fn snapshot_writes_valid_json() {
         let tmp = TempDir::new().unwrap();
         let logger = SnapshotLogger::new(tmp.path().to_path_buf());
-        logger.log_snapshot(&make_snapshot(), true, Some("COM3".into()), "0.1.0");
+        logger.log_snapshot(&make_snapshot(), true, Some("COM3".into()), "0.1.0", Vec::new());
 
         let today = Local::now().format("%Y-%m-%d").to_string();
         let minute = Local::now().format("%H-%M.json").to_string();
@@ -184,7 +189,7 @@ mod tests {
     #[test]
     fn snapshot_io_error_no_panic() {
         let logger = SnapshotLogger::new(PathBuf::from("/nonexistent/path/that/should/fail"));
-        logger.log_snapshot(&make_snapshot(), false, None, "0.1.0");
+        logger.log_snapshot(&make_snapshot(), false, None, "0.1.0", Vec::new());
         // Should not panic — just warns.
     }
 

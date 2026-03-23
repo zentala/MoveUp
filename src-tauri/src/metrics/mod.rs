@@ -8,6 +8,7 @@ pub mod longest_session;
 mod tests;
 
 use crate::config::AppConfig;
+use crate::session::SessionStateDto;
 use crate::session_types::SessionState;
 use serde::Serialize;
 
@@ -35,6 +36,13 @@ pub struct MetricSnapshot {
     pub id: String,
     pub label: String,
     pub result: MetricResult,
+}
+
+/// Combined dashboard response: session state + computed KPI metrics.
+#[derive(Debug, Clone, Serialize)]
+pub struct DashboardState {
+    pub session: SessionStateDto,
+    pub metrics: Vec<MetricSnapshot>,
 }
 
 /// Each metric implements this trait.
