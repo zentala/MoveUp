@@ -134,6 +134,12 @@ export interface WidgetProps {
   todayStandingSecs: number;
   todaySittingSecs: number;
   todayScore: number;
+  /** Elapsed seconds for the active timer (sitting=currentSessionSecs, standing/walking=breakSecs). */
+  elapsed: number;
+  /** Total seconds for the active timer (sitting=limitSecs, standing/walking/away=breakResetThreshold). */
+  total: number;
+  /** Color scheme for progress visualization. */
+  colorScheme: "sitting" | "standing" | "gray";
   error: string | null;
   onOpenSettings: () => void;
 }
