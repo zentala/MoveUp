@@ -16,6 +16,7 @@ mod event_logger;
 mod gap_handler;
 mod height_stabilizer;
 mod hourly_break_tracker;
+mod metrics;
 mod overlay_layered;
 mod overlay_layered_wndproc;
 mod overlay_opaque;
