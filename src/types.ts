@@ -136,6 +136,12 @@ export interface WidgetProps {
   todayScore: number;
   error: string | null;
   onOpenSettings: () => void;
+  /** Elapsed seconds for the current timer context (sitting session or break). */
+  elapsed: number;
+  /** Total seconds for the current timer context (limit or break threshold). */
+  total: number;
+  /** Color scheme based on current state. */
+  colorScheme: "sitting" | "standing" | "gray";
 }
 
 /** A widget is a pure presentation component receiving WidgetProps. */

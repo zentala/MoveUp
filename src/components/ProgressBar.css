@@ -1,0 +1,61 @@
+/* ProgressBar.css — unified bar styles for overlay and inline variants. */
+
+/* Base — shared by both variants */
+.progress-bar {
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  min-width: 1px;
+  border-radius: 2px;
+  transition: width 0.5s ease, background 0.3s ease;
+}
+
+/* Overlay variant — fixed 4px bar at top of screen */
+.progress-bar--overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  width: 100vw;
+  background: #000000;
+  z-index: 999999;
+  margin: 0;
+  padding: 0;
+  border: none;
+  pointer-events: none;
+  border-radius: 0;
+}
+
+/* Inline variant — embedded within a widget */
+.progress-bar--inline {
+  height: 4px;
+  background: var(--rail-subtle);
+}
+
+/* Color schemes — sitting (red), standing (green), gray */
+.progress-bar--sitting .progress-bar__fill {
+  background: linear-gradient(90deg, #6a1a1a, var(--signal-alert, #b91c1c));
+}
+
+.progress-bar--standing .progress-bar__fill {
+  background: linear-gradient(90deg, #1a5528, var(--signal-ok, #65a30d));
+}
+
+.progress-bar--gray .progress-bar__fill {
+  background: linear-gradient(90deg, #333, #666);
+}
+
+/* Shimmer animation — triggered on reset crossing */
+@keyframes progress-bar-shimmer {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.6); }
+  100% { filter: brightness(1); }
+}
+
+.progress-bar--shimmer .progress-bar__fill {
+  animation: progress-bar-shimmer 0.8s ease-out;
+}
