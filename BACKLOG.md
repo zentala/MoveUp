@@ -45,6 +45,65 @@ Items not yet scheduled, before refinement.
 
 ---
 
+## Persistent KPI Strip
+
+Always-visible KPI strip on every view — fixed position, same place. Shows 4 daily ergonomics metrics with color coding.
+
+### KPIs (all RELATIVE, not raw counts):
+
+| KPI | Format | Green | Yellow | Red |
+|-----|--------|-------|--------|-----|
+| **Standing %** | `12%` | ≥15% | 10-15% | <10% |
+| **Position changes/h** | `1.2/h` | ≥1.0 | 0.5-1.0 | <0.5 |
+| **Hourly breaks** | `5/7h` | all hours covered | 1-2 missed | ≥3 missed |
+| **Longest session** | `47m` | <45m | 45-75m | >75m |
+
+- Position change count (raw number) = secondary/small, shown alongside changes/h
+- No raw counts without context — everything relative to time worked
+
+### Design rules:
+
+- Widoczne na KAŻDYM widoku, stałe miejsce (np. dolny pasek, header strip)
+- Kompaktowe — 4 liczby + kolory, zero tekstu opisowego
+- Kolor komunikuje stan (zielony/żółty/czerwony) — nie trzeba czytać
+
+### Position change definition:
+
+- 5+ minut stania LUB 5+ minut away = 1 zmiana pozycji
+- Standing i away są wymienne jako "przerwa"
+- Cel: ~1 zmiana/godzinę
+
+### Hourly break definition:
+
+- Binarne sprawdzenie per godzina: "Czy była ≥5 min przerwa od ekranu?"
+- KPI = ile godzin miało przerwę / ile godzin pracowaliśmy
+- Jedna 30-min przerwa w jednej godzinie = 1/1 dla tej godziny, NIE nadrabia za inne
+- Away = odpoczynek dla oczu (nawet stojąc, oczy pracują)
+
+---
+
+## Coach Messages → Progress Bar
+
+Zamienić tekstowe coach messages ("Half limit used", "On track", etc.) w OneBarCoach na wizualne elementy. Istniejący 4px progress bar w OneBarTimer działa dobrze — coach message pod nim jest niepotrzebny/nieczytelny.
+
+- Progress bar już istnieje i jest dynamiczny (OneBarTimer.tsx) — reużyć/rozszerzyć
+- Usunąć lub uprościć coach text messages — bar sam komunikuje stan
+- Ewentualnie: coach message jako tooltip, nie stały tekst
+
+---
+
+## Max Continuous Computer Time Alert
+
+Alert: max ciągła praca przy komputerze. Standing ≠ przerwa od ekranu.
+
+- Osobny timer "czas przy komputerze" (niezależny od sitting session timer)
+- Thresholds: <45m green, 45-75m yellow, >75m red
+- Alert po przekroczeniu limitu (domyślnie 75m, konfigurowalne)
+- Reset: ≥5 min away from computer
+- Pokazywane w KPI strip jako "Longest session"
+
+---
+
 ## Activity Tracking
 
 - **Activity status in UI** — show keyboard/mouse activity status (active/idle) in floating window
