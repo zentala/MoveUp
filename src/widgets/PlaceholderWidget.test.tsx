@@ -25,6 +25,7 @@ function mockWidgetProps(overrides: Partial<WidgetProps> = {}): WidgetProps {
     todayStandingSecs: 1200,
     todaySittingSecs: 3600,
     todayScore: 12,
+    metrics: [],
     error: null,
     onOpenSettings: vi.fn(),
     ...overrides,

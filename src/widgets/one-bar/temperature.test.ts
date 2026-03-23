@@ -24,6 +24,7 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     todayStandingSecs: 0,
     todaySittingSecs: 600,
     todayScore: 0,
+    metrics: [],
     error: null,
     onOpenSettings: vi.fn(),
     ...overrides,

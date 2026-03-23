@@ -44,6 +44,7 @@ export function useWidgetData(onOpenSettings: () => void): WidgetProps {
     todayStandingSecs: desk.todayStandingSecs,
     todaySittingSecs: desk.todaySittingSecs,
     todayScore: desk.dailyScore,
+    metrics: desk.metrics,
     error: desk.error,
     onOpenSettings,
   };

@@ -10,7 +10,7 @@ import type { WidgetProps } from "@/types";
 import { computeTemperature } from "./one-bar/temperature";
 import { OneBarTimeline } from "./one-bar/OneBarTimeline";
 import { OneBarTimer } from "./one-bar/OneBarTimer";
-import { OneBarCoach } from "./one-bar/OneBarCoach";
+import { KpiStrip } from "./one-bar/KpiStrip";
 import "./one-bar/one-bar.css";
 
 /** Header row: title with desk height and settings gear. */
@@ -47,9 +47,9 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
       data-testid="one-bar-widget"
     >
       <OneBarHeader {...props} />
+      <KpiStrip metrics={props.metrics} />
       <OneBarTimeline {...props} />
       <OneBarTimer {...props} />
-      <OneBarCoach {...props} />
     </div>
   );
 };

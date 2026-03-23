@@ -206,27 +206,38 @@
   background: linear-gradient(90deg, #1a5528, var(--signal-ok));
 }
 
-/* Coach */
-.one-bar__coach {
+/* KPI Strip */
+.kpi-strip {
   display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.kpi-strip__badge {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--ink-secondary);
-  padding-top: 4px;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--rail-subtle);
+  border-radius: var(--r-sm);
+  font-size: 10px;
+  background: var(--panel-raised);
 }
 
-.one-bar__coach-indicator {
-  width: 3px;
-  height: 12px;
-  background: var(--rail-default);
-  border-radius: 1px;
-  flex-shrink: 0;
+.kpi-strip__label {
+  color: var(--ink-tertiary);
+  letter-spacing: 0.04em;
 }
 
-.one-bar__coach-text {
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.kpi-strip__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-strip__pb {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--signal-ok);
+  letter-spacing: 0.06em;
 }

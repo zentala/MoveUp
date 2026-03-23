@@ -26,6 +26,7 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     todayStandingSecs: 0,
     todaySittingSecs: 600,
     todayScore: 0,
+    metrics: [],
     error: null,
     onOpenSettings: vi.fn(),
     ...overrides,
@@ -112,7 +113,32 @@ describe("OneBarWidget", () => {
     render(<OneBarWidget {...props()} />);
     expect(screen.getByTestId("one-bar-timeline")).toBeInTheDocument();
     expect(screen.getByTestId("one-bar-timer")).toBeInTheDocument();
-    expect(screen.getByTestId("one-bar-coach")).toBeInTheDocument();
+  });
+
+  it("renders KpiStrip with metrics", () => {
+    render(
+      <OneBarWidget
+        {...props({
+          metrics: [
+            {
+              id: "sit_ratio",
+              label: "Sit%",
+              result: { value: 0.65, display: "65%", level: "yellow", is_personal_best: false },
+            },
+            {
+              id: "streak",
+              label: "Streak",
+              result: { value: 3, display: "3", level: "green", is_personal_best: true },
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByTestId("kpi-strip")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-badge-sit_ratio")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-badge-streak")).toBeInTheDocument();
+    expect(screen.getByText("65%")).toBeInTheDocument();
+    expect(screen.getByText("PB")).toBeInTheDocument();
   });
 
   it("calls onOpenSettings when settings button clicked", () => {

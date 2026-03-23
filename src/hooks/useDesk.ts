@@ -10,6 +10,8 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   DeskState,
   SessionStateDto,
+  DashboardState,
+  MetricSnapshot,
   DeviceConnectedPayload,
   StateChangedPayload,
   SensorErrorPayload,
@@ -44,6 +46,7 @@ export function useDesk(): UseDeskResult {
   const [positionChanges, setPositionChanges] = useState(0);
   const [limitUsedSecs, setLimitUsedSecs] = useState(0);
   const [dailyScore, setDailyScore] = useState(0);
+  const [metrics, setMetrics] = useState<MetricSnapshot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [transition, setTransition] = useState<TransitionInfo | null>(null);
   const [todaySummary, setTodaySummary] = useState<TodaySummaryDto | null>(null);
@@ -91,7 +94,9 @@ export function useDesk(): UseDeskResult {
 
     const fetchState = async () => {
       try {
-        const dto = await invoke<SessionStateDto>("get_session_state");
+        const dashboard = await invoke<DashboardState>("get_dashboard_state");
+        const dto = dashboard.session;
+        setMetrics(dashboard.metrics);
         setState(dto.state);
         setDeskHeightCm(dto.desk_height_cm);
         setSittingSeconds(dto.current_session_secs);
@@ -113,7 +118,7 @@ export function useDesk(): UseDeskResult {
           }
         }
       } catch (err) {
-        console.debug("get_session_state not ready:", err);
+        console.debug("get_dashboard_state not ready:", err);
       }
     };
 
@@ -227,7 +232,7 @@ export function useDesk(): UseDeskResult {
     breakResetProgress,
     previousSession,
     todaySessions, todayChanges, todaySittingSecs, todayStandingSecs,
-    dailyScore, error, transition,
+    dailyScore, metrics, error, transition,
     calibrate, setSitLimit, setStandLimit,
   };
 }
