@@ -31,9 +31,6 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     colorScheme: "sitting" as const,
     error: null,
     onOpenSettings: vi.fn(),
-    elapsed: 600,
-    total: 2400,
-    colorScheme: "sitting" as const,
     ...overrides,
   };
 }
@@ -157,8 +154,8 @@ describe("OneBarWidget", () => {
         })}
       />,
     );
-    const bar = screen.getByTestId("progress-bar-container");
-    expect(bar.className).toContain("progress-bar--gray");
+    const fill = screen.getByTestId("progress-bar-fill");
+    expect(fill.className).toContain("progress-bar__fill--gray");
   });
 
   it("shows previous session info when available", () => {
