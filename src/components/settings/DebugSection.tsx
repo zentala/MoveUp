@@ -59,17 +59,17 @@ const DebugSection: FC = () => {
       <Group title="Current State">
         <Row label="state" value={d.state} />
         <Row label="connected" value={d.connected ? "yes" : "no"} warn={!d.connected} />
-        <Row label="port" value={d.port ?? "none"} />
-        <Row label="deskHeightCm" value={`${d.deskHeightCm.toFixed(1)} cm`} />
-        <Row label="error" value={d.error ?? "none"} warn={!!d.error} />
+        <Row label="port" value={d.port ?? "—"} warn={!d.port} />
+        <Row label="desk height" value={`${Math.round(d.deskHeightCm)} cm`} />
+        <Row label="error" value={d.error ?? "—"} warn={!!d.error} />
       </Group>
 
       <Group title="Sitting Session">
-        <Row label="currentSessionSecs" value={fmtSecs(d.sittingSeconds)} />
-        <Row label="limitUsedSecs" value={`${fmtSecs(d.limitUsedSecs)} (${limitPct}%)`} />
-        <Row label="limitRemaining" value={fmtSecs(d.limitRemaining)} warn={d.limitRemaining < 0} />
-        <Row label="limitRatio" value={d.limitRatio.toFixed(2)} warn={d.limitRatio > 1} />
-        <Row label="sessionLimitSecs" value={`${fmtSecs(d.sessionLimitSecs)}`} />
+        <Row label="this session (sitting)" value={fmtSecs(d.sittingSeconds)} />
+        <Row label="limit used" value={`${fmtSecs(d.limitUsedSecs)} (${limitPct}%)`} />
+        <Row label="limit remaining" value={fmtSecs(d.limitRemaining)} warn={d.limitRemaining < 0} />
+        <Row label="limit ratio" value={d.limitRatio.toFixed(2)} warn={d.limitRatio > 1} />
+        <Row label="limit total" value={fmtSecs(d.sessionLimitSecs)} />
       </Group>
 
       <Group title="Break / Standing">

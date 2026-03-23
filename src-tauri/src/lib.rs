@@ -68,7 +68,6 @@ mod tray_icon;
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-
 use alert_manager::{AlertConfig, AlertManager};
 use alert_popup::AlertPopup;
 use commands::AppState;
@@ -82,7 +81,6 @@ use window_vibrancy::apply_acrylic;
 
 /// Minimum interval between device-missing/lost notifications (5 minutes).
 const DEVICE_NOTIFICATION_COOLDOWN_SECS: u64 = 300;
-
 /// Application entry point called from main.rs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -112,6 +110,7 @@ pub fn run() {
                     commands::start_auto_connect,
                     commands::stop_reading,
                     commands::get_session_state,
+                    commands::get_connected_port,
                     commands::get_today_summary,
                     commands::inject_reading,
                     commands::trigger_test_notification,
@@ -132,6 +131,7 @@ pub fn run() {
                     commands::start_auto_connect,
                     commands::stop_reading,
                     commands::get_session_state,
+                    commands::get_connected_port,
                     commands::get_today_summary,
                     commands::trigger_test_notification,
                     commands::dismiss_welcome,

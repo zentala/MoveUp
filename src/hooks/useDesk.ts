@@ -48,6 +48,7 @@ export function useDesk(): UseDeskResult {
   const [transition, setTransition] = useState<TransitionInfo | null>(null);
   const [todaySummary, setTodaySummary] = useState<TodaySummaryDto | null>(null);
   const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const portFetched = useRef(false);
 
   const calibrate = useCallback(
     async (position: "sitting" | "standing") => {
@@ -104,6 +105,12 @@ export function useDesk(): UseDeskResult {
         // Fixes race where device-connected fires before listener mounts.
         if (dto.state !== "Away" && dto.desk_height_cm > 0) {
           setConnected(true);
+          if (!portFetched.current) {
+            portFetched.current = true;
+            invoke<string | null>("get_connected_port")
+              .then((p) => { if (p) setPort(p); })
+              .catch(() => { portFetched.current = false; });
+          }
         }
       } catch (err) {
         console.debug("get_session_state not ready:", err);

@@ -124,6 +124,12 @@ pub fn get_session_state(
     Ok(state.session.lock().unwrap().snapshot())
 }
 
+/// Returns the currently connected serial port name, or null.
+#[tauri::command]
+pub fn get_connected_port(state: State<'_, AppState>) -> Option<String> {
+    state.conn.connected_port.lock().unwrap().clone()
+}
+
 /// Returns today's summary of sitting and standing time.
 #[tauri::command]
 pub fn get_today_summary(
