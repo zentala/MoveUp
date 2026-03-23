@@ -368,7 +368,31 @@ Stan maszyny stanów
 
 ## Sprint: Popup UX Redesign
 
-- [ ] **T045** P1 — Popup timer UX: elapsed/total instead of remaining, bar always visible, away=gray, remove redundant text `.claude/tasks/T045-popup-timer-ux-redesign.md`
+- [x] **T045** P1 — Popup timer UX: elapsed/total instead of remaining, bar always visible, away=gray, remove redundant text `.claude/tasks/T045-popup-timer-ux-redesign.md`
+  - Absorbed into E001 (Wave 1: T01-T03). Merged 2026-03-23.
+
+---
+
+## Sprint: E001 Verification (post-merge)
+
+> E001 (Timer UX + KPI Dashboard + MetricEngine) merged 2026-03-23.
+> These tasks verify correctness before moving on.
+
+- [ ] **T046** P0 — Run `cargo test` and fix any Rust compilation/test failures
+  - E001 added ~30 new Rust tests (session_tests_kpi.rs, metrics/tests.rs, hourly_break_tracker, gap_handler)
+  - Agents could not run `cargo test` (Rust not in PATH during agent execution)
+  - **Must pass before any further work**
+
+- [ ] **T047** P0 — Visual verification: `pnpm tauri:dev:demo` smoke test
+  - KPI strip visible at top of widget (4 colored badges)
+  - Timer shows elapsed/total (e.g., "10:00 / 40:00"), not remaining
+  - Away state: widget desaturated (gray), progress bar gray
+  - Standing state: gold progress bar, break timer
+  - Timeline has faint hour marker gridlines
+  - Debug tab (Settings → Debug) shows "KPI Metrics" section
+  - Overlay bar visible in all states (not just Sitting)
+
+- [ ] **T048** P1 — Fix any issues found during T046/T047 verification
 
 ---
 
