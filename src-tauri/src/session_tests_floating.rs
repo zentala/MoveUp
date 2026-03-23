@@ -238,4 +238,5 @@ mod floating_window_tests {
         assert_eq!(m.state.state, DeskState::Walking);
         assert_eq!(m.state.position_changes, 2, "sit->walk = still 2");
     }
+
 }

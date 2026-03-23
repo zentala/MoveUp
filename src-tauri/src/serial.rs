@@ -116,7 +116,7 @@ fn reader_loop(
             handle_reading(app, mm, session, db, config, event_logger);
 
             if last_periodic.elapsed() >= Duration::from_secs(60) {
-                check_periodic(app, session, config, snapshot_logger, event_logger);
+                check_periodic(app, session, config, snapshot_logger, event_logger, port_name);
                 last_periodic = std::time::Instant::now();
             }
         } else if trimmed.to_ascii_uppercase().starts_with("ERROR") {

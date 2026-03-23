@@ -21,6 +21,7 @@ pub fn check_periodic(
     config: &crate::config::AppConfig,
     snapshot_logger: &Arc<SnapshotLogger>,
     event_logger: &Arc<EventLogger>,
+    port_name: &str,
 ) {
     let daily_reset_occurred = {
         let mut sess = session.lock().unwrap();
@@ -37,15 +38,19 @@ pub fn check_periodic(
     {
         let sess = session.lock().unwrap();
         let snapshot = sess.snapshot();
-        let connected = true; // called from reader_loop = sensor is connected
-        let port = None::<String>; // port name not available here
-        let version = env!("CARGO_PKG_VERSION");
-        snapshot_logger.log_snapshot(&snapshot, connected, port, version);
+        snapshot_logger.log_snapshot(
+            &snapshot,
+            true,
+            Some(port_name.to_string()),
+            crate::APP_VERSION,
+        );
     }
 
-    let notification_events = {
+    let (notification_events, sitting_secs, standing_secs) = {
         let mut sess = session.lock().unwrap();
-        sess.check_notification_conditions(config)
+        let events = sess.check_notification_conditions(config);
+        let snap = sess.snapshot();
+        (events, snap.sitting_seconds, snap.standing_seconds)
     };
 
     for event in &notification_events {
@@ -58,10 +63,8 @@ pub fn check_periodic(
                     .show();
             }
             NotificationEvent::PostureBalance => {
-                let sess = session.lock().unwrap();
-                let snap = sess.snapshot();
-                let ratio = if snap.standing_seconds > 0 {
-                    snap.sitting_seconds as f32 / snap.standing_seconds as f32
+                let ratio = if standing_secs > 0 {
+                    sitting_secs as f32 / standing_secs as f32
                 } else {
                     f32::INFINITY
                 };

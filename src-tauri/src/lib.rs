@@ -63,6 +63,8 @@ mod session_tests_timers;
 mod session_tests_timers_live;
 #[cfg(test)]
 mod session_tests_serde;
+#[cfg(test)]
+mod session_tests_break_credit;
 mod tray;
 mod tray_controller;
 #[cfg(test)]
@@ -80,8 +82,11 @@ use serial::ConnectionState;
 use session::SessionManager;
 use snapshot_logger::SnapshotLogger;
 use tauri::Manager;
+/// App version constant, used by loggers.
+pub(crate) const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Holds file-based loggers, managed as separate Tauri state.
-pub struct Loggers {
+pub(crate) struct Loggers {
     pub snapshot: Arc<SnapshotLogger>,
     pub event: Arc<EventLogger>,
 }
@@ -160,8 +165,7 @@ pub fn run() {
             let snapshot_logger = Arc::new(SnapshotLogger::new(logs_dir.clone()));
             snapshot_logger.cleanup_old_logs(7);
             let event_logger = Arc::new(EventLogger::new(logs_dir));
-            let version = env!("CARGO_PKG_VERSION");
-            event_logger.log(&format!("START v{}", version));
+            event_logger.log(&format!("START v{}", APP_VERSION));
             app.manage(Loggers {
                 snapshot: snapshot_logger.clone(),
                 event: event_logger.clone(),
