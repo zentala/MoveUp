@@ -378,7 +378,7 @@ Stan maszyny stanów
 > E001 (Timer UX + KPI Dashboard + MetricEngine) merged 2026-03-23.
 > These tasks verify correctness before moving on.
 
-- [ ] **T046** P0 — Run `cargo test` and fix any Rust compilation/test failures
+- [x] **T046** P0 — Run `cargo test` and fix any Rust compilation/test failures
   - E001 added ~30 new Rust tests (session_tests_kpi.rs, metrics/tests.rs, hourly_break_tracker, gap_handler)
   - Agents could not run `cargo test` (Rust not in PATH during agent execution)
   - **Must pass before any further work**
