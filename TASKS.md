@@ -292,6 +292,87 @@ ANY STAGE ──dismiss──→ SNOOZED ──(cooldown expires)──→ STAGE
 
 ---
 
+## Sprint: Session Timer — Tests & Persistence
+
+> Discovered 2026-03-23: session timers had no test coverage for live counting,
+> state transitions, or app startup scenarios. Three bugs fixed without tests.
+> This sprint adds the missing coverage and implements standing session persistence.
+
+### Decision tree: what we test and when
+
+```
+Stan maszyny stanów
+│
+├── INICJALIZACJA (app startuje)
+│   ├── Biurko stoi → Away → Standing         [T1, T2]
+│   ├── Biurko nisko → Away → Sitting         [T3]
+│   └── Restart w trakcie dnia (DB seed)       [T4, T5]
+│
+├── PRZEJŚCIA STANÓW (sensor zmienia odczyt)
+│   ├── Sitting → Standing                     [T6, T7]
+│   ├── Standing → Sitting
+│   │   ├── Break < 5 min (brak creditu)       [T8]
+│   │   ├── Break 5-9 min (partial credit)     [T9]  ← pokryte
+│   │   └── Break ≥ 10 min (full reset)        [T10] ← pokryte
+│   ├── Standing → Walking (idle)              [T11]
+│   ├── Walking → Sitting                      [T12]
+│   └── Away → Standing (start ze stojącym)    [T13]
+│
+├── LICZENIE CZASU (timer tyka)
+│   ├── Sitting: current_session_secs rośnie   [T14]
+│   ├── Standing: break_seconds rośnie         [T15]
+│   └── Snapshot zwraca live wartości           [T16]
+│
+├── PERSISTENCE (zamknięcie/otwarcie app)
+│   ├── Sitting session → zapisana do DB       [T17] ← pokryte
+│   ├── Standing session → zapisana do DB      [T18] ← NIE IMPL.
+│   └── Po restarcie: totals odtworzone        [T19-T20] ← pokryte
+│
+└── TOOLTIP + UI
+    ├── Standing: tooltip = czas przerwy       [T22]
+    └── Standing: złoty bar rośnie             [T23]
+```
+
+- [ ] **T042** P1 — Session timer unit tests (`session_tests_timers.rs`, ~16 testów Rust)
+  - **Inicjalizacja:**
+    1. App startuje z biurkiem stojącym → po 5 odczytach stan = Standing, break_started ustawione, break_seconds > 0
+    2. App startuje z biurkiem stojącym → po 60s standing, get_live_break_seconds() zwraca ~60
+    3. App startuje z biurkiem niskim → po 5 odczytach stan = Sitting, sitting_started ustawione, current_session_secs rośnie
+    4. Po restarcie z DB (load_today_totals): sitting_seconds = wartość z DB, current_session_secs = 0
+    5. Po restarcie z DB: standing_seconds = wartość z DB, break_seconds = 0
+  - **Przejścia stanów:**
+    6. Sitting → Standing: current_session_secs = 0, break_started ustawione
+    7. Sitting → Standing: CompletedSession tworzone z poprawnym duration_secs
+    8. Standing 3 min → Sitting: brak creditu, current_session_secs = 0 (nie stary total dzienny)
+    9. Standing → Walking: break_started się nie zmienia, break_seconds ciągle rośnie
+    10. Walking → Sitting: break credit aplikowany, sitting_started ustawione
+    11. Away → Standing: break_started ustawione, break_seconds = 0 i rośnie
+  - **Liczenie czasu:**
+    12. Siedzę 5 min → get_live_current_session_secs() zwraca ~300
+    13. Stoję 5 min → get_live_break_seconds() zwraca ~300
+    14. snapshot() po 60s siedzenia: sitting_seconds > 0, current_session_secs > 0, break_seconds = 0
+    15. snapshot() po 30s stania: break_seconds > 0, current_session_secs = 0
+    16. Pełny cykl: sit 5min → stand 5min → sit → snapshot poprawny na każdym etapie
+
+- [ ] **T043** P1 — Tooltip + UI integration tests (~3 testy Rust)
+  - Tooltip Standing: duration = break_seconds (czas bieżącej przerwy), nie daily total
+  - Tooltip po Away → Standing → 60s: duration ~60s
+  - Standing gold bar: progress rośnie od 0 do 1 w ciągu standing_target_mins
+
+- [ ] **T044** P2 — Standing sessions persistence (feature + testy)
+  - **Problem:** standing sessions nie są zapisywane do DB → po restarcie brak historii stania, timeline puste
+  - **Powiązane:** T040 ("No sessions yet") — częściowo spowodowane brakiem standing w DB
+  - **Implementacja:**
+    - `handle_state_exit` dla Standing → tworzy `CompletedSession(state="Standing", duration=break_dur)`
+    - `load_today_totals` już obsługuje state != "Sitting" → standing_secs (działa)
+    - Frontend `todaySessions` powinno pokazywać standing bloki w timeline
+  - **Testy:**
+    - Standing 10 min → Sitting: insert_session z state="Standing", duration=600
+    - load_today_totals po insercie standing: standing_secs = 600
+    - Timeline wyświetla bloki standing (zielone) obok sitting (czerwone)
+
+---
+
 ## Sprint: Polish + Delight
 
 - [-] **T010** ~~P3 — Dynamic tray icon~~ (replaced by T016 — color dot approach)
