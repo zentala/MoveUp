@@ -76,10 +76,14 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
 /// A single row from the `sessions` table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionRow {
+    #[serde(skip_serializing)]
     pub id: i64,
+    #[serde(rename = "start")]
     pub started_at: String,
+    #[serde(rename = "end")]
     pub ended_at: Option<String>,
     pub state: String,
+    #[serde(rename = "duration_secs")]
     pub duration_seconds: Option<i64>,
 }
 
