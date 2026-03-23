@@ -7,9 +7,9 @@
 import type { FC } from "react";
 
 /** Tab definitions for the settings panel. */
-export const SETTINGS_TABS = ["Time", "Calibr.", "Notif.", "More"] as const;
+export const SETTINGS_TABS = ["Time", "Calibr.", "Notif.", "More", "Debug"] as const;
 
-export type SettingsTabIndex = 0 | 1 | 2 | 3;
+export type SettingsTabIndex = 0 | 1 | 2 | 3 | 4;
 
 interface SettingsTabBarProps {
   activeTab: SettingsTabIndex;

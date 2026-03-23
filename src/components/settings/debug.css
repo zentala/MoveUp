@@ -1,0 +1,58 @@
+/**
+ * debug.css — styles for the Debug tab in Settings panel.
+ *
+ * Monospace readout aesthetic matching the instrument panel design.
+ */
+
+.debug-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-y: auto;
+  max-height: calc(100vh - 80px);
+  padding: 4px 0;
+}
+
+.debug-group {
+  border: 1px solid var(--rail-default, #333);
+  border-radius: 4px;
+  padding: 4px 8px 6px;
+}
+
+.debug-group__title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted, #888);
+  margin-bottom: 2px;
+}
+
+.debug-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 1px 0;
+  border-bottom: 1px solid var(--rail-default, #222);
+}
+
+.debug-row:last-child { border-bottom: none; }
+
+.debug-row--warn {
+  color: var(--signal-alert, #f5a623);
+}
+
+.debug-row__label {
+  color: var(--ink-muted, #999);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+}
+
+.debug-row__value {
+  color: var(--ink-primary, #e8e4d9);
+  text-align: right;
+  white-space: nowrap;
+}

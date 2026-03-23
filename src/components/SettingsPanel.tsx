@@ -16,6 +16,7 @@ import type { SettingsTabIndex } from "./settings/SettingsTabBar";
 import CalibrationSection from "./settings/CalibrationSection";
 import NotificationsSection from "./settings/NotificationsSection";
 import WidgetPickerSection from "./settings/WidgetPickerSection";
+import DebugSection from "./settings/DebugSection";
 
 export type { SettingsPanelProps, DeskSettings } from "./settings/SettingsTypes";
 
@@ -161,6 +162,8 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
             </div>
           </>
         )}
+
+        {activeTab === 4 && <DebugSection />}
       </div>
 
       {validationError && (
