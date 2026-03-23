@@ -103,6 +103,32 @@ export interface PortInfo {
   description: string | null;
 }
 
+// ─── Dashboard / Metrics Types ──────────────────────────────────────────────
+
+/** Severity level for a KPI metric. */
+export type MetricLevel = "green" | "yellow" | "red";
+
+/** Result of computing a single metric. */
+export interface MetricResult {
+  value: number;
+  display: string;
+  level: MetricLevel;
+  is_personal_best: boolean;
+}
+
+/** A named metric snapshot for IPC transport. */
+export interface MetricSnapshot {
+  id: string;
+  label: string;
+  result: MetricResult;
+}
+
+/** Combined dashboard response from get_dashboard_state. */
+export interface DashboardState {
+  session: SessionStateDto;
+  metrics: MetricSnapshot[];
+}
+
 // ─── Widget System Types ────────────────────────────────────────────────────
 
 /** Info about the most recent completed session (before the current one). */
@@ -134,12 +160,8 @@ export interface WidgetProps {
   todayStandingSecs: number;
   todaySittingSecs: number;
   todayScore: number;
-  /** Elapsed seconds for the active timer (sitting=currentSessionSecs, standing/walking=breakSecs). */
-  elapsed: number;
-  /** Total seconds for the active timer (sitting=limitSecs, standing/walking/away=breakResetThreshold). */
-  total: number;
-  /** Color scheme for progress visualization. */
-  colorScheme: "sitting" | "standing" | "gray";
+  /** KPI metric snapshots from MetricEngine. */
+  metrics: MetricSnapshot[];
   error: string | null;
   onOpenSettings: () => void;
 }

@@ -3,7 +3,7 @@
  *
  * Extracted from useDesk.ts to keep both files under the 250-line limit.
  */
-import type { DeskState, PreviousSession, SessionEntry } from "@/types";
+import type { DeskState, MetricSnapshot, PreviousSession, SessionEntry } from "@/types";
 
 /** Transition info shown for 30s after a state change. */
 export interface TransitionInfo {
@@ -45,6 +45,8 @@ export interface UseDeskResult {
   /** Total standing seconds today. */
   todayStandingSecs: number;
   dailyScore: number;
+  /** KPI metric snapshots from MetricEngine. */
+  metrics: MetricSnapshot[];
   error: string | null;
   /** Transition info (auto-clears after 30s). */
   transition: TransitionInfo | null;

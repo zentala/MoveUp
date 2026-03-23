@@ -10,7 +10,7 @@
 .one-bar--hot     { --ob-bg: #140e0c;              --ob-glow: 0 0 16px rgba(180,40,40,0.06); }
 .one-bar--burning { --ob-bg: #16100c;              --ob-glow: 0 0 20px rgba(200,40,40,0.1); }
 .one-bar--standing { --ob-bg: #0e100c;             --ob-glow: 0 0 12px var(--glow-ok); }
-.one-bar--away    { --ob-bg: var(--panel-base);    --ob-glow: none; filter: saturate(0.3); }
+.one-bar--away    { --ob-bg: var(--panel-base);    --ob-glow: none; }
 .one-bar--reset   { --ob-bg: #0e110c;             --ob-glow: 0 0 14px var(--glow-ok); }
 
 /* Main container — fills entire window */
@@ -160,11 +160,20 @@
   letter-spacing: 0.08em;
 }
 
+.one-bar__session-duration {
+  text-transform: none;
+}
+
 .one-bar__state-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+}
+
+.one-bar__session-duration {
+  color: var(--ink-muted);
+  font-size: 10px;
 }
 
 .one-bar__big-number {
@@ -195,27 +204,61 @@
 .one-bar__prev-label { color: var(--ink-muted); }
 .one-bar__prev-detail { color: var(--ink-secondary); }
 
-/* Coach */
-.one-bar__coach {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--ink-secondary);
-  padding-top: 4px;
-}
-
-.one-bar__coach-indicator {
-  width: 3px;
-  height: 12px;
-  background: var(--rail-default);
-  border-radius: 1px;
-  flex-shrink: 0;
-}
-
-.one-bar__coach-text {
-  line-height: 1.3;
+/* Progress bar — THE bar */
+.one-bar__progress {
+  height: 4px;
+  background: var(--rail-subtle);
+  border-radius: 2px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.one-bar__progress-fill {
+  height: 100%;
+  min-width: 1px;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.one-bar__progress-fill--filling {
+  background: linear-gradient(90deg, #6a1a1a, var(--signal-alert));
+}
+
+.one-bar__progress-fill--draining {
+  background: linear-gradient(90deg, #1a5528, var(--signal-ok));
+}
+
+/* KPI Strip */
+.kpi-strip {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.kpi-strip__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--rail-subtle);
+  border-radius: var(--r-sm);
+  font-size: 10px;
+  background: var(--panel-raised);
+}
+
+.kpi-strip__label {
+  color: var(--ink-tertiary);
+  letter-spacing: 0.04em;
+}
+
+.kpi-strip__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-strip__pb {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--signal-ok);
+  letter-spacing: 0.06em;
 }

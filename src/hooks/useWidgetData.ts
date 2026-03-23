@@ -26,13 +26,6 @@ export function useWidgetData(onOpenSettings: () => void): WidgetProps {
     desk.state !== "Sitting",
   );
 
-  const isSitting = desk.state === "Sitting";
-  const elapsed = isSitting ? liveSitting : liveBreak;
-  const total = isSitting ? desk.sessionLimitSecs : desk.breakResetThreshold;
-  const colorScheme = desk.state === "Away" ? "gray" as const
-    : isSitting ? "sitting" as const
-    : "standing" as const;
-
   return {
     connected: desk.connected,
     port: desk.port,
@@ -51,9 +44,7 @@ export function useWidgetData(onOpenSettings: () => void): WidgetProps {
     todayStandingSecs: desk.todayStandingSecs,
     todaySittingSecs: desk.todaySittingSecs,
     todayScore: desk.dailyScore,
-    elapsed,
-    total,
-    colorScheme,
+    metrics: desk.metrics,
     error: desk.error,
     onOpenSettings,
   };
