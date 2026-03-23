@@ -29,6 +29,9 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     colorScheme: "sitting" as const,
     error: null,
     onOpenSettings: vi.fn(),
+    elapsed: 600,
+    total: 2400,
+    colorScheme: "sitting" as const,
     ...overrides,
   };
 }

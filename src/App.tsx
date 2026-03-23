@@ -12,7 +12,7 @@ import { useWidgetData } from "@/hooks/useWidgetData";
 import { useActiveWidget } from "@/hooks/useActiveWidget";
 import { resolveWidget } from "@/widgets/registry";
 import SettingsPanel from "@/components/SettingsPanel";
-import ScreenProgressBar from "@/components/ScreenProgressBar";
+import { ProgressBar } from "@/components/ProgressBar";
 import "@/styles/globals.css";
 
 export default function App() {
@@ -44,7 +44,7 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  const showOverlay = widgetProps.limitSecs > 0 && widgetProps.state === "Sitting";
+  const showOverlay = widgetProps.total > 0;
   const ActiveWidget = resolveWidget(activeWidgetId);
 
   if (showSettings) {
@@ -58,9 +58,11 @@ export default function App() {
   return (
     <>
       {showOverlay && (
-        <ScreenProgressBar
-          sittingSeconds={widgetProps.currentSessionSecs}
-          limitSeconds={widgetProps.limitSecs}
+        <ProgressBar
+          elapsed={widgetProps.elapsed}
+          total={widgetProps.total}
+          variant="overlay"
+          colorScheme={widgetProps.colorScheme}
         />
       )}
 

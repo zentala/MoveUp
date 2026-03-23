@@ -31,6 +31,9 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     colorScheme: "sitting" as const,
     error: null,
     onOpenSettings: vi.fn(),
+    elapsed: 600,
+    total: 2400,
+    colorScheme: "sitting" as const,
     ...overrides,
   };
 }
@@ -96,19 +99,19 @@ describe("OneBarWidget", () => {
     expect(screen.getByText("72 cm")).toBeInTheDocument();
   });
 
-  it("shows limitRemaining as big number, not sittingSeconds", () => {
+  it("shows elapsed/total as big number", () => {
     render(
       <OneBarWidget
         {...props({
-          limitRemaining: 1800,
-          currentSessionSecs: 600,
-          limitSecs: 2400,
+          elapsed: 600,
+          total: 2400,
         })}
       />,
     );
     const bigNum = screen.getByTestId("one-bar-big-number");
-    // 1800s = 30:00
-    expect(bigNum.textContent).toContain("30:00");
+    // 600s = 10:00, 2400s = 40:00
+    expect(bigNum.textContent).toContain("10:00");
+    expect(bigNum.textContent).toContain("40:00");
   });
 
   it("renders all sub-components", () => {
@@ -116,6 +119,7 @@ describe("OneBarWidget", () => {
     expect(screen.getByTestId("one-bar-timeline")).toBeInTheDocument();
     expect(screen.getByTestId("one-bar-timer")).toBeInTheDocument();
     expect(screen.getByTestId("one-bar-coach")).toBeInTheDocument();
+    expect(screen.getByTestId("progress-bar-container")).toBeInTheDocument();
   });
 
   it("calls onOpenSettings when settings button clicked", () => {
@@ -125,75 +129,36 @@ describe("OneBarWidget", () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it("shows standing duration when state is Standing", () => {
+  it("big number shows elapsed/total format for standing", () => {
     render(
       <OneBarWidget
         {...props({
           state: "Standing",
-          breakSecs: 180,
-          currentSessionSecs: 600,
+          elapsed: 180,
+          total: 600,
+          colorScheme: "standing",
         })}
       />,
     );
-    // Should show break duration (3m), not sitting duration (10m)
-    expect(screen.getByText(/for 3m/)).toBeInTheDocument();
+    const bigNum = screen.getByTestId("one-bar-big-number");
+    // 180s = 03:00, 600s = 10:00
+    expect(bigNum.textContent).toContain("03:00");
+    expect(bigNum.textContent).toContain("10:00");
   });
 
-  it("shows sitting duration when state is Sitting", () => {
-    render(
-      <OneBarWidget
-        {...props({
-          state: "Sitting",
-          breakSecs: 0,
-          currentSessionSecs: 240,
-        })}
-      />,
-    );
-    expect(screen.getByText(/for 4m/)).toBeInTheDocument();
-  });
-
-  it("standing timer must NOT show currentSessionSecs (the serde contract bug)", () => {
-    // Regression: serde(rename_all=snake_case) made state="standing" (lowercase),
-    // so isStandingOrAway was always false, and sessionDuration always showed
-    // currentSessionSecs (=0) instead of breakSecs.
-    render(
-      <OneBarWidget
-        {...props({
-          state: "Standing",
-          breakSecs: 420,    // 7 minutes of standing
-          currentSessionSecs: 0,  // reset on transition
-        })}
-      />,
-    );
-    // Must show 7m (breakSecs), not 0s (currentSessionSecs)
-    expect(screen.getByText(/for 7m/)).toBeInTheDocument();
-    expect(screen.queryByText(/for 0s/)).not.toBeInTheDocument();
-  });
-
-  it("walking timer shows breakSecs not currentSessionSecs", () => {
-    render(
-      <OneBarWidget
-        {...props({
-          state: "Walking",
-          breakSecs: 300,
-          currentSessionSecs: 0,
-        })}
-      />,
-    );
-    expect(screen.getByText(/for 5m/)).toBeInTheDocument();
-  });
-
-  it("away timer shows breakSecs not currentSessionSecs", () => {
+  it("away state has gray color scheme on progress bar", () => {
     render(
       <OneBarWidget
         {...props({
           state: "Away",
-          breakSecs: 120,
-          currentSessionSecs: 0,
+          elapsed: 120,
+          total: 600,
+          colorScheme: "gray",
         })}
       />,
     );
-    expect(screen.getByText(/for 2m/)).toBeInTheDocument();
+    const bar = screen.getByTestId("progress-bar-container");
+    expect(bar.className).toContain("progress-bar--gray");
   });
 
   it("shows previous session info when available", () => {

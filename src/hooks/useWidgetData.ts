@@ -56,5 +56,12 @@ export function useWidgetData(onOpenSettings: () => void): WidgetProps {
     colorScheme,
     error: desk.error,
     onOpenSettings,
+    elapsed: desk.state === "Sitting" ? liveSitting : liveBreak,
+    total: desk.state === "Sitting" ? desk.sessionLimitSecs : desk.breakResetThreshold,
+    colorScheme: desk.state === "Sitting"
+      ? "sitting" as const
+      : desk.state === "Away"
+        ? "gray" as const
+        : "standing" as const,
   };
 }
