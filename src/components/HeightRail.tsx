@@ -52,7 +52,7 @@ const HeightRail: FC<HeightRailProps> = ({ deskHeightCm, state, children }) => {
 
   return (
     <div className="height-rail-wrap">
-      <div className="height-rail" title={deskHeightCm > 0 ? `${deskHeightCm.toFixed(1)} cm` : undefined}>
+      <div className="height-rail" title={deskHeightCm > 0 ? `${deskHeightCm.toFixed(0)} cm` : undefined}>
         {pct >= 0 && (
           <div
             className={`height-rail__indicator ${isPulsing ? "height-rail__indicator--pulse" : ""}`}

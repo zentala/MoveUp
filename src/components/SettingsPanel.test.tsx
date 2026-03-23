@@ -99,7 +99,7 @@ describe("SettingsPanel", () => {
   it("does NOT invoke save_settings when Back button clicked", async () => {
     render(<SettingsPanel onClose={mockOnClose} />);
 
-    const backBtn = await screen.findByText("Back");
+    const backBtn = await screen.findByLabelText("Back");
     fireEvent.click(backBtn);
 
     const saveSettingsCalls = vi.mocked(invoke).mock.calls.filter(
@@ -182,16 +182,16 @@ describe("SettingsPanel", () => {
     });
   });
 
-  it("footer buttons stay visible across all tabs", async () => {
+  it("toolbar buttons stay visible across all tabs", async () => {
     render(<SettingsPanel onClose={mockOnClose} />);
 
-    // Check footer on Time tab (default)
+    // Check toolbar on Time tab (default)
     expect(await screen.findByText("Save")).toBeInTheDocument();
-    expect(screen.getByText("Back")).toBeInTheDocument();
+    expect(screen.getByLabelText("Back")).toBeInTheDocument();
 
     // Switch to More tab
     fireEvent.click(screen.getByText("More"));
     expect(screen.getByText("Save")).toBeInTheDocument();
-    expect(screen.getByText("Back")).toBeInTheDocument();
+    expect(screen.getByLabelText("Back")).toBeInTheDocument();
   });
 });

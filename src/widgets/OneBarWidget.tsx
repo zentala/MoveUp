@@ -16,7 +16,7 @@ import "./one-bar/one-bar.css";
 /** Header row: title with desk height and settings gear. */
 const OneBarHeader: FC<WidgetProps> = (props) => {
   const heightLabel =
-    props.deskHeightCm > 0 ? `${props.deskHeightCm.toFixed(1)} cm` : "";
+    props.deskHeightCm > 0 ? `${props.deskHeightCm.toFixed(0)} cm` : "";
 
   return (
     <div className="one-bar__header">

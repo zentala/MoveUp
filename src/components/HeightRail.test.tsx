@@ -1,13 +1,3 @@
-/**
- * HeightRail.test.tsx — unit tests for HeightRail component.
- *
- * Test Coverage:
- * - Pulse animation class added when state changes from Sitting to Standing
- * - Pulse animation class removed after 600ms
- * - No pulse when state changes from Standing to Walking (both break states)
- * - Indicator position updates with desk height
- * - Indicator hidden when no height reading (deskHeightCm = 0)
- */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import HeightRail from "./HeightRail";
@@ -29,7 +19,7 @@ describe("HeightRail — Pulse Animation", () => {
       );
     });
 
-    const indicator = screen.getByTitle("110.0 cm").querySelector(".height-rail__indicator");
+    const indicator = screen.getByTitle("110 cm").querySelector(".height-rail__indicator");
     expect(indicator).toHaveClass("height-rail__indicator--pulse");
   });
 
@@ -51,7 +41,7 @@ describe("HeightRail — Pulse Animation", () => {
         );
       });
 
-      const indicator = screen.getByTitle("110.0 cm").querySelector(".height-rail__indicator");
+      const indicator = screen.getByTitle("110 cm").querySelector(".height-rail__indicator");
       expect(indicator).toHaveClass("height-rail__indicator--pulse");
 
       // Advance time by 600ms
@@ -82,47 +72,21 @@ describe("HeightRail — Pulse Animation", () => {
       );
     });
 
-    const indicator = screen.getByTitle("110.0 cm").querySelector(".height-rail__indicator");
+    const indicator = screen.getByTitle("110 cm").querySelector(".height-rail__indicator");
     expect(indicator).not.toHaveClass("height-rail__indicator--pulse");
   });
 
-  it("does NOT add pulse when state changes from Sitting to Walking", () => {
+  it.each([
+    { from: "Sitting" as const, to: "Walking" as const, height: 110 },
+    { from: "Sitting" as const, to: "Away" as const, height: 75 },
+  ])("does NOT pulse on $from→$to", ({ from, to, height }) => {
     const { rerender } = render(
-      <HeightRail deskHeightCm={75} state="Sitting">
-        Test content
-      </HeightRail>
+      <HeightRail deskHeightCm={75} state={from}>Test</HeightRail>
     );
-
-    // Move from Sitting directly to Walking (unlikely but should not pulse)
     act(() => {
-      rerender(
-        <HeightRail deskHeightCm={110} state="Walking">
-          Test content
-        </HeightRail>
-      );
+      rerender(<HeightRail deskHeightCm={height} state={to}>Test</HeightRail>);
     });
-
-    const indicator = screen.getByTitle("110.0 cm").querySelector(".height-rail__indicator");
-    expect(indicator).not.toHaveClass("height-rail__indicator--pulse");
-  });
-
-  it("does NOT add pulse when state changes from Sitting to Away", () => {
-    const { rerender } = render(
-      <HeightRail deskHeightCm={75} state="Sitting">
-        Test content
-      </HeightRail>
-    );
-
-    // Move from Sitting to Away
-    act(() => {
-      rerender(
-        <HeightRail deskHeightCm={75} state="Away">
-          Test content
-        </HeightRail>
-      );
-    });
-
-    const indicator = screen.getByTitle("75.0 cm").querySelector(".height-rail__indicator");
+    const indicator = screen.getByTitle(`${height} cm`).querySelector(".height-rail__indicator");
     expect(indicator).not.toHaveClass("height-rail__indicator--pulse");
   });
 
@@ -145,7 +109,7 @@ describe("HeightRail — Pulse Animation", () => {
     );
 
     // At minimum (60cm), indicator should be at bottom (0%)
-    let indicator = screen.getByTitle("60.0 cm").querySelector(".height-rail__indicator");
+    let indicator = screen.getByTitle("60 cm").querySelector(".height-rail__indicator");
     expect(indicator).toHaveStyle("bottom: 0%");
 
     // At maximum (130cm), indicator should be at top (100%)
@@ -157,7 +121,7 @@ describe("HeightRail — Pulse Animation", () => {
       );
     });
 
-    indicator = screen.getByTitle("130.0 cm").querySelector(".height-rail__indicator");
+    indicator = screen.getByTitle("130 cm").querySelector(".height-rail__indicator");
     expect(indicator).toHaveStyle("bottom: 100%");
 
     // At midpoint (95cm), indicator should be at 50%
@@ -169,7 +133,7 @@ describe("HeightRail — Pulse Animation", () => {
       );
     });
 
-    indicator = screen.getByTitle("95.0 cm").querySelector(".height-rail__indicator");
+    indicator = screen.getByTitle("95 cm").querySelector(".height-rail__indicator");
     expect(indicator).toHaveStyle("bottom: 50%");
   });
 
@@ -189,7 +153,7 @@ describe("HeightRail — Pulse Animation", () => {
       );
     });
 
-    let indicator = screen.getByTitle("50.0 cm").querySelector(".height-rail__indicator");
+    let indicator = screen.getByTitle("50 cm").querySelector(".height-rail__indicator");
     expect(indicator).toHaveStyle("bottom: 0%");
 
     // Value above max (130cm) should clamp to max (100%)
@@ -201,7 +165,7 @@ describe("HeightRail — Pulse Animation", () => {
       );
     });
 
-    indicator = screen.getByTitle("150.0 cm").querySelector(".height-rail__indicator");
+    indicator = screen.getByTitle("150 cm").querySelector(".height-rail__indicator");
     expect(indicator).toHaveStyle("bottom: 100%");
   });
 
@@ -223,7 +187,7 @@ describe("HeightRail — Pulse Animation", () => {
         );
       });
 
-      let indicator = screen.getByTitle("110.0 cm").querySelector(".height-rail__indicator");
+      let indicator = screen.getByTitle("110 cm").querySelector(".height-rail__indicator");
       expect(indicator).toHaveClass("height-rail__indicator--pulse");
 
       // Advance past animation duration
@@ -243,7 +207,7 @@ describe("HeightRail — Pulse Animation", () => {
         );
       });
 
-      indicator = screen.getByTitle("75.0 cm").querySelector(".height-rail__indicator");
+      indicator = screen.getByTitle("75 cm").querySelector(".height-rail__indicator");
       expect(indicator).not.toHaveClass("height-rail__indicator--pulse");
 
       // Transition to Standing again should pulse
@@ -255,7 +219,7 @@ describe("HeightRail — Pulse Animation", () => {
         );
       });
 
-      indicator = screen.getByTitle("110.0 cm").querySelector(".height-rail__indicator");
+      indicator = screen.getByTitle("110 cm").querySelector(".height-rail__indicator");
       expect(indicator).toHaveClass("height-rail__indicator--pulse");
     } finally {
       vi.restoreAllMocks();

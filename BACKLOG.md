@@ -68,6 +68,12 @@ Items not yet scheduled, before refinement.
 
 ## Removed (already implemented or superseded)
 
+## Sensor & Stabilization
+
+- **Extended height stabilization** — when desk is stationary for extended period (no significant movement), increase smoothing window 2x to eliminate residual jitter (e.g. 92→91→92→91 flickering). Current HeightStabilizer uses 10-sample window; for stationary desk, double to 20 samples or use exponential moving average with lower alpha. Detect "stationary" = all readings within ±3mm for last N seconds.
+
+---
+
 - ~~`tauri-plugin-notification`~~ — already integrated
 - ~~`tauri-plugin-store`~~ — already integrated
 - ~~Dynamiczna ikona tray~~ — superseded by T016 (color dot approach)

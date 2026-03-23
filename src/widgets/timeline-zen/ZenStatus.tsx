@@ -44,7 +44,7 @@ export const ZenStatus: FC<ZenStatusProps> = ({
         <span className="zen-timer">{formatTimer(limitRemaining)}</span>
         <span className="zen-separator">/</span>
         <span className="zen-limit">{formatTimer(limitSecs)}</span>
-        <span className="zen-height">{deskHeightCm.toFixed(1)} cm</span>
+        <span className="zen-height">{deskHeightCm.toFixed(0)} cm</span>
       </div>
       <div className="zen-bar" data-testid="zen-bar">
         <div

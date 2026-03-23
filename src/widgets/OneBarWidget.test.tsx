@@ -90,7 +90,7 @@ describe("OneBarWidget", () => {
 
   it("shows desk height in header", () => {
     render(<OneBarWidget {...props({ deskHeightCm: 72.4 })} />);
-    expect(screen.getByText("72.4 cm")).toBeInTheDocument();
+    expect(screen.getByText("72 cm")).toBeInTheDocument();
   });
 
   it("shows limitRemaining as big number, not sittingSeconds", () => {

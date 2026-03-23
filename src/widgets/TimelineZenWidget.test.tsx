@@ -104,7 +104,7 @@ describe("TimelineZenWidget", () => {
 
   it("shows desk height", () => {
     render(<TimelineZenWidget {...mockWidgetProps({ deskHeightCm: 72.4 })} />);
-    expect(screen.getByText("72.4 cm")).toBeInTheDocument();
+    expect(screen.getByText("72 cm")).toBeInTheDocument();
   });
 
   it("timeline has zen-timeline class for CSS height", () => {

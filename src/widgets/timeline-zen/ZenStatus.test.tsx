@@ -82,7 +82,7 @@ describe("ZenStatus", () => {
     expect(screen.getByText("●").className).toContain("zen-dot--away");
   });
 
-  it("shows desk height with one decimal", () => {
+  it("shows desk height as whole cm", () => {
     render(
       <ZenStatus
         state="Sitting"
@@ -92,7 +92,7 @@ describe("ZenStatus", () => {
         deskHeightCm={72.456}
       />,
     );
-    expect(screen.getByText("72.5 cm")).toBeInTheDocument();
+    expect(screen.getByText("72 cm")).toBeInTheDocument();
   });
 
   it("bar fill width reflects ratio capped at 100%", () => {

@@ -13,7 +13,7 @@ import { formatDuration } from "@/utils/format";
 export const PlaceholderWidget: FC<WidgetProps> = (props) => {
   const stateLabel = props.state ?? "waiting…";
   const heightLabel = props.deskHeightCm > 0
-    ? `${props.deskHeightCm.toFixed(1)} cm`
+    ? `${props.deskHeightCm.toFixed(0)} cm`
     : "—";
 
   return (

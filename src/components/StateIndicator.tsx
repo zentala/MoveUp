@@ -30,7 +30,7 @@ const StateIndicator: FC<StateIndicatorProps> = ({ state, deskHeightCm }) => {
         <span className="state-indicator__label">{state ?? "Unknown"}</span>
       </div>
       <span className="state-indicator__height">
-        {deskHeightCm > 0 ? `${deskHeightCm.toFixed(1)} cm` : "— cm"}
+        {deskHeightCm > 0 ? `${deskHeightCm.toFixed(0)} cm` : "— cm"}
       </span>
     </div>
   );

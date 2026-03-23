@@ -72,8 +72,9 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
   if (loading) {
     return (
       <div className="settings-panel">
-        <div className="settings-panel__header">
-          <h2 className="settings-panel__title">Settings</h2>
+        <div className="settings-toolbar">
+          <button className="settings-toolbar__back" onClick={onClose} aria-label="Back">←</button>
+          <span className="settings-toolbar__title">Settings</span>
         </div>
         <p className="settings-panel__loading">Loading…</p>
       </div>
@@ -82,11 +83,18 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
 
   return (
     <div className="settings-panel">
-      <div className="settings-panel__header">
-        <h2 className="settings-panel__title">Settings</h2>
+      <div className="settings-toolbar">
+        <button className="settings-toolbar__back" onClick={onClose} disabled={saving} aria-label="Back">←</button>
+        <span className="settings-toolbar__title">Settings</span>
+        <SettingsTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <button
+          className="settings-toolbar__save"
+          onClick={handleSave}
+          disabled={saving || validationError !== null}
+        >
+          {saving ? "…" : "Save"}
+        </button>
       </div>
-
-      <SettingsTabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="settings-panel__body">
         {activeTab === 0 && (
@@ -161,18 +169,6 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="settings-panel__footer">
-        <button className="btn btn--link" onClick={onClose} disabled={saving}>
-          Back
-        </button>
-        <button
-          className="btn"
-          onClick={handleSave}
-          disabled={saving || validationError !== null}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
     </div>
   );
 };
