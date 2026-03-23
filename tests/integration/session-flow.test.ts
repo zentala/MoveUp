@@ -31,7 +31,7 @@ describe("Session Flow Integration Tests", () => {
     // Query state
     const state = await invoke<any>("get_session_state");
 
-    expect(state.state).toBe("sitting");
+    expect(state.state).toBe("Sitting");
     expect(state.sitting_seconds).toBeGreaterThanOrEqual(0);
   });
 
@@ -47,7 +47,7 @@ describe("Session Flow Integration Tests", () => {
     // For now, just verify state change and break tracking
     const state = await invoke<any>("get_session_state");
 
-    expect(state.state).toBe("standing");
+    expect(state.state).toBe("Standing");
   });
 
   it("standing-short-break: 5-9 min standing subtracts 20 min from sitting counter", async () => {
@@ -62,7 +62,7 @@ describe("Session Flow Integration Tests", () => {
 
     // In a real scenario, hold standing for 7 minutes; for now just verify transition
     const standState = await invoke<any>("get_session_state");
-    expect(standState.state).toBe("standing");
+    expect(standState.state).toBe("Standing");
   });
 
   it("walking-no-standing-credit: walking (standing + inactive) doesn't increase standing time", async () => {
@@ -71,7 +71,7 @@ describe("Session Flow Integration Tests", () => {
 
     const state = await invoke<any>("get_session_state");
 
-    expect(state.state).toBe("walking");
+    expect(state.state).toBe("Walking");
     // standing_seconds should not increase (or increase minimally) in Walking state
     expect(state.standing_seconds).toBeLessThanOrEqual(100);
   });
@@ -103,7 +103,7 @@ describe("Session Flow Integration Tests", () => {
     await sendRepeated(SITTING_DISTANCE_MM, DEBOUNCE_COUNT + 2, true, 50);
 
     const state1 = await invoke<any>("get_session_state");
-    expect(state1.state).toBe("sitting");
+    expect(state1.state).toBe("Sitting");
 
     // In real testing, we'd call should_alert directly;
     // via inject_reading it's implicit in the state machine
@@ -121,13 +121,13 @@ describe("Session Flow Integration Tests", () => {
 
     // State should still be Away (or previous state)
     let state = await invoke<any>("get_session_state");
-    expect(["away", "sitting"]).toContain(state.state);
+    expect(["Away", "Sitting"]).toContain(state.state);
 
     // Send 1 more reading (5th = debounce confirmation)
     await invoke("inject_reading", { mm: STANDING_DISTANCE_MM, active: true });
 
     state = await invoke<any>("get_session_state");
-    expect(state.state).toBe("standing");
+    expect(state.state).toBe("Standing");
   });
 
   it("position-changes-counter: sitting↔standing transitions increment counter", async () => {
@@ -154,5 +154,58 @@ describe("Session Flow Integration Tests", () => {
     const state = await invoke<any>("get_session_state");
     expect(state.sitting_seconds).toBeDefined();
     expect(state.standing_seconds).toBeDefined();
+  });
+
+  it("serde-contract: state field uses PascalCase matching frontend types", async () => {
+    // Regression: serde(rename_all=snake_case) produced "sitting"/"standing"
+    // but frontend compared against "Sitting"/"Standing" — all conditionals broke.
+    await sendRepeated(SITTING_DISTANCE_MM, DEBOUNCE_COUNT + 2, true, 50);
+    const sitState = await invoke<any>("get_session_state");
+    expect(sitState.state).toBe("Sitting");
+
+    await sendRepeated(STANDING_DISTANCE_MM, DEBOUNCE_COUNT + 2, true, 50);
+    const standState = await invoke<any>("get_session_state");
+    expect(standState.state).toBe("Standing");
+
+    await sendRepeated(STANDING_DISTANCE_MM, DEBOUNCE_COUNT + 2, false, 50);
+    const walkState = await invoke<any>("get_session_state");
+    expect(walkState.state).toBe("Walking");
+  });
+
+  it("break-seconds-grows: break_seconds increases while standing", async () => {
+    // Regression: even if break timer is computed correctly in Rust,
+    // verify the IPC actually returns growing values.
+    await sendRepeated(SITTING_DISTANCE_MM, DEBOUNCE_COUNT + 2, true, 50);
+    await sendRepeated(STANDING_DISTANCE_MM, DEBOUNCE_COUNT + 2, true, 50);
+
+    const s1 = await invoke<any>("get_session_state");
+    await new Promise((r) => setTimeout(r, 2000));
+    // Keep sending readings so the session stays alive
+    await sendRepeated(STANDING_DISTANCE_MM, 2, true, 500);
+    const s2 = await invoke<any>("get_session_state");
+
+    expect(s2.break_seconds).toBeGreaterThan(s1.break_seconds);
+  });
+
+  it("standing-seconds-live: standing_seconds includes current break in snapshot", async () => {
+    await sendRepeated(SITTING_DISTANCE_MM, DEBOUNCE_COUNT + 2, true, 50);
+    await sendRepeated(STANDING_DISTANCE_MM, DEBOUNCE_COUNT + 2, true, 50);
+
+    await new Promise((r) => setTimeout(r, 2000));
+    await sendRepeated(STANDING_DISTANCE_MM, 2, true, 500);
+    const state = await invoke<any>("get_session_state");
+
+    // standing_seconds must include the live break, not be frozen at 0
+    expect(state.standing_seconds).toBeGreaterThan(0);
+  });
+
+  it("standing-session-saved: standing->sitting saves completed session to DB", async () => {
+    await sendRepeated(SITTING_DISTANCE_MM, DEBOUNCE_COUNT + 2, true, 50);
+    await sendRepeated(STANDING_DISTANCE_MM, DEBOUNCE_COUNT + 2, true, 50);
+    await new Promise((r) => setTimeout(r, 2000));
+    await sendRepeated(SITTING_DISTANCE_MM, DEBOUNCE_COUNT + 2, true, 50);
+
+    const summary = await invoke<any>("get_today_summary");
+    expect(summary.standing_secs).toBeGreaterThan(0);
   });
 });

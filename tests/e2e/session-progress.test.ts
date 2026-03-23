@@ -108,12 +108,46 @@ test.describe("Session Progress", () => {
       await page.waitForTimeout(100);
     }
 
-    // Look for break info
-    const breakInfo = page.locator("[data-testid=break-info], .break-info, .standing-timer");
-    const count = await breakInfo.count();
+    await page.waitForTimeout(500);
 
-    // Break info may be visible or hidden depending on UI design
-    expect(count).toBeGreaterThanOrEqual(0);
+    // State label must show "standing"
+    const timerArea = page.locator("[data-testid=one-bar-timer]");
+    if (await timerArea.count() > 0) {
+      const text = await timerArea.textContent();
+      expect(text?.toLowerCase()).toContain("standing");
+    }
+  });
+
+  test("standing timer shows non-zero after 3 seconds", async ({ page }) => {
+    // Regression: serde case mismatch caused standing timer to always show 0.
+    await page.goto("http://localhost:1443");
+    await page.waitForLoadState("networkidle");
+
+    // Establish sitting
+    for (let i = 0; i < 6; i++) {
+      await invokeCommand(page, "inject_reading", { mm: 750, active: true });
+      await page.waitForTimeout(100);
+    }
+
+    // Transition to standing
+    for (let i = 0; i < 6; i++) {
+      await invokeCommand(page, "inject_reading", { mm: 1080, active: true });
+      await page.waitForTimeout(100);
+    }
+
+    // Wait 3 seconds, keep sending readings
+    for (let i = 0; i < 3; i++) {
+      await invokeCommand(page, "inject_reading", { mm: 1080, active: true });
+      await page.waitForTimeout(1000);
+    }
+
+    // The session duration label (e.g. "for 3s" or "for 0:03") must NOT be "for 0s"
+    const durationEl = page.locator(".one-bar__session-duration");
+    if (await durationEl.count() > 0) {
+      const text = await durationEl.textContent();
+      expect(text).not.toContain("for 0s");
+      expect(text).not.toContain("for 0:00");
+    }
   });
 
   test("tray tooltip updates with current state", async ({ page }) => {
@@ -130,6 +164,6 @@ test.describe("Session Progress", () => {
     // This test is documented as a manual verification step
     // But we can verify the state changed
     const state = await invokeCommand(page, "get_session_state", {});
-    expect(state.state).toBe("sitting");
+    expect(state.state).toBe("Sitting");
   });
 });

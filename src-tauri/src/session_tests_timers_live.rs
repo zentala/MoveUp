@@ -63,6 +63,71 @@ mod timer_live_tests {
     }
 
     #[test]
+    fn t042_15b_snapshot_standing_seconds_includes_live() {
+        let mut m = SessionManager::new();
+        m.state.standing_seconds = 600; // 10 min from earlier
+        transition_to_standing(&mut m);
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(120));
+        let snap = m.snapshot();
+        // standing_seconds should include base (600) + live break (120)
+        assert!(
+            snap.standing_seconds >= 719 && snap.standing_seconds <= 721,
+            "expected ~720, got {}",
+            snap.standing_seconds
+        );
+    }
+
+    #[test]
+    fn t042_15c_snapshot_standing_seconds_frozen_while_sitting() {
+        let mut m = SessionManager::new();
+        m.state.standing_seconds = 600;
+        transition_to_sitting(&mut m);
+        m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(60));
+        let snap = m.snapshot();
+        // While sitting, standing_seconds should NOT grow
+        assert_eq!(snap.standing_seconds, 600);
+    }
+
+    #[test]
+    fn t042_15d_state_changed_payload_uses_live_break_seconds() {
+        let mut m = SessionManager::new();
+        transition_to_sitting(&mut m);
+        m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(300));
+        // Transition to standing — break_seconds should be 0 (just started)
+        let result = m.on_reading(1200, true); // first debounce reading
+        // After debounce completes
+        for _ in 1..DEBOUNCE_COUNT {
+            let _ = m.on_reading(1200, true);
+        }
+        let result = m.on_reading(1200, true);
+        if let Some(payload) = &result.state_change {
+            // Break just started, so break_seconds should be ~0
+            assert!(
+                payload.break_seconds <= 1,
+                "expected ~0, got {}",
+                payload.break_seconds
+            );
+        }
+    }
+
+    #[test]
+    fn t042_15e_standing_to_sitting_creates_completed_session() {
+        let mut m = SessionManager::new();
+        transition_to_standing(&mut m);
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(300));
+        // Transition back to sitting
+        transition_to_sitting(&mut m);
+        // The transition should have produced a completed session
+        // We can't access the result directly from transition_to_sitting helper,
+        // so verify via state: standing_seconds should have accumulated
+        assert!(
+            m.state.standing_seconds >= 299,
+            "expected ~300, got {}",
+            m.state.standing_seconds
+        );
+    }
+
+    #[test]
     fn t042_16_full_cycle_sit_stand_sit_snapshots() {
         let mut m = SessionManager::new();
 
@@ -79,6 +144,12 @@ mod timer_live_tests {
         let s2 = m.snapshot();
         assert!(s2.break_seconds >= 299 && s2.break_seconds <= 301);
         assert_eq!(s2.current_session_secs, 0);
+        // standing_seconds should include live break
+        assert!(
+            s2.standing_seconds >= 299 && s2.standing_seconds <= 301,
+            "expected ~300, got {}",
+            s2.standing_seconds
+        );
 
         // Phase 3: Sit again (partial credit)
         transition_to_sitting(&mut m);

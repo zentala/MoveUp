@@ -90,12 +90,14 @@ impl SessionManager {
 
         let live_sitting = self.get_live_sitting_seconds(now);
         let live_current = self.get_live_current_session_secs(now);
+        let live_break = self.get_live_break_seconds(now);
+        let live_standing = self.get_live_standing_seconds(now);
         ReadingResult {
             state_change: Some(StateChangedPayload {
                 state: self.state.state.clone(),
                 sitting_seconds: live_sitting,
-                standing_seconds: self.state.standing_seconds,
-                break_seconds: self.state.break_seconds,
+                standing_seconds: live_standing,
+                break_seconds: live_break,
                 desk_height_cm: display_height_cm,
                 position_changes: self.state.position_changes,
                 last_break_secs: self.state.last_break_secs,

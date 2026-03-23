@@ -20,7 +20,6 @@ pub const SHORT_BREAK_CREDIT_SECS: i64 = 1200;
 
 /// The ergonomic state the user is currently in.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum DeskState {
     Sitting,
     Standing,

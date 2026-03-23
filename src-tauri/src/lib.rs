@@ -1,6 +1,4 @@
 //! lib.rs — zntl Desk Tauri backend entry point.
-//! Registers all plugins and commands, then starts the auto-connect scan.
-
 mod activity;
 mod alert_actions;
 mod alert_config;
@@ -41,6 +39,7 @@ mod serial_periodic;
 pub mod session;
 pub mod session_manager;
 mod session_breaks;
+mod session_daily;
 mod session_reading;
 pub mod session_types;
 #[cfg(test)]
@@ -59,6 +58,8 @@ mod session_tests_score;
 mod session_tests_timers;
 #[cfg(test)]
 mod session_tests_timers_live;
+#[cfg(test)]
+mod session_tests_serde;
 mod tray;
 mod tray_controller;
 #[cfg(test)]

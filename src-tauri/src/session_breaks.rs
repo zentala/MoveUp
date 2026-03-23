@@ -52,6 +52,11 @@ impl SessionManager {
                             self.apply_break_credit(break_dur);
                             self.state.current_session_secs = 0;
                             self.state.break_seconds = 0;
+                            completed_session = Some(CompletedSession {
+                                started_at: bs.to_rfc3339(),
+                                ended_at: now.to_rfc3339(),
+                                duration_secs: break_dur,
+                            });
                         }
                         self.state.sitting_started = Some(now);
                     }
@@ -68,6 +73,11 @@ impl SessionManager {
                         self.apply_break_credit(break_dur);
                         self.state.current_session_secs = 0;
                         self.state.break_seconds = 0;
+                        completed_session = Some(CompletedSession {
+                            started_at: bs.to_rfc3339(),
+                            ended_at: now.to_rfc3339(),
+                            duration_secs: break_dur,
+                        });
                     }
                     self.state.sitting_started = Some(now);
                     self.state.last_position_change_at = Some(now);

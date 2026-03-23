@@ -149,6 +149,50 @@ describe("OneBarWidget", () => {
     expect(screen.getByText(/for 4m/)).toBeInTheDocument();
   });
 
+  it("standing timer must NOT show currentSessionSecs (the serde contract bug)", () => {
+    // Regression: serde(rename_all=snake_case) made state="standing" (lowercase),
+    // so isStandingOrAway was always false, and sessionDuration always showed
+    // currentSessionSecs (=0) instead of breakSecs.
+    render(
+      <OneBarWidget
+        {...props({
+          state: "Standing",
+          breakSecs: 420,    // 7 minutes of standing
+          currentSessionSecs: 0,  // reset on transition
+        })}
+      />,
+    );
+    // Must show 7m (breakSecs), not 0s (currentSessionSecs)
+    expect(screen.getByText(/for 7m/)).toBeInTheDocument();
+    expect(screen.queryByText(/for 0s/)).not.toBeInTheDocument();
+  });
+
+  it("walking timer shows breakSecs not currentSessionSecs", () => {
+    render(
+      <OneBarWidget
+        {...props({
+          state: "Walking",
+          breakSecs: 300,
+          currentSessionSecs: 0,
+        })}
+      />,
+    );
+    expect(screen.getByText(/for 5m/)).toBeInTheDocument();
+  });
+
+  it("away timer shows breakSecs not currentSessionSecs", () => {
+    render(
+      <OneBarWidget
+        {...props({
+          state: "Away",
+          breakSecs: 120,
+          currentSessionSecs: 0,
+        })}
+      />,
+    );
+    expect(screen.getByText(/for 2m/)).toBeInTheDocument();
+  });
+
   it("shows previous session info when available", () => {
     render(
       <OneBarWidget

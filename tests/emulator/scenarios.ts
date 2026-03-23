@@ -50,12 +50,12 @@ export async function sendRepeated(
  * Simulate a transition from sitting to standing and back.
  */
 export async function simulatePositionChange(
-  from: "sitting" | "standing",
+  from: "Sitting" | "Standing",
   duration_ms: number = 1000,
   active: boolean = true
 ): Promise<void> {
-  const fromMm = from === "sitting" ? SITTING_DISTANCE_MM : STANDING_DISTANCE_MM;
-  const toMm = from === "sitting" ? STANDING_DISTANCE_MM : SITTING_DISTANCE_MM;
+  const fromMm = from === "Sitting" ? SITTING_DISTANCE_MM : STANDING_DISTANCE_MM;
+  const toMm = from === "Sitting" ? STANDING_DISTANCE_MM : SITTING_DISTANCE_MM;
 
   // Transition to new position
   await sendRepeated(toMm, DEBOUNCE_COUNT + 2, active, 50);

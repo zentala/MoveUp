@@ -157,4 +157,37 @@ mod timer_tests {
         assert!(m.state.break_started.is_some());
         assert_eq!(m.state.break_seconds, 0);
     }
+
+    #[test]
+    fn t042_12b_standing_to_sitting_produces_completed_session() {
+        let mut m = SessionManager::new();
+        transition_to_sitting(&mut m);
+        m.state.sitting_started = Some(Utc::now());
+        transition_to_standing(&mut m);
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(600));
+        let mut last = ReadingResult { state_change: None, completed_session: None };
+        for _ in 0..DEBOUNCE_COUNT {
+            last = m.on_reading(800, true);
+        }
+        let session = last.completed_session.expect("standing->sitting should produce CompletedSession");
+        assert!(session.duration_secs >= 599 && session.duration_secs <= 601,
+            "expected ~600, got {}", session.duration_secs);
+    }
+
+    #[test]
+    fn t042_12c_walking_to_sitting_produces_completed_session() {
+        let mut m = SessionManager::new();
+        transition_to_sitting(&mut m);
+        m.state.sitting_started = Some(Utc::now());
+        transition_to_standing(&mut m);
+        transition_to_walking(&mut m);
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(900));
+        let mut last = ReadingResult { state_change: None, completed_session: None };
+        for _ in 0..DEBOUNCE_COUNT {
+            last = m.on_reading(800, true);
+        }
+        let session = last.completed_session.expect("walking->sitting should produce CompletedSession");
+        assert!(session.duration_secs >= 899 && session.duration_secs <= 901,
+            "expected ~900, got {}", session.duration_secs);
+    }
 }

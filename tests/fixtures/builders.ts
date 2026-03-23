@@ -10,12 +10,12 @@
  * Usage:
  *   const state = sessionStateBuilder()
  *     .withSittingSeconds(1800)
- *     .withState("standing")
+ *     .withState("Standing")
  *     .build();
  */
 export class SessionStateBuilder {
   private data = {
-    state: "sitting" as const,
+    state: "Sitting" as const,
     sitting_seconds: 0,
     standing_seconds: 0,
     break_seconds: 0,
@@ -25,7 +25,7 @@ export class SessionStateBuilder {
     position_changes: 0,
   };
 
-  withState(state: "sitting" | "standing" | "walking" | "away") {
+  withState(state: "Sitting" | "Standing" | "Walking" | "Away") {
     this.data.state = state;
     return this;
   }
@@ -187,88 +187,10 @@ export function todaySummaryBuilder() {
   return new TodaySummaryBuilder();
 }
 
-/**
- * Predefined test scenarios using builders.
- */
-export const testScenarios = {
-  /**
-   * User sitting for exactly half the session limit.
-   */
-  halfwaySitting: () =>
-    sessionStateBuilder()
-      .withState("sitting")
-      .withSittingSeconds(1350) // 45 min limit / 2
-      .build(),
-
-  /**
-   * User sitting at the exact alert threshold (85%).
-   */
-  criticalSitting: () =>
-    sessionStateBuilder()
-      .withState("sitting")
-      .withSittingSeconds(2295) // 2700 * 0.85
-      .build(),
-
-  /**
-   * User taking a short break (under 5 min).
-   */
-  shortBreak: () =>
-    sessionStateBuilder()
-      .withState("standing")
-      .withBreakSeconds(240) // 4 minutes
-      .build(),
-
-  /**
-   * User taking a medium break (5-9 min) — gets partial credit.
-   */
-  mediumBreak: () =>
-    sessionStateBuilder()
-      .withState("standing")
-      .withBreakSeconds(420) // 7 minutes
-      .build(),
-
-  /**
-   * User taking a long break (10+ min) — gets full reset.
-   */
-  longBreak: () =>
-    sessionStateBuilder()
-      .withState("standing")
-      .withBreakSeconds(600) // 10 minutes
-      .build(),
-
-  /**
-   * User walking around (high desk, no keyboard activity).
-   */
-  walking: () =>
-    sessionStateBuilder()
-      .withState("walking")
-      .withBreakSeconds(120)
-      .build(),
-
-  /**
-   * Full day with balanced sit/stand ratio.
-   */
-  balancedDay: () =>
-    todaySummaryBuilder()
-      .withSittingTime(14400) // 4 hours
-      .withStandingTime(7200) // 2 hours
-      .withPositionChanges(12)
-      .build(),
-
-  /**
-   * Day with too much sitting (poor ergonomics).
-   */
-  overSittingDay: () =>
-    todaySummaryBuilder()
-      .withSittingTime(28800) // 8 hours
-      .withStandingTime(3600) // 1 hour
-      .withPositionChanges(4)
-      .build(),
-};
+export { testScenarios } from "./scenarios";
 
 export default {
   sessionStateBuilder,
   settingsBuilder,
   todaySummaryBuilder,
-  testScenarios,
 };
