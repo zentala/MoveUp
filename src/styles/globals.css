@@ -431,6 +431,45 @@ body {
   flex-direction: column;
   gap: 11px;
   padding: 14px 16px 16px;
+  overflow: hidden;
+}
+
+/* ── Settings tabs ───────────────────────────────────────────────── */
+.settings-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--rail-default);
+}
+
+.settings-tab {
+  flex: 1;
+  padding: 6px 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: center;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-tertiary);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.settings-tab:hover {
+  color: var(--ink-secondary);
+}
+
+.settings-tab--active {
+  border-bottom-color: var(--beam);
+  color: var(--ink-primary);
+}
+
+.settings-panel__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
   overflow-y: auto;
 }
 

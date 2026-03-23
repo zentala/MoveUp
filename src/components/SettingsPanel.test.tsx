@@ -1,12 +1,14 @@
 /**
- * SettingsPanel.test.tsx — unit tests for the SettingsPanel component.
+ * SettingsPanel.test.tsx â€” unit tests for the SettingsPanel component.
  *
  * Test Coverage:
+ * - Tab bar renders all 4 tabs with first tab active by default
  * - Save button invokes save_settings with correct field names (sit_limit_mins, etc.)
  * - Back/Cancel does NOT invoke save_settings
  * - Inverted calibration (sitting_mm >= standing_mm) shows validation error and disables Save
  * - Slider values are within expected range bounds
- * - Notification toggles render with correct default values
+ * - Notification toggles render with correct default values (via tab switch)
+ * - Tab switching shows correct content per tab
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -16,6 +18,16 @@ import SettingsPanel from "./SettingsPanel";
 // setup.ts already provides vi.mock for @tauri-apps/api/core and @tauri-apps/api/event
 
 const mockOnClose = vi.fn();
+
+const MOCK_SETTINGS = {
+  sit_limit_mins: 40,
+  stand_limit_mins: 15,
+  sitting_mm: 750,
+  standing_mm: 1050,
+  notify_inactivity: true,
+  notify_daily_posture_balance: true,
+  notify_praise_halfway: false,
+};
 
 beforeEach(() => {
   mockOnClose.mockClear();
@@ -30,19 +42,35 @@ describe("SettingsPanel", () => {
     });
   });
 
+  it("renders tab bar with 4 tabs", async () => {
+    render(<SettingsPanel onClose={mockOnClose} />);
+    await waitFor(() => {
+      expect(screen.getByText("Time")).toBeInTheDocument();
+      expect(screen.getByText("Calibr.")).toBeInTheDocument();
+      expect(screen.getByText("Notif.")).toBeInTheDocument();
+      expect(screen.getByText("More")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Time tab content by default", async () => {
+    render(<SettingsPanel onClose={mockOnClose} />);
+    const slider = await screen.findByLabelText("Remind me to stand after (minutes)");
+    expect(slider).toBeInTheDocument();
+  });
+
+  it("switches to Calibration tab on click", async () => {
+    render(<SettingsPanel onClose={mockOnClose} />);
+    await screen.findByText("Time Limits");
+
+    fireEvent.click(screen.getByText("Calibr."));
+    await waitFor(() => {
+      expect(screen.queryByText("Time Limits")).not.toBeInTheDocument();
+    });
+  });
+
   it("invokes save_settings with correct field names on Save", async () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === "get_settings") {
-        return {
-          sit_limit_mins: 40,
-          stand_limit_mins: 15,
-          sitting_mm: 750,
-          standing_mm: 1050,
-          notify_inactivity: true,
-          notify_daily_posture_balance: true,
-          notify_praise_halfway: false,
-        };
-      }
+      if (cmd === "get_settings") return MOCK_SETTINGS;
       return null;
     });
 
@@ -84,15 +112,7 @@ describe("SettingsPanel", () => {
   it("shows validation error and disables Save when sitting_mm >= standing_mm", async () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       if (cmd === "get_settings") {
-        return {
-          sit_limit_mins: 40,
-          stand_limit_mins: 15,
-          sitting_mm: 1050,
-          standing_mm: 750,
-          notify_inactivity: true,
-          notify_daily_posture_balance: true,
-          notify_praise_halfway: false,
-        };
+        return { ...MOCK_SETTINGS, sitting_mm: 1050, standing_mm: 750 };
       }
       return null;
     });
@@ -132,14 +152,11 @@ describe("SettingsPanel", () => {
     expect(slider).toHaveAttribute("step", "5");
   });
 
-  it("notification toggles render with correct default values", async () => {
+  it("notification toggles render with correct values after switching tab", async () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       if (cmd === "get_settings") {
         return {
-          sit_limit_mins: 40,
-          stand_limit_mins: 15,
-          sitting_mm: 750,
-          standing_mm: 1050,
+          ...MOCK_SETTINGS,
           notify_inactivity: true,
           notify_daily_posture_balance: false,
           notify_praise_halfway: true,
@@ -150,6 +167,10 @@ describe("SettingsPanel", () => {
 
     render(<SettingsPanel onClose={mockOnClose} />);
 
+    // Switch to Notif. tab
+    const notifTab = await screen.findByText("Notif.");
+    fireEvent.click(notifTab);
+
     await waitFor(() => {
       const checkboxes = screen.getAllByRole("checkbox");
       // notify_inactivity = true
@@ -159,5 +180,18 @@ describe("SettingsPanel", () => {
       // notify_praise_halfway = true
       expect(checkboxes[2]).toBeChecked();
     });
+  });
+
+  it("footer buttons stay visible across all tabs", async () => {
+    render(<SettingsPanel onClose={mockOnClose} />);
+
+    // Check footer on Time tab (default)
+    expect(await screen.findByText("Save")).toBeInTheDocument();
+    expect(screen.getByText("Back")).toBeInTheDocument();
+
+    // Switch to More tab
+    fireEvent.click(screen.getByText("More"));
+    expect(screen.getByText("Save")).toBeInTheDocument();
+    expect(screen.getByText("Back")).toBeInTheDocument();
   });
 });
