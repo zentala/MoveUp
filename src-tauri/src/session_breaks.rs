@@ -71,6 +71,14 @@ impl SessionManager {
                     self.state.sitting_started = Some(now);
                     self.state.last_position_change_at = Some(now);
                 }
+                // Away/Walking → Standing: start break timer
+                if *candidate == DeskState::Standing
+                    && self.state.break_started.is_none()
+                {
+                    self.state.break_started = Some(now);
+                    self.state.break_seconds = 0;
+                    self.state.last_position_change_at = Some(now);
+                }
             }
         }
 
