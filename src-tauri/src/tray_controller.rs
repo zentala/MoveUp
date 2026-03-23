@@ -204,7 +204,7 @@ pub(crate) fn build_tooltip_label(
         format!(" {:.0}", daily_score)
     };
     format!(
-        "\u{2195} {:.1} cm \u{2014} {} ({}){}", // ↕ and —
+        "\u{2195} {:.0} cm \u{2014} {} ({}){}", // ↕ and —
         desk_height_cm, state_str, format_duration(duration_secs), score_str,
     )
 }

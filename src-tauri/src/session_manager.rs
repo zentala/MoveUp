@@ -1,8 +1,7 @@
-//! session_manager.rs — SessionManager: state machine, score, alerts.
-
 use chrono::{DateTime, NaiveDate, Utc};
 use log::info;
 
+use crate::height_stabilizer::HeightStabilizer;
 use crate::session_types::*;
 
 /// Owns `SessionState` and drives state transitions.
@@ -21,6 +20,8 @@ pub struct SessionManager {
     pub notify_posture_balance_fired: bool,
     pub praise_halfway_fired_today: bool,
     pub standing_target_reached_fired: bool,
+    /// Smooths raw sensor readings for stable UI display.
+    pub(crate) height_stabilizer: HeightStabilizer,
 }
 
 impl SessionManager {
@@ -61,6 +62,7 @@ impl SessionManager {
             notify_posture_balance_fired: false,
             praise_halfway_fired_today: false,
             standing_target_reached_fired: false,
+            height_stabilizer: HeightStabilizer::new(),
         }
     }
 
@@ -101,6 +103,7 @@ impl SessionManager {
             notify_posture_balance_fired: false,
             praise_halfway_fired_today: false,
             standing_target_reached_fired: false,
+            height_stabilizer: HeightStabilizer::new(),
         }
     }
 
@@ -239,11 +242,5 @@ impl SessionManager {
             return true;
         }
         false
-    }
-}
-
-impl Default for SessionManager {
-    fn default() -> Self {
-        Self::new()
     }
 }

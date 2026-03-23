@@ -12,10 +12,17 @@ impl SessionManager {
     pub fn on_reading(&mut self, mm: i32, active: bool) -> ReadingResult {
         let now = Utc::now();
 
-        // Compute calibrated desk height.
+        // Compute raw calibrated desk height (used for state machine decisions).
         let floor_distance_cm = mm as f32 / 10.0;
         let desk_height_cm = floor_distance_cm - self.desk_thickness_cm;
-        self.state.desk_height_cm = desk_height_cm;
+
+        // Feed raw reading into stabilizer; use stabilized value for UI display.
+        self.height_stabilizer.push(mm);
+        let display_height_cm = self
+            .height_stabilizer
+            .stabilized_height_cm(self.desk_thickness_cm)
+            .unwrap_or(desk_height_cm);
+        self.state.desk_height_cm = display_height_cm;
 
         // Midpoint between sitting and standing thresholds.
         let mid_cm = (self.sitting_height_cm + self.standing_height_cm) / 2.0;
@@ -89,7 +96,7 @@ impl SessionManager {
                 sitting_seconds: live_sitting,
                 standing_seconds: self.state.standing_seconds,
                 break_seconds: self.state.break_seconds,
-                desk_height_cm,
+                desk_height_cm: display_height_cm,
                 position_changes: self.state.position_changes,
                 last_break_secs: self.state.last_break_secs,
                 last_sitting_secs: self.state.last_sitting_secs,
