@@ -48,6 +48,11 @@ impl SessionManager {
                 standing_session_secs: 0,
                 lap_bonus_awarded_for_lap: 0,
                 current_session_secs: 0,
+                continuous_computer_secs: 0,
+                longest_computer_session_secs: 0,
+                away_bout_secs: 0,
+                first_reading_at: None,
+                last_tick_ts: None,
             },
             pending_state: None,
             pending_count: 0,
@@ -89,6 +94,11 @@ impl SessionManager {
                 standing_session_secs: 0,
                 lap_bonus_awarded_for_lap: 0,
                 current_session_secs: 0,
+                continuous_computer_secs: 0,
+                longest_computer_session_secs: 0,
+                away_bout_secs: 0,
+                first_reading_at: None,
+                last_tick_ts: None,
             },
             pending_state: None,
             pending_count: 0,
@@ -147,6 +157,8 @@ impl SessionManager {
             daily_score: self.state.daily_score,
             standing_session_secs: self.state.standing_session_secs,
             current_session_secs: live_current,
+            continuous_computer_secs: self.state.continuous_computer_secs,
+            longest_computer_session_secs: self.state.longest_computer_session_secs,
         }
     }
 

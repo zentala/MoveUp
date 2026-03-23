@@ -79,15 +79,23 @@ impl SessionManager {
                             duration_secs: break_dur,
                         });
                     }
+                    if self.state.away_bout_secs >= 300 {
+                        self.state.continuous_computer_secs = 0;
+                    }
+                    self.state.away_bout_secs = 0;
                     self.state.sitting_started = Some(now);
                     self.state.last_position_change_at = Some(now);
                 }
                 // Away/Walking → Standing: start break timer
-                if *candidate == DeskState::Standing
-                    && self.state.break_started.is_none()
-                {
-                    self.state.break_started = Some(now);
-                    self.state.break_seconds = 0;
+                if *candidate == DeskState::Standing {
+                    if self.state.away_bout_secs >= 300 {
+                        self.state.continuous_computer_secs = 0;
+                    }
+                    self.state.away_bout_secs = 0;
+                    if self.state.break_started.is_none() {
+                        self.state.break_started = Some(now);
+                        self.state.break_seconds = 0;
+                    }
                     self.state.last_position_change_at = Some(now);
                 }
             }

@@ -76,6 +76,17 @@ pub struct SessionState {
     /// Seconds in the current sitting session only (resets on Sitting entry, after break credit).
     /// Use this for the session progress timer in the UI.
     pub current_session_secs: i64,
+    /// Seconds the user has been at the computer continuously (Sitting + Standing + Walking).
+    /// Resets after 5+ continuous minutes of Away.
+    pub continuous_computer_secs: i64,
+    /// Longest continuous computer session today (daily max, seconds).
+    pub longest_computer_session_secs: i64,
+    /// Current continuous Away duration (seconds). Resets when user returns.
+    pub away_bout_secs: i64,
+    /// Timestamp of the first sensor reading of the day (for hours_worked calculation).
+    pub first_reading_at: Option<DateTime<Utc>>,
+    /// Timestamp of last tick (for gap detection on app restart).
+    pub last_tick_ts: Option<DateTime<Utc>>,
 }
 
 /// Serialisable DTO emitted with state-change events.
@@ -100,6 +111,10 @@ pub struct SessionStateDto {
     pub standing_session_secs: i64,
     /// Seconds in the current sitting session only (for UI timer).
     pub current_session_secs: i64,
+    /// Seconds at computer continuously (resets after 5+ min Away).
+    pub continuous_computer_secs: i64,
+    /// Longest continuous computer session today (seconds).
+    pub longest_computer_session_secs: i64,
 }
 
 /// Break credit type applied when returning from standing to sitting.
