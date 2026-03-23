@@ -333,7 +333,7 @@ Stan maszyny stanów
     └── Standing: złoty bar rośnie             [T23]
 ```
 
-- [ ] **T042** P1 — Session timer unit tests (`session_tests_timers.rs`, ~16 testów Rust)
+- [x] **T042** P1 — Session timer unit tests (`session_tests_timers.rs`, ~16 testów Rust)
   - **Inicjalizacja:**
     1. App startuje z biurkiem stojącym → po 5 odczytach stan = Standing, break_started ustawione, break_seconds > 0
     2. App startuje z biurkiem stojącym → po 60s standing, get_live_break_seconds() zwraca ~60

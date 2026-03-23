@@ -43,19 +43,19 @@ impl SessionManager {
                 if *candidate != DeskState::Standing {
                     self.state.standing_session_secs = 0;
                     self.state.lap_bonus_awarded_for_lap = 0;
-                    if let Some(bs) = self.state.break_started.take() {
-                        let break_dur = (now - bs).num_seconds().max(0);
-                        self.state.standing_seconds += break_dur;
-                        self.state.last_break_secs = break_dur;
-                        if *candidate == DeskState::Sitting {
+                    if *candidate == DeskState::Sitting {
+                        // Finalize break: accumulate standing time, apply credit.
+                        if let Some(bs) = self.state.break_started.take() {
+                            let break_dur = (now - bs).num_seconds().max(0);
+                            self.state.standing_seconds += break_dur;
+                            self.state.last_break_secs = break_dur;
                             self.apply_break_credit(break_dur);
                             self.state.current_session_secs = 0;
+                            self.state.break_seconds = 0;
                         }
-                        self.state.break_seconds = 0;
-                    }
-                    if *candidate == DeskState::Sitting {
                         self.state.sitting_started = Some(now);
                     }
+                    // Standing → Walking/Away: break continues, keep break_started.
                     self.state.last_position_change_at = Some(now);
                 }
             }
@@ -63,6 +63,7 @@ impl SessionManager {
                 if *candidate == DeskState::Sitting {
                     if let Some(bs) = self.state.break_started.take() {
                         let break_dur = (now - bs).num_seconds().max(0);
+                        self.state.standing_seconds += break_dur;
                         self.state.last_break_secs = break_dur;
                         self.apply_break_credit(break_dur);
                         self.state.current_session_secs = 0;

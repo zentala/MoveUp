@@ -56,6 +56,10 @@ mod session_tests_daily;
 mod session_tests_props;
 #[cfg(test)]
 mod session_tests_score;
+#[cfg(test)]
+mod session_tests_timers;
+#[cfg(test)]
+mod session_tests_timers_live;
 mod tray;
 mod tray_controller;
 #[cfg(test)]
