@@ -65,8 +65,9 @@ mod tests {
     fn standing_pct_normal() {
         let metric = standing_pct::StandingPercentMetric;
         let mut state = default_state();
-        state.sitting_seconds = 300;
-        state.standing_seconds = 100;
+        // Total must exceed early_data_threshold (30 min = 1800s)
+        state.sitting_seconds = 1500;
+        state.standing_seconds = 500;
         let cfg = config();
         let result = metric.compute(&state, &cfg);
         assert!((result.value - 25.0).abs() < 0.1);
@@ -77,9 +78,9 @@ mod tests {
     fn standing_pct_green() {
         let metric = standing_pct::StandingPercentMetric;
         let mut state = default_state();
-        // 15% standing -> Green (threshold is 15%)
-        state.sitting_seconds = 850;
-        state.standing_seconds = 150;
+        // 15% standing -> Green (threshold is 15%). Total > 1800s threshold.
+        state.sitting_seconds = 1700;
+        state.standing_seconds = 300; // 300/(1700+300) = 15%
         let cfg = config();
         let result = metric.compute(&state, &cfg);
         assert_eq!(result.level, MetricLevel::Green);
@@ -89,9 +90,9 @@ mod tests {
     fn standing_pct_red() {
         let metric = standing_pct::StandingPercentMetric;
         let mut state = default_state();
-        // 5% standing -> Red (below 10% yellow threshold)
-        state.sitting_seconds = 950;
-        state.standing_seconds = 50;
+        // 5% standing -> Red (below 10% yellow threshold). Total > 1800s.
+        state.sitting_seconds = 1900;
+        state.standing_seconds = 100; // 100/(1900+100) = 5%
         let cfg = config();
         let result = metric.compute(&state, &cfg);
         assert_eq!(result.level, MetricLevel::Red);

@@ -77,6 +77,15 @@ mod tests {
             pts_session_bonus: 10.0,
             pts_sitting_per_min: -1.0,
             show_welcome_on_startup: false,
+            kpi_standing_green_pct: 15.0,
+            kpi_standing_yellow_pct: 10.0,
+            kpi_changes_green: 1.0,
+            kpi_changes_yellow: 0.5,
+            kpi_break_yellow_missed: 2,
+            kpi_break_red_missed: 3,
+            kpi_session_green_mins: 45,
+            kpi_session_yellow_mins: 75,
+            kpi_early_data_threshold_mins: 30,
         };
 
         let json = serde_json::to_value(&original).unwrap();
