@@ -43,11 +43,30 @@ const Group: FC<{ title: string; children: React.ReactNode }> = ({
 const DebugSection: FC = () => {
   const d = useDesk();
   const [config, setConfig] = useState<Record<string, unknown> | null>(null);
+  const [metrics, setMetrics] = useState<Array<{
+    id: string;
+    label: string;
+    result: { value: number; display: string; level: string; is_personal_best: boolean };
+  }>>([]);
 
   useEffect(() => {
     invoke("get_settings")
       .then((s) => setConfig(s as Record<string, unknown>))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const fetchMetrics = () => {
+      invoke("get_dashboard_state")
+        .then((s) => {
+          const data = s as { metrics?: typeof metrics };
+          if (data.metrics) setMetrics(data.metrics);
+        })
+        .catch(() => {});
+    };
+    fetchMetrics();
+    const id = setInterval(fetchMetrics, 2000);
+    return () => clearInterval(id);
   }, []);
 
   const limitPct = d.sessionLimitSecs > 0
@@ -134,6 +153,18 @@ const DebugSection: FC = () => {
           <Row label="notify_praise_halfway" value={String(config.notify_praise_halfway)} />
         </Group>
       )}
+
+      <Group title="KPI Metrics">
+        {metrics.length === 0 && <Row label="(no metrics)" value="—" />}
+        {metrics.map((m) => (
+          <Row
+            key={m.id}
+            label={`${m.label} (${m.id})`}
+            value={`${m.result.display} [${m.result.level}]${m.result.is_personal_best ? " ★" : ""}`}
+            warn={m.result.level === "red"}
+          />
+        ))}
+      </Group>
 
       <Group title="Sessions Today ({d.todaySessions.length})">
         {d.todaySessions.length === 0 && <Row label="(empty)" value="—" />}
