@@ -1,0 +1,73 @@
+/* ProgressBar.css — styles for unified ProgressBar component */
+
+.progress-bar {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* Overlay variant: fixed fullscreen bar at top */
+.progress-bar--overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  width: 100vw;
+  background: #000;
+  z-index: 999999;
+  pointer-events: none;
+}
+
+/* Inline variant: relative bar inside widget */
+.progress-bar--inline {
+  position: relative;
+  height: 4px;
+  width: 100%;
+  background: var(--rail-subtle);
+  border-radius: 2px;
+}
+
+/* Fill bar */
+.progress-bar__fill {
+  height: 100%;
+  min-width: 1px;
+  transition: width 0.5s ease, background 0.3s ease;
+}
+
+/* Color schemes */
+.progress-bar__fill--sitting {
+  /* Color set dynamically via inline style based on ratio */
+}
+
+.progress-bar__fill--standing {
+  background: linear-gradient(90deg, #d4a017, #65a30d);
+}
+
+.progress-bar__fill--gray {
+  background: #555;
+}
+
+/* Shimmer animation on reset */
+.progress-bar--shimmer .progress-bar__fill {
+  animation: pb-shimmer 0.6s ease-out;
+}
+
+@keyframes pb-shimmer {
+  0% {
+    filter: brightness(1.8);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+@keyframes pb-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
