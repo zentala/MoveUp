@@ -1,7 +1,5 @@
 //! lib.rs — zntl Desk Tauri backend entry point.
-//!
-//! Registers all plugins and commands, then starts the auto-connect scan
-//! as soon as the app is set up.
+//! Registers all plugins and commands, then starts the auto-connect scan.
 
 mod activity;
 mod alert_actions;
@@ -16,6 +14,7 @@ mod config;
 mod db;
 mod db_queries;
 mod db_sessions;
+mod height_stabilizer;
 mod overlay_layered;
 mod overlay_layered_wndproc;
 mod overlay_opaque;
@@ -236,6 +235,14 @@ pub fn run() {
             }
 
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // T038: Hide the popup window when it loses focus (click outside).
+            if window.label() == "main" {
+                if let tauri::WindowEvent::Focused(false) = event {
+                    let _ = window.hide();
+                }
+            }
         })
         .run(tauri::generate_context!())
         .expect("error running Desk");
