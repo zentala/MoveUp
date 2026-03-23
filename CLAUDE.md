@@ -8,6 +8,12 @@ Ergonomics tracker for a sit/stand desk. Detects sitting/standing via laser sens
 ## Target User
 Single user (zentala) working at a motorized sit/stand desk.
 
+## Logging & Debugging
+- **Debug tab**: Settings → Debug — live session state dump (all raw values)
+- **Minute snapshots**: JSON files at `{app_data_dir}/logs/YYYY-MM-DD/HH-MM.json` (T044, planned)
+- **Event log**: `{app_data_dir}/logs/YYYY-MM-DD/events.log` — state transitions, notifications, alerts (T044, planned)
+- **Full reference**: [`.claude/rules/logging.md`](.claude/rules/logging.md)
+
 ## Architecture Principles
 - **Modular components** — visual cues (overlay bar, tray icon, notifications, popups) are independent modules. Each can be enabled/disabled/swapped.
 - **Configurable behavior** — session limits, notification thresholds, dismiss/snooze logic, visual styles — all configurable, not hardcoded.
