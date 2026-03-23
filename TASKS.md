@@ -366,6 +366,12 @@ Stan maszyny stanów
 
 ---
 
+## Sprint: Popup UX Redesign
+
+- [ ] **T045** P1 — Popup timer UX: elapsed/total instead of remaining, bar always visible, away=gray, remove redundant text `.claude/tasks/T045-popup-timer-ux-redesign.md`
+
+---
+
 ## Sprint: Polish + Delight
 
 - [-] **T010** ~~P3 — Dynamic tray icon~~ (replaced by T016 — color dot approach)
