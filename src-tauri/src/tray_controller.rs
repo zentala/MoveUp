@@ -194,7 +194,7 @@ pub(crate) fn build_tooltip_label(
 ) -> String {
     let (state_str, duration_secs) = match state {
         DeskState::Sitting => ("Sitting", sitting_secs),
-        DeskState::Standing => ("Standing", standing_secs),
+        DeskState::Standing => ("Standing", break_secs),
         DeskState::Walking => ("Walking", break_secs),
         DeskState::Away => ("Away", 0),
     };

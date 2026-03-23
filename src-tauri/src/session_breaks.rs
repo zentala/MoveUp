@@ -31,6 +31,7 @@ impl SessionManager {
                     }
                 }
                 if *candidate != DeskState::Sitting {
+                    self.state.current_session_secs = 0;
                     self.state.break_started = Some(now);
                     self.state.break_seconds = 0;
                     self.alert_fired = false;
@@ -49,8 +50,7 @@ impl SessionManager {
                         self.state.last_break_secs = break_dur;
                         if *candidate == DeskState::Sitting {
                             self.apply_break_credit(break_dur);
-                            self.state.current_session_secs =
-                                self.state.sitting_seconds;
+                            self.state.current_session_secs = 0;
                         }
                         self.state.break_seconds = 0;
                     }
@@ -66,8 +66,7 @@ impl SessionManager {
                         let break_dur = (now - bs).num_seconds().max(0);
                         self.state.last_break_secs = break_dur;
                         self.apply_break_credit(break_dur);
-                        self.state.current_session_secs =
-                            self.state.sitting_seconds;
+                        self.state.current_session_secs = 0;
                         self.state.break_seconds = 0;
                     }
                     self.state.sitting_started = Some(now);
