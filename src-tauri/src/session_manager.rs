@@ -129,11 +129,12 @@ impl SessionManager {
         let now = Utc::now();
         let live_sitting = self.get_live_sitting_seconds(now);
         let live_current = self.get_live_current_session_secs(now);
+        let live_break = self.get_live_break_seconds(now);
         SessionStateDto {
             state: self.state.state.clone(),
             sitting_seconds: live_sitting,
             standing_seconds: self.state.standing_seconds,
-            break_seconds: self.state.break_seconds,
+            break_seconds: live_break,
             session_limit_secs: self.state.session_limit_secs,
             stand_limit_secs: self.state.stand_limit_secs,
             desk_height_cm: self.state.desk_height_cm,

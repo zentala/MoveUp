@@ -66,7 +66,7 @@ Source: `session_reading.rs:12-101`, `session_types.rs:9`
 
 **Tooltip format**: `↕ {height} cm — {State} ({duration}) {score}`
 - Sitting: duration = total sitting seconds today
-- Standing: duration = total standing seconds today
+- Standing: duration = current break seconds (time since standing up)
 - Walking: duration = current break seconds
 - Away: duration = 0
 
@@ -254,20 +254,20 @@ Source: `session_manager.rs:208-229`, `config.rs:22-31`
 
 A sitting session begins when the user transitions **to Sitting** from any other state:
 - `sitting_started = now` timestamp recorded
-- `current_session_secs` set based on context:
-  - From Standing with break credit: equals post-credit `sitting_seconds`
-  - From Walking/Away with break credit: equals post-credit `sitting_seconds`
+- `current_session_secs` reset to 0 (always a fresh session timer)
 
 ### Session Accumulation
 
 While sitting, seconds are computed live (not committed until exit):
 - `live_sitting = sitting_seconds + (now - sitting_started)`
 - `live_current_session = current_session_secs + (now - sitting_started)`
+- `live_break = (now - break_started)` (computed on demand for standing/walking/away)
 
 ### Session Completion
 
 A sitting session ends when transitioning **from Sitting** to any other state:
 - Elapsed time committed: `sitting_seconds += elapsed`
+- `current_session_secs` reset to 0
 - `CompletedSession` created with `started_at`, `ended_at`, `duration_secs`
 - Saved to SQLite via `db_sessions::insert_session()`
 - `alert_fired` reset to false for the next sitting stint

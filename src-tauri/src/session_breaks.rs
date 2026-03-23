@@ -20,7 +20,6 @@ impl SessionManager {
                 if let Some(started) = self.state.sitting_started.take() {
                     let elapsed = (now - started).num_seconds().max(0);
                     self.state.sitting_seconds += elapsed;
-                    self.state.current_session_secs += elapsed;
                     self.state.last_sitting_secs = elapsed;
                     if *candidate != DeskState::Sitting {
                         completed_session = Some(CompletedSession {
@@ -153,5 +152,15 @@ impl SessionManager {
             return true;
         }
         false
+    }
+
+    /// Computes live break seconds: elapsed since break_started.
+    pub(crate) fn get_live_break_seconds(&self, now: DateTime<Utc>) -> i64 {
+        if self.state.state != DeskState::Sitting {
+            if let Some(started) = self.state.break_started {
+                return (now - started).num_seconds().max(0);
+            }
+        }
+        self.state.break_seconds
     }
 }
