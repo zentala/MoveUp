@@ -1,0 +1,57 @@
+/* kpi-strip.css — compact KPI row at top of widget */
+
+.kpi-strip {
+  display: flex;
+  gap: 12px;
+  padding: 4px 0 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.kpi-strip__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+
+.kpi-strip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+.kpi-strip__dot--green {
+  background: var(--signal-ok, #65a30d);
+  box-shadow: 0 0 4px var(--glow-ok, rgba(101, 163, 13, 0.3));
+}
+
+.kpi-strip__dot--yellow {
+  background: var(--signal-warn, #d4a017);
+  box-shadow: 0 0 4px rgba(212, 160, 23, 0.3);
+}
+
+.kpi-strip__dot--red {
+  background: var(--signal-alert, #b91c1c);
+  box-shadow: 0 0 4px rgba(185, 28, 28, 0.3);
+}
+
+.kpi-strip__value {
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-strip__best {
+  color: var(--signal-warn, #d4a017);
+  margin-left: 2px;
+  font-size: 10px;
+}
+
+/* Micro-animation on color change */
+@keyframes kpi-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.5); }
+  100% { transform: scale(1); }
+}
