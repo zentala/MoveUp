@@ -37,3 +37,19 @@
 - **Findings this session**: 0
 - **Improvements logged**: 0
 - **Next**: Pick E009 from BACKLOG.md candidates (State Machine Redesign, SQLite time-series, or dogfood E008)
+
+## Session 2026-03-24 (evening)
+
+- **Goal**: Audit BACKLOG.md accuracy, fix standing % bug, wire HourlyBreakTracker
+- **Done**:
+  - Backlog audit: 4 tasks marked done (E001-T09, E001-T11, E001-T12, E004-T05)
+  - Removed 6 stale BACKLOG sections (State Machine, KPI Strip, KPI rename, NotificationService, Coach Messages, Height stabilizer)
+  - Fixed standing % bug: Away time was counted as standing (85% instead of ~15%). Added `standing_bout_started` field to track actual Standing time independently from break duration (commits: 97e1862, 4b368c3)
+  - Wired HourlyBreakTracker into session loop: tick_away/tick_active from accumulate_ongoing, exposed in SessionState, metric uses real data, removed dead_code annotation
+  - Dead code cleanup: removed gap_handler.rs, height_readings DB schema, unused HourlyBreakTracker methods (serialize, deserialize, hours_missed)
+  - Fixed 4 tests missing standing_bout_started, added bouncing test (Standing→Away→Standing→Sitting)
+  - Commits: 97e1862, 4b368c3, c7a071b, 709a2fc, 47005d9
+- **Decisions**: None architectural — maintenance fixes
+- **Findings this session**: 1 (standing_seconds bug: Away→Sitting added full break_dur to standing_seconds)
+- **Improvements logged**: 0 (all fixed in same session)
+- **Next**: Dogfood app with fixes, pick next epic from BACKLOG
