@@ -1,6 +1,6 @@
 [package]
 name = "desk"
-version = "0.2.0"
+version = "0.3.0"
 description = "zntl Desk — VL53L1X ToF sensor reader"
 authors = ["zentala"]
 edition = "2021"
