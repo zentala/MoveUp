@@ -43,10 +43,10 @@ pub fn get_today_summary(conn: &Connection) -> Result<TodaySummary, String> {
 
     for session in &sessions {
         if let Some(duration) = session.duration_seconds {
-            if session.state == "Sitting" {
-                sitting_secs += duration;
-            } else {
-                standing_secs += duration;
+            match session.state.as_str() {
+                "Sitting" => sitting_secs += duration,
+                "Standing" | "Walking" => standing_secs += duration,
+                _ => {} // Away/unknown: excluded
             }
         }
     }

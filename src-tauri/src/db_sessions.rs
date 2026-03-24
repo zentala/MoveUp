@@ -32,15 +32,16 @@ pub fn insert_session(
 pub struct TodayTotals {
     pub sitting_secs: i64,
     pub standing_secs: i64,
-    /// Number of completed session rows today (proxy for position changes).
+    pub away_secs: i64,
+    /// Number of desk position changes (excludes Away transitions).
     pub position_changes: u32,
 }
 
 impl TodayTotals {
-    /// Creates totals for testing (position_changes defaults to 0).
+    /// Creates totals for testing (away_secs and position_changes default to 0).
     #[cfg(test)]
     pub fn from_secs(sitting: i64, standing: i64) -> Self {
-        Self { sitting_secs: sitting, standing_secs: standing, position_changes: 0 }
+        Self { sitting_secs: sitting, standing_secs: standing, away_secs: 0, position_changes: 0 }
     }
 }
 
@@ -70,7 +71,8 @@ pub fn load_today_totals(conn: &Connection) -> Result<TodayTotals, String> {
 
     let mut sitting_secs = 0i64;
     let mut standing_secs = 0i64;
-    let mut row_count = 0u32;
+    let mut away_secs = 0i64;
+    let mut desk_state_rows = 0u32;
 
     for row_result in rows {
         let (state, duration) = row_result.map_err(|e| {
@@ -79,28 +81,27 @@ pub fn load_today_totals(conn: &Connection) -> Result<TodayTotals, String> {
             msg
         })?;
 
-        if state == "Sitting" {
-            sitting_secs += duration;
-        } else {
-            standing_secs += duration;
+        match state.as_str() {
+            "Sitting" => sitting_secs += duration,
+            "Standing" | "Walking" => standing_secs += duration,
+            _ => { away_secs += duration; continue; }
         }
-        row_count += 1;
+        desk_state_rows += 1;
     }
 
-    // Each completed session row represents a state transition.
-    // position_changes ≈ number of transitions (rows / 2, since each change creates 2 bouts).
-    let position_changes = row_count.saturating_sub(1);
+    // position_changes = transitions between desk states (Sitting↔Standing).
+    // Away transitions are excluded — leaving the desk isn't a position change.
+    let position_changes = desk_state_rows.saturating_sub(1);
 
-    Ok(TodayTotals { sitting_secs, standing_secs, position_changes })
+    Ok(TodayTotals { sitting_secs, standing_secs, away_secs, position_changes })
 }
 
-/// Loads yesterday's total sitting and standing seconds from the database.
-/// Returns (sitting_secs, standing_secs) or an error.
-/// Returns (0, 0) if no sessions exist for yesterday.
-pub fn get_yesterday_totals(conn: &Connection) -> Result<(i64, i64), String> {
+/// Loads sitting and standing totals for a given date (YYYY-MM-DD).
+/// Away/unknown states are excluded from both totals.
+pub fn get_totals_for_date(conn: &Connection, date: &str) -> Result<(i64, i64), String> {
     let mut stmt = conn
         .prepare(
-            "SELECT state, duration_seconds FROM sessions WHERE date(started_at) = date('now', '-1 day') AND ended_at IS NOT NULL",
+            "SELECT state, duration_seconds FROM sessions WHERE started_at LIKE ? AND ended_at IS NOT NULL",
         )
         .map_err(|e| {
             let msg = format!("Failed to prepare query: {}", e);
@@ -109,11 +110,11 @@ pub fn get_yesterday_totals(conn: &Connection) -> Result<(i64, i64), String> {
         })?;
 
     let rows = stmt
-        .query_map([], |row| {
+        .query_map(rusqlite::params![format!("{}%", date)], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
         })
         .map_err(|e| {
-            let msg = format!("Failed to query yesterday's totals: {}", e);
+            let msg = format!("Failed to query totals for {}: {}", date, e);
             error!("{}", msg);
             msg
         })?;
@@ -127,14 +128,22 @@ pub fn get_yesterday_totals(conn: &Connection) -> Result<(i64, i64), String> {
             msg
         })?;
 
-        if state == "Sitting" {
-            sitting_secs += duration;
-        } else {
-            standing_secs += duration;
+        match state.as_str() {
+            "Sitting" => sitting_secs += duration,
+            "Standing" | "Walking" => standing_secs += duration,
+            _ => {} // Away/unknown: excluded from both totals
         }
     }
 
     Ok((sitting_secs, standing_secs))
+}
+
+/// Loads yesterday's totals. Convenience wrapper around [`get_totals_for_date`].
+pub fn get_yesterday_totals(conn: &Connection) -> Result<(i64, i64), String> {
+    let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
+        .format("%Y-%m-%d")
+        .to_string();
+    get_totals_for_date(conn, &yesterday)
 }
 
 /// Maps a database row to a [`SessionRow`].

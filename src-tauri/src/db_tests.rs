@@ -3,7 +3,7 @@
 use rusqlite::Connection;
 
 use crate::db::{init_schema, SessionRow};
-use crate::db_sessions::{insert_session, load_today_totals};
+use crate::db_sessions::{insert_session, load_today_totals, get_totals_for_date};
 use crate::db_queries::get_today_summary;
 use crate::db_sessions::get_yesterday_totals;
 
@@ -98,6 +98,27 @@ fn test_aggregate_mixed_states() {
 }
 
 #[test]
+fn test_away_excluded_from_standing_and_sitting() {
+    let conn = test_conn();
+    init_schema(&conn).unwrap();
+
+    let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
+
+    insert_session(&conn, &format!("{}08:00:00Z", today), &format!("{}08:30:00Z", today), "Sitting", 1800).unwrap();
+    insert_session(&conn, &format!("{}08:30:00Z", today), &format!("{}08:40:00Z", today), "Standing", 600).unwrap();
+    insert_session(&conn, &format!("{}08:40:00Z", today), &format!("{}09:40:00Z", today), "Away", 3600).unwrap();
+    insert_session(&conn, &format!("{}09:40:00Z", today), &format!("{}10:10:00Z", today), "Sitting", 1800).unwrap();
+
+    let totals = load_today_totals(&conn).unwrap();
+    assert_eq!(totals.sitting_secs, 3600, "sitting: 1800 + 1800");
+    assert_eq!(totals.standing_secs, 600, "standing: only Standing, not Away");
+    assert_eq!(totals.away_secs, 3600, "away: 1 hour");
+    // 3 desk-state rows (Sitting, Standing, Sitting) → 2 position changes
+    // Away row excluded from position_changes count
+    assert_eq!(totals.position_changes, 2, "Away doesn't count as position change");
+}
+
+#[test]
 fn test_incomplete_sessions_ignored() {
     let conn = test_conn();
     init_schema(&conn).unwrap();
@@ -152,6 +173,38 @@ fn test_get_today_summary_returns_all_sessions() {
     assert_eq!(summary.sessions.len(), 2, "should return all sessions");
     assert_eq!(summary.sitting_secs, 1800);
     assert_eq!(summary.standing_secs, 1800);
+}
+
+#[test]
+fn test_today_summary_excludes_away_from_standing() {
+    let conn = test_conn();
+    init_schema(&conn).unwrap();
+
+    let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
+
+    insert_session(&conn, &format!("{}08:00:00Z", today), &format!("{}08:30:00Z", today), "Sitting", 1800).unwrap();
+    insert_session(&conn, &format!("{}08:30:00Z", today), &format!("{}08:40:00Z", today), "Standing", 600).unwrap();
+    insert_session(&conn, &format!("{}08:40:00Z", today), &format!("{}09:40:00Z", today), "Away", 3600).unwrap();
+
+    let summary = get_today_summary(&conn).unwrap();
+    assert_eq!(summary.sitting_secs, 1800, "sitting: only Sitting rows");
+    assert_eq!(summary.standing_secs, 600, "standing: only Standing, not Away");
+    assert_eq!(summary.sessions.len(), 3, "all sessions returned including Away");
+}
+
+#[test]
+fn test_totals_for_date_excludes_away() {
+    let conn = test_conn();
+    init_schema(&conn).unwrap();
+
+    insert_session(&conn, "2025-06-15T08:00:00Z", "2025-06-15T08:30:00Z", "Sitting", 1800).unwrap();
+    insert_session(&conn, "2025-06-15T08:30:00Z", "2025-06-15T08:40:00Z", "Standing", 600).unwrap();
+    insert_session(&conn, "2025-06-15T08:40:00Z", "2025-06-15T09:40:00Z", "Away", 3600).unwrap();
+    insert_session(&conn, "2025-06-15T09:40:00Z", "2025-06-15T10:10:00Z", "Sitting", 1800).unwrap();
+
+    let (sitting, standing) = get_totals_for_date(&conn, "2025-06-15").unwrap();
+    assert_eq!(sitting, 3600, "sitting: 1800 + 1800, Away excluded");
+    assert_eq!(standing, 600, "standing: only Standing, not Away");
 }
 
 #[test]
