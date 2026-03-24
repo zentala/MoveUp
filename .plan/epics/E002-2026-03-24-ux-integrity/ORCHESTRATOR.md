@@ -17,7 +17,7 @@
   - **Live current session in timeline** — show what's happening NOW as a growing block,
     not only after state transition. Current state = rightmost block, extends in real-time.
   - Depends on: T02
-- [ ] **E002-T04** — Away flow tests (~15 Rust tests)
+- [x] **E002-T04** — Away flow tests (~15 Rust tests)
   - Low+inactive → Away, High+inactive → Away
   - `away_bout_secs` accumulation, 5-min position_change
   - `continuous_computer_secs` reset after 5 min Away

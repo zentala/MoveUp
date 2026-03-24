@@ -72,6 +72,10 @@ mod session_tests_serde;
 mod session_tests_break_credit;
 #[cfg(test)]
 mod session_tests_kpi;
+#[cfg(test)]
+mod session_tests_away;
+#[cfg(test)]
+mod session_tests_away_transitions;
 mod tray;
 mod tray_controller;
 #[cfg(test)]
