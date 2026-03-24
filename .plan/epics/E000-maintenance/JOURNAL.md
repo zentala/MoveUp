@@ -17,3 +17,23 @@
 - **Findings this session**: 0
 - **Improvements logged**: 5 (all fixed in same session)
 - **Next**: Manual verify with running app; PM structure migration
+
+## Session 2026-03-24
+
+- **Goal**: Full PM structure migration (.claude/ + .agent/ → .plan/epics/ + .arch/)
+- **Done**:
+  - Created 6 retroactive epics E001-E006 for all pre-migration work
+  - Renumbered existing E001→E007, E002→E008 (chronological ordering)
+  - Moved 44 task files to epic tasks/ folders with new IDs and frontmatter
+  - Moved overlay docs to .arch/overlay/ (DEVELOPER-GUIDE, KNOWLEDGE-BASE, MODE-COMPARISON, decisions/)
+  - Moved 4 vision docs from .agent/ to .plan/vision/
+  - Created .arch/ scaffolds: ARCHITECTURE.md, HISTORY.md, DDD.md, ADR/_template.md
+  - Rebuilt STATE.md (8 epics), DONE.md (72 tasks), BACKLOG.md (open + future)
+  - Archived root TASKS.md to .plan/reports/, replaced with epic pointer
+  - Updated CLAUDE.md path references
+  - Cleaned up: .claude/tasks/, journals/, plans/, raports/, alerts/, overlay/, test-runs/, .agent/
+  - Commit: cfb77c1
+- **Decisions**: Epic numbering follows chronology (oldest=lowest). Open tasks from old epics go to BACKLOG, not kept in done epics.
+- **Findings this session**: 0
+- **Improvements logged**: 0
+- **Next**: Pick E009 from BACKLOG.md candidates (State Machine Redesign, SQLite time-series, or dogfood E008)
