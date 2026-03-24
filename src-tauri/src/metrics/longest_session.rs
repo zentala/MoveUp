@@ -8,7 +8,7 @@ pub struct LongestSessionMetric;
 
 impl Metric for LongestSessionMetric {
     fn id(&self) -> &str { "longest_session" }
-    fn label(&self) -> &str { "Session" }
+    fn label(&self) -> &str { "\u{1f441} Screen" }
 
     fn compute(&self, state: &SessionState, config: &AppConfig) -> MetricResult {
         let longest_secs = state.longest_computer_session_secs

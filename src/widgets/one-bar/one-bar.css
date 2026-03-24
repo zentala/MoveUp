@@ -201,6 +201,17 @@
   gap: 6px;
   margin-bottom: 8px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.kpi-strip__header {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-tertiary);
+  opacity: 0.6;
+  margin-right: 2px;
 }
 
 .kpi-strip__badge {

@@ -8,7 +8,7 @@ pub struct HourlyBreakCoverageMetric;
 
 impl Metric for HourlyBreakCoverageMetric {
     fn id(&self) -> &str { "hourly_breaks" }
-    fn label(&self) -> &str { "Breaks" }
+    fn label(&self) -> &str { "\u{2615} Breaks" }
 
     fn compute(&self, state: &SessionState, config: &AppConfig) -> MetricResult {
         // This metric needs HourlyBreakTracker data which is not yet in SessionState.

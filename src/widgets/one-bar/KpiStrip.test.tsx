@@ -3,10 +3,10 @@ import { render, screen } from "@testing-library/react";
 import { KpiStrip } from "./KpiStrip";
 
 const mockMetrics = [
-  { id: "standing_pct", label: "Standing", result: { value: 15, display: "15%", level: "green" as const, is_personal_best: false } },
-  { id: "position_rate", label: "Changes", result: { value: 1.2, display: "1.2/h", level: "green" as const, is_personal_best: true } },
-  { id: "hourly_breaks", label: "Breaks", result: { value: 0.71, display: "5/7h", level: "green" as const, is_personal_best: false } },
-  { id: "longest_session", label: "Session", result: { value: 2820, display: "47m", level: "yellow" as const, is_personal_best: false } },
+  { id: "standing_pct", label: "\u2195 Standing", result: { value: 15, display: "15%", level: "green" as const, is_personal_best: false } },
+  { id: "position_rate", label: "\u21c4 Changes", result: { value: 1.2, display: "1.2/h", level: "green" as const, is_personal_best: true } },
+  { id: "hourly_breaks", label: "\u2615 Breaks", result: { value: 0.71, display: "5/7h", level: "green" as const, is_personal_best: false } },
+  { id: "longest_session", label: "\ud83d\udc41 Screen", result: { value: 2820, display: "47m", level: "yellow" as const, is_personal_best: false } },
 ];
 
 describe("KpiStrip", () => {
@@ -45,9 +45,9 @@ describe("KpiStrip", () => {
 
   it("renders labels for each metric", () => {
     render(<KpiStrip metrics={mockMetrics} />);
-    expect(screen.getByText("Standing")).toBeInTheDocument();
-    expect(screen.getByText("Changes")).toBeInTheDocument();
-    expect(screen.getByText("Breaks")).toBeInTheDocument();
-    expect(screen.getByText("Session")).toBeInTheDocument();
+    expect(screen.getByText("\u2195 Standing")).toBeInTheDocument();
+    expect(screen.getByText("\u21c4 Changes")).toBeInTheDocument();
+    expect(screen.getByText("\u2615 Breaks")).toBeInTheDocument();
+    expect(screen.getByText("\ud83d\udc41 Screen")).toBeInTheDocument();
   });
 });

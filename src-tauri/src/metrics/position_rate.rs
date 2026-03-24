@@ -8,7 +8,7 @@ pub struct PositionChangeRateMetric;
 
 impl Metric for PositionChangeRateMetric {
     fn id(&self) -> &str { "position_rate" }
-    fn label(&self) -> &str { "Changes" }
+    fn label(&self) -> &str { "\u{21c4} Changes" }
 
     fn compute(&self, state: &SessionState, config: &AppConfig) -> MetricResult {
         // Need first_reading_at to compute hours_worked

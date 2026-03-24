@@ -121,12 +121,12 @@ describe("OneBarWidget", () => {
           metrics: [
             {
               id: "standing_pct",
-              label: "Standing",
+              label: "\u2195 Standing",
               result: { value: 15, display: "15%", level: "green", is_personal_best: false },
             },
             {
               id: "position_rate",
-              label: "Changes",
+              label: "\u21c4 Changes",
               result: { value: 1.2, display: "1.2/h", level: "green", is_personal_best: true },
             },
           ],
