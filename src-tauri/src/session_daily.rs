@@ -31,6 +31,7 @@ impl SessionManager {
             self.standing_target_reached_fired = false;
             self.state.daily_score = 0.0;
             self.state.standing_session_secs = 0;
+            self.state.standing_session_started = None;
             self.state.lap_bonus_awarded_for_lap = 0;
             self.state.current_session_secs = 0;
             self.state.continuous_computer_secs = 0;
@@ -38,6 +39,7 @@ impl SessionManager {
             self.state.away_bout_secs = 0;
             self.state.first_reading_at = None;
             self.state.last_tick_ts = None;
+            self.state.last_accumulate_ts = None;
             self.last_reset_date = today;
             return true;
         }
@@ -45,6 +47,8 @@ impl SessionManager {
     }
 
     /// Accumulates score every tick (~1s). Called from serial_periodic after on_reading.
+    ///
+    /// Caller must gate this behind `last_accumulate_ran` to ensure 1 Hz rate.
     pub fn accumulate_score_tick(&mut self, config: &crate::config::AppConfig) {
         match self.state.state {
             DeskState::Sitting => {
@@ -52,14 +56,21 @@ impl SessionManager {
             }
             DeskState::Standing => {
                 self.state.daily_score += config.pts_standing_per_min / 60.0;
-                self.state.standing_session_secs += 1;
 
-                // Lap bonus: award when standing_session_secs crosses a target multiple.
+                // Compute live standing session duration from timestamp.
+                let live_standing_secs = self.state.standing_session_started
+                    .map(|s| (Utc::now() - s).num_seconds().max(0))
+                    .unwrap_or(self.state.standing_session_secs);
+                self.state.standing_session_secs = live_standing_secs;
+
+                // Lap bonus: award for each target multiple crossed.
                 let target_secs = config.standing_target_mins as i64 * 60;
                 if target_secs > 0 {
-                    let current_lap = self.state.standing_session_secs / target_secs;
-                    if current_lap > self.state.lap_bonus_awarded_for_lap as i64 {
-                        self.state.daily_score += config.pts_session_bonus;
+                    let current_lap = live_standing_secs / target_secs;
+                    let awarded = self.state.lap_bonus_awarded_for_lap as i64;
+                    if current_lap > awarded {
+                        let missed = current_lap - awarded;
+                        self.state.daily_score += config.pts_session_bonus * missed as f32;
                         self.state.lap_bonus_awarded_for_lap = current_lap as u32;
                     }
                 }

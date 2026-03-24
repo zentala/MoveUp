@@ -25,6 +25,7 @@ mod tests {
             last_break_credit: BreakCredit::None,
             daily_score: 0.0,
             standing_session_secs: 0,
+            standing_session_started: None,
             lap_bonus_awarded_for_lap: 0,
             current_session_secs: 0,
             continuous_computer_secs: 0,
@@ -32,6 +33,7 @@ mod tests {
             away_bout_secs: 0,
             first_reading_at: None,
             last_tick_ts: None,
+            last_accumulate_ts: None,
         }
     }
 

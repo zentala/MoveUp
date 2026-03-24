@@ -37,11 +37,15 @@ impl SessionManager {
                     self.stand_alert_fired = false;
                     self.state.last_position_change_at = Some(now);
                     self.state.last_break_credit = BreakCredit::None;
+                    if *candidate == DeskState::Standing {
+                        self.state.standing_session_started = Some(now);
+                    }
                 }
             }
             DeskState::Standing => {
                 if *candidate != DeskState::Standing {
                     self.state.standing_session_secs = 0;
+                    self.state.standing_session_started = None;
                     self.state.lap_bonus_awarded_for_lap = 0;
                     if *candidate == DeskState::Sitting {
                         // Finalize break: accumulate standing time, apply credit.

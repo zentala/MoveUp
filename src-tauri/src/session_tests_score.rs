@@ -48,7 +48,7 @@ mod tests {
         for _ in 0..60 {
             m.accumulate_score_tick(&config);
         }
-        // 60 ticks * (1.0 / 60) = 1.0 (no bonus yet, only 60s standing)
+        // 60 ticks * (1.0 / 60) = 1.0 (no bonus — standing_session_started not set)
         let expected = 1.0_f32;
         assert!((m.state.daily_score - expected).abs() < 0.02,
             "expected ~{}, got {}", expected, m.state.daily_score);
@@ -80,7 +80,10 @@ mod tests {
     fn lap_bonus_awarded_at_target() {
         let mut m = standing_manager();
         let config = default_config(); // standing_target_mins = 15
-        let target_ticks = 15 * 60; // 900 ticks
+        // Simulate 15 minutes of standing via timestamp.
+        m.state.standing_session_started =
+            Some(chrono::Utc::now() - chrono::Duration::seconds(15 * 60));
+        let target_ticks = 15 * 60;
         for _ in 0..target_ticks {
             m.accumulate_score_tick(&config);
         }
@@ -95,7 +98,10 @@ mod tests {
     fn no_bonus_before_target() {
         let mut m = standing_manager();
         let config = default_config();
-        let ticks = 14 * 60; // 840s, target is 900s
+        // Simulate 14 minutes of standing (below 15 min target).
+        m.state.standing_session_started =
+            Some(chrono::Utc::now() - chrono::Duration::seconds(14 * 60));
+        let ticks = 14 * 60;
         for _ in 0..ticks {
             m.accumulate_score_tick(&config);
         }
@@ -106,7 +112,9 @@ mod tests {
     fn no_double_bonus_same_lap() {
         let mut m = standing_manager();
         let config = default_config();
-        // Go to exactly the target, then 1 more tick.
+        // Simulate 15 min + 1s of standing.
+        m.state.standing_session_started =
+            Some(chrono::Utc::now() - chrono::Duration::seconds(15 * 60 + 1));
         for _ in 0..(15 * 60 + 1) {
             m.accumulate_score_tick(&config);
         }
@@ -118,7 +126,10 @@ mod tests {
     fn two_laps_two_bonuses() {
         let mut m = standing_manager();
         let config = default_config();
-        let ticks = 30 * 60; // 2 full laps
+        // Simulate 30 minutes of standing (2 full laps).
+        m.state.standing_session_started =
+            Some(chrono::Utc::now() - chrono::Duration::seconds(30 * 60));
+        let ticks = 30 * 60;
         for _ in 0..ticks {
             m.accumulate_score_tick(&config);
         }
@@ -133,7 +144,9 @@ mod tests {
     fn standing_session_resets_on_sit_allow_new_bonus() {
         let mut m = standing_manager();
         let config = default_config();
-        // Complete 1 lap.
+        // Complete 1 lap: 15 min of standing.
+        m.state.standing_session_started =
+            Some(chrono::Utc::now() - chrono::Duration::seconds(15 * 60));
         for _ in 0..(15 * 60) {
             m.accumulate_score_tick(&config);
         }
@@ -141,10 +154,13 @@ mod tests {
 
         // Simulate sitting transition: reset per-session fields.
         m.state.standing_session_secs = 0;
+        m.state.standing_session_started = None;
         m.state.lap_bonus_awarded_for_lap = 0;
         m.state.state = DeskState::Standing;
 
-        // Another full lap.
+        // Another full lap: 15 min from now.
+        m.state.standing_session_started =
+            Some(chrono::Utc::now() - chrono::Duration::seconds(15 * 60));
         for _ in 0..(15 * 60) {
             m.accumulate_score_tick(&config);
         }
@@ -157,6 +173,7 @@ mod tests {
         let mut m = standing_manager();
         m.state.daily_score = 42.0;
         m.state.standing_session_secs = 900;
+        m.state.standing_session_started = Some(chrono::Utc::now());
         m.state.lap_bonus_awarded_for_lap = 1;
 
         // Force a day change by backdating last_reset_date.
@@ -167,6 +184,7 @@ mod tests {
         assert!(did_reset);
         assert!((m.state.daily_score - 0.0).abs() < f32::EPSILON);
         assert_eq!(m.state.standing_session_secs, 0);
+        assert!(m.state.standing_session_started.is_none());
         assert_eq!(m.state.lap_bonus_awarded_for_lap, 0);
     }
 
@@ -175,9 +193,12 @@ mod tests {
         let mut m = standing_manager();
         m.state.daily_score = 12.5;
         m.state.standing_session_secs = 300;
+        m.state.standing_session_started =
+            Some(chrono::Utc::now() - chrono::Duration::seconds(300));
         let snap = m.snapshot();
         assert!((snap.daily_score - 12.5).abs() < f32::EPSILON);
-        assert_eq!(snap.standing_session_secs, 300);
+        assert!(snap.standing_session_secs >= 299 && snap.standing_session_secs <= 301,
+            "expected ~300, got {}", snap.standing_session_secs);
     }
 
     #[test]

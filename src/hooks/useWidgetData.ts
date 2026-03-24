@@ -1,11 +1,13 @@
 /**
- * useWidgetData.ts — assembles WidgetProps from useDesk + useTimer hooks.
+ * useWidgetData.ts — assembles WidgetProps from useDesk data.
  *
  * Centralizes the mapping from raw desk state to the presentation
  * contract that widgets consume, keeping App.tsx lean.
+ *
+ * The backend already sends live values (computed via DateTime arithmetic)
+ * every 1s, so no client-side timer interpolation is needed.
  */
 import { useDesk } from "@/hooks/useDesk";
-import { useTimer } from "@/hooks/useTimer";
 import type { WidgetProps } from "@/types";
 
 /**
@@ -17,25 +19,16 @@ import type { WidgetProps } from "@/types";
 export function useWidgetData(onOpenSettings: () => void): WidgetProps {
   const desk = useDesk();
 
-  const liveSitting = useTimer(
-    desk.sittingSeconds,
-    desk.state === "Sitting",
-  );
-  const liveBreak = useTimer(
-    desk.breakSeconds,
-    desk.state !== "Sitting",
-  );
-
   return {
     connected: desk.connected,
     port: desk.port,
     state: desk.state,
     deskHeightCm: desk.deskHeightCm,
-    currentSessionSecs: liveSitting,
+    currentSessionSecs: desk.sittingSeconds,
     limitSecs: desk.sessionLimitSecs,
     limitRemaining: desk.limitRemaining,
     limitRatio: desk.limitRatio,
-    breakSecs: liveBreak,
+    breakSecs: desk.breakSeconds,
     breakResetThreshold: desk.breakResetThreshold,
     breakResetProgress: desk.breakResetProgress,
     previousSession: desk.previousSession,

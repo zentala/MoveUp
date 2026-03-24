@@ -71,6 +71,8 @@ pub struct SessionState {
     pub daily_score: f32,
     /// Standing seconds in current continuous standing session (resets on sit/away).
     pub standing_session_secs: i64,
+    /// Timestamp when current standing session started (for live computation).
+    pub standing_session_started: Option<DateTime<Utc>>,
     /// The last lap number for which the +5 bonus was awarded (resets per session).
     pub lap_bonus_awarded_for_lap: u32,
     /// Seconds in the current sitting session only (resets on Sitting entry, after break credit).
@@ -87,6 +89,9 @@ pub struct SessionState {
     pub first_reading_at: Option<DateTime<Utc>>,
     /// Timestamp of last tick (for gap detection on app restart).
     pub last_tick_ts: Option<DateTime<Utc>>,
+    /// Timestamp of last `accumulate_ongoing()` execution (throttle: max 1 Hz).
+    /// Sensor readings may arrive faster than 1 Hz; this prevents inflated counters.
+    pub last_accumulate_ts: Option<DateTime<Utc>>,
 }
 
 /// Serialisable DTO emitted with state-change events.

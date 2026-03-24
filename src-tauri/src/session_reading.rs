@@ -125,7 +125,20 @@ impl SessionManager {
     }
 
     /// Accumulates time while remaining in the current state (no transition).
+    ///
+    /// Throttled to run at most once per second: the sensor may send readings
+    /// faster than 1 Hz, but counters like `continuous_computer_secs` and
+    /// `away_bout_secs` must grow at wall-clock rate.
     pub(crate) fn accumulate_ongoing(&mut self, now: DateTime<Utc>) {
+        self.last_accumulate_ran = false;
+        if let Some(prev) = self.state.last_accumulate_ts {
+            if (now - prev).num_seconds() < 1 {
+                return;
+            }
+        }
+        self.state.last_accumulate_ts = Some(now);
+        self.last_accumulate_ran = true;
+
         // Continuous computer timer and Away bout tracking.
         match self.state.state {
             DeskState::Sitting | DeskState::Standing | DeskState::Walking => {

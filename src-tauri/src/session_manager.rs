@@ -22,6 +22,9 @@ pub struct SessionManager {
     pub standing_target_reached_fired: bool,
     /// Smooths raw sensor readings for stable UI display.
     pub(crate) height_stabilizer: HeightStabilizer,
+    /// Set to `true` by `accumulate_ongoing` when it actually executes (not throttled).
+    /// Callers use this to gate per-second work like `accumulate_score_tick`.
+    pub(crate) last_accumulate_ran: bool,
 }
 
 impl SessionManager {
@@ -46,6 +49,7 @@ impl SessionManager {
                 last_break_credit: BreakCredit::None,
                 daily_score: 0.0,
                 standing_session_secs: 0,
+                standing_session_started: None,
                 lap_bonus_awarded_for_lap: 0,
                 current_session_secs: 0,
                 continuous_computer_secs: 0,
@@ -53,6 +57,7 @@ impl SessionManager {
                 away_bout_secs: 0,
                 first_reading_at: None,
                 last_tick_ts: None,
+                last_accumulate_ts: None,
             },
             pending_state: None,
             pending_count: 0,
@@ -68,6 +73,7 @@ impl SessionManager {
             praise_halfway_fired_today: false,
             standing_target_reached_fired: false,
             height_stabilizer: HeightStabilizer::new(),
+            last_accumulate_ran: false,
         }
     }
 
@@ -92,6 +98,7 @@ impl SessionManager {
                 last_break_credit: BreakCredit::None,
                 daily_score: 0.0,
                 standing_session_secs: 0,
+                standing_session_started: None,
                 lap_bonus_awarded_for_lap: 0,
                 current_session_secs: 0,
                 continuous_computer_secs: 0,
@@ -99,6 +106,7 @@ impl SessionManager {
                 away_bout_secs: 0,
                 first_reading_at: None,
                 last_tick_ts: None,
+                last_accumulate_ts: None,
             },
             pending_state: None,
             pending_count: 0,
@@ -114,6 +122,7 @@ impl SessionManager {
             praise_halfway_fired_today: false,
             standing_target_reached_fired: false,
             height_stabilizer: HeightStabilizer::new(),
+            last_accumulate_ran: false,
         }
     }
 
@@ -155,7 +164,7 @@ impl SessionManager {
             position_changes: self.state.position_changes,
             limit_used_secs: self.compute_limit_used(now),
             daily_score: self.state.daily_score,
-            standing_session_secs: self.state.standing_session_secs,
+            standing_session_secs: self.get_live_standing_session_secs(now),
             current_session_secs: live_current,
             continuous_computer_secs: self.state.continuous_computer_secs,
             longest_computer_session_secs: self.state.longest_computer_session_secs,
@@ -196,6 +205,16 @@ impl SessionManager {
         }
         self.state.sitting_seconds
     }
+    /// Computes live standing session seconds from timestamp.
+    pub(crate) fn get_live_standing_session_secs(&self, now: DateTime<Utc>) -> i64 {
+        if self.state.state == DeskState::Standing {
+            if let Some(started) = self.state.standing_session_started {
+                return (now - started).num_seconds().max(0);
+            }
+        }
+        self.state.standing_session_secs
+    }
+
     /// Returns the current desk state.
     pub fn current_state(&self) -> DeskState {
         self.state.state.clone()
