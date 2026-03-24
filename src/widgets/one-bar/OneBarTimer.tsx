@@ -1,8 +1,9 @@
 /**
- * OneBarTimer.tsx — big timer display with state label and progress bar.
+ * OneBarTimer.tsx — big timer display with progress bar.
  *
  * Shows elapsed / total as the primary number (e.g., "25:00 / 40:00").
  * Uses the unified ProgressBar component for the inline progress bar.
+ * State label has moved to OneBarHeader — this component focuses on numbers.
  */
 import type { FC } from "react";
 import type { WidgetProps } from "@/types";
@@ -10,20 +11,20 @@ import { formatDuration, formatDurationShort, colorSchemeFor } from "@/utils/for
 import { ProgressBar } from "@/components/ProgressBar";
 import { useTimerAnimations } from "@/hooks/useTimerAnimations";
 
-/** State indicator labels for each desk state. */
+/** State labels used in tooltip text. */
 const STATE_LABELS: Record<string, string> = {
-  Sitting: "sitting",
-  Standing: "standing",
-  Walking: "walking",
-  Away: "away",
+  Sitting: "Sitting",
+  Standing: "Standing",
+  Walking: "Walking",
+  Away: "Away",
 };
 
-/** Renders state label, big timer, previous session info, and the progress bar. */
+/** Renders big timer, previous session info, and the progress bar. */
 export const OneBarTimer: FC<WidgetProps> = (props) => {
   const stateLabel = STATE_LABELS[props.state] ?? props.state;
   const isSitting = props.state === "Sitting";
 
-  // Standing/Walking/Away → show break duration & standing target
+  // Standing/Walking/Away: show break duration & standing target
   const elapsed = isSitting ? props.currentSessionSecs : props.breakSecs;
   const total = isSitting ? props.limitSecs : props.standLimitSecs;
 
@@ -32,16 +33,12 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
   const isOvertime = props.limitRemaining < 0 && isSitting;
   const { shimmer } = useTimerAnimations(props.state, props.limitRatio);
 
-  const tooltipText = `${stateLabel}: ${elapsedStr} / ${totalStr}`;
+  const tooltipText = `${stateLabel} for ${elapsedStr} out of ${totalStr} limit`;
 
   return (
     <div className="one-bar__timer" data-testid="one-bar-timer">
       <div className="one-bar__timer-row">
         <div className="one-bar__timer-left" title={tooltipText}>
-          <div className="one-bar__state-label">
-            <span className="one-bar__state-dot" />
-            {stateLabel}
-          </div>
           <div className="one-bar__big-number" data-testid="one-bar-big-number">
             {isOvertime && <span className="one-bar__overtime-sign">+</span>}
             {elapsedStr}

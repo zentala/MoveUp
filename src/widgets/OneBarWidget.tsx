@@ -2,8 +2,11 @@
  * OneBarWidget.tsx — horizontal popup widget with unified progress bar,
  * temperature escalation, timeline, and one-line coach.
  *
- * One bar, one meaning: the progress bar represents limit usage.
- * Fills when sitting, drains when standing/away.
+ * Visual hierarchy (top to bottom):
+ * 1. Header — state dot + label + height + gear
+ * 2. Timer — big number + progress bar
+ * 3. KPI strip — today's metrics
+ * 4. Timeline — session history at bottom
  */
 import type { FC } from "react";
 import type { WidgetProps } from "@/types";
@@ -11,17 +14,39 @@ import { computeTemperature } from "./one-bar/temperature";
 import { OneBarTimeline } from "./one-bar/OneBarTimeline";
 import { OneBarTimer } from "./one-bar/OneBarTimer";
 import { KpiStrip } from "./one-bar/KpiStrip";
+import { stateColor } from "@/utils/colors";
 import "./one-bar/one-bar.css";
 
-/** Header row: title with desk height and settings gear. */
+/** State labels for each desk state. */
+const STATE_LABELS: Record<string, string> = {
+  Sitting: "sitting",
+  Standing: "standing",
+  Walking: "walking",
+  Away: "away",
+};
+
+/** Header row: colored state dot + label + desk height + settings gear. */
 const OneBarHeader: FC<WidgetProps> = (props) => {
+  const label = STATE_LABELS[props.state] ?? props.state;
   const heightLabel =
-    props.deskHeightCm > 0 ? `${props.deskHeightCm.toFixed(0)} cm` : "";
+    props.deskHeightCm > 0 ? `(${props.deskHeightCm.toFixed(0)} cm)` : "";
+  const dotColor = stateColor(props.state, props.limitRatio);
+  const tooltip = `Current state: ${label}${heightLabel ? ` — desk at ${props.deskHeightCm.toFixed(0)} cm` : ""}`;
 
   return (
     <div className="one-bar__header">
-      <div>
-        <span className="one-bar__title">{"\u2195"} desk</span>
+      <div className="one-bar__header-left" title={tooltip}>
+        <span
+          className="one-bar__header-dot"
+          style={{ backgroundColor: dotColor }}
+        />
+        <span
+          className="one-bar__header-state"
+          style={{ color: dotColor }}
+        >
+          {label}
+        </span>
+        <span className="one-bar__header-context">@ desk</span>
         {heightLabel && (
           <span className="one-bar__height">{heightLabel}</span>
         )}
@@ -37,7 +62,7 @@ const OneBarHeader: FC<WidgetProps> = (props) => {
   );
 };
 
-/** One Bar widget — horizontal layout with timeline, timer, and coach. */
+/** One Bar widget — horizontal layout with header, timer, KPIs, timeline. */
 export const OneBarWidget: FC<WidgetProps> = (props) => {
   const temperature = computeTemperature(props);
 
@@ -47,9 +72,9 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
       data-testid="one-bar-widget"
     >
       <OneBarHeader {...props} />
+      <OneBarTimer {...props} />
       <KpiStrip metrics={props.metrics} />
       <OneBarTimeline {...props} />
-      <OneBarTimer {...props} />
     </div>
   );
 };

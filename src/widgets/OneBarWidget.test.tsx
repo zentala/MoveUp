@@ -92,7 +92,23 @@ describe("OneBarWidget", () => {
 
   it("shows desk height in header", () => {
     render(<OneBarWidget {...props({ deskHeightCm: 72.4 })} />);
-    expect(screen.getByText("72 cm")).toBeInTheDocument();
+    expect(screen.getByText("(72 cm)")).toBeInTheDocument();
+  });
+
+  it("shows state label in header with correct text", () => {
+    const { rerender } = render(<OneBarWidget {...props({ state: "Sitting" })} />);
+    expect(screen.getByText("sitting")).toBeInTheDocument();
+
+    rerender(<OneBarWidget {...props({ state: "Standing" })} />);
+    expect(screen.getByText("standing")).toBeInTheDocument();
+
+    rerender(<OneBarWidget {...props({ state: "Away" })} />);
+    expect(screen.getByText("away")).toBeInTheDocument();
+  });
+
+  it("header has state tooltip with current state and height", () => {
+    render(<OneBarWidget {...props({ state: "Sitting", deskHeightCm: 72 })} />);
+    expect(screen.getByTitle(/Current state: sitting/)).toBeInTheDocument();
   });
 
   it("shows elapsed/total as big number", () => {

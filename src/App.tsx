@@ -12,8 +12,6 @@ import { useWidgetData } from "@/hooks/useWidgetData";
 import { useActiveWidget } from "@/hooks/useActiveWidget";
 import { resolveWidget } from "@/widgets/registry";
 import SettingsPanel from "@/components/SettingsPanel";
-import { ProgressBar } from "@/components/ProgressBar";
-import { colorSchemeFor } from "@/utils/format";
 import "@/styles/globals.css";
 
 const MockupGallery = lazy(() => import("@/pages/MockupGallery"));
@@ -55,7 +53,6 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  const showOverlay = widgetProps.limitSecs > 0;
   const ActiveWidget = resolveWidget(activeWidgetId);
 
   if (showSettings) {
@@ -67,39 +64,15 @@ export default function App() {
   }
 
   return (
-    <>
-      {showOverlay && (
-        <ProgressBar
-          elapsed={
-            widgetProps.state === "Sitting"
-              ? widgetProps.currentSessionSecs
-              : widgetProps.breakSecs
-          }
-          total={
-            widgetProps.state === "Sitting"
-              ? widgetProps.limitSecs
-              : widgetProps.standLimitSecs
-          }
-          variant="overlay"
-          colorScheme={colorSchemeFor(widgetProps.state)}
-          completedLaps={
-            widgetProps.standLimitSecs > 0
-              ? Math.floor(widgetProps.breakSecs / widgetProps.standLimitSecs)
-              : 0
-          }
-        />
+    <main className="app">
+      <ActiveWidget {...widgetProps} />
+
+      {/* Debug: overlay state — DEV only */}
+      {import.meta.env.DEV && overlayDebug && (
+        <div className="app__debug">
+          overlay: {String(overlayDebug.data_source)} | {String(overlayDebug.progress_pct)} | visible={String(overlayDebug.visible)} | h={String(overlayDebug.bar_height)}px
+        </div>
       )}
-
-      <main className="app">
-        <ActiveWidget {...widgetProps} />
-
-        {/* Debug: overlay state — DEV only */}
-        {import.meta.env.DEV && overlayDebug && (
-          <div className="app__debug">
-            overlay: {String(overlayDebug.data_source)} | {String(overlayDebug.progress_pct)} | visible={String(overlayDebug.visible)} | h={String(overlayDebug.bar_height)}px
-          </div>
-        )}
-      </main>
-    </>
+    </main>
   );
 }

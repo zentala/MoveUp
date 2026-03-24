@@ -29,6 +29,22 @@ export const STANDING_LAP_BASE = "#B8860B";
 /** Away state color. */
 export const AWAY_GRAY = "#808080";
 
+/** Standing state accent color (goldenrod). */
+export const STANDING_GOLD = "#DAA520";
+
+/**
+ * Returns the state dot / label color for a given desk state.
+ *
+ * - Sitting: progress-based (green/yellow/red)
+ * - Standing: gold
+ * - Away/Walking: gray
+ */
+export function stateColor(state: string, limitRatio = 0): string {
+  if (state === "Sitting") return sittingColorForRatio(limitRatio);
+  if (state === "Standing") return STANDING_GOLD;
+  return AWAY_GRAY;
+}
+
 /**
  * Returns the sitting progress bar color for a given ratio (0.0-1.0).
  *

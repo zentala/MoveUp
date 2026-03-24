@@ -151,17 +151,17 @@ describe("OneBarTimer — standing timer regression", () => {
     expect(bigNum.textContent).toContain("15:00");
   });
 
-  it("displays correct state label for each state", () => {
+  it("displays correct state in tooltip for each state", () => {
     const { rerender } = render(
-      <OneBarTimer {...props({ state: "Standing" })} />,
+      <OneBarTimer {...props({ state: "Standing", breakSecs: 0, standLimitSecs: 900 })} />,
     );
-    expect(screen.getByText("standing")).toBeInTheDocument();
+    expect(screen.getByTitle(/Standing for/)).toBeInTheDocument();
 
     rerender(<OneBarTimer {...props({ state: "Sitting" })} />);
-    expect(screen.getByText("sitting")).toBeInTheDocument();
+    expect(screen.getByTitle(/Sitting for/)).toBeInTheDocument();
 
-    rerender(<OneBarTimer {...props({ state: "Away" })} />);
-    expect(screen.getByText("away")).toBeInTheDocument();
+    rerender(<OneBarTimer {...props({ state: "Away", breakSecs: 0, standLimitSecs: 900 })} />);
+    expect(screen.getByTitle(/Away for/)).toBeInTheDocument();
   });
 
   it("sitting overtime shows + sign, standing does not", () => {
