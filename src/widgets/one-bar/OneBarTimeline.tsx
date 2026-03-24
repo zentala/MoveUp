@@ -36,21 +36,30 @@ interface TimelineTooltip {
   leftPct: number;
 }
 
+/** Current session duration: sitting uses currentSessionSecs, others use breakSecs. */
+function currentDuration(props: WidgetProps): number {
+  return props.state === "Sitting"
+    ? props.currentSessionSecs
+    : props.breakSecs;
+}
+
 /** Renders the session timeline with proportional blocks. */
 export const OneBarTimeline: FC<WidgetProps> = (props) => {
   const [tooltip, setTooltip] = useState<TimelineTooltip | null>(null);
   const sessions = props.todaySessions;
+  const liveSecs = currentDuration(props);
 
-  if (sessions.length === 0) {
+  const completedTotal = sessions.reduce((s, e) => s + e.duration_secs, 0);
+  const totalSecs = completedTotal + liveSecs;
+  const maxSecs = Math.max(totalSecs, 1);
+
+  if (sessions.length === 0 && liveSecs === 0) {
     return (
       <div className="one-bar__timeline" data-testid="one-bar-timeline">
         <div className="one-bar__timeline-empty">No sessions yet</div>
       </div>
     );
   }
-
-  const totalSecs = sessions.reduce((s, e) => s + e.duration_secs, 0);
-  const maxSecs = Math.max(totalSecs, 1);
 
   // Compute hour markers for the timeline
   const hourMarkers: { leftPct: number; label: string }[] = [];
@@ -87,6 +96,18 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
     });
   };
 
+  const handleLiveMouseEnter = (
+    widthPct: number,
+    offsetPct: number,
+  ): void => {
+    const label = props.state.toLowerCase();
+    const dur = formatDurationShort(liveSecs);
+    setTooltip({
+      text: `now \u2014 ${label} ${dur}`,
+      leftPct: offsetPct + widthPct / 2,
+    });
+  };
+
   const handleMouseLeave = (): void => setTooltip(null);
 
   let offsetPct = 0;
@@ -98,17 +119,29 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
           const widthPct = Math.max((entry.duration_secs / maxSecs) * 100, 0.5);
           const currentOffset = offsetPct;
           offsetPct += widthPct;
-          const isLast = i === sessions.length - 1 && entry.end === null;
           return (
             <div
               key={`${entry.start}-${i}`}
-              className={`one-bar__timeline-block one-bar__timeline-block--${blockModifier(entry.state)}${isLast ? " one-bar__timeline-block--current" : ""}`}
+              className={`one-bar__timeline-block one-bar__timeline-block--${blockModifier(entry.state)}`}
               style={{ width: `${widthPct}%` }}
               onMouseEnter={() => handleMouseEnter(entry, widthPct, currentOffset)}
               onMouseLeave={handleMouseLeave}
             />
           );
         })}
+        {liveSecs > 0 && (
+          <div
+            key="live-current"
+            className={`one-bar__timeline-block one-bar__timeline-block--${blockModifier(props.state)} one-bar__timeline-block--current`}
+            style={{ width: `${Math.max((liveSecs / maxSecs) * 100, 0.5)}%` }}
+            data-testid="timeline-live-block"
+            onMouseEnter={() => {
+              const w = Math.max((liveSecs / maxSecs) * 100, 0.5);
+              handleLiveMouseEnter(w, offsetPct);
+            }}
+            onMouseLeave={handleMouseLeave}
+          />
+        )}
       </div>
       {hourMarkers.map((marker) => (
         <div
