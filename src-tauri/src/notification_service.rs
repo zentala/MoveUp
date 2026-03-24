@@ -147,7 +147,7 @@ impl NotificationService {
 }
 
 /// Maps a notification event to a short log tag for the event log.
-fn notification_log_tag(event: &NotificationEvent) -> &'static str {
+pub(crate) fn notification_log_tag(event: &NotificationEvent) -> &'static str {
     match event {
         NotificationEvent::Inactivity => "inactivity",
         NotificationEvent::PostureBalance => "posture_balance",
