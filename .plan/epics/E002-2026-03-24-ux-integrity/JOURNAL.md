@@ -32,3 +32,34 @@
   - Overlay bar defaults to demo in dev mode (not obvious)
 - **Improvements logged**: 0 (all captured in E002 PLAN.md)
 - **Next**: E002-T01 (UX-FLOW.md update), then T02 (Away state fix)
+
+## Session 2026-03-24 10:30–12:00
+
+- **Goal**: Implement all 13 E002 tasks + add versioning rule
+- **Done**:
+  - Added versioning rule (`.claude/rules/versioning.md`): each epic = version bump
+  - Tagged `v0.1.0` (E001) and `v0.2.0` (E002)
+  - T01: UX-FLOW.md synced with E001 + target state machine (cd3095b)
+  - T02: Away state fix — `!active → Away` regardless of desk height (c305f08)
+  - T04: 17 Away flow tests (b17a923)
+  - T03: Live current session block in timeline (81d89af, merged)
+  - T05: KPI rename + Unicode icons: `↕ Standing`, `⇄ Changes`, `☕ Breaks`, `👁 Screen` (a557be6, merged)
+  - T06: Color unification — `colors.ts` + CSS vars matched to Rust `colors.rs` (72f46f0, merged)
+  - T11: Process guard — rewired package.json to use `tauri-dev.sh`, removed `cross-env` (4da0ee9, merged)
+  - T12: 8 regression tests for standing timer (d16b22e, merged)
+  - T07: 2-layer gold visual for standing laps (152d7ce, merged)
+  - T09: NotificationService — centralized 6 toasts, wired `notification_backend` config (0408700, merged)
+  - T08: Popup redesign — timer first, state dot in header, removed redundant bar (b6fd863, merged)
+  - T10: 28 NotificationService tests (86ef5b7, merged)
+  - T13: Final UX-FLOW.md verification — fixed 3 discrepancies (7d3332c)
+  - Split oversized test file (273→152+113 lines) (52d4106)
+- **Decisions**:
+  - Versioning: `0.MAJOR.0` per epic, `0.MAJOR.MINOR` for hotfixes
+  - Walking grouped with Away in `accumulate_ongoing` (both = not at computer)
+  - Notification suppression: early return in `check_notification_conditions` for Away/Walking
+  - `cross-env` removed — bash script handles env vars
+- **Findings this session**: 1
+  - `notification_service_tests.rs` exceeded 250-line limit (273 lines) — split immediately
+- **Improvements logged**: 0
+- **Test totals**: 339 Rust + 169 TS = 508 tests, all green
+- **Next**: E002 complete. Consider E003 or backlog items (SQLite time-series, timeline full window, notification A/B testing)

@@ -1,27 +1,36 @@
 ---
-updated: 2026-03-24T10:10:00Z
-active_epic: E002
-active_epic_path: .plan/epics/E002-2026-03-24-ux-integrity
-current_wave: 0
+updated: 2026-03-24T12:00:00Z
+active_epic: none
+active_epic_path: null
+current_wave: null
 ---
 
 ## Status
-- E000 (maintenance) — **done**
-- E001 (Timer UX + KPI Dashboard + MetricEngine) — **DONE** (all 11 tasks merged)
-- E002 (UX Integrity) — **PLANNED** (13 tasks, 4 waves, 0 started)
+- E000 (maintenance) — open (permanent)
+- E001 (Timer UX + KPI Dashboard + MetricEngine) — **DONE** (v0.1.0)
+- E002 (UX Integrity) — **DONE** (v0.2.0, 13/13 tasks, 508 tests)
 
-## E002 Pre-work (done this session, committed b63c050)
-- Fixed standing timer regression (E001-T03 had overwritten fix 4e8d011)
-- Fixed popup/overlay ProgressBar to be state-aware (standing = gold)
-- Added standLimitSecs to full data flow
-- Changed default dev mode to live (not demo)
-- Added KPI badge tooltips
-- Created mockup gallery (/#/mockup) with 9 scenarios
-- Created /popup-mockup skill + ux-design-flow + ux-flow-sync rules
-- Created E002 PLAN.md + ORCHESTRATOR.md
-- Updated BACKLOG with 6 new items
+## Version
+- Current: `v0.2.0` (tagged)
+- Rule: each new epic bumps `0.MAJOR.0`
+
+## Test Totals
+- Rust: 339 tests
+- TypeScript: 169 tests
+- Total: 508
+
+## What E002 Shipped
+- Away state: inactive → Away regardless of desk height
+- Live current session in timeline
+- KPI labels with Unicode icons + "Today" header
+- Unified color palette (Rust + TS)
+- 2-layer gold visual for standing laps
+- Popup redesign: timer first, state in header
+- NotificationService: centralized 6 toasts, wired `notification_backend` config
+- Process guard restored (`tauri-dev.sh`)
+- UX-FLOW.md fully synced
 
 ## Next Steps
-1. E002-T01: Update UX-FLOW.md (sync with E001 + target state machine)
-2. E002-T02: Away state machine fix (inactive → Away regardless of desk)
-3. Visual review with /popup-mockup before implementing layout changes
+1. Pick next epic from BACKLOG.md or define E003
+2. Candidates: SQLite time-series, timeline full window, notification A/B testing
+3. Or: run app live, dogfood E002 changes, collect feedback
