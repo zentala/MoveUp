@@ -5,7 +5,7 @@
   - Blocks: all other tasks (everyone needs to read the same truth)
 
 ## Wave 1: State Machine Fix (Rust backend)
-- [ ] **E002-T02** — Away state: inactive → Away regardless of desk height
+- [x] **E002-T02** — Away state: inactive → Away regardless of desk height
   - Modify `session_reading.rs`: `!active → DeskState::Away`
   - Mark `Walking` as future (comment in enum, keep variant)
   - Away = new session start (not continuation of old sitting)

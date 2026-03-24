@@ -108,12 +108,21 @@ mod tests {
     }
 
     #[test]
-    fn high_reading_inactive_produces_walking_candidate() {
+    fn high_reading_inactive_produces_away_candidate() {
         let mut m = SessionManager::new();
         for _ in 0..DEBOUNCE_COUNT {
             let _result = m.on_reading(1200, false);
         }
-        assert_eq!(m.state.state, DeskState::Walking);
+        assert_eq!(m.state.state, DeskState::Away);
+    }
+
+    #[test]
+    fn low_reading_inactive_produces_away_candidate() {
+        let mut m = SessionManager::new();
+        for _ in 0..DEBOUNCE_COUNT {
+            let _result = m.on_reading(800, false);
+        }
+        assert_eq!(m.state.state, DeskState::Away);
     }
 
     #[test]
@@ -146,19 +155,19 @@ mod tests {
     }
 
     #[test]
-    fn standing_seconds_does_not_accumulate_in_walking() {
+    fn standing_seconds_does_not_accumulate_in_away() {
         let mut m = SessionManager::new();
         m.state.standing_seconds = 0;
         for _ in 0..DEBOUNCE_COUNT {
             let _ = m.on_reading(1200, false);
         }
-        assert_eq!(m.state.state, DeskState::Walking);
+        assert_eq!(m.state.state, DeskState::Away);
         m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(300));
         let standing_before = m.state.standing_seconds;
         let _ = m.on_reading(1200, false);
         assert_eq!(
             m.state.standing_seconds, standing_before,
-            "standing_seconds must not increase in Walking state"
+            "standing_seconds must not increase in Away state"
         );
     }
 

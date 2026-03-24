@@ -124,10 +124,14 @@ impl SessionManager {
     }
 
     /// Checks notification conditions and returns events that should fire.
+    /// Suppresses all notifications when user is Away (no point nagging an empty desk).
     pub fn check_notification_conditions(
         &mut self,
         config: &crate::config::AppConfig,
     ) -> Vec<NotificationEvent> {
+        if self.state.state == DeskState::Away || self.state.state == DeskState::Walking {
+            return Vec::new();
+        }
         let now = Utc::now();
         let mut events = Vec::new();
         if config.notify_inactivity && !self.notify_inactivity_fired {

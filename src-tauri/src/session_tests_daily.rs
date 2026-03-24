@@ -86,6 +86,7 @@ mod tests {
     #[test]
     fn check_notification_conditions_inactivity_fires_after_60min() {
         let mut m = SessionManager::new();
+        m.state.state = DeskState::Sitting;
         let config = crate::config::AppConfig {
             notify_inactivity: true,
             ..Default::default()
@@ -114,6 +115,7 @@ mod tests {
     #[test]
     fn check_notification_conditions_posture_balance_fires() {
         let mut m = SessionManager::new();
+        m.state.state = DeskState::Sitting;
         let config = crate::config::AppConfig {
             notify_daily_posture_balance: true,
             ..Default::default()
@@ -157,6 +159,7 @@ mod tests {
     #[test]
     fn standing_target_reached_fires_when_standing_exceeds_limit() {
         let mut m = SessionManager::new();
+        m.state.state = DeskState::Standing;
         m.state.stand_limit_secs = 900; // 15 min
         m.state.standing_seconds = 900;
         let config = crate::config::AppConfig::default();
@@ -168,6 +171,7 @@ mod tests {
     #[test]
     fn standing_target_reached_does_not_fire_twice() {
         let mut m = SessionManager::new();
+        m.state.state = DeskState::Standing;
         m.state.stand_limit_secs = 900;
         m.state.standing_seconds = 1000;
         let config = crate::config::AppConfig::default();

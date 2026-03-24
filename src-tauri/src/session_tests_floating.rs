@@ -231,12 +231,12 @@ mod floating_window_tests {
         transition_to_sitting(&mut m);
         assert_eq!(m.state.position_changes, 2, "stand->sit = 2");
 
-        // Sit -> Walk (high reading, inactive) = NOT a position change
+        // Sit -> Away (inactive) = NOT a position change
         for _ in 0..DEBOUNCE_COUNT {
             let _ = m.on_reading(1200, false);
         }
-        assert_eq!(m.state.state, DeskState::Walking);
-        assert_eq!(m.state.position_changes, 2, "sit->walk = still 2");
+        assert_eq!(m.state.state, DeskState::Away);
+        assert_eq!(m.state.position_changes, 2, "sit->away = still 2");
     }
 
 }

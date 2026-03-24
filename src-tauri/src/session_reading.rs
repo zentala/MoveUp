@@ -33,12 +33,15 @@ impl SessionManager {
         let mid_cm = (self.sitting_height_cm + self.standing_height_cm) / 2.0;
 
         // Determine candidate state.
-        let candidate = if desk_height_cm <= mid_cm {
+        // Priority: inactive → Away (regardless of desk height),
+        // then desk height determines Sitting vs Standing.
+        // Walking is reserved for future use (smartwatch proximity detection).
+        let candidate = if !active {
+            DeskState::Away
+        } else if desk_height_cm <= mid_cm {
             DeskState::Sitting
-        } else if active {
-            DeskState::Standing
         } else {
-            DeskState::Walking
+            DeskState::Standing
         };
 
         // Debounce: only transition after DEBOUNCE_COUNT consistent readings.
@@ -140,8 +143,9 @@ impl SessionManager {
         self.last_accumulate_ran = true;
 
         // Continuous computer timer and Away bout tracking.
+        // Walking is grouped with Away (both = not at computer).
         match self.state.state {
-            DeskState::Sitting | DeskState::Standing | DeskState::Walking => {
+            DeskState::Sitting | DeskState::Standing => {
                 self.state.continuous_computer_secs += 1;
                 self.state.longest_computer_session_secs = self
                     .state
@@ -149,7 +153,7 @@ impl SessionManager {
                     .max(self.state.continuous_computer_secs);
                 self.state.away_bout_secs = 0;
             }
-            DeskState::Away => {
+            DeskState::Away | DeskState::Walking => {
                 self.state.away_bout_secs += 1;
                 // After 5 continuous minutes of Away: reset continuous computer timer
                 // and count as a position change (fires exactly once at 300s).

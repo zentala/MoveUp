@@ -137,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    fn position_changes_does_not_increment_standing_to_walking() {
+    fn position_changes_does_not_increment_standing_to_away() {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Standing;
         m.state.break_started = Some(Utc::now());
@@ -145,14 +145,14 @@ mod tests {
         for _ in 0..DEBOUNCE_COUNT {
             let _ = m.on_reading(1200, false);
         }
-        assert_eq!(m.state.state, DeskState::Walking);
+        assert_eq!(m.state.state, DeskState::Away);
         assert_eq!(m.state.position_changes, 5);
     }
 
     #[test]
-    fn position_changes_does_not_increment_walking_to_standing() {
+    fn position_changes_does_not_increment_away_to_standing() {
         let mut m = SessionManager::new();
-        m.state.state = DeskState::Walking;
+        m.state.state = DeskState::Away;
         m.state.break_started = Some(Utc::now());
         m.state.position_changes = 3;
         for _ in 0..DEBOUNCE_COUNT {
