@@ -56,7 +56,7 @@ mod timer_tests {
     #[test]
     fn t042_04_restart_from_db_seeds_sitting_session_zero() {
         let mut m = SessionManager::new();
-        m.load_today_totals(1800, 600);
+        m.load_today_totals(&crate::db_sessions::TodayTotals::from_secs(1800, 600));
         assert_eq!(m.state.sitting_seconds, 1800);
         assert_eq!(m.state.current_session_secs, 0);
     }
@@ -64,7 +64,7 @@ mod timer_tests {
     #[test]
     fn t042_05_restart_from_db_seeds_standing_break_zero() {
         let mut m = SessionManager::new();
-        m.load_today_totals(1200, 900);
+        m.load_today_totals(&crate::db_sessions::TodayTotals::from_secs(1200, 900));
         assert_eq!(m.state.standing_seconds, 900);
         assert_eq!(m.state.break_seconds, 0);
     }

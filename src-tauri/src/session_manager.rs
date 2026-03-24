@@ -64,6 +64,7 @@ impl SessionManager {
                 standing_bout_started: None,
                 hourly_breaks_covered: 0,
                 hourly_breaks_active: 0,
+                sitting_seconds_total: 0,
             },
             pending_state: None,
             pending_count: 0,
@@ -117,6 +118,7 @@ impl SessionManager {
                 standing_bout_started: None,
                 hourly_breaks_covered: 0,
                 hourly_breaks_active: 0,
+                sitting_seconds_total: 0,
             },
             pending_state: None,
             pending_count: 0,
@@ -138,14 +140,16 @@ impl SessionManager {
     }
 
     /// Seeds today's totals from SQLite (in-memory counters survive restarts).
-    pub fn load_today_totals(&mut self, sitting_secs: i64, standing_secs: i64) {
-        self.state.sitting_seconds = sitting_secs;
-        self.state.standing_seconds = standing_secs;
+    pub fn load_today_totals(&mut self, totals: &crate::db_sessions::TodayTotals) {
+        self.state.sitting_seconds = totals.sitting_secs;
+        self.state.sitting_seconds_total = totals.sitting_secs;
+        self.state.standing_seconds = totals.standing_secs;
+        self.state.position_changes = totals.position_changes;
         // current_session_secs stays 0: no active session after restart.
         self.state.current_session_secs = 0;
         info!(
-            "seeded today totals: sitting={}s standing={}s",
-            sitting_secs, standing_secs
+            "seeded today totals: sitting={}s standing={}s changes={}",
+            totals.sitting_secs, totals.standing_secs, totals.position_changes
         );
     }
 
@@ -179,6 +183,7 @@ impl SessionManager {
             current_session_secs: live_current,
             continuous_computer_secs: self.state.continuous_computer_secs,
             longest_computer_session_secs: self.state.longest_computer_session_secs,
+            sitting_seconds_total: self.get_live_sitting_seconds_total(now),
         }
     }
 
@@ -216,6 +221,17 @@ impl SessionManager {
             }
         }
         self.state.sitting_seconds
+    }
+    /// Computes live raw sitting seconds (never reduced by break credit).
+    /// Used by standing_pct metric for accurate KPI calculation.
+    pub(crate) fn get_live_sitting_seconds_total(&self, now: DateTime<Utc>) -> i64 {
+        if self.state.state == DeskState::Sitting {
+            if let Some(started) = self.state.sitting_started {
+                let elapsed = (now - started).num_seconds().max(0);
+                return self.state.sitting_seconds_total + elapsed;
+            }
+        }
+        self.state.sitting_seconds_total
     }
     /// Computes live standing session seconds from timestamp.
     pub(crate) fn get_live_standing_session_secs(&self, now: DateTime<Utc>) -> i64 {

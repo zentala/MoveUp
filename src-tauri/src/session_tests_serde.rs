@@ -64,6 +64,7 @@ mod serde_contract_tests {
             current_session_secs: 0,
             continuous_computer_secs: 0,
             longest_computer_session_secs: 0,
+            sitting_seconds_total: 0,
         };
         let json = serde_json::to_value(&dto).unwrap();
         assert_eq!(json["state"], "Standing");

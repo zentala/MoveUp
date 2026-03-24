@@ -20,6 +20,7 @@ impl SessionManager {
                 if let Some(started) = self.state.sitting_started.take() {
                     let elapsed = (now - started).num_seconds().max(0);
                     self.state.sitting_seconds += elapsed;
+                    self.state.sitting_seconds_total += elapsed;
                     self.state.last_sitting_secs = elapsed;
                     if *candidate != DeskState::Sitting {
                         completed_session = Some(CompletedSession {

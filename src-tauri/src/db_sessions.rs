@@ -28,9 +28,24 @@ pub fn insert_session(
 
 // ─── Load operations ─────────────────────────────────────────────────────────
 
+/// Today's totals restored from database on restart.
+pub struct TodayTotals {
+    pub sitting_secs: i64,
+    pub standing_secs: i64,
+    /// Number of completed session rows today (proxy for position changes).
+    pub position_changes: u32,
+}
+
+impl TodayTotals {
+    /// Creates totals for testing (position_changes defaults to 0).
+    #[cfg(test)]
+    pub fn from_secs(sitting: i64, standing: i64) -> Self {
+        Self { sitting_secs: sitting, standing_secs: standing, position_changes: 0 }
+    }
+}
+
 /// Loads today's total sitting and standing seconds from the database.
-/// Returns (sitting_secs, standing_secs) or an error.
-pub fn load_today_totals(conn: &Connection) -> Result<(i64, i64), String> {
+pub fn load_today_totals(conn: &Connection) -> Result<TodayTotals, String> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     let mut stmt = conn
@@ -55,6 +70,7 @@ pub fn load_today_totals(conn: &Connection) -> Result<(i64, i64), String> {
 
     let mut sitting_secs = 0i64;
     let mut standing_secs = 0i64;
+    let mut row_count = 0u32;
 
     for row_result in rows {
         let (state, duration) = row_result.map_err(|e| {
@@ -68,9 +84,14 @@ pub fn load_today_totals(conn: &Connection) -> Result<(i64, i64), String> {
         } else {
             standing_secs += duration;
         }
+        row_count += 1;
     }
 
-    Ok((sitting_secs, standing_secs))
+    // Each completed session row represents a state transition.
+    // position_changes ≈ number of transitions (rows / 2, since each change creates 2 bouts).
+    let position_changes = row_count.saturating_sub(1);
+
+    Ok(TodayTotals { sitting_secs, standing_secs, position_changes })
 }
 
 /// Loads yesterday's total sitting and standing seconds from the database.

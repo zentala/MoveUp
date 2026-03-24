@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::activity::is_active;
 use crate::event_logger::EventLogger;
+use crate::metrics::MetricEngine;
 use crate::notification_service::NotificationService;
 use crate::session::{DeskState, SessionManager};
 use crate::snapshot_logger::SnapshotLogger;
@@ -36,16 +37,21 @@ pub fn check_periodic(
         event_logger.log("RESET daily");
     }
 
-    // Write per-minute snapshot.
+    // Write per-minute snapshot with computed metrics.
     {
         let sess = session.lock().unwrap();
+        let now = chrono::Utc::now();
         let snapshot = sess.snapshot();
+        let mut raw = sess.state.clone();
+        raw.sitting_seconds_total = sess.get_live_sitting_seconds_total(now);
+        raw.standing_seconds = sess.get_live_standing_seconds(now);
+        let metrics = MetricEngine::with_defaults().compute_all(&raw, config);
         snapshot_logger.log_snapshot(
             &snapshot,
             true,
             Some(port_name.to_string()),
             crate::APP_VERSION,
-            Vec::new(),
+            metrics,
         );
     }
 

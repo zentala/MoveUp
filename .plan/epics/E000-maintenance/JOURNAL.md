@@ -53,3 +53,25 @@
 - **Findings this session**: 1 (standing_seconds bug: Away→Sitting added full break_dur to standing_seconds)
 - **Improvements logged**: 0 (all fixed in same session)
 - **Next**: Dogfood app with fixes, pick next epic from BACKLOG
+
+## Session 2026-03-24 (night)
+
+- **Goal**: Fix standing % showing 100%, fix snapshot data quality, create debug skill
+- **Done**:
+  - **Root cause: standing % = 100%**: `sitting_seconds_total` not seeded from DB on restart → 0 → 100%. Fixed `load_today_totals()` to seed it.
+  - **Root cause: standing % = 40%**: `sitting_seconds` reduced by break credit (full reset to 0), inflating standing_pct denominator. Added `sitting_seconds_total` field — raw accumulator never modified by break credit. Metric now uses this field.
+  - **Fix: metrics empty in snapshots**: `serial_periodic.rs` passed `Vec::new()` instead of computed metrics. Now computes all 4 metrics before writing snapshot.
+  - **Fix: position_changes = 0 after restart**: `load_today_totals()` didn't restore it. Refactored to return `TodayTotals` struct with `position_changes` (session row count - 1 as proxy).
+  - **Fix: sitting_seconds_total in DTO**: Added to `SessionStateDto` so snapshots and IPC expose raw sitting time.
+  - **Fix: metrics use live values**: `get_dashboard_state()` now injects live `sitting_seconds_total` and `standing_seconds` before passing to MetricEngine.
+  - **Created `/desk-debug` skill**: Reads snapshots + event log from AppData, reconstructs timeline, verifies metrics against calculated values, reports inconsistencies.
+  - **Gamification philosophy**: Saved to memory — negative score is valid gameplay, comeback mechanics over always-positive.
+  - **BACKLOG updated**: New "Gamification & Scoring" section with 3 tasks (gamification research report, scoring redesign umbrella, notification flag persistence).
+  - 327 Rust tests passing, 0 failures
+- **Decisions**: Use `sitting_seconds_total` (raw) for KPI, keep `sitting_seconds` (credit-adjusted) for session limit tracking. Two fields, two purposes.
+- **Findings this session**: 3
+  1. `sitting_seconds` used for both session limit AND KPI — break credit corrupted KPI
+  2. `load_today_totals()` didn't seed new fields → 100% after restart
+  3. Notification flags not persisted → spam on every restart (added to BACKLOG)
+- **Improvements logged**: 0 (all fixed in same session)
+- **Next**: Dogfood with all fixes. Gamification research report. Pick next epic.

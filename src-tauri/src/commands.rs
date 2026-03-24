@@ -8,16 +8,11 @@ use rusqlite::Connection;
 use tauri::{Emitter, Manager, State, WebviewWindowBuilder, WebviewUrl};
 use tauri_plugin_notification::NotificationExt;
 
-use crate::{
-    alert_manager::AlertManager,
-    alert_popup::AlertPopup,
-    config::AppConfig,
-    db::TodaySummary,
-    metrics::{DashboardState, MetricEngine},
+use crate::{alert_manager::AlertManager, alert_popup::AlertPopup, config::AppConfig,
+    db::TodaySummary, metrics::{DashboardState, MetricEngine},
     overlay_renderer::OverlayRenderer,
     serial::{available_port_infos, scan_and_connect, ConnectionState, PortInfo},
-    session::{SessionManager, SessionStateDto},
-};
+    session::{SessionManager, SessionStateDto}};
 
 /// Rate limiter for test notification (epoch seconds of last send).
 static LAST_TEST_NOTIFICATION: AtomicI64 = AtomicI64::new(0);
@@ -58,8 +53,8 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
     crate::db::init_schema(&conn)
         .map_err(|e| format!("Failed to initialize database schema: {}", e))?;
 
-    if let Ok((sitting, standing)) = crate::db::load_today_totals(&conn) {
-        state.session.lock().unwrap().load_today_totals(sitting, standing);
+    if let Ok(totals) = crate::db::load_today_totals(&conn) {
+        state.session.lock().unwrap().load_today_totals(&totals);
     }
 
     *db_guard = Some(conn);
@@ -130,7 +125,12 @@ pub fn get_dashboard_state(
     ensure_initialized(&app, &state)?;
     let (snapshot, ss) = {
         let s = state.session.lock().unwrap();
-        (s.snapshot(), s.state.clone())
+        let now = chrono::Utc::now();
+        let mut raw = s.state.clone();
+        // Inject live values so metrics see current totals (not stale committed values).
+        raw.sitting_seconds_total = s.get_live_sitting_seconds_total(now);
+        raw.standing_seconds = s.get_live_standing_seconds(now);
+        (s.snapshot(), raw)
     };
     let cfg = state.config.lock().unwrap();
     let cfg = cfg.as_ref().ok_or("Config not loaded")?;

@@ -99,6 +99,9 @@ pub struct SessionState {
     pub hourly_breaks_covered: u8,
     /// Number of hours the user was active today (from HourlyBreakTracker).
     pub hourly_breaks_active: u8,
+    /// Raw total sitting seconds today — never reduced by break credit.
+    /// Used by standing_pct metric for accurate KPI (sitting_seconds is modified by break credit).
+    pub sitting_seconds_total: i64,
 }
 
 /// Serialisable DTO emitted with state-change events.
@@ -127,6 +130,8 @@ pub struct SessionStateDto {
     pub continuous_computer_secs: i64,
     /// Longest continuous computer session today (seconds).
     pub longest_computer_session_secs: i64,
+    /// Raw total sitting seconds today (never reduced by break credit).
+    pub sitting_seconds_total: i64,
 }
 
 /// Break credit type applied when returning from standing to sitting.

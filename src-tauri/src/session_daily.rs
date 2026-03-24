@@ -18,6 +18,7 @@ impl SessionManager {
         if self.last_reset_date < today {
             info!("daily reset: new day detected, resetting in-memory counters");
             self.state.sitting_seconds = 0;
+            self.state.sitting_seconds_total = 0;
             self.state.standing_seconds = 0;
             self.state.position_changes = 0;
             self.state.last_break_secs = 0;

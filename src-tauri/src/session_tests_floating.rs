@@ -140,7 +140,7 @@ mod floating_window_tests {
         // SPEC: After restart, current_session_secs = 0 (fresh session)
         // sitting_seconds is the daily accumulator and WILL be seeded from DB.
         let mut m = SessionManager::new();
-        m.load_today_totals(1200, 600);
+        m.load_today_totals(&crate::db_sessions::TodayTotals::from_secs(1200, 600));
 
         // sitting_seconds holds the daily total (expected: 1200)
         assert_eq!(m.state.sitting_seconds, 1200);
@@ -157,7 +157,7 @@ mod floating_window_tests {
     fn scenario_f_timer_shows_current_session_not_total() {
         // SPEC: After full reset + restart, current_session_secs = 0
         let mut m = SessionManager::new();
-        m.load_today_totals(35 * 60, 10 * 60);
+        m.load_today_totals(&crate::db_sessions::TodayTotals::from_secs(35 * 60, 10 * 60));
 
         // Daily accumulator is seeded
         assert_eq!(m.state.sitting_seconds, 35 * 60);

@@ -37,6 +37,7 @@ mod tests {
             standing_bout_started: None,
             hourly_breaks_covered: 0,
             hourly_breaks_active: 0,
+            sitting_seconds_total: 0,
         }
     }
 
@@ -71,7 +72,7 @@ mod tests {
         let metric = standing_pct::StandingPercentMetric;
         let mut state = default_state();
         // Total must exceed early_data_threshold (30 min = 1800s)
-        state.sitting_seconds = 1500;
+        state.sitting_seconds_total = 1500;
         state.standing_seconds = 500;
         let cfg = config();
         let result = metric.compute(&state, &cfg);
@@ -84,7 +85,7 @@ mod tests {
         let metric = standing_pct::StandingPercentMetric;
         let mut state = default_state();
         // 15% standing -> Green (threshold is 15%). Total > 1800s threshold.
-        state.sitting_seconds = 1700;
+        state.sitting_seconds_total = 1700;
         state.standing_seconds = 300; // 300/(1700+300) = 15%
         let cfg = config();
         let result = metric.compute(&state, &cfg);
@@ -96,11 +97,26 @@ mod tests {
         let metric = standing_pct::StandingPercentMetric;
         let mut state = default_state();
         // 5% standing -> Red (below 10% yellow threshold). Total > 1800s.
-        state.sitting_seconds = 1900;
+        state.sitting_seconds_total = 1900;
         state.standing_seconds = 100; // 100/(1900+100) = 5%
         let cfg = config();
         let result = metric.compute(&state, &cfg);
         assert_eq!(result.level, MetricLevel::Red);
+    }
+
+    #[test]
+    fn standing_pct_unaffected_by_break_credit() {
+        let metric = standing_pct::StandingPercentMetric;
+        let mut state = default_state();
+        // Simulate: 2h sitting, 10 min standing, then full break credit resets sitting_seconds
+        state.sitting_seconds_total = 7200; // raw: 2h total sitting
+        state.sitting_seconds = 0;          // reset by full break credit
+        state.standing_seconds = 600;       // 10 min standing
+        let cfg = config();
+        let result = metric.compute(&state, &cfg);
+        // Should use sitting_seconds_total: 600 / (7200 + 600) ≈ 7.7%
+        assert!((result.value - 7.69).abs() < 0.1);
+        // NOT 100% (which would happen if using sitting_seconds = 0)
     }
 
     // ─── PositionChangeRateMetric ────────────────────────────────────────

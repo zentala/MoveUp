@@ -11,7 +11,8 @@ impl Metric for StandingPercentMetric {
     fn label(&self) -> &str { "\u{2195} Standing" }
 
     fn compute(&self, state: &SessionState, config: &AppConfig) -> MetricResult {
-        let sitting = state.sitting_seconds as f64;
+        // Use raw sitting total (not reduced by break credit) for accurate KPI.
+        let sitting = state.sitting_seconds_total as f64;
         let standing = state.standing_seconds as f64;
         let total = sitting + standing;
 

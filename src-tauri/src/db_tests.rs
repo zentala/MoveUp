@@ -29,7 +29,7 @@ fn test_insert_and_query_today() {
 
     assert!(insert_session(&conn, started_at, ended_at, "Sitting", duration).is_ok());
 
-    let (_sitting, _standing) = load_today_totals(&conn).expect("query should succeed");
+    let _totals = load_today_totals(&conn).expect("query should succeed");
 }
 
 #[test]
@@ -37,9 +37,10 @@ fn test_load_today_totals_empty() {
     let conn = test_conn();
     init_schema(&conn).unwrap();
 
-    let (sitting, standing) = load_today_totals(&conn).unwrap();
-    assert_eq!(sitting, 0);
-    assert_eq!(standing, 0);
+    let totals = load_today_totals(&conn).unwrap();
+    assert_eq!(totals.sitting_secs, 0);
+    assert_eq!(totals.standing_secs, 0);
+    assert_eq!(totals.position_changes, 0);
 }
 
 #[test]
@@ -73,9 +74,10 @@ fn test_aggregate_multiple_sitting_sessions() {
     insert_session(&conn, &format!("{}09:00:00Z", today), &format!("{}09:15:00Z", today), "Sitting", 900).unwrap();
     insert_session(&conn, &format!("{}10:00:00Z", today), &format!("{}10:20:00Z", today), "Sitting", 1200).unwrap();
 
-    let (sitting, standing) = load_today_totals(&conn).unwrap();
-    assert_eq!(sitting, 3900, "sitting totals should aggregate correctly");
-    assert_eq!(standing, 0, "no standing sessions should be 0");
+    let totals = load_today_totals(&conn).unwrap();
+    assert_eq!(totals.sitting_secs, 3900, "sitting totals should aggregate correctly");
+    assert_eq!(totals.standing_secs, 0, "no standing sessions should be 0");
+    assert_eq!(totals.position_changes, 2, "3 rows - 1 = 2 transitions");
 }
 
 #[test]
@@ -89,9 +91,10 @@ fn test_aggregate_mixed_states() {
     insert_session(&conn, &format!("{}08:30:00Z", today), &format!("{}08:40:00Z", today), "Standing", 600).unwrap();
     insert_session(&conn, &format!("{}09:00:00Z", today), &format!("{}09:30:00Z", today), "Sitting", 1800).unwrap();
 
-    let (sitting, standing) = load_today_totals(&conn).unwrap();
-    assert_eq!(sitting, 3600, "sitting total: 1800 + 1800");
-    assert_eq!(standing, 600, "standing total");
+    let totals = load_today_totals(&conn).unwrap();
+    assert_eq!(totals.sitting_secs, 3600, "sitting total: 1800 + 1800");
+    assert_eq!(totals.standing_secs, 600, "standing total");
+    assert_eq!(totals.position_changes, 2, "3 rows - 1 = 2 transitions");
 }
 
 #[test]
@@ -109,9 +112,10 @@ fn test_incomplete_sessions_ignored() {
         rusqlite::params![format!("{}09:00:00Z", today), "Sitting"],
     ).unwrap();
 
-    let (sitting, standing) = load_today_totals(&conn).unwrap();
-    assert_eq!(sitting, 1800, "incomplete sessions should be excluded");
-    assert_eq!(standing, 0);
+    let totals = load_today_totals(&conn).unwrap();
+    assert_eq!(totals.sitting_secs, 1800, "incomplete sessions should be excluded");
+    assert_eq!(totals.standing_secs, 0);
+    assert_eq!(totals.position_changes, 0, "1 completed row - 1 = 0 transitions");
 }
 
 #[test]
@@ -152,9 +156,6 @@ fn test_get_today_summary_returns_all_sessions() {
 
 #[test]
 fn test_completed_session_visible_in_summary() {
-    // Regression test for T036 Bug A: CompletedSession must be saved via
-    // insert_session() (with ended_at) so that get_today_summary() finds it.
-    // Previously, only save_session_state() was called (no ended_at) → invisible.
     let conn = test_conn();
     init_schema(&conn).unwrap();
 
@@ -162,7 +163,6 @@ fn test_completed_session_visible_in_summary() {
     let started = format!("{}10:00:00Z", today);
     let ended = format!("{}10:45:00Z", today);
 
-    // Simulate what serial_periodic.rs now does after a state transition:
     insert_session(&conn, &started, &ended, "Sitting", 2700).unwrap();
 
     let summary = get_today_summary(&conn).unwrap();
@@ -173,7 +173,6 @@ fn test_completed_session_visible_in_summary() {
 
 #[test]
 fn test_session_row_json_field_names() {
-    // T040: SessionRow JSON must match TypeScript SessionEntry interface.
     let row = SessionRow {
         id: 42,
         started_at: "2025-03-16T09:00:00Z".to_string(),
