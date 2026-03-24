@@ -22,6 +22,8 @@ mod metrics;
 mod notification_service;
 #[cfg(test)]
 mod notification_service_tests;
+#[cfg(test)]
+mod notification_service_tests_edge;
 mod overlay_layered;
 mod overlay_layered_wndproc;
 mod overlay_opaque;
