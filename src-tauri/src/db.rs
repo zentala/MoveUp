@@ -56,18 +56,6 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         }
     }
 
-    conn.execute_batch(
-        r#"
-        CREATE TABLE IF NOT EXISTS height_readings (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            recorded_at TEXT    NOT NULL,
-            mm          INTEGER NOT NULL,
-            cm          REAL    NOT NULL,
-            desk_state  TEXT    NOT NULL
-        );
-        "#,
-    )?;
-
     Ok(())
 }
 

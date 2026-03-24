@@ -38,7 +38,9 @@ mod tests {
         assert!(m.should_stand_alert());
 
         // Transition Standing -> Sitting
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(901));
+        let t = Utc::now() - chrono::Duration::seconds(901);
+        m.state.break_started = Some(t);
+        m.state.standing_bout_started = Some(t);
         let _ = m.on_reading(800, true);
         for _ in 0..DEBOUNCE_COUNT {
             let _ = m.on_reading(800, true);
@@ -127,7 +129,9 @@ mod tests {
     fn position_changes_increments_standing_to_sitting() {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Standing;
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(300));
+        let t = Utc::now() - chrono::Duration::seconds(300);
+        m.state.break_started = Some(t);
+        m.state.standing_bout_started = Some(t);
         m.state.position_changes = 1;
         for _ in 0..DEBOUNCE_COUNT {
             let _ = m.on_reading(800, true);
@@ -141,6 +145,7 @@ mod tests {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Standing;
         m.state.break_started = Some(Utc::now());
+        m.state.standing_bout_started = Some(Utc::now());
         m.state.position_changes = 5;
         for _ in 0..DEBOUNCE_COUNT {
             let _ = m.on_reading(1200, false);

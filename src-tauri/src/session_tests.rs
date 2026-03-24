@@ -141,7 +141,9 @@ mod tests {
     fn standing_seconds_accumulates_on_transition() {
         let mut m = SessionManager::new();
         m.state.standing_seconds = 0;
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(300));
+        let t = Utc::now() - chrono::Duration::seconds(300);
+        m.state.break_started = Some(t);
+        m.state.standing_bout_started = Some(t);
         m.state.state = DeskState::Standing;
         let _ = m.on_reading(800, true);
         for _ in 0..DEBOUNCE_COUNT {

@@ -104,6 +104,46 @@ mod tests {
     }
 
     #[test]
+    fn standing_away_standing_sitting_only_counts_standing() {
+        let mut m = SessionManager::new();
+        // Start sitting
+        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        m.state.sitting_started = Some(Utc::now());
+
+        // Stand for ~5 min (faked)
+        advance_ticks(&mut m, 1200, true, DEBOUNCE_COUNT as usize);
+        assert_eq!(m.state.state, DeskState::Standing);
+        let t1 = Utc::now() - chrono::Duration::seconds(300);
+        m.state.break_started = Some(t1);
+        m.state.standing_bout_started = Some(t1);
+
+        // Go away for ~10 min
+        advance_ticks(&mut m, 1200, false, DEBOUNCE_COUNT as usize);
+        assert_eq!(m.state.state, DeskState::Away);
+        // standing_seconds should now have ~300s from the standing bout
+        let after_first_stand = m.state.standing_seconds;
+        assert!(after_first_stand >= 299, "got {}", after_first_stand);
+
+        // Come back standing for ~3 min
+        advance_ticks(&mut m, 1200, true, DEBOUNCE_COUNT as usize);
+        assert_eq!(m.state.state, DeskState::Standing);
+        let t3 = Utc::now() - chrono::Duration::seconds(180);
+        m.state.standing_bout_started = Some(t3);
+
+        // Sit down
+        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        assert_eq!(m.state.state, DeskState::Sitting);
+
+        // Total standing should be ~300 + ~180 = ~480, NOT 300+600+180
+        let total = m.state.standing_seconds;
+        assert!(
+            total >= 478 && total <= 482,
+            "expected ~480 (300+180), got {} — away time must not count",
+            total
+        );
+    }
+
+    #[test]
     fn away_to_sitting_creates_completed_session() {
         let mut m = SessionManager::new();
         advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);

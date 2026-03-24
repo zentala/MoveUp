@@ -13,8 +13,6 @@ mod db;
 mod db_queries;
 mod db_sessions;
 mod event_logger;
-#[allow(dead_code)] // planned: T07 gap detection on app restart
-mod gap_handler;
 mod height_stabilizer;
 mod hourly_break_tracker;
 mod metrics;
