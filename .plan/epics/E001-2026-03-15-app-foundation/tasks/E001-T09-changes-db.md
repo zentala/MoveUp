@@ -1,7 +1,8 @@
 ---
 id: E001-T09
 epic: E001
-status: open
+status: done
+completed: 2026-03-23
 original_id: "0007"
 ---
 # T007 — Add `position_changes` to DB Schema and TodaySummaryDto

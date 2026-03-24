@@ -1,7 +1,8 @@
 ---
 id: E004-T05
 epic: E004
-status: open
+status: done
+completed: 2026-03-20
 created: 2026-03-20
 original_id: T021
 ---

@@ -1,7 +1,8 @@
 ---
 id: E001-T12
 epic: E001
-status: open
+status: done
+completed: 2026-03-21
 original_id: "0012"
 ---
 # T012 — Yesterday Delta Arrow in TodayStats

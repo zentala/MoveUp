@@ -30,7 +30,11 @@ current_wave: null
 - Old tasks, journals, plans, reports migrated to retroactive epics E001-E006
 - E001/E002 renumbered to E007/E008 (chronological ordering)
 
+## Known Gaps
+- **HourlyBreakTracker not wired** — struct written + 8 tests, but `#[allow(dead_code)]`; metric shows placeholder data from position_changes. Need to integrate into session loop.
+- **`height_readings` DB table** — schema exists, never populated. Could serve as time-series storage.
+
 ## Next Steps
-1. Pick next epic from BACKLOG.md or define E009
-2. Candidates: SQLite time-series, timeline full window, Away state improvements
+1. Wire HourlyBreakTracker into session loop (small task, E000-maintenance)
+2. Or: pick next epic — candidates: SQLite time-series, timeline full window, extended height stabilization
 3. Or: run app live, dogfood changes, collect feedback

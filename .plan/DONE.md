@@ -12,6 +12,9 @@
 - [x] [E001-T06 — Position changes counter](epics/E001-2026-03-15-app-foundation/tasks/E001-T06-position-changes.md) — E001, 2026-03-15
 - [x] [E001-T07 — Fix standing_secs](epics/E001-2026-03-15-app-foundation/tasks/E001-T07-standing-secs.md) — E001, 2026-03-15
 - [x] [E001-T08 — Test framework](epics/E001-2026-03-15-app-foundation/tasks/E001-T08-test-framework.md) — E001, 2026-03-15
+- [x] [E001-T09 — position_changes DB schema](epics/E001-2026-03-15-app-foundation/tasks/E001-T09-changes-db.md) — E001, 2026-03-23
+- [x] [E001-T11 — Rail pulse animation](epics/E001-2026-03-15-app-foundation/tasks/E001-T11-rail-pulse.md) — E001, 2026-03-21
+- [x] [E001-T12 — Yesterday delta arrow](epics/E001-2026-03-15-app-foundation/tasks/E001-T12-yesterday-delta.md) — E001, 2026-03-21
 
 ## E002 — Overlay Progress Bar (2026-03-16)
 - [x] [E002-T01 — Dev mode visible bar](epics/E002-2026-03-16-overlay-progress-bar/tasks/E002-T01-dev-mode-visible-bar.md) — E002, 2026-03-16
@@ -36,6 +39,7 @@
 ## E004 — Session Alerts & Snooze (2026-03-20)
 - [x] [E004-T02 — AlertManager + Stage1 + Stage2](epics/E004-2026-03-20-session-alerts/tasks/E004-T02-alert-manager-stage1-stage2.md) — E004, 2026-03-20
 - [x] [E004-T03 — Snooze with deescalating frequency](epics/E004-2026-03-20-session-alerts/tasks/E004-T03-snooze-logic.md) — E004, 2026-03-20
+- [x] [E004-T05 — Dismiss without sensor](epics/E004-2026-03-20-session-alerts/tasks/E004-T05-dismiss-without-sensor.md) — E004, 2026-03-20
 
 ## E005 — UX Communication + Widgets (2026-03-21)
 - [x] [E005-T01 — Split session.rs](epics/E005-2026-03-21-ux-widgets/tasks/E005-T01-split-session-rs.md) — E005, 2026-03-21
