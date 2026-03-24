@@ -1,16 +1,17 @@
 //! serial_periodic.rs — Periodic checks and reading processing for serial loop.
 //!
 //! Extracted from the reader loop to keep serial.rs focused on I/O.
+//! Notification firing is delegated to [`NotificationService`] for central routing.
 
 use std::sync::{Arc, Mutex};
 
 use log::{error, info};
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_notification::NotificationExt;
 
 use crate::activity::is_active;
 use crate::event_logger::EventLogger;
-use crate::session::{DeskState, NotificationEvent, SessionManager};
+use crate::notification_service::NotificationService;
+use crate::session::{DeskState, SessionManager};
 use crate::snapshot_logger::SnapshotLogger;
 
 /// Checks daily reset and notification conditions, firing appropriate events.
@@ -22,6 +23,7 @@ pub fn check_periodic(
     snapshot_logger: &Arc<SnapshotLogger>,
     event_logger: &Arc<EventLogger>,
     port_name: &str,
+    alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
     let daily_reset_occurred = {
         let mut sess = session.lock().unwrap();
@@ -54,44 +56,12 @@ pub fn check_periodic(
         (events, snap.sitting_seconds, snap.standing_seconds)
     };
 
-    for event in &notification_events {
-        match event {
-            NotificationEvent::Inactivity => {
-                event_logger.log("NOTIF inactivity");
-                let _ = app.notification().builder()
-                    .title("No position change in 60 minutes")
-                    .body("Time to move.")
-                    .show();
-            }
-            NotificationEvent::PostureBalance => {
-                let ratio = if standing_secs > 0 {
-                    sitting_secs as f32 / standing_secs as f32
-                } else {
-                    f32::INFINITY
-                };
-                event_logger.log(&format!("NOTIF posture_balance ratio={:.1}", ratio));
-                let _ = app.notification().builder()
-                    .title("You've been sitting most of today")
-                    .body("Consider standing for a while.")
-                    .show();
-            }
-            NotificationEvent::Praise => {
-                event_logger.log("NOTIF praise");
-                let _ = app.notification().builder()
-                    .title("Halfway through your standing goal!")
-                    .body("Keep it up.")
-                    .show();
-            }
-            NotificationEvent::StandLimitReached => {}
-            NotificationEvent::StandingTargetReached => {
-                event_logger.log("NOTIF standing_target_reached");
-                let _ = app.notification().builder()
-                    .title("Standing target reached!")
-                    .body("Great break! You stood for the full target duration.")
-                    .show();
-            }
-        }
-    }
+    let intents = NotificationService::build_intents(
+        &notification_events,
+        sitting_secs,
+        standing_secs,
+    );
+    NotificationService::dispatch(&intents, app, config, event_logger, alert_popup);
 }
 
 /// Processes a single sensor reading through the session state machine.
@@ -103,6 +73,7 @@ pub fn handle_reading(
     db: &Arc<Mutex<Option<rusqlite::Connection>>>,
     config: &crate::config::AppConfig,
     event_logger: &Arc<EventLogger>,
+    alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
     let active = is_active();
     let (state_before, result) = {
@@ -129,10 +100,14 @@ pub fn handle_reading(
                 sess.should_send_praise_halfway(config)
             };
             if praise {
-                let _ = app.notification().builder()
-                    .title("Halfway through your standing goal!")
-                    .body("Keep it up.")
-                    .show();
+                let intent = NotificationService::praise_halfway_intent();
+                NotificationService::dispatch(
+                    &[intent],
+                    app,
+                    config,
+                    event_logger,
+                    alert_popup,
+                );
             }
         }
     }
@@ -165,19 +140,15 @@ pub fn handle_reading(
     if alert {
         let sitting = session.lock().unwrap().snapshot().sitting_seconds;
         event_logger.log(&format!("ALERT sit_limit sitting={}s", sitting));
-        let _ = app.notification().builder()
-            .title("Time to stand up!")
-            .body("You've been sitting for 40 minutes. Take a break.")
-            .show();
+        let intent = NotificationService::sit_limit_intent();
+        NotificationService::dispatch(&[intent], app, config, event_logger, alert_popup);
     }
 
     let stand_alert = { session.lock().unwrap().should_stand_alert() };
     if stand_alert {
         let standing = session.lock().unwrap().snapshot().standing_session_secs;
         event_logger.log(&format!("ALERT stand_limit standing={}s", standing));
-        let _ = app.notification().builder()
-            .title("You've been standing a while")
-            .body("Ready to sit down for a bit?")
-            .show();
+        let intent = NotificationService::stand_limit_intent();
+        NotificationService::dispatch(&[intent], app, config, event_logger, alert_popup);
     }
 }

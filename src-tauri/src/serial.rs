@@ -73,6 +73,7 @@ fn reader_loop(
     config: &crate::config::AppConfig,
     snapshot_logger: &Arc<SnapshotLogger>,
     event_logger: &Arc<EventLogger>,
+    alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
     let port = match serialport::new(port_name, BAUD_RATE)
         .timeout(Duration::from_millis(2000))
@@ -113,10 +114,10 @@ fn reader_loop(
             };
             let _ = app.emit("desk:distance", reading);
 
-            handle_reading(app, mm, session, db, config, event_logger);
+            handle_reading(app, mm, session, db, config, event_logger, alert_popup);
 
             if last_periodic.elapsed() >= Duration::from_secs(60) {
-                check_periodic(app, session, config, snapshot_logger, event_logger, port_name);
+                check_periodic(app, session, config, snapshot_logger, event_logger, port_name, alert_popup);
                 last_periodic = std::time::Instant::now();
             }
         } else if trimmed.to_ascii_uppercase().starts_with("ERROR") {
@@ -183,7 +184,12 @@ pub fn scan_and_connect(
                 event_logger.log(&format!("DEVICE connected {}", port_name));
 
                 let cfg = config.lock().unwrap().clone().unwrap_or_default();
-                reader_loop(&app, &port_name, &stop, &session, &db, &cfg, &snapshot_logger, &event_logger);
+                let alert_popup = {
+                    use tauri::Manager;
+                    let state = app.state::<crate::commands::AppState>();
+                    state.alert_popup.clone()
+                };
+                reader_loop(&app, &port_name, &stop, &session, &db, &cfg, &snapshot_logger, &event_logger, &alert_popup);
 
                 event_logger.log("DEVICE lost");
                 {

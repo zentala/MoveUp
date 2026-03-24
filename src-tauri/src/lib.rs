@@ -19,6 +19,7 @@ mod height_stabilizer;
 #[allow(dead_code)] // planned: T07 real HourlyBreakTracker integration
 mod hourly_break_tracker;
 mod metrics;
+mod notification_service;
 mod overlay_layered;
 mod overlay_layered_wndproc;
 mod overlay_opaque;
