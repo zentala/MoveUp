@@ -6,6 +6,12 @@ Complete reference for what the user sees and experiences in every state of the 
 
 ## 1. State Machine Overview
 
+> **Known bug (pre-E002):** Away state is unreachable in current code. `session_reading.rs`
+> returns Sitting when desk is low, even if user is inactive. Only desk-high + inactive
+> triggers Walking. E002-T02 will fix this: `inactive ≥ 60s → Away` regardless of desk height.
+
+### Current State Machine (v0.1.0)
+
 ```
                    desk height <= midpoint
                    + 5 consecutive readings
@@ -22,21 +28,38 @@ Complete reference for what the user sees and experiences in every state of the 
       │  + 5 readings                          │  + 5 readings
       │                                        ▼
       │                                  ┌──────────┐
-      ├──────────────────────────────────│ WALKING  │
-      │  height <= midpoint              │          │
-      │  + 5 readings                    └──────────┘
-      │
-      │                                  ┌──────────┐
-      ├──────────────────────────────────│  AWAY    │
-      │  height <= midpoint              │          │
-      │  + 5 readings                    └──────────┘
-      │                                        ▲
-      │                                        │
-      └──── (AWAY is detected when desk       │
-             is high + no keyboard/mouse  ─────┘
-             activity — same as Walking
-             but via activity timeout)
+      └──────────────────────────────────│ WALKING  │
+         height <= midpoint              │          │
+         + 5 readings                    └──────────┘
+
+ Away enum variant exists but is UNREACHABLE (only initial state).
 ```
+
+### Target State Machine (E002-T02)
+
+```
+                   height <= midpoint
+                   + 5 readings + active
+                ┌──────────────────────────────┐
+                │                              │
+                ▼                              │
+ ┌──────────┐     height > midpoint      ┌─────┴────┐
+ │ SITTING  │────────────────────────────►│ STANDING │
+ │          │  + active + 5 readings     │          │
+ └──────────┘                            └──────────┘
+      ▲            ▲                        │    │
+      │            │                        │    │
+      │   active   │     inactive ≥ 60s     │    │ inactive ≥ 60s
+      │   + low    │                        │    │
+      │            │                        ▼    ▼
+      │            │                     ┌──────────┐
+      │            └─────────────────────│  AWAY    │
+      │              active + high       │          │
+      └──────────────────────────────────└──────────┘
+         active + low
+```
+
+Key change: **inactive → Away regardless of desk height**. Walking reserved for future (smartwatch).
 
 ### Transition Rules
 
@@ -47,8 +70,15 @@ Complete reference for what the user sees and experiences in every state of the 
   - **Midpoint = (72.0 + 105.0) / 2 = 88.5 cm**
 - **desk_height_cm** = `sensor_reading_mm / 10 - desk_thickness_cm`
 - **Debounce**: `DEBOUNCE_COUNT = 5` consecutive readings at the same candidate state before transitioning. Sensor fires ~1/s, so ~5 seconds of stable readings.
-- **Active detection**: `is_active()` checks keyboard/mouse activity. If desk is high but user is inactive, state = Walking (or Away). If active, state = Standing.
-- **Position change counter**: only incremented on Sitting <-> Standing transitions (not Walking/Away).
+- **Active detection**: `is_active()` checks keyboard/mouse activity via `GetLastInputInfo` (Windows). Idle threshold = 60s.
+- **Position change counter**: incremented on Sitting ↔ Standing transitions. Also incremented after 5 continuous minutes of Away (`away_bout_secs == 300`).
+
+### Continuous Computer Time Tracking (E001)
+
+- `continuous_computer_secs` — time at keyboard without 5+ min Away break
+- `longest_computer_session_secs` — daily maximum of above (for "Screen time" KPI)
+- `away_bout_secs` — current Away duration; at 300s triggers position change + resets `continuous_computer_secs`
+- `first_reading_at` — timestamp of first sensor reading today (for hours_worked calculation)
 
 Source: `session_reading.rs:12-101`, `session_types.rs:9`
 
@@ -98,39 +128,71 @@ Source: `tray.rs:119-158`, `tray_icon.rs:18-35`, `tray_controller.rs:187-210`
 
 Source: `overlay_renderer.rs`, `overlay_standing.rs`, `tray_controller.rs:69-84,109-127`, `colors.rs:17-36`
 
-### 2.3 Widget (OneBar) — State Label and Timer
+### 2.3 Widget (OneBar) — Layout Hierarchy
 
-| Property | Sitting | Standing | Walking | Away |
-|----------|---------|----------|---------|------|
-| **State label** | `sitting` | `standing` | `walking` | `away` |
-| **Session duration** | `for {currentSessionSecs}` formatted as short duration | `for {currentSessionSecs}` | `for {currentSessionSecs}` | `for {currentSessionSecs}` |
-| **Big number** | `limitRemaining / limitSecs` (e.g., `38:26 / 45:00`) | same formula | same formula | same formula |
-| **Overtime sign** | `+` prefix when `limitRemaining < 0` | n/a (limitRemaining grows while standing) | n/a | n/a |
-| **Progress bar** | fills left to right, class `--filling` | class `--draining` | class `--draining` | class `--draining` |
-| **Progress width** | `min(limitRatio * 100, 100)%` | same | same | same |
-| **Previous session** | shows if available: `previously: stood 12m ✓` or `away 5m` | same | same | same |
+The popup widget renders top-to-bottom:
 
-`limitRemaining = limitSecs - limitUsedSecs` (negative = overtime).
-`limitRatio = limitUsedSecs / limitSecs` (can exceed 1.0).
+```
+┌──────────────────────────────────────────┐
+│ ↕ desk  72 cm                         ⚙  │  OneBarHeader
+├──────────────────────────────────────────┤
+│ Standing 12%  Changes 1.2/h  Breaks 5/7  │  KpiStrip (4 badges)
+│ Screen 47m                               │
+├──────────────────────────────────────────┤
+│ ▓▓▓▓░░▓▓▓▓▓▓▓▓░░▓▓▓▓▓▓▓▓▓▓▓▓▓▓░▓▓▓▓▓▓│  OneBarTimeline
+│  8         9        10        11         │  (hour markers)
+├──────────────────────────────────────────┤
+│ ● sitting                 previously:    │  OneBarTimer
+│ 25:00 / 40:00            stood 12m ✓     │  (state label + big number)
+│ ████████████████████░░░░░░░░░░░░░░░░░░░ │  (inline ProgressBar)
+└──────────────────────────────────────────┘
+```
 
-Source: `OneBarTimer.tsx:12-71`
+Source: `OneBarWidget.tsx`
 
-### 2.4 Widget (OneBar) — Coach Message
+### 2.4 Widget (OneBar) — Timer (state-aware)
 
-| Condition | Message |
-|-----------|---------|
-| **Standing/Walking, breakResetProgress >= 1.0** | `Reset! You can sit down — you have a full {limitMin} min.` |
-| **Standing/Walking, breakResetProgress < 1.0** | `{toResetMin} min left until reset.` |
-| **Away, breakResetProgress >= 1.0** | `Reset! Come back and you have a full {limitMin} min.` |
-| **Away, breakResetProgress < 1.0** | `Break counts. {toResetMin} min to reset.` |
-| **Sitting, limitRatio >= 1.0** | `Limit exceeded by {overtimeMin} min. Losing points.` |
-| **Sitting, limitRatio >= 0.8** | `Stand up within {remainingMin} min.` |
-| **Sitting, limitRatio >= 0.5** | `Half limit used. {todayChanges} changes today.` |
-| **Sitting, limitRatio < 0.5** | `On track.` |
+| Property | Sitting | Standing / Walking / Away |
+|----------|---------|--------------------------|
+| **State label** | `sitting` | `standing` / `walking` / `away` |
+| **Elapsed** | `currentSessionSecs` | `breakSecs` (time since last state change) |
+| **Total** | `limitSecs` (sit limit) | `standLimitSecs` (standing target) |
+| **Big number** | `25:00 / 40:00` (elapsed / total) | `08:30 / 15:00` (break / stand target) |
+| **Overtime sign** | `+` prefix when `limitRemaining < 0` | n/a |
+| **Progress bar color** | `sitting` scheme (green→yellow→red) | `standing` scheme (gold) |
+| **Previous session** | shows if available: `previously: stood 12m ✓` or `away 5m` | same |
 
-Source: `OneBarCoach.tsx:11-55`
+Source: `OneBarTimer.tsx:22-71`
 
-### 2.5 Widget (OneBar) — Temperature Background
+### 2.5 Widget (OneBar) — KPI Strip (added E001)
+
+Four daily metrics rendered as color-coded badges above the timeline.
+Computed server-side by `MetricEngine` (Rust), transported via `DashboardState` IPC.
+
+| KPI ID | Label | Formula | Green | Yellow | Red |
+|--------|-------|---------|-------|--------|-----|
+| `standing_pct` | Standing | `standing_secs / (sitting + standing) × 100` | ≥15% | 10-15% | <10% |
+| `position_rate` | Changes/h | `position_changes / hours_worked` | ≥1.0/h | 0.5-1.0/h | <0.5/h |
+| `hourly_breaks` | Breaks | hours with ≥5 min away / total hours | all covered | 1-2 missed | ≥3 missed |
+| `longest_session` | Session | `longest_computer_session_secs / 60` | <45m | 45-75m | >75m |
+
+**Badge rendering**: border color = level color (`--signal-ok` / `--signal-warn` / `--signal-alert`).
+Value text color matches level. Personal best shows `PB` tag.
+
+**Tooltips**: each badge has a hover tooltip explaining the metric and its thresholds.
+
+**Early data**: metrics show `—` until `kpi_early_data_threshold_mins` (30 min) of data collected.
+
+**Data flow**: `SessionState` → `MetricEngine.compute_all()` → `DashboardState.metrics` → IPC → `useDesk().metrics` → `KpiStrip`.
+
+Source: `metrics/mod.rs`, `metrics/*.rs`, `KpiStrip.tsx`
+
+### 2.6 Widget (OneBar) — Coach Message (REMOVED in E001)
+
+> OneBarCoach was removed in E001. The KPI strip and inline progress bar now communicate
+> session status visually. No text-based coach messages remain in the widget.
+
+### 2.7 Widget (OneBar) — Temperature Background
 
 | State/Condition | Temperature | Background Color | Effect |
 |----------------|-------------|------------------|--------|
@@ -144,7 +206,7 @@ Source: `OneBarCoach.tsx:11-55`
 
 Source: `temperature.ts:26-37`, `DESIGN.md:93-103`
 
-### 2.6 Timeline Blocks
+### 2.8 Timeline Blocks
 
 | State | Block CSS class | Visual color |
 |-------|----------------|--------------|
@@ -295,6 +357,7 @@ Sessions appear as proportional colored blocks in the timeline:
 
 Checked every 60 seconds. On new day:
 - `sitting_seconds`, `standing_seconds`, `position_changes` reset to 0
+- `continuous_computer_secs`, `longest_computer_session_secs` reset to 0
 - `daily_score` reset to 0
 - All notification flags cleared
 - Standing session tracking reset
@@ -369,20 +432,19 @@ Source: `DESIGN.md:57-103`, `colors.rs`, `tray.rs:150-158`, `temperature.ts`
 ```
 08:00  State: Away -> Sitting (desk lowered)
        Overlay: visible, green bar at 0%
-       Coach: "On track."
        Temperature: calm
+       KPIs: all "—" (early data threshold not reached)
        Score: starts at 0, decreasing at -0.5/min
 
 08:22  limitRatio crosses 0.5
-       Coach: "Half limit used. 0 changes today."
        Temperature: warm
+       KPIs: Standing 0% (red), Changes 0/h (red), Session 22m (green)
        Overlay: still green (< 60%)
 
 08:27  limitRatio crosses 0.6 (27/45)
        Overlay: yellow #ffc107
 
 08:36  limitRatio crosses 0.8 (36/45)
-       Coach: "Stand up within 9 min."
        Temperature: hot
 
 08:38  limitRatio crosses 0.85 (38.25/45)
@@ -390,8 +452,8 @@ Source: `DESIGN.md:57-103`, `colors.rs`, `tray.rs:150-158`, `temperature.ts`
        Tray icon: red dot
 
 08:45  limitRatio reaches 1.0 — ALERT
-       Coach: "Limit exceeded by 1 min. Losing points."
        Temperature: burning
+       KPIs: Session 45m (yellow), Standing 0% (red)
        Toast notification: "Time to stand up!"
        Alert Stage1 starts: overlay pulses (variant=2)
 
@@ -430,12 +492,10 @@ Source: `DESIGN.md:57-103`, `colors.rs`, `tray.rs:150-158`, `temperature.ts`
 
 08:30  User raises desk -> Standing (after 5s debounce)
        Overlay: gold bar fills over 15 min target
-       Coach: "15 min left until reset."
        Temperature: standing
        Score at 08:30: -15 pts (30 min * -0.5)
 
 08:40  Standing for 10 min -> breakResetProgress >= 1.0
-       Coach: "Reset! You can sit down — you have a full 45 min."
        Temperature: reset (green glow)
 
 08:45  Standing for 15 min -> lap complete
@@ -447,11 +507,10 @@ Source: `DESIGN.md:57-103`, `colors.rs`, `tray.rs:150-158`, `temperature.ts`
        Break credit: Full (15 min >= 10 min)
        sitting_seconds reset to 0
        Overlay: green bar at 0%, calm temperature
-       Coach: "On track."
 
 09:15  30 min sitting, limitRatio = 0.67
        Overlay: yellow
-       Coach: "Half limit used. 1 changes today."
+       KPIs: Standing 12% (yellow), Changes 1.3/h (green)
 
 09:20  User raises desk -> Standing again
        Break credit from the 35 min sitting: none yet (no break applied until return)
@@ -472,7 +531,7 @@ Source: `DESIGN.md:57-103`, `colors.rs`, `tray.rs:150-158`, `temperature.ts`
 08:45  Limit reached (45 min)
        Alert Stage1: bar pulses red
        Toast: "Time to stand up!"
-       Coach: "Limit exceeded by 1 min. Losing points."
+       KPIs: Session 45m (yellow)
 
 08:47  Stage2: popup "Time for a stretch!"
        User dismisses -> 5 min snooze
@@ -491,7 +550,6 @@ Source: `DESIGN.md:57-103`, `colors.rs`, `tray.rs:150-158`, `temperature.ts`
 09:44  USER FINALLY STANDS
        Alert: on_standing() -> Idle, snooze_index=0
        Overlay: stops pulsing, switches to gold standing bar
-       Coach: "15 min left until reset."
 
        Score at this point: ~50 min overtime * -0.5/min = about -40 pts total
 
@@ -542,6 +600,20 @@ Validation: if `sitting_mm >= standing_mm`, both reset to defaults with a warnin
 | `pts_sitting_per_min` | -0.5 | Points per minute while sitting (negative = penalty). |
 | `pts_standing_per_min` | +1.0 | Points per minute while standing. |
 | `pts_session_bonus` | +5.0 | Bonus awarded each time a standing lap completes. |
+
+### KPI Thresholds (added E001)
+
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `kpi_standing_green_pct` | 15.0 | Standing % threshold for green level. |
+| `kpi_standing_yellow_pct` | 10.0 | Standing % threshold for yellow level (below = red). |
+| `kpi_changes_green` | 1.0 | Position changes/h threshold for green. |
+| `kpi_changes_yellow` | 0.5 | Position changes/h threshold for yellow (below = red). |
+| `kpi_break_yellow_missed` | 2 | Missed hourly breaks before yellow. |
+| `kpi_break_red_missed` | 3 | Missed hourly breaks before red. |
+| `kpi_session_green_mins` | 45 | Screen time (min) below which = green. |
+| `kpi_session_yellow_mins` | 75 | Screen time (min) below which = yellow (above = red). |
+| `kpi_early_data_threshold_mins` | 30 | Minutes before KPIs show real values (shows "—" before). |
 
 ### Notifications
 

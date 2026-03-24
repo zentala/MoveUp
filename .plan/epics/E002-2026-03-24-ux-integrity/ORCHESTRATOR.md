@@ -1,7 +1,7 @@
 # E002 — Orchestrator
 
 ## Wave 0: Context (no code changes, documentation only)
-- [ ] **E002-T01** — Update UX-FLOW.md: sync with E001, add target state machine, KPI definitions
+- [x] **E002-T01** — Update UX-FLOW.md: sync with E001, add target state machine, KPI definitions
   - Blocks: all other tasks (everyone needs to read the same truth)
 
 ## Wave 1: State Machine Fix (Rust backend)
