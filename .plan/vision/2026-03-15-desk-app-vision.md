@@ -114,8 +114,55 @@ App scans all COM ports, sends a ping or waits for this string, then auto-connec
 
 ---
 
+## Remote Display — Phone as Desk Dashboard
+
+### Vision
+
+Turn an old Android phone into a dedicated desk dashboard — always-on fullscreen display
+showing real-time ergonomic state (same UI as the desktop popup).
+
+### Phase 1: Web Kiosk (PC-dependent)
+
+Phone connects to PC over WiFi LAN. Desktop app runs an embedded HTTP+WebSocket server
+serving the React UI. Phone opens the URL in a kiosk browser app (e.g. Fully Kiosk Browser).
+Zero mobile code — same React build, different data hook (WebSocket instead of Tauri IPC).
+
+**See:** `.plan/epics/E009-2026-03-24-remote-display/PLAN.md`
+
+### Phase 2: Tauri Mobile App (PC-dependent)
+
+Native Android app (Tauri Mobile) with the same React UI. Advantages over web kiosk:
+native kiosk mode, auto-start on boot, screen always-on control, landscape lock.
+Still connects to PC via WebSocket for data. Same WS protocol as Phase 1.
+
+### Phase 3: Standalone (no PC required)
+
+Phone runs the full app independently — sensor communicates directly with phone.
+
+**Option A: USB OTG** — ESP32-C3 connected via USB OTG cable. Requires phone with OTG
+support + USB hub for simultaneous charging. Firmware unchanged (USB Serial).
+
+**Option B: WiFi/BLE** — Sensor communicates wirelessly. ESP32-C3 supports both WiFi and
+BLE natively. Firmware change required: add WiFi AP or BLE GATT server.
+Phone and sensor are fully wireless, independent of PC.
+
+**Option C: Dual-mode (recommended future state)** — Both USB and wireless.
+Firmware supports both communication channels. Phone app supports both.
+User chooses based on setup (desk with USB hub vs wireless freedom).
+Maximum flexibility for users.
+
+### Hardware Considerations for Phase 3
+
+- **Power**: Sensor needs 3.3V (from USB). If wireless, sensor still needs USB power
+  from desk/charger. Phone charged separately or via USB hub.
+- **Firmware**: Current firmware is USB Serial only. Adding WiFi/BLE is a significant
+  firmware change but ESP32-C3 supports it natively (no hardware change).
+- **USB OTG**: Not all phones support it. Hub needed for charge + data simultaneously.
+  Some hubs don't work reliably. Test with target phone first.
+
+---
+
 ## Out of Scope (for now)
-- Mobile app
 - Cloud sync
 - Multi-user
 - Multiple monitors for progress bar

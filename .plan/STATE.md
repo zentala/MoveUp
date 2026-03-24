@@ -33,8 +33,11 @@ current_wave: null
 - Gamification philosophy documented in memory
 - BACKLOG: gamification research + scoring redesign tasks
 
+## Planned Epics
+- E009 (Remote Display — Web Kiosk, 2026-03-24) — **PLANNED** (7 tasks, ~16h)
+
 ## Next Steps
 1. Dogfood app — verify standing_pct, position_changes, metrics in snapshots
 2. Gamification research report (BACKLOG task)
 3. Notification flag persistence fix (BACKLOG P2)
-4. Pick next epic
+4. E009: Remote Display — phone as desk dashboard (web kiosk)

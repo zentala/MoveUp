@@ -189,12 +189,24 @@ Alert: max ciągła praca przy komputerze. Standing ≠ przerwa od ekranu.
 
 ---
 
+## Remote Display — Phone as Desk Dashboard
+
+**Epic E009** — full spec at `.plan/epics/E009-2026-03-24-remote-display/PLAN.md`
+
+Phase 1 (E009): Web kiosk — PC serves React+WS to phone browser. 7 tasks, ~16h.
+Phase 2 (future): Tauri Mobile native Android app.
+Phase 3 (future): Standalone — sensor communicates wirelessly (BLE/WiFi) with phone, no PC needed.
+
+See `.plan/vision/2026-03-15-desk-app-vision.md` → "Remote Display" section for full vision.
+
+---
+
 ## Future Features
 
 - **Notification A/B testing** — two backends simultaneously with feature flag (T018)
 - **Success notifications + gamification** — streak tracking, milestone celebrations (T019)
 - **Notification strategy plugins** — like widget system but for how/when to nudge
-- **Phone-as-hub** — old phone + BLE sensor, works without desktop app
+- **Phone-as-hub** — old phone + BLE sensor, works without desktop app → **see E009 Phase 3**
 - **Smartwatch integration** — proximity detection, walking state, HRV
 - Eksport danych do CSV
 - Konfiguracja progów wysokości przez UI (kalibracja z UI)
