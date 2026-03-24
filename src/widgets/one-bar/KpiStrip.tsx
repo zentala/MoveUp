@@ -26,7 +26,7 @@ const KPI_TOOLTIPS: Record<string, string> = {
   hourly_breaks:
     "Hourly breaks — hours with at least 5 min away from screen. Green: all hours covered, Yellow: 1-2 missed, Red: ≥3 missed",
   longest_session:
-    "Screen time — longest continuous time at computer without 5+ min break. Green: <45m, Yellow: 45-75m, Red: >75m. Resets after 5 min away.",
+    "Longest screen time — longest continuous time at computer without 5+ min break. Green: <45m, Yellow: 45-75m, Red: >75m. Resets after 5 min away.",
 };
 
 /** Single KPI badge. */
@@ -56,6 +56,7 @@ export const KpiStrip: FC<KpiStripProps> = ({ metrics }) => {
 
   return (
     <div className="kpi-strip" data-testid="kpi-strip">
+      <span className="kpi-strip__header">Today</span>
       {metrics.map((m) => (
         <KpiBadge key={m.id} metric={m} />
       ))}

@@ -8,7 +8,7 @@ pub struct StandingPercentMetric;
 
 impl Metric for StandingPercentMetric {
     fn id(&self) -> &str { "standing_pct" }
-    fn label(&self) -> &str { "Standing" }
+    fn label(&self) -> &str { "\u{2195} Standing" }
 
     fn compute(&self, state: &SessionState, config: &AppConfig) -> MetricResult {
         let sitting = state.sitting_seconds as f64;
