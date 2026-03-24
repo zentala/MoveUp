@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-25T00:30:00Z
+updated: 2026-03-25T01:30:00Z
 active_epic: none
 active_epic_path: null
 current_wave: null
@@ -21,17 +21,14 @@ current_wave: null
 - Rule: each new epic bumps `0.MAJOR.0`
 
 ## Test Totals
-- Rust: 327 tests
+- Rust: 330 tests
 - TypeScript: 169 tests
 - Total: 496
 
 ## New This Session
-- `/desk-debug` skill for snapshot/event log analysis
-- `sitting_seconds_total` field — raw KPI accumulator
-- Metrics now included in minute snapshots
-- position_changes seeded from DB on restart
-- Gamification philosophy documented in memory
-- BACKLOG: gamification research + scoring redesign tasks
+- Fixed Away time counted as standing in DB queries (db_sessions, db_queries)
+- Added `away_secs` to TodayTotals, refactored `get_totals_for_date(date)`
+- 3 new regression tests for Away exclusion
 
 ## Planned Epics
 - E009 (Remote Display — Web Kiosk, 2026-03-24) — **PLANNED** (7 tasks, ~16h)

@@ -75,3 +75,19 @@
   3. Notification flags not persisted → spam on every restart (added to BACKLOG)
 - **Improvements logged**: 0 (all fixed in same session)
 - **Next**: Dogfood with all fixes. Gamification research report. Pick next epic.
+
+## Session 2026-03-24 (late night)
+
+- **Goal**: Fix Away time counted as standing in DB queries
+- **Done**:
+  - **Root cause**: `db_sessions.rs` and `db_queries.rs` used `if state == "Sitting" { ... } else { standing += duration }` — any non-Sitting state (including Away) inflated standing totals when loaded from DB. In-memory logic was already correct (fixed in 4b368c3), but DB path was missed.
+  - Fixed `load_today_totals()`, `get_yesterday_totals()`, `get_today_summary()` — all now use `match` on state string: Sitting → sitting, Standing|Walking → standing, _ → excluded
+  - Added `away_secs` field to `TodayTotals` struct (tracked separately, not lost)
+  - Refactored `get_yesterday_totals()` → `get_totals_for_date(date)` + wrapper (testable with any date)
+  - 3 new tests: Away exclusion for today totals, today summary, date-parameterized query
+  - 330 Rust tests passing
+  - Commit: e8f8b09
+- **Decisions**: None architectural — bugfix completing prior in-memory fix
+- **Findings this session**: 1 (DB loading path was never fixed in 4b368c3, only in-memory path was)
+- **Improvements logged**: 0
+- **Next**: Dogfood with all fixes. Gamification research report. Pick next epic.
