@@ -161,14 +161,11 @@ pub(crate) unsafe fn render_variant_pixels(
     }
 }
 
-/// Width in pixels of one lap indicator segment.
-const LAP_INDICATOR_PX: i32 = 8;
-/// Bright gold color for lap indicator segments: `#FFD700`.
-const LAP_INDICATOR_RGB: (u8, u8, u8) = (255, 215, 0);
-
-/// Renders the standing gold bar (GDI / OPAQUE backend).
+/// Renders the standing gold bar with 2-layer lap visual (GDI / OPAQUE backend).
 ///
-/// Draws: lap indicator (bright gold, 8px per lap) + progress fill + variant.
+/// Layer 1 (base): dark goldenrod full-width for completed laps.
+/// Layer 2 (fill): bright gold on top for current lap progress.
+/// Example: 1 lap done + 50% into lap 2 → dark gold 100% base + bright gold 50% fill.
 #[cfg(target_os = "windows")]
 pub(crate) fn render_standing_bar_gdi(
     hdc: windows::Win32::Graphics::Gdi::HDC,
@@ -180,29 +177,35 @@ pub(crate) fn render_standing_bar_gdi(
     frame_count: u32,
     overlay_variant: u8,
 ) {
-    let lap_width = (lap as i32 * LAP_INDICATOR_PX).min(window_width);
-    let remaining = window_width - lap_width;
-    let fill_width = ((remaining as f32) * progress.clamp(0.0, 1.0)) as i32;
-    let total_bar = (lap_width + fill_width).max(1);
+    use windows::Win32::Foundation::*;
+    use windows::Win32::Graphics::Gdi::*;
+    use crate::colors::STANDING_LAP_BASE;
 
-    // Use variant rendering for the main bar (handles pulsing during flash)
-    render_variant_gdi(hdc, total_bar, window_height, color_rgb, frame_count, overlay_variant);
-
-    // Overdraw lap indicator segments in bright gold (always solid)
-    if lap_width > 0 {
-        use windows::Win32::Foundation::*;
-        use windows::Win32::Graphics::Gdi::*;
-        let (lr, lg, lb) = LAP_INDICATOR_RGB;
-        let color = COLORREF((lr as u32) | ((lg as u32) << 8) | ((lb as u32) << 16));
-        let brush = unsafe { CreateSolidBrush(color) };
+    // Layer 1: dark goldenrod base spanning full width (completed laps)
+    if lap > 0 {
+        let (br, bg, bb) = STANDING_LAP_BASE;
+        let base_color = COLORREF(
+            (br as u32) | ((bg as u32) << 8) | ((bb as u32) << 16),
+        );
+        let brush = unsafe { CreateSolidBrush(base_color) };
         if !brush.is_invalid() {
-            let rect = RECT { left: 0, top: 0, right: lap_width, bottom: window_height };
-            unsafe { let _ = FillRect(hdc, &rect, brush); let _ = DeleteObject(brush.into()); }
+            let rect = RECT { left: 0, top: 0, right: window_width, bottom: window_height };
+            unsafe {
+                let _ = FillRect(hdc, &rect, brush);
+                let _ = DeleteObject(brush.into());
+            }
         }
     }
+
+    // Layer 2: bright gold fill for current lap progress (on top)
+    let fill_width = ((window_width as f32) * progress.clamp(0.0, 1.0)) as i32;
+    let fill_width = fill_width.max(1); // Always show at least 1px
+    render_variant_gdi(hdc, fill_width, window_height, color_rgb, frame_count, overlay_variant);
 }
 
-/// Renders the standing gold bar (pixel buffer / LAYERED backend).
+/// Renders the standing gold bar with 2-layer lap visual (pixel buffer / LAYERED backend).
+///
+/// Same logic as GDI version: dark base for completed laps, bright fill for current lap.
 #[cfg(target_os = "windows")]
 pub(crate) unsafe fn render_standing_bar_pixels(
     bits_ptr: *mut u32,
@@ -214,25 +217,25 @@ pub(crate) unsafe fn render_standing_bar_pixels(
     frame_count: u32,
     overlay_variant: u8,
 ) {
-    let lap_width = (lap as i32 * LAP_INDICATOR_PX).min(buf_width);
-    let remaining = buf_width - lap_width;
-    let fill_width = ((remaining as f32) * progress.clamp(0.0, 1.0)) as i32;
-    let total_bar = (lap_width + fill_width).max(1);
+    use crate::colors::STANDING_LAP_BASE;
 
-    render_variant_pixels(bits_ptr, buf_width, buf_height, total_bar, color_rgb, frame_count, overlay_variant);
-
-    // Overdraw lap indicator in bright gold
-    if lap_width > 0 {
+    // Layer 1: dark goldenrod base spanning full width (completed laps)
+    if lap > 0 {
         let alpha = 200u32;
-        let (lr, lg, lb) = LAP_INDICATOR_RGB;
-        let r = (lr as u32 * alpha / 255) as u32;
-        let g = (lg as u32 * alpha / 255) as u32;
-        let b = (lb as u32 * alpha / 255) as u32;
+        let (br, bg, bb) = STANDING_LAP_BASE;
+        let r = (br as u32 * alpha / 255) as u32;
+        let g = (bg as u32 * alpha / 255) as u32;
+        let b = (bb as u32 * alpha / 255) as u32;
         let pixel = (alpha << 24) | (r << 16) | (g << 8) | b;
         for y in 0..buf_height {
-            for x in 0..lap_width {
+            for x in 0..buf_width {
                 *bits_ptr.add((y * buf_width + x) as usize) = pixel;
             }
         }
     }
+
+    // Layer 2: bright gold fill for current lap progress (on top)
+    let fill_width = ((buf_width as f32) * progress.clamp(0.0, 1.0)) as i32;
+    let fill_width = fill_width.max(1);
+    render_variant_pixels(bits_ptr, buf_width, buf_height, fill_width, color_rgb, frame_count, overlay_variant);
 }

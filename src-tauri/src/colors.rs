@@ -24,6 +24,9 @@ pub fn color_for_progress(progress: f32) -> (u8, u8, u8, &'static str) {
     }
 }
 
+/// Dark goldenrod base color for completed standing laps: `#B8860B`.
+pub const STANDING_LAP_BASE: (u8, u8, u8) = (0xB8, 0x86, 0x0B);
+
 /// Returns (r, g, b) for a standing progress ratio (0.0 → 1.0).
 ///
 /// Interpolates from goldenrod `#DAA520` to bright gold `#FFD720`.

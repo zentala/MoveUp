@@ -82,6 +82,11 @@ export default function App() {
           }
           variant="overlay"
           colorScheme={colorSchemeFor(widgetProps.state)}
+          completedLaps={
+            widgetProps.standLimitSecs > 0
+              ? Math.floor(widgetProps.breakSecs / widgetProps.standLimitSecs)
+              : 0
+          }
         />
       )}
 

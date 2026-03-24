@@ -23,6 +23,9 @@ export const SITTING_RED = "#f44336";
 export const STANDING_START = "#DAA520"; // goldenrod at 0%
 export const STANDING_END = "#FFD720"; // bright gold at 100%
 
+/** Dark goldenrod base for completed standing laps — matches colors.rs STANDING_LAP_BASE. */
+export const STANDING_LAP_BASE = "#B8860B";
+
 /** Away state color. */
 export const AWAY_GRAY = "#808080";
 

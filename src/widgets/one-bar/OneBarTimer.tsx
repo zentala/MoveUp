@@ -65,6 +65,9 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
         variant="inline"
         colorScheme={colorSchemeFor(props.state)}
         shimmer={shimmer}
+        completedLaps={
+          total > 0 ? Math.floor(props.breakSecs / props.standLimitSecs) : 0
+        }
       />
     </div>
   );
