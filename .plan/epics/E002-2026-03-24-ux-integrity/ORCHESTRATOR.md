@@ -11,7 +11,7 @@
   - Away = new session start (not continuation of old sitting)
   - Suppress notifications during Away (no "time to stand" at empty desk)
   - Blocks: T03, T04, T05, T06
-- [ ] **E002-T03** — Away sessions to DB + live timeline
+- [x] **E002-T03** — Away sessions to DB + live timeline
   - `handle_state_exit(Away)` → `CompletedSession(state="Away")`
   - Frontend: gray blocks in timeline
   - **Live current session in timeline** — show what's happening NOW as a growing block,
@@ -27,7 +27,7 @@
   - Depends on: T02
 
 ## Wave 2: UI Fixes (TypeScript + Rust)
-- [ ] **E002-T05** — KPI rename + icons on all badges
+- [x] **E002-T05** — KPI rename + icons on all badges
   - "Session" → "Screen time" (Rust: `longest_session.rs` label field)
   - Add line icons to ALL KPI badges:
     - 👁 eye → Screen time (protecting eyesight)
@@ -37,7 +37,7 @@
   - Use Unicode line icons (no image assets needed)
   - Add "Today" header label above KPI strip
   - Depends on: T02 (Away must work for screen time to reset)
-- [ ] **E002-T06** — Overlay/popup color unification
+- [x] **E002-T06** — Overlay/popup color unification
   - Define ONE color palette (Rust `colors.rs` as source of truth)
   - TypeScript `ProgressBar.tsx` uses same hex values
   - Same thresholds: <60% green, 60-85% yellow, ≥85% red
@@ -77,12 +77,12 @@
   - Depends on: T09
 
 ## Wave 4: DevEx & Docs
-- [ ] **E002-T11** — Process guard: restore auto-kill old desk.exe
+- [x] **E002-T11** — Process guard: restore auto-kill old desk.exe
   - cross-env doesn't support process guard
   - Option A: Node.js script (cross-platform)
   - Option B: PowerShell one-liner before tauri dev
   - Must work from `pnpm tauri:dev`
-- [ ] **E002-T12** — Regression tests for popup standing timer
+- [x] **E002-T12** — Regression tests for popup standing timer
   - TS test: Standing state → timer shows breakSecs/standLimitSecs
   - TS test: Sitting→Standing transition → bar turns gold
   - TS test: Away state → bar gray, timer shows 0
