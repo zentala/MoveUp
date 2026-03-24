@@ -8,6 +8,7 @@ mod alert_popup_window;
 mod colors;
 mod commands;
 mod commands_config;
+mod commands_welcome;
 mod config;
 mod db;
 mod db_queries;
@@ -29,6 +30,10 @@ mod overlay_standing;
 #[cfg(test)]
 mod overlay_standing_tests;
 mod overlay_variants;
+mod remote_server;
+#[cfg(test)]
+mod remote_server_tests;
+mod ws_broadcaster;
 #[cfg(test)]
 mod overlay_tests;
 #[cfg(test)]
@@ -52,34 +57,23 @@ mod session_breaks;
 mod session_daily;
 mod session_reading;
 pub mod session_types;
-#[cfg(test)]
-mod session_tests;
-#[cfg(test)]
-mod session_tests_alerts;
-#[cfg(test)]
-mod session_tests_floating;
-#[cfg(test)]
-mod session_tests_daily;
-#[cfg(test)]
-mod session_tests_props;
-#[cfg(test)]
-mod session_tests_score;
-#[cfg(test)]
-mod session_tests_timers;
-#[cfg(test)]
-mod session_tests_timers_live;
-#[cfg(test)]
-mod session_tests_serde;
-#[cfg(test)]
-mod session_tests_break_credit;
-#[cfg(test)]
-mod session_tests_kpi;
-#[cfg(test)]
-mod session_tests_away;
-#[cfg(test)]
-mod session_tests_away_transitions;
+// Session test modules
+#[cfg(test)] mod session_tests;
+#[cfg(test)] mod session_tests_alerts;
+#[cfg(test)] mod session_tests_floating;
+#[cfg(test)] mod session_tests_daily;
+#[cfg(test)] mod session_tests_props;
+#[cfg(test)] mod session_tests_score;
+#[cfg(test)] mod session_tests_timers;
+#[cfg(test)] mod session_tests_timers_live;
+#[cfg(test)] mod session_tests_serde;
+#[cfg(test)] mod session_tests_break_credit;
+#[cfg(test)] mod session_tests_kpi;
+#[cfg(test)] mod session_tests_away;
+#[cfg(test)] mod session_tests_away_transitions;
 mod tray;
 mod tray_controller;
+mod tray_helpers;
 #[cfg(test)]
 mod tray_controller_tests;
 mod tray_icon;
@@ -124,6 +118,8 @@ pub fn run() {
             overlay: Arc::new(OverlayRenderer::new()),
             alert_manager: Arc::new(Mutex::new(AlertManager::new(AlertConfig::default()))),
             alert_popup: Arc::new(Mutex::new(AlertPopup::new())),
+            ws_tx: ws_broadcaster::create_channel(),
+            today_cache: Arc::new(Mutex::new(crate::db::TodaySummary::default())),
         })
         .invoke_handler({
             #[cfg(any(test, debug_assertions))]
@@ -138,8 +134,8 @@ pub fn run() {
                     commands::get_today_summary,
                     commands::inject_reading,
                     commands::trigger_test_notification,
-                    commands::dismiss_welcome,
-                    commands::show_welcome,
+                    commands_welcome::dismiss_welcome,
+                    commands_welcome::show_welcome,
                     commands_config::set_session_limit,
                     commands_config::set_stand_limit,
                     commands_config::calibrate,
@@ -159,8 +155,8 @@ pub fn run() {
                     commands::get_connected_port,
                     commands::get_today_summary,
                     commands::trigger_test_notification,
-                    commands::dismiss_welcome,
-                    commands::show_welcome,
+                    commands_welcome::dismiss_welcome,
+                    commands_welcome::show_welcome,
                     commands_config::set_session_limit,
                     commands_config::set_stand_limit,
                     commands_config::calibrate,
@@ -208,12 +204,15 @@ pub fn run() {
 
                     // Show welcome popup on first launch (or if user hasn't dismissed it).
                     if config.show_welcome_on_startup {
-                        if let Err(e) = commands::show_welcome_window(app.handle()) {
+                        if let Err(e) = commands_welcome::show_welcome_window(app.handle()) {
                             log::warn!("Failed to show welcome popup: {}", e);
                         }
                     }
                 }
             }
+
+            // Spawn remote display server + wire broadcast listeners.
+            setup_helpers::setup_remote_display(app.handle());
 
             // Kick off auto-detection immediately on startup.
             let state: tauri::State<'_, AppState> = app.state();

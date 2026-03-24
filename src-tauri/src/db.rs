@@ -90,7 +90,7 @@ pub struct HeightReadingRow {
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
 /// Aggregated daily summary returned by `get_today_summary`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TodaySummary {
     pub sitting_secs: i64,
     pub standing_secs: i64,

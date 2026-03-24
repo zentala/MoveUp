@@ -1,13 +1,15 @@
 //! Wires `desk:state-changed` + `desk:distance` events to tray tooltip,
 //! overlay progress bar, and [`AlertManager`] state machine.
 
-use tauri::{AppHandle, Listener};
+use tauri::{AppHandle, Listener, Manager};
 
 use crate::{
     alert_manager::AlertAction,
     colors::{color_for_progress, color_for_standing},
+    commands::AppState,
     session::{DeskState, StateChangedPayload},
     tray,
+    ws_broadcaster::{self, DisplayEvent},
 };
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -34,8 +36,6 @@ pub fn setup(app: &AppHandle) {
 
 /// Reacts to a state-change event by updating tray, overlay, and alerts.
 fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
-    use crate::commands::AppState;
-    use tauri::Manager;
 
     // Read session snapshot, overlay, alert_manager, and alert_popup from managed state.
     let (snapshot, overlay, alert_manager, alert_popup) = {
@@ -82,12 +82,22 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
         let actions = alert_manager.lock().unwrap().on_standing();
         execute_alert_actions(&actions, &overlay, &alert_popup);
     }
+
+    // Broadcast state change to remote display clients
+    let app_state = app.state::<AppState>();
+    ws_broadcaster::broadcast_event(
+        &app_state.ws_tx,
+        &DisplayEvent::StateChanged(
+            serde_json::to_value(payload).unwrap_or_default(),
+        ),
+    );
+
+    // Refresh today_cache from DB on state transitions (new session row may exist)
+    refresh_today_cache(app);
 }
 
 /// Updates overlay progress on every sensor reading and drives the alert state machine.
 fn update_overlay_progress(app: &AppHandle) {
-    use crate::commands::AppState;
-    use tauri::Manager;
 
     let app_state = app.state::<AppState>();
 
@@ -101,7 +111,31 @@ fn update_overlay_progress(app: &AppHandle) {
 
     let session = app_state.session.lock().unwrap();
     let snapshot = session.snapshot();
+    let now = chrono::Utc::now();
+    let mut raw_state = session.state.clone();
+    raw_state.sitting_seconds_total = session.get_live_sitting_seconds_total(now);
+    raw_state.standing_seconds = session.get_live_standing_seconds(now);
     drop(session); // Release lock before calling tray/overlay
+
+    // Broadcast session + metrics to remote display clients (~1/s).
+    // All data is from memory — zero DB access in the hot path.
+    {
+        let config_guard = app_state.config.lock().unwrap();
+        let config = config_guard.as_ref().cloned().unwrap_or_default();
+        drop(config_guard);
+        let metrics = crate::metrics::MetricEngine::with_defaults()
+            .compute_all(&raw_state, &config);
+        let today = app_state.today_cache.lock().unwrap().clone();
+        let remote_state = ws_broadcaster::RemoteDisplayState {
+            session: snapshot.clone(),
+            metrics,
+            today,
+        };
+        ws_broadcaster::broadcast_event(
+            &app_state.ws_tx,
+            &DisplayEvent::Snapshot(remote_state),
+        );
+    }
 
     // Update tooltip every second regardless of state
     update_tooltip(app, &snapshot);
@@ -183,38 +217,7 @@ fn update_tooltip(app: &AppHandle, snapshot: &crate::session::SessionStateDto) {
     let _ = tray::update_tray_tooltip(app, &label);
 }
 
-/// Builds tooltip like `"↕ 72.3 cm — Sitting (12:34) +38"` with state-appropriate duration and score.
-pub(crate) fn build_tooltip_label(
-    desk_height_cm: f32,
-    state: &DeskState,
-    sitting_secs: i64,
-    _standing_secs: i64,
-    break_secs: i64,
-    daily_score: f32,
-) -> String {
-    let (state_str, duration_secs) = match state {
-        DeskState::Sitting => ("Sitting", sitting_secs),
-        DeskState::Standing => ("Standing", break_secs),
-        DeskState::Walking => ("Walking", break_secs),
-        DeskState::Away => ("Away", 0),
-    };
-    let score_str = if daily_score >= 0.0 {
-        format!(" +{:.0}", daily_score)
-    } else {
-        format!(" {:.0}", daily_score)
-    };
-    format!(
-        "\u{2195} {:.0} cm \u{2014} {} ({}){}", // ↕ and —
-        desk_height_cm, state_str, format_duration(duration_secs), score_str,
-    )
-}
-
-/// Formats a duration in seconds as `"MM:SS"`.
-pub(crate) fn format_duration(secs: i64) -> String {
-    let secs = secs.max(0);
-    let minutes = secs / 60;
-    let seconds = secs % 60;
-    format!("{:02}:{:02}", minutes, seconds)
-}
+// Tooltip formatting and today-cache refresh moved to tray_helpers.rs
+use crate::tray_helpers::{build_tooltip_label, refresh_today_cache};
 
 // Tests moved to tray_controller_tests.rs

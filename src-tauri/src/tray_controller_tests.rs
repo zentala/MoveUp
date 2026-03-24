@@ -1,6 +1,6 @@
 //! tray_controller_tests.rs — Unit tests for tooltip formatting and standing progress.
 
-use crate::tray_controller::{build_tooltip_label, format_duration};
+use crate::tray_helpers::{build_tooltip_label, format_duration};
 use crate::session::DeskState;
 
 #[test]
