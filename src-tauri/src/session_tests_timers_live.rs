@@ -94,7 +94,7 @@ mod timer_live_tests {
         transition_to_sitting(&mut m);
         m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(300));
         // Transition to standing — break_seconds should be 0 (just started)
-        let result = m.on_reading(1200, true); // first debounce reading
+        let _result = m.on_reading(1200, true); // first debounce reading
         // After debounce completes
         for _ in 1..DEBOUNCE_COUNT {
             let _ = m.on_reading(1200, true);

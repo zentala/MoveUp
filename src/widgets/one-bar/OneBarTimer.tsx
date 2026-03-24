@@ -6,7 +6,7 @@
  */
 import type { FC } from "react";
 import type { WidgetProps } from "@/types";
-import { formatDuration, formatDurationShort } from "@/utils/format";
+import { formatDuration, formatDurationShort, colorSchemeFor } from "@/utils/format";
 import { ProgressBar } from "@/components/ProgressBar";
 import { useTimerAnimations } from "@/hooks/useTimerAnimations";
 
@@ -21,8 +21,8 @@ const STATE_LABELS: Record<string, string> = {
 /** Renders state label, big timer, previous session info, and the progress bar. */
 export const OneBarTimer: FC<WidgetProps> = (props) => {
   const stateLabel = STATE_LABELS[props.state] ?? props.state;
-  const elapsedStr = formatDuration(props.elapsed);
-  const totalStr = formatDuration(props.total);
+  const elapsedStr = formatDuration(props.currentSessionSecs);
+  const totalStr = formatDuration(props.limitSecs);
   const isOvertime = props.limitRemaining < 0 && props.state === "Sitting";
   const { shimmer } = useTimerAnimations(props.state, props.limitRatio);
 
@@ -54,10 +54,10 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
         )}
       </div>
       <ProgressBar
-        elapsed={props.elapsed}
-        total={props.total}
+        elapsed={props.currentSessionSecs}
+        total={props.limitSecs}
         variant="inline"
-        colorScheme={props.colorScheme}
+        colorScheme={colorSchemeFor(props.state)}
         shimmer={shimmer}
       />
     </div>

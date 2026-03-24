@@ -77,6 +77,7 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionRow {
     #[serde(skip_serializing)]
+    #[allow(dead_code)] // read from DB but not accessed directly
     pub id: i64,
     #[serde(rename = "start")]
     pub started_at: String,

@@ -64,6 +64,7 @@ impl HeightStabilizer {
     ///
     /// Uses trend-locked value if stable, otherwise the moving average.
     /// Returns `None` if no readings have been pushed yet.
+    #[allow(dead_code)] // used in tests; will be called from tray_controller
     pub fn stabilized_cm(&self) -> Option<u32> {
         let avg_mm = self.average_mm()?;
         let effective_mm = self.locked_mm.unwrap_or(avg_mm);
@@ -91,11 +92,13 @@ impl HeightStabilizer {
     }
 
     /// Returns whether the trend lock is currently engaged.
+    #[allow(dead_code)] // used in tests; will be called from tray_controller
     pub fn is_locked(&self) -> bool {
         self.locked_mm.is_some()
     }
 
     /// Resets all internal state (e.g., on device reconnect).
+    #[allow(dead_code)] // used in tests; will be called from tray_controller
     pub fn reset(&mut self) {
         self.buffer.clear();
         self.locked_mm = None;

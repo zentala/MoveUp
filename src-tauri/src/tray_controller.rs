@@ -188,7 +188,7 @@ pub(crate) fn build_tooltip_label(
     desk_height_cm: f32,
     state: &DeskState,
     sitting_secs: i64,
-    standing_secs: i64,
+    _standing_secs: i64,
     break_secs: i64,
     daily_score: f32,
 ) -> String {

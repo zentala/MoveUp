@@ -26,9 +26,6 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     todayStandingSecs: 0,
     todaySittingSecs: 600,
     todayScore: 0,
-    elapsed: 600,
-    total: 2400,
-    colorScheme: "sitting" as const,
     metrics: [],
     error: null,
     onOpenSettings: vi.fn(),
@@ -100,7 +97,7 @@ describe("OneBarWidget", () => {
   it("shows elapsed/total as big number", () => {
     render(
       <OneBarWidget
-        {...props({ elapsed: 600, total: 2400 })}
+        {...props({ currentSessionSecs: 600, limitSecs: 2400 })}
       />,
     );
     const bigNum = screen.getByTestId("one-bar-big-number");
@@ -152,9 +149,8 @@ describe("OneBarWidget", () => {
       <OneBarWidget
         {...props({
           state: "Standing",
-          elapsed: 180,
-          total: 600,
-          colorScheme: "standing",
+          currentSessionSecs: 180,
+          limitSecs: 600,
         })}
       />,
     );
@@ -168,9 +164,8 @@ describe("OneBarWidget", () => {
       <OneBarWidget
         {...props({
           state: "Away",
-          elapsed: 120,
-          total: 600,
-          colorScheme: "gray",
+          currentSessionSecs: 120,
+          limitSecs: 600,
         })}
       />,
     );

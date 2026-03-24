@@ -58,7 +58,8 @@ mod tests {
         let secs = get_idle_seconds();
         // On a fresh test runner the machine should have had recent input.
         // We only assert it doesn't overflow or panic.
-        assert!(secs >= 0); // u64 is always >= 0, but this documents intent
+        // u64 is always >= 0; this documents intent and tests no panic
+        let _ = secs;
     }
 
     #[test]

@@ -106,7 +106,7 @@ mod tests {
     // Test 13: show() → is_visible() == true
     #[test]
     fn show_sets_visible() {
-        let mut popup = AlertPopup::new();
+        let popup = AlertPopup::new();
         assert!(!popup.is_visible());
         // Set the AtomicBool directly to test the visible flag logic without
         // spawning an actual WinAPI thread (not feasible in unit test environment).

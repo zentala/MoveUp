@@ -2,6 +2,15 @@
  * format.ts — utility functions for formatting time and display values.
  */
 
+import type { DeskState } from "@/types";
+
+/** Maps desk state to ProgressBar color scheme. */
+export function colorSchemeFor(state: DeskState): "sitting" | "standing" | "gray" {
+  if (state === "Sitting") return "sitting";
+  if (state === "Standing") return "standing";
+  return "gray";
+}
+
 /**
  * Formats a duration in seconds to `hh:mm:ss` string.
  * @param totalSeconds - Non-negative integer number of seconds.

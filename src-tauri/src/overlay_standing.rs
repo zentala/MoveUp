@@ -60,6 +60,7 @@ impl OverlayRenderer {
 
     /// Advance the lap flash timer. Called from render loop with `Instant::now()`,
     /// or from tests with a synthetic future instant.
+    #[allow(dead_code)] // used in tests; will be called from render loop
     pub fn tick_lap_flash(&self, now: Instant) {
         if let Ok(mut s) = self.state.lock() {
             if let Some(until) = s.lap_flash_until {
