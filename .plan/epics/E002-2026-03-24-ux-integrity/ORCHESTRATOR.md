@@ -44,11 +44,11 @@
   - Standing: same gold gradient in both
   - Away: gray in both
   - Depends on: T01 (UX-FLOW defines the canonical colors)
-- [ ] **E002-T07** — Standing lap 2-layer visual
+- [x] **E002-T07** — Standing lap 2-layer visual
   - Overlay: completed lap as darker gold base, new lap fills on top
   - Popup ProgressBar: same visual (CSS gradient or layered div)
   - Depends on: T06
-- [ ] **E002-T08** — Popup layout redesign + self-descriptive UI
+- [x] **E002-T08** — Popup layout redesign + self-descriptive UI
   - **New visual hierarchy (top to bottom):**
     1. Header: `● sitting @ desk (72 cm) ⚙` — state=bold+state-color, height=muted
     2. Timer: big number `25:00 / 40:00` + single progress bar
@@ -63,14 +63,14 @@
   - Depends on: T05, T06, T07
 
 ## Wave 3: Notification Centralization (Rust backend)
-- [ ] **E002-T09** — NotificationService: central routing module
+- [x] **E002-T09** — NotificationService: central routing module
   - New file: `notification_service.rs`
   - Move 6 toast conditions from `serial_periodic.rs`
   - Connect `AlertManager` as notification source
   - Wire `notification_backend` config (toast / popup / both)
   - **Suppress ALL notifications when state = Away**
   - Depends on: T02 (Away affects inactivity notification logic)
-- [ ] **E002-T10** — NotificationService tests
+- [x] **E002-T10** — NotificationService tests
   - Backend switch: toast vs popup vs both
   - Once-per-day gates work centrally
   - No notifications fire during Away
@@ -87,7 +87,7 @@
   - TS test: Sitting→Standing transition → bar turns gold
   - TS test: Away state → bar gray, timer shows 0
   - Partially done (test updated this session), extend coverage
-- [ ] **E002-T13** — Final UX-FLOW.md verification
+- [x] **E002-T13** — Final UX-FLOW.md verification
   - Read running app, compare with UX-FLOW.md
   - Fix any remaining discrepancies
   - Depends on: all previous tasks

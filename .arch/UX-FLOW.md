@@ -113,7 +113,7 @@ Source: `tray.rs:119-158`, `tray_icon.rs:18-35`, `tray_controller.rs:187-210`
 | **Progress** | `sitting_seconds / session_limit_secs` (0.0-1.0, fills left to right) | lap progress within standing_target_mins (resets each lap) | n/a | n/a |
 | **Variant** | 0=solid (normal), 2=pulsing (alert Stage1) | 0=solid, 2=pulsing (lap flash, 2s) | n/a | n/a |
 | **Height** | default 4px (configurable 1-20px via `OVERLAY_HEIGHT`) | same | n/a | n/a |
-| **Lap indicators** | none | left-side indicator dots for completed laps | n/a | n/a |
+| **Lap visual** | none | 2-layer: dark goldenrod `#B8860B` base (completed laps) + bright gold fill (current lap). 2s pulse flash on lap completion. | n/a | n/a |
 
 **Standing bar behavior**:
 - Bar fills 0->100% over `standing_target_mins` (default 15 min)
@@ -130,23 +130,24 @@ Source: `overlay_renderer.rs`, `overlay_standing.rs`, `tray_controller.rs:69-84,
 
 ### 2.3 Widget (OneBar) — Layout Hierarchy
 
-The popup widget renders top-to-bottom:
+The popup widget renders top-to-bottom (reordered in E002-T08):
 
 ```
 ┌──────────────────────────────────────────┐
-│ ↕ desk  72 cm                         ⚙  │  OneBarHeader
+│ ● sitting @ desk (72 cm)              ⚙  │  OneBarHeader (state dot + label)
 ├──────────────────────────────────────────┤
-│ Standing 12%  Changes 1.2/h  Breaks 5/7  │  KpiStrip (4 badges)
-│ Screen 47m                               │
+│ 25:00 / 40:00            previously:     │  OneBarTimer (big number + bar)
+│ ████████████████████░░░░░░░░░░░░░░░░░░░ │  stood 12m ✓
 ├──────────────────────────────────────────┤
-│ ▓▓▓▓░░▓▓▓▓▓▓▓▓░░▓▓▓▓▓▓▓▓▓▓▓▓▓▓░▓▓▓▓▓▓│  OneBarTimeline
+│ Today                                    │  KpiStrip ("Today" + 4 badges)
+│ ↕ Standing 12%  ⇄ Changes 1.2/h  ...    │
+├──────────────────────────────────────────┤
+│ ▓▓▓▓░░▓▓▓▓▓▓▓▓░░▓▓▓▓▓▓▓▓▓▓▓▓▓▓░▓▓▓▓▓▓│  OneBarTimeline (+ live block)
 │  8         9        10        11         │  (hour markers)
-├──────────────────────────────────────────┤
-│ ● sitting                 previously:    │  OneBarTimer
-│ 25:00 / 40:00            stood 12m ✓     │  (state label + big number)
-│ ████████████████████░░░░░░░░░░░░░░░░░░░ │  (inline ProgressBar)
 └──────────────────────────────────────────┘
 ```
+
+**Header**: `● {state} @ desk ({height} cm) ⚙` — dot color matches state (gold=standing, green/yellow/red=sitting, gray=away).
 
 Source: `OneBarWidget.tsx`
 
@@ -369,15 +370,15 @@ Source: `session_breaks.rs:11-95`, `session_types.rs:12-17`, `session_manager.rs
 
 ## 6. Color Language
 
-### Semantic Signal Tokens (CSS)
+### Semantic Signal Tokens (CSS) — updated E002-T06
 
 | Token | Hex Value | Meaning | Where Used |
 |-------|-----------|---------|------------|
-| `--signal-ok` | `#65a30d` | Sitting within limit (< 50% used) | Widget background context |
-| `--signal-warn` | `#c2762d` | Approaching limit (50-80%) | Widget background context |
-| `--signal-alert` | `#b91c1c` | Limit exceeded, overtime | Widget background context |
-| `--signal-up` | `#d97706` | Standing/active state (amber) | Standing indicators |
-| `--signal-away` | `#4a7c9e` | Away/idle (cool blue-gray) | Away state indicators |
+| `--signal-ok` | `#4caf50` | Green — sitting within limit | KPI badges, progress bar |
+| `--signal-warn` | `#ffc107` | Yellow — approaching limit | KPI badges, progress bar |
+| `--signal-alert` | `#f44336` | Red — limit exceeded | KPI badges, progress bar |
+| `--signal-up` | `#DAA520` | Gold — standing state | Standing indicators, bar |
+| `--signal-away` | `#808080` | Gray — away/idle | Away indicators |
 
 ### Overlay Bar Colors (Rust — `colors.rs`)
 
