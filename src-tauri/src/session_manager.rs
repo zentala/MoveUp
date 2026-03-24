@@ -2,6 +2,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use log::info;
 
 use crate::height_stabilizer::HeightStabilizer;
+use crate::hourly_break_tracker::HourlyBreakTracker;
 use crate::session_types::*;
 
 /// Owns `SessionState` and drives state transitions.
@@ -25,6 +26,8 @@ pub struct SessionManager {
     /// Set to `true` by `accumulate_ongoing` when it actually executes (not throttled).
     /// Callers use this to gate per-second work like `accumulate_score_tick`.
     pub(crate) last_accumulate_ran: bool,
+    /// Tracks per-clock-hour Away breaks for KPI metric.
+    pub(crate) hourly_break_tracker: HourlyBreakTracker,
 }
 
 impl SessionManager {
@@ -58,6 +61,9 @@ impl SessionManager {
                 first_reading_at: None,
                 last_tick_ts: None,
                 last_accumulate_ts: None,
+                standing_bout_started: None,
+                hourly_breaks_covered: 0,
+                hourly_breaks_active: 0,
             },
             pending_state: None,
             pending_count: 0,
@@ -74,6 +80,7 @@ impl SessionManager {
             standing_target_reached_fired: false,
             height_stabilizer: HeightStabilizer::new(),
             last_accumulate_ran: false,
+            hourly_break_tracker: HourlyBreakTracker::new(),
         }
     }
 
@@ -107,6 +114,9 @@ impl SessionManager {
                 first_reading_at: None,
                 last_tick_ts: None,
                 last_accumulate_ts: None,
+                standing_bout_started: None,
+                hourly_breaks_covered: 0,
+                hourly_breaks_active: 0,
             },
             pending_state: None,
             pending_count: 0,
@@ -123,6 +133,7 @@ impl SessionManager {
             standing_target_reached_fired: false,
             height_stabilizer: HeightStabilizer::new(),
             last_accumulate_ran: false,
+            hourly_break_tracker: HourlyBreakTracker::new(),
         }
     }
 
@@ -171,12 +182,13 @@ impl SessionManager {
         }
     }
 
-    /// Computes live standing seconds: accumulated + current break duration.
+    /// Computes live standing seconds: accumulated + current standing bout elapsed.
+    /// Only counts actual Standing time, not Away time.
     pub(crate) fn get_live_standing_seconds(&self, now: DateTime<Utc>) -> i64 {
         let base = self.state.standing_seconds;
-        if self.state.state != DeskState::Sitting {
-            if let Some(bs) = self.state.break_started {
-                return base + (now - bs).num_seconds().max(0);
+        if self.state.state == DeskState::Standing {
+            if let Some(started) = self.state.standing_bout_started {
+                return base + (now - started).num_seconds().max(0);
             }
         }
         base

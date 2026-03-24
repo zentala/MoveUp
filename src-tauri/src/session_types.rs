@@ -92,6 +92,13 @@ pub struct SessionState {
     /// Timestamp of last `accumulate_ongoing()` execution (throttle: max 1 Hz).
     /// Sensor readings may arrive faster than 1 Hz; this prevents inflated counters.
     pub last_accumulate_ts: Option<DateTime<Utc>>,
+    /// Timestamp when the current standing bout started (set on Standing entry, cleared on exit).
+    /// Tracks actual standing time separately from total break time (which includes Away).
+    pub standing_bout_started: Option<DateTime<Utc>>,
+    /// Number of completed work hours that had a ≥5 min away break (from HourlyBreakTracker).
+    pub hourly_breaks_covered: u8,
+    /// Number of hours the user was active today (from HourlyBreakTracker).
+    pub hourly_breaks_active: u8,
 }
 
 /// Serialisable DTO emitted with state-change events.

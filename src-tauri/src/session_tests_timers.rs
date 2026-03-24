@@ -137,16 +137,31 @@ mod timer_tests {
     }
 
     #[test]
-    fn t042_10b_standing_away_sitting_accumulates_standing() {
+    fn t042_10b_standing_away_sitting_only_counts_standing_time() {
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
         m.state.sitting_started = Some(Utc::now());
         let before = m.state.standing_seconds;
         transition_to_standing(&mut m);
+        // Fake: user stood for 5 min, then went away
+        m.state.standing_bout_started = Some(Utc::now() - chrono::Duration::seconds(5 * 60));
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(5 * 60));
         transition_to_away(&mut m);
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(10 * 60));
+        // After Standing→Away: standing time (5 min) should be committed
+        assert!(
+            m.state.standing_seconds >= before + 299,
+            "standing committed on Standing→Away: got {}",
+            m.state.standing_seconds
+        );
+        let after_away_entry = m.state.standing_seconds;
+        // Fake: user was away for another 10 min
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(15 * 60));
         transition_to_sitting(&mut m);
-        assert!(m.state.standing_seconds >= before + 599, "got {}", m.state.standing_seconds);
+        // Away time should NOT increase standing_seconds
+        assert_eq!(
+            m.state.standing_seconds, after_away_entry,
+            "away time must not count as standing"
+        );
     }
 
     #[test]
@@ -164,7 +179,9 @@ mod timer_tests {
         transition_to_sitting(&mut m);
         m.state.sitting_started = Some(Utc::now());
         transition_to_standing(&mut m);
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(600));
+        let t = Utc::now() - chrono::Duration::seconds(600);
+        m.state.break_started = Some(t);
+        m.state.standing_bout_started = Some(t);
         let mut last = ReadingResult { state_change: None, completed_session: None, break_credit: None };
         for _ in 0..DEBOUNCE_COUNT {
             last = m.on_reading(800, true);

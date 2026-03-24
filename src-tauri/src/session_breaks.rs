@@ -39,6 +39,7 @@ impl SessionManager {
                     self.state.last_break_credit = BreakCredit::None;
                     if *candidate == DeskState::Standing {
                         self.state.standing_session_started = Some(now);
+                        self.state.standing_bout_started = Some(now);
                     }
                 }
             }
@@ -47,11 +48,15 @@ impl SessionManager {
                     self.state.standing_session_secs = 0;
                     self.state.standing_session_started = None;
                     self.state.lap_bonus_awarded_for_lap = 0;
+                    // Commit actual standing time from this bout.
+                    if let Some(sb) = self.state.standing_bout_started.take() {
+                        let standing_dur = (now - sb).num_seconds().max(0);
+                        self.state.standing_seconds += standing_dur;
+                    }
                     if *candidate == DeskState::Sitting {
-                        // Finalize break: accumulate standing time, apply credit.
+                        // Finalize break: apply credit based on total break duration.
                         if let Some(bs) = self.state.break_started.take() {
                             let break_dur = (now - bs).num_seconds().max(0);
-                            self.state.standing_seconds += break_dur;
                             self.state.last_break_secs = break_dur;
                             self.apply_break_credit(break_dur);
                             self.state.current_session_secs = 0;
@@ -70,9 +75,10 @@ impl SessionManager {
             }
             DeskState::Walking | DeskState::Away => {
                 if *candidate == DeskState::Sitting {
+                    // Standing time already committed on Standing→Away transition.
+                    // Only apply break credit based on total break duration.
                     if let Some(bs) = self.state.break_started.take() {
                         let break_dur = (now - bs).num_seconds().max(0);
-                        self.state.standing_seconds += break_dur;
                         self.state.last_break_secs = break_dur;
                         self.apply_break_credit(break_dur);
                         self.state.current_session_secs = 0;
@@ -90,12 +96,14 @@ impl SessionManager {
                     self.state.sitting_started = Some(now);
                     self.state.last_position_change_at = Some(now);
                 }
-                // Away/Walking → Standing: start break timer
+                // Away/Walking → Standing: start standing bout and break timer
                 if *candidate == DeskState::Standing {
                     if self.state.away_bout_secs >= 300 {
                         self.state.continuous_computer_secs = 0;
                     }
                     self.state.away_bout_secs = 0;
+                    self.state.standing_bout_started = Some(now);
+                    self.state.standing_session_started = Some(now);
                     if self.state.break_started.is_none() {
                         self.state.break_started = Some(now);
                         self.state.break_seconds = 0;

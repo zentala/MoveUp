@@ -1,7 +1,6 @@
 //! session_reading.rs — Sensor reading processing and state transitions.
 
-use chrono::DateTime;
-use chrono::Utc;
+use chrono::{DateTime, Timelike, Utc};
 use log::{debug, info};
 
 use crate::session_types::*;
@@ -172,5 +171,18 @@ impl SessionManager {
                 }
             }
         }
+
+        // HourlyBreakTracker: tick per-clock-hour break tracking.
+        let hour = now.hour() as u8;
+        match self.state.state {
+            DeskState::Away | DeskState::Walking => {
+                self.hourly_break_tracker.tick_away(hour);
+            }
+            DeskState::Sitting | DeskState::Standing => {
+                self.hourly_break_tracker.tick_active(hour);
+            }
+        }
+        self.state.hourly_breaks_covered = self.hourly_break_tracker.hours_with_break();
+        self.state.hourly_breaks_active = self.hourly_break_tracker.hours_active();
     }
 }

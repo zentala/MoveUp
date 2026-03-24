@@ -11,20 +11,7 @@ impl Metric for HourlyBreakCoverageMetric {
     fn label(&self) -> &str { "\u{2615} Breaks" }
 
     fn compute(&self, state: &SessionState, config: &AppConfig) -> MetricResult {
-        // This metric needs HourlyBreakTracker data which is not yet in SessionState.
-        // For now, compute a placeholder based on position_changes.
-        // The real implementation will be wired in T07 when HourlyBreakTracker is
-        // integrated into the IPC layer.
-        //
-        // Temporary: use position_changes as a rough proxy for breaks.
-        // Each position change implies some movement. This will be replaced.
-
-        let hours_active = if let Some(first) = state.first_reading_at {
-            let elapsed_secs = (chrono::Utc::now() - first).num_seconds().max(0) as f64;
-            (elapsed_secs / 3600.0).floor() as u8
-        } else {
-            0
-        };
+        let hours_active = state.hourly_breaks_active;
 
         if hours_active == 0 {
             return MetricResult {
@@ -35,9 +22,7 @@ impl Metric for HourlyBreakCoverageMetric {
             };
         }
 
-        // Placeholder: assume each position_change counts as an hourly break (capped).
-        // Real implementation uses HourlyBreakTracker (will be wired in T07).
-        let breaks = state.position_changes.min(hours_active as u32) as u8;
+        let breaks = state.hourly_breaks_covered;
         let missed = hours_active.saturating_sub(breaks);
 
         let level = if missed == 0 { MetricLevel::Green }

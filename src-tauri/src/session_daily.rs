@@ -40,6 +40,10 @@ impl SessionManager {
             self.state.first_reading_at = None;
             self.state.last_tick_ts = None;
             self.state.last_accumulate_ts = None;
+            self.state.standing_bout_started = None;
+            self.state.hourly_breaks_covered = 0;
+            self.state.hourly_breaks_active = 0;
+            self.hourly_break_tracker.reset();
             self.last_reset_date = today;
             return true;
         }

@@ -34,6 +34,9 @@ mod tests {
             first_reading_at: None,
             last_tick_ts: None,
             last_accumulate_ts: None,
+            standing_bout_started: None,
+            hourly_breaks_covered: 0,
+            hourly_breaks_active: 0,
         }
     }
 

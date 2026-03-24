@@ -16,7 +16,6 @@ mod event_logger;
 #[allow(dead_code)] // planned: T07 gap detection on app restart
 mod gap_handler;
 mod height_stabilizer;
-#[allow(dead_code)] // planned: T07 real HourlyBreakTracker integration
 mod hourly_break_tracker;
 mod metrics;
 mod notification_service;

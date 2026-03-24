@@ -67,9 +67,11 @@ mod timer_live_tests {
         let mut m = SessionManager::new();
         m.state.standing_seconds = 600; // 10 min from earlier
         transition_to_standing(&mut m);
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(120));
+        let t = Utc::now() - chrono::Duration::seconds(120);
+        m.state.break_started = Some(t);
+        m.state.standing_bout_started = Some(t);
         let snap = m.snapshot();
-        // standing_seconds should include base (600) + live break (120)
+        // standing_seconds should include base (600) + live standing bout (120)
         assert!(
             snap.standing_seconds >= 719 && snap.standing_seconds <= 721,
             "expected ~720, got {}",
@@ -114,7 +116,9 @@ mod timer_live_tests {
     fn t042_15e_standing_to_sitting_creates_completed_session() {
         let mut m = SessionManager::new();
         transition_to_standing(&mut m);
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(300));
+        let t = Utc::now() - chrono::Duration::seconds(300);
+        m.state.break_started = Some(t);
+        m.state.standing_bout_started = Some(t);
         // Transition back to sitting
         transition_to_sitting(&mut m);
         // The transition should have produced a completed session
@@ -140,7 +144,9 @@ mod timer_live_tests {
 
         // Phase 2: Stand 5 min
         transition_to_standing(&mut m);
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(300));
+        let t2 = Utc::now() - chrono::Duration::seconds(300);
+        m.state.break_started = Some(t2);
+        m.state.standing_bout_started = Some(t2);
         let s2 = m.snapshot();
         assert!(s2.break_seconds >= 299 && s2.break_seconds <= 301);
         assert_eq!(s2.current_session_secs, 0);
