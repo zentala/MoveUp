@@ -42,11 +42,12 @@
 }
 
 .progress-bar__fill--standing {
-  background: linear-gradient(90deg, #d4a017, #65a30d);
+  /* Goldenrod → bright gold, matches colors.rs color_for_standing() */
+  background: linear-gradient(90deg, #DAA520, #FFD720);
 }
 
 .progress-bar__fill--gray {
-  background: #555;
+  background: #808080;
 }
 
 /* Shimmer animation on reset */

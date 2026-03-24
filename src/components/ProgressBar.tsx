@@ -5,6 +5,7 @@
  * Supports sitting/standing/gray color schemes and shimmer animation.
  */
 import type { FC } from "react";
+import { sittingColorForRatio } from "@/utils/colors";
 import "./ProgressBar.css";
 
 interface ProgressBarProps {
@@ -13,12 +14,6 @@ interface ProgressBarProps {
   variant: "overlay" | "inline";
   colorScheme: "sitting" | "standing" | "gray";
   shimmer?: boolean;
-}
-
-function getSittingColor(ratio: number): string {
-  if (ratio >= 0.85) return "#b91c1c";
-  if (ratio >= 0.60) return "#c2762d";
-  return "#65a30d";
 }
 
 export const ProgressBar: FC<ProgressBarProps> = ({
@@ -49,7 +44,7 @@ export const ProgressBar: FC<ProgressBarProps> = ({
   };
 
   if (colorScheme === "sitting") {
-    fillStyle.background = getSittingColor(ratio);
+    fillStyle.background = sittingColorForRatio(ratio);
   }
 
   const containerStyle: React.CSSProperties | undefined =
