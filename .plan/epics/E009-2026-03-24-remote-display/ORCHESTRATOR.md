@@ -65,6 +65,15 @@ Developers should read these before starting:
 | `src/types.ts` | All TypeScript types/payloads |
 | `.plan/epics/E009-.../PLAN.md` | Full architecture and rationale |
 
+## Eng Review Fixes (2026-03-25)
+
+| Task | Fix applied |
+|------|-------------|
+| T02 | **No SQLite in hot path** — cache `TodaySummaryDto` in `AppState`, refresh only on state transitions |
+| T02 | Add `today_cache: Arc<Mutex<TodaySummaryDto>>` to `AppState` |
+| T04 | Fix stale closure bug: use `wsConnectedRef` (useRef) instead of `wsConnected` state in setInterval |
+| T07 | Add Scenario 5: Vite proxy failure manual test |
+
 ## CEO Review Fixes (2026-03-24)
 
 | Task | Fix applied |

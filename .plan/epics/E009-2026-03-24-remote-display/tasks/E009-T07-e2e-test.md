@@ -38,6 +38,13 @@ and create user documentation for phone setup.
 1. Open `/display` in two browser tabs simultaneously
 2. Verify: both receive same events, no conflicts
 
+### Scenario 5: Vite proxy failure (dev mode only)
+1. Stop Vite dev server (kill `pnpm dev`)
+2. Keep Tauri running (`pnpm tauri:dev` — Tauri process stays up)
+3. Open `http://localhost:3390/display` in browser
+4. Verify: helpful error page shown ("Vite dev server not running. Start with: pnpm dev")
+5. Start Vite again, refresh → dashboard loads
+
 ## Integration Tests
 
 ### New file: `tests/integration/remote-display.test.ts`
@@ -134,7 +141,7 @@ Add a brief section about the remote display:
 ```
 
 ## Definition of Done
-- [ ] All 4 e2e scenarios pass manually
+- [ ] All 5 e2e scenarios pass manually (including Vite proxy failure)
 - [ ] Integration tests in `tests/integration/remote-display.test.ts`
 - [ ] `docs/REMOTE_DISPLAY.md` written with setup instructions
 - [ ] CLAUDE.md updated with remote display section

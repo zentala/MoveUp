@@ -23,3 +23,15 @@
 - **2 test gaps added:** port-in-use test, malformed JSON test
 - **1 stale diagram noted:** ARCHITECTURE.md needs update after E009
 - All task files updated with review fixes
+
+## Eng Plan Review 2026-03-25 (SMALL CHANGE)
+- **Issue 1 (CRITICAL): SQLite query every 1s in hot path**
+  - Original plan queried DB for TodaySummaryDto on every tick
+  - Fix: cache TodaySummaryDto in AppState, refresh only on state transitions
+  - Zero SQLite in the broadcast hot path — all data from memory
+- **Issue 2: Stale closure bug in useRemoteDesk**
+  - REST fallback interval captured wsConnected (state) instead of ref
+  - Fix: wsConnectedRef.current used in setInterval closure
+- **Issue 3: No test for Vite proxy failure**
+  - Fix: added Scenario 5 manual test in T07
+- All task files updated with eng review fixes

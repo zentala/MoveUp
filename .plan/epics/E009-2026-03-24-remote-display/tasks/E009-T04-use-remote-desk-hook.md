@@ -64,6 +64,7 @@ export function useRemoteDesk(): UseDeskResult {
   // ... state variables (same as useDesk)
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const wsConnectedRef = useRef(false); // ENG REVIEW FIX: ref for interval closure
   const reconnectDelay = useRef(1000);
 
   // Derive WS URL from current page location
@@ -79,6 +80,7 @@ export function useRemoteDesk(): UseDeskResult {
 
       ws.onopen = () => {
         setWsConnected(true);
+        wsConnectedRef.current = true; // ENG REVIEW FIX: update ref too
         reconnectDelay.current = 1000; // Reset backoff
       };
 
@@ -111,6 +113,7 @@ export function useRemoteDesk(): UseDeskResult {
 
       ws.onclose = () => {
         setWsConnected(false);
+        wsConnectedRef.current = false; // ENG REVIEW FIX: update ref too
         if (mounted) {
           // Exponential backoff reconnect
           setTimeout(connect, reconnectDelay.current);
@@ -127,8 +130,9 @@ export function useRemoteDesk(): UseDeskResult {
     connect();
 
     // REST polling fallback (every 2s, only when WS is disconnected)
+    // ENG REVIEW FIX: use wsConnectedRef (not wsConnected state) to avoid stale closure
     const fallbackInterval = setInterval(() => {
-      if (!wsConnected) {
+      if (!wsConnectedRef.current) {
         fetch(apiUrl)
           .then(r => r.json())
           .then(applySnapshot)

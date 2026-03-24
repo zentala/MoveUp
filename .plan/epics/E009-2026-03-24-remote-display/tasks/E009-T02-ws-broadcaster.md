@@ -110,36 +110,44 @@ if let Ok(json) = serde_json::to_string(&payload) {
 }
 ```
 
-In `update_overlay_progress()` — after snapshot is computed, build the full
-`RemoteDisplayState` and broadcast:
+In `update_overlay_progress()` — after snapshot is computed, broadcast lightweight
+snapshot with metrics (all from memory, **no SQLite queries**):
 ```rust
-// Broadcast full display state to remote clients (~1/s)
+// Broadcast session + metrics to remote clients (~1/s)
+// All data is from memory — zero DB access in the hot path.
 let app_state = app.state::<AppState>();
 let ws_tx = app_state.ws_tx.clone();
 
-// Build RemoteDisplayState with session + metrics + today summary
 let remote_state = {
     let config_guard = app_state.config.lock().unwrap();
     let config = config_guard.as_ref().cloned().unwrap_or_default();
     let session_state = app_state.session.lock().unwrap().state_snapshot();
 
-    // Compute metrics (same logic as get_dashboard_state command)
+    // Compute metrics from in-memory state (no DB)
     let metrics = MetricEngine::compute_all(&snapshot, &session_state, &config);
 
-    // Get today summary from DB
-    let today = app_state.db.lock().unwrap().as_ref()
-        .and_then(|conn| crate::db::load_today_summary(conn).ok())
-        .unwrap_or_default();
+    // Today summary: use cached value (see below)
+    let today = app_state.today_cache.lock().unwrap().clone();
 
     RemoteDisplayState { session: snapshot.clone(), metrics, today }
 };
 ws_broadcaster::broadcast_event(&ws_tx, &DisplayEvent::Snapshot(remote_state));
 ```
 
-**Note:** The above is pseudo-code. The actual implementation depends on how
-`MetricEngine::compute_all()` and `load_today_summary()` are called. Look at
-`commands.rs` → `get_dashboard_state` and `get_today_summary` for the real
-calling pattern and replicate it here.
+### IMPORTANT: TodaySummaryDto caching strategy (Eng Review fix)
+
+**DO NOT query SQLite every second.** `TodaySummaryDto` (list of today's sessions)
+changes only on **state transitions** (new session row inserted). Strategy:
+
+1. **Add to `AppState`:** `pub today_cache: Arc<Mutex<TodaySummaryDto>>`
+2. **Load on startup:** populate from DB (same as `load_today_totals`)
+3. **Refresh on state change:** in `on_state_changed()`, re-query DB and update cache
+4. **Broadcast uses cache:** hot path reads `today_cache` from memory (no DB)
+5. **Daily reset:** clear cache
+
+This means the ~1/s broadcast does: 1 mutex lock (session) + 1 mutex lock (config) +
+1 mutex lock (today_cache) + metric computation (pure CPU, ~0.1ms) + serialize.
+**Zero SQLite in the hot path.**
 
 Also listen for `desk:daily-reset` and broadcast it:
 ```rust
@@ -170,10 +178,11 @@ which includes `broadcast`. `serde` and `serde_json` are also already present.
 
 ## Definition of Done
 - [ ] `ws_broadcaster.rs` exists with `create_channel()`, `broadcast_event()`, `RemoteDisplayState`
-- [ ] `AppState` has `ws_tx` field
-- [ ] `tray_controller.rs` broadcasts `RemoteDisplayState` (session + metrics + today) on every tick
-- [ ] `tray_controller.rs` broadcasts `StateChanged` on state transitions
-- [ ] `tray_controller.rs` broadcasts `DailyReset` on midnight reset
+- [ ] `AppState` has `ws_tx` field + `today_cache: Arc<Mutex<TodaySummaryDto>>`
+- [ ] `tray_controller.rs` broadcasts `RemoteDisplayState` (session + metrics + cached today) ~1/s
+- [ ] **Zero SQLite queries in the hot path** — today_cache refreshed only on state transitions
+- [ ] `tray_controller.rs` broadcasts `StateChanged` on state transitions + refreshes today_cache
+- [ ] `tray_controller.rs` broadcasts `DailyReset` on midnight reset + clears today_cache
 - [ ] `tray_controller.rs` broadcasts `DeviceConnected`/`DeviceLost` on sensor events
 - [ ] Unit tests pass
 - [ ] All existing tests still pass (`cargo test`)
