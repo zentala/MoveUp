@@ -7,22 +7,17 @@
  * - Red (85%+)
  */
 import type { FC } from "react";
+import { sittingColorForRatio } from "@/utils/colors";
 
 interface AppProgressBarProps {
   sittingSeconds: number;
   limitSeconds: number;
 }
 
-function getColor(ratio: number): string {
-  if (ratio >= 0.85) return "#b91c1c"; // red
-  if (ratio >= 0.60) return "#c2762d"; // amber
-  return "#65a30d"; // green
-}
-
 const AppProgressBar: FC<AppProgressBarProps> = ({ sittingSeconds, limitSeconds }) => {
   const ratio = limitSeconds > 0 ? Math.min(sittingSeconds / limitSeconds, 1) : 0;
   const pct = Math.round(ratio * 100);
-  const color = getColor(ratio);
+  const color = sittingColorForRatio(ratio);
 
   return (
     <div

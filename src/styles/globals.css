@@ -36,17 +36,17 @@
   --beam-glow: rgba(217, 119, 6, 0.20);
   --beam-dim:  rgba(217, 119, 6, 0.08);
 
-  /* Semantic signals */
-  --signal-ok:    #65a30d;
-  --signal-warn:  #c2762d;
-  --signal-alert: #b91c1c;
-  --signal-up:    #d97706;
-  --signal-away:  #4a7c9e;
+  /* Semantic signals — synced with src-tauri/src/colors.rs */
+  --signal-ok:    #4caf50;
+  --signal-warn:  #ffc107;
+  --signal-alert: #f44336;
+  --signal-up:    #DAA520;
+  --signal-away:  #808080;
 
-  /* Semantic glow */
-  --glow-ok:    rgba(101, 163,  13, 0.18);
-  --glow-warn:  rgba(194, 118,  45, 0.18);
-  --glow-alert: rgba(185,  28,  28, 0.18);
+  /* Semantic glow — derived from signal colors */
+  --glow-ok:    rgba( 76, 175,  80, 0.18);
+  --glow-warn:  rgba(255, 193,   7, 0.18);
+  --glow-alert: rgba(244,  67,  54, 0.18);
 
   /* Typography */
   --font-mono: ui-monospace, "Cascadia Code", "Fira Mono", "Consolas", monospace;
