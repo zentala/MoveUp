@@ -26,15 +26,15 @@ current_wave: null
 - Total: 496
 
 ## New This Session
-- Fixed Away time counted as standing in DB queries (db_sessions, db_queries)
-- Added `away_secs` to TodayTotals, refactored `get_totals_for_date(date)`
-- 3 new regression tests for Away exclusion
+- E009 epic fully planned, CEO + eng reviewed, committed
+- Vision doc updated with Remote Display Phase 1/2/3
+- ADR 001 created (web kiosk architecture)
 
 ## Planned Epics
-- E009 (Remote Display — Web Kiosk, 2026-03-24) — **PLANNED** (7 tasks, ~16h)
+- E009 (Remote Display — Web Kiosk, 2026-03-25) — **IN PROGRESS** (implementing)
 
 ## Next Steps
-1. Dogfood app — verify standing_pct, position_changes, metrics in snapshots
-2. Gamification research report (BACKLOG task)
-3. Notification flag persistence fix (BACKLOG P2)
+1. Implement E009 Wave 0-3
+2. Dogfood app — verify standing_pct, position_changes, metrics in snapshots
+3. Gamification research report (BACKLOG task)
 4. E009: Remote Display — phone as desk dashboard (web kiosk)

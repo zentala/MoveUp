@@ -1,5 +1,21 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-25 — E009 Planning
+
+- **Goal**: Design and plan Remote Display epic (phone as desk dashboard)
+- **Done**:
+  - Brainstormed architecture: web kiosk (PC serves React+WS to phone browser)
+  - Created full epic E009 with 7 tasks across 4 waves (~16h estimated)
+  - ADR 001: web kiosk over Tauri Mobile, PWA, standalone
+  - Updated vision doc with Phase 1/2/3 remote display roadmap
+  - CEO review (HOLD SCOPE): fixed metrics broadcast, dev proxy, today summary, error handling
+  - Eng review (SMALL CHANGE): fixed SQLite hot path (→ cache), stale closure bug, Vite proxy test
+  - Commits: `b1d937b` (epic), `addfb51` (eng review fixes)
+- **Decisions**: axum for HTTP+WS server, same React build with hook abstraction, broadcast channel
+- **Findings this session**: 0
+- **Improvements logged**: 0 (planning only, no code changes)
+- **Next**: Implement E009 (Wave 0→1→2→3)
+
 ## Session 2026-03-23
 
 - **Goal**: Implement T044 snapshot logging + event log
