@@ -20,6 +20,8 @@ mod height_stabilizer;
 mod hourly_break_tracker;
 mod metrics;
 mod notification_service;
+#[cfg(test)]
+mod notification_service_tests;
 mod overlay_layered;
 mod overlay_layered_wndproc;
 mod overlay_opaque;
