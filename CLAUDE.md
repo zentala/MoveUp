@@ -90,13 +90,26 @@ Any combination is valid. All are independent.
 ### pnpm scripts
 
 ```bash
-pnpm tauri:dev          # demo (default)
-pnpm tauri:dev:demo     # explicit demo
-pnpm tauri:dev:live     # real sensor data
-pnpm tauri:dev:mock     # simulated sit/stand
+pnpm tauri:dev                    # demo mode (default)
+pnpm tauri:dev:live               # real sensor data
+pnpm tauri:dev:mock               # simulated sit/stand
+pnpm tauri:dev:live --force       # live + auto-kill previous instance
+pnpm tauri:dev --force            # demo + auto-kill
 ```
 
-Uses `cross-env` for Windows env var support.
+All variants go through `scripts/tauri-dev.sh` which handles process guard + env vars.
+Append `--force` to any variant to auto-kill a running instance without prompting.
+
+### Pre-dev process guard
+
+All `tauri:dev*` scripts use `scripts/tauri-dev.sh` which detects if `desk.exe` is already
+running. On Windows, `cargo` cannot replace a running `.exe` (OS error 5: Access Denied).
+
+If a previous instance is detected:
+- **[k] Kill** old process, start new build (default, auto-selects after 10s)
+- **[s] Skip** — keep old process, abort build
+
+Auto-kill (no prompt): pass `--force` flag.
 
 ### Data flow (Live mode)
 
