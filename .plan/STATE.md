@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-24T12:00:00Z
+updated: 2026-03-24T18:00:00Z
 active_epic: none
 active_epic_path: null
 current_wave: null
@@ -7,8 +7,14 @@ current_wave: null
 
 ## Status
 - E000 (maintenance) — open (permanent)
-- E001 (Timer UX + KPI Dashboard + MetricEngine) — **DONE** (v0.1.0)
-- E002 (UX Integrity) — **DONE** (v0.2.0, 13/13 tasks, 508 tests)
+- E001 (App Foundation, 2026-03-15) — **DONE**
+- E002 (Overlay Progress Bar, 2026-03-16) — **DONE**
+- E003 (Installer & Distribution, 2026-03-16) — **DONE**
+- E004 (Session Alerts & Snooze, 2026-03-20) — **DONE**
+- E005 (UX Communication + Widgets, 2026-03-21) — **DONE**
+- E006 (Session Bugs & Polish, 2026-03-22) — **DONE**
+- E007 (KPI Dashboard + Timer UX, 2026-03-23) — **DONE** (v0.1.0)
+- E008 (UX Integrity, 2026-03-24) — **DONE** (v0.2.0, 508 tests)
 
 ## Version
 - Current: `v0.2.0` (tagged)
@@ -19,18 +25,12 @@ current_wave: null
 - TypeScript: 169 tests
 - Total: 508
 
-## What E002 Shipped
-- Away state: inactive → Away regardless of desk height
-- Live current session in timeline
-- KPI labels with Unicode icons + "Today" header
-- Unified color palette (Rust + TS)
-- 2-layer gold visual for standing laps
-- Popup redesign: timer first, state in header
-- NotificationService: centralized 6 toasts, wired `notification_backend` config
-- Process guard restored (`tauri-dev.sh`)
-- UX-FLOW.md fully synced
+## Migration
+- 2026-03-24: Full PM migration completed (.claude/→.plan/epics/, .arch/)
+- Old tasks, journals, plans, reports migrated to retroactive epics E001-E006
+- E001/E002 renumbered to E007/E008 (chronological ordering)
 
 ## Next Steps
-1. Pick next epic from BACKLOG.md or define E003
-2. Candidates: SQLite time-series, timeline full window, notification A/B testing
-3. Or: run app live, dogfood E002 changes, collect feedback
+1. Pick next epic from BACKLOG.md or define E009
+2. Candidates: SQLite time-series, timeline full window, Away state improvements
+3. Or: run app live, dogfood changes, collect feedback

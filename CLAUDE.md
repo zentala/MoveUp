@@ -68,7 +68,7 @@ session.rs (sitting_secs) → alert_manager.rs (escalation) → UI actions
 
 Native WinAPI window (4px × full screen width) at top of screen showing sitting session progress. NOT a Tauri WebviewWindow — rendered via GDI/UpdateLayeredWindow in a background thread. Code: `src-tauri/src/overlay_renderer.rs`.
 
-**Full developer docs:** `.claude/overlay/DEVELOPER-GUIDE.md`
+**Full developer docs:** `.arch/overlay/DEVELOPER-GUIDE.md`
 
 ### Three independent config axes (env vars, read at startup)
 
@@ -123,13 +123,13 @@ serial.rs ──desk:state-changed──→ tray_controller.rs ──→ overlay
 - **OPAQUE** (default): GDI `BeginPaint`/`FillRect`, black background, reliable
 - **LAYERED** (experimental): `UpdateLayeredWindow`, transparent background, complex
 
-See `.claude/overlay/MODE-COMPARISON.md` for comparison.
+See `.arch/overlay/MODE-COMPARISON.md` for comparison.
 
 ### Debug tools
 
 - **Popup debug line**: `get_overlay_state` IPC command (debug builds) shows data_source, progress%, visible in app popup
 - **Rust logging**: `RUST_LOG=desk_lib::overlay_renderer=debug` for verbose overlay logs
-- **auto-test.sh**: `.claude/overlay/test-infrastructure/auto-test.sh [opaque|layered]`
+- **auto-test.sh**: `.arch/overlay/test-infrastructure/auto-test.sh [opaque|layered]`
 
 ### Key rules
 
@@ -143,11 +143,11 @@ See `.claude/overlay/MODE-COMPARISON.md` for comparison.
 
 | File | Purpose |
 |------|---------|
-| `.claude/overlay/DEVELOPER-GUIDE.md` | **START HERE** — full reference |
-| `.claude/overlay/KNOWLEDGE-BASE.md` | Architecture, root causes, pitfalls |
-| `.claude/overlay/MODE-COMPARISON.md` | OPAQUE vs LAYERED comparison |
-| `.claude/overlay/TASKS.md` | T-OVR-001 through T-OVR-009 |
-| `.claude/overlay/test-infrastructure/` | auto-test.sh |
+| `.arch/overlay/DEVELOPER-GUIDE.md` | **START HERE** — full reference |
+| `.arch/overlay/KNOWLEDGE-BASE.md` | Architecture, root causes, pitfalls |
+| `.arch/overlay/MODE-COMPARISON.md` | OPAQUE vs LAYERED comparison |
+| `.plan/epics/E002-2026-03-16-overlay-progress-bar/ORCHESTRATOR.md` | Overlay task list (E002) |
+| `.arch/overlay/test-infrastructure/` | auto-test.sh |
 
 ### Key source files
 
@@ -460,7 +460,7 @@ git push origin v0.1.0
 - Publishes to GitHub Releases
 
 ## Vision Doc
-See `.agent/vision/2026-03-15-desk-app-vision.md` for full spec.
+See `.plan/vision/2026-03-15-desk-app-vision.md` for full spec.
 
 ## PROJECT.xml Maintenance
 
