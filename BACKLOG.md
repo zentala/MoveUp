@@ -92,6 +92,16 @@ Zamienić tekstowe coach messages ("Half limit used", "On track", etc.) w OneBar
 
 ---
 
+## KPI "Session" Label — Confusing, Rename Required
+
+- KPI badge labeled "Session" actually means "longest continuous screen time without 5+ min away"
+- User interprets "Session" as sitting session or app uptime — both wrong
+- **Rename to**: "Screen" or "Screen time" or "At desk" — something that communicates "continuous time at computer"
+- **Possible bug**: Away detection doesn't work (Away state unreachable) → screen time counter NEVER resets → always red after 75 min. Fix Away state first (see "State Machine Redesign" below), then verify this KPI resets properly.
+- **Not covered by tests**: no test verifying that 5+ min away resets the longest_session counter in practice (only unit tests on counter logic, but Away is never triggered by sensor)
+
+---
+
 ## Max Continuous Computer Time Alert
 
 Alert: max ciągła praca przy komputerze. Standing ≠ przerwa od ekranu.
@@ -100,7 +110,7 @@ Alert: max ciągła praca przy komputerze. Standing ≠ przerwa od ekranu.
 - Thresholds: <45m green, 45-75m yellow, >75m red
 - Alert po przekroczeniu limitu (domyślnie 75m, konfigurowalne)
 - Reset: ≥5 min away from computer
-- Pokazywane w KPI strip jako "Longest session"
+- Pokazywane w KPI strip jako "Screen time" (nie "Session" — mylące)
 
 ---
 
@@ -111,11 +121,71 @@ Alert: max ciągła praca przy komputerze. Standing ≠ przerwa od ekranu.
   - Show: "Active" / "Idle 2m" in widget footer or status bar
   - Useful for debugging Walking/Away state transitions
 
+- **Cross-platform activity detection** — current implementation is Windows-only (`GetLastInputInfo`). Before release, need Linux/macOS support. Options: `rdev` crate (cross-platform input hooks), X11/Wayland idle APIs, macOS `CGEventSource`. Non-Windows currently returns `idle=0` (always active) — Away state will never trigger on Linux/macOS.
+
+---
+
+## Notification Centralization (pre-requisite for alert escalation)
+
+> Before implementing full alert escalation flow (T017 Stages 3-5), centralize all notification sources.
+
+- **NotificationService** — single Rust module that routes ALL notifications through one backend
+  - Currently two parallel systems: native toasts (`tauri-plugin-notification`) scattered across `serial_periodic.rs` + custom WinAPI popup (`alert_popup_window.rs`)
+  - 6 toast conditions spread across `serial_periodic.rs` and `session_breaks.rs` with no central coordination
+  - `notification_backend` field exists in `config.rs` (`"toast" | "popup" | "both"`) but is **dead code** — never read
+  - **Goal:** one `NotificationService` that:
+    1. Collects all notification intents (inactivity, posture balance, praise, alerts, escalation)
+    2. Routes through selected backend: native toast OR custom popup OR both
+    3. Manages once-per-day / once-per-session gates centrally (not scattered flags)
+    4. Makes T018 (A/B testing) trivial — just flip `notification_backend` in config
+  - **Blocks:** T017 (Stages 3-5), T018 (A/B testing)
+  - **Custom popup redesign** — migrate from raw WinAPI GDI (Win32 2003 look) to Tauri WebviewWindow (HTML/CSS, dark theme, acrylic blur). Already in backlog above under "Alert System — Future".
+
+---
+
+## State Machine Redesign: Away Detection
+
+> Current state machine is fundamentally broken for Away detection.
+
+- **Problem 1: "Walking" is a misnomer** — we don't know if user walks. We know: desk HIGH + no keyboard/mouse. Should be `Away` or `Inactive`.
+- **Problem 2: Desk LOW + inactive = still "Sitting"** — if user leaves with desk down, app counts sitting time, fires alerts. Wrong.
+- **Problem 3: `Away` enum variant exists but is unreachable** — only used as initial state. `away_bout_secs` counter is dead code. Timeline never shows Away periods.
+- **Proposed fix:**
+  - `active == false` (≥60s no input) → `Away`, regardless of desk height
+  - Remove or rename `Walking` → merge into `Away`
+  - `away_bout_secs` logic becomes reachable, `continuous_computer_secs` reset works
+  - Away sessions saved to DB → visible in timeline (gray blocks)
+  - Away time NOT counted as sitting or standing
+- **Impact:** touches `session_reading.rs`, `session_types.rs`, all widgets, timeline, tray tooltip, tests
+- **Priority:** HIGH — without this, sitting timer is wrong every time user walks away with desk down
+
 ---
 
 ## Logging & Observability
 
 - **SQLite time-series storage** — replace file-per-minute snapshots with queryable SQLite table. Enables: search across days, trend analysis (sitting % over weeks), anomaly detection (daily score dropping), dashboard visualization. Natural phase 2 after T044 file-based logging proves useful. Effort: M, Priority: P3.
+
+---
+
+## Timeline Full Window — Expandable History View
+
+- Click on timeline in popup → opens a dedicated window with full-day/multi-day timeline
+- Scroll through days, zoom in/out, click sessions for details
+- Shows: all states with durations, breaks, position changes, daily score
+- Currently popup is ephemeral (opens/closes) — history needs a persistent view
+- Implementation: Tauri WebviewWindow (like welcome popup), separate route
+- Priority: P3 — needs SQLite history infrastructure first
+
+---
+
+## KPI Time Range Selector
+
+- Switch to view stats for: Today / 7 days / 30 days
+- Requires: SQLite time-series storage (see Logging & Observability below)
+- Currently all KPIs are today-only (in-memory, reset at midnight)
+- For 7d/30d: need historical daily summaries in DB
+- UI: small toggle/tabs above KPI strip ("Today | 7d | 30d")
+- Priority: P3 — needs DB history infrastructure first
 
 ---
 

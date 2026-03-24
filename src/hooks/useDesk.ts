@@ -43,6 +43,7 @@ export function useDesk(): UseDeskResult {
   const [standingSeconds, setStandingSeconds] = useState(0);
   const [breakSeconds, setBreakSeconds] = useState(0);
   const [sessionLimitSecs, setSessionLimitSecs] = useState(0);
+  const [standLimitSecs, setStandLimitSecs] = useState(900);
   const [positionChanges, setPositionChanges] = useState(0);
   const [limitUsedSecs, setLimitUsedSecs] = useState(0);
   const [dailyScore, setDailyScore] = useState(0);
@@ -103,6 +104,7 @@ export function useDesk(): UseDeskResult {
         setStandingSeconds(dto.standing_seconds);
         setBreakSeconds(dto.break_seconds);
         setSessionLimitSecs(dto.session_limit_secs);
+        if (dto.stand_limit_secs > 0) setStandLimitSecs(dto.stand_limit_secs);
         setPositionChanges(dto.position_changes);
         setLimitUsedSecs(dto.limit_used_secs);
         setDailyScore(dto.daily_score);
@@ -224,7 +226,7 @@ export function useDesk(): UseDeskResult {
   return {
     connected, port, state, deskHeightCm,
     sittingSeconds, standingSeconds, breakSeconds,
-    sessionLimitSecs, positionChanges,
+    sessionLimitSecs, standLimitSecs, positionChanges,
     limitUsedSecs,
     limitRemaining: sessionLimitSecs - limitUsedSecs,
     limitRatio: sessionLimitSecs > 0 ? limitUsedSecs / sessionLimitSecs : 0,

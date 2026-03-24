@@ -5,7 +5,7 @@
  * the active widget handles presentation. ScreenProgressBar (overlay)
  * stays outside the widget system as a separate concern.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useWidgetData } from "@/hooks/useWidgetData";
@@ -16,7 +16,17 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { colorSchemeFor } from "@/utils/format";
 import "@/styles/globals.css";
 
+const MockupGallery = lazy(() => import("@/pages/MockupGallery"));
+
 export default function App() {
+  // DEV: /#/mockup shows the mockup gallery
+  if (import.meta.env.DEV && window.location.hash === "#/mockup") {
+    return (
+      <Suspense fallback={<div style={{ color: "#ccc", padding: 20 }}>Loading mockups...</div>}>
+        <MockupGallery />
+      </Suspense>
+    );
+  }
   const [showSettings, setShowSettings] = useState(false);
   const [activeWidgetId] = useActiveWidget();
   const widgetProps = useWidgetData(() => setShowSettings(true));
@@ -60,8 +70,16 @@ export default function App() {
     <>
       {showOverlay && (
         <ProgressBar
-          elapsed={widgetProps.currentSessionSecs}
-          total={widgetProps.limitSecs}
+          elapsed={
+            widgetProps.state === "Sitting"
+              ? widgetProps.currentSessionSecs
+              : widgetProps.breakSecs
+          }
+          total={
+            widgetProps.state === "Sitting"
+              ? widgetProps.limitSecs
+              : widgetProps.standLimitSecs
+          }
           variant="overlay"
           colorScheme={colorSchemeFor(widgetProps.state)}
         />

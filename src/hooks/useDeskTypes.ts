@@ -24,6 +24,8 @@ export interface UseDeskResult {
   standingSeconds: number;
   breakSeconds: number;
   sessionLimitSecs: number;
+  /** Standing target in seconds (from config, e.g. 900 = 15 min). */
+  standLimitSecs: number;
   positionChanges: number;
   limitUsedSecs: number;
   /** limitSecs - limitUsedSecs. Can go negative (overtime). */

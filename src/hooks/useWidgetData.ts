@@ -26,6 +26,7 @@ export function useWidgetData(onOpenSettings: () => void): WidgetProps {
     deskHeightCm: desk.deskHeightCm,
     currentSessionSecs: desk.sittingSeconds,
     limitSecs: desk.sessionLimitSecs,
+    standLimitSecs: desk.standLimitSecs,
     limitRemaining: desk.limitRemaining,
     limitRatio: desk.limitRatio,
     breakSecs: desk.breakSeconds,

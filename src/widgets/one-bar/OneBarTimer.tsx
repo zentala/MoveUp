@@ -21,9 +21,15 @@ const STATE_LABELS: Record<string, string> = {
 /** Renders state label, big timer, previous session info, and the progress bar. */
 export const OneBarTimer: FC<WidgetProps> = (props) => {
   const stateLabel = STATE_LABELS[props.state] ?? props.state;
-  const elapsedStr = formatDuration(props.currentSessionSecs);
-  const totalStr = formatDuration(props.limitSecs);
-  const isOvertime = props.limitRemaining < 0 && props.state === "Sitting";
+  const isSitting = props.state === "Sitting";
+
+  // Standing/Walking/Away → show break duration & standing target
+  const elapsed = isSitting ? props.currentSessionSecs : props.breakSecs;
+  const total = isSitting ? props.limitSecs : props.standLimitSecs;
+
+  const elapsedStr = formatDuration(elapsed);
+  const totalStr = formatDuration(total);
+  const isOvertime = props.limitRemaining < 0 && isSitting;
   const { shimmer } = useTimerAnimations(props.state, props.limitRatio);
 
   const tooltipText = `${stateLabel}: ${elapsedStr} / ${totalStr}`;
@@ -54,8 +60,8 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
         )}
       </div>
       <ProgressBar
-        elapsed={props.currentSessionSecs}
-        total={props.limitSecs}
+        elapsed={elapsed}
+        total={total}
         variant="inline"
         colorScheme={colorSchemeFor(props.state)}
         shimmer={shimmer}

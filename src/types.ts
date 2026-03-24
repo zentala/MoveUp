@@ -147,6 +147,8 @@ export interface WidgetProps {
   deskHeightCm: number;
   currentSessionSecs: number;
   limitSecs: number;
+  /** Standing target in seconds (e.g. 900 = 15 min). */
+  standLimitSecs: number;
   /** limitSecs - limitUsedSecs. Goes negative when over limit. */
   limitRemaining: number;
   /** limitUsedSecs / limitSecs. Can exceed 1.0. 0 when limitSecs=0. */

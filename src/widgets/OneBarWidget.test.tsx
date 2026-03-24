@@ -15,6 +15,7 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     deskHeightCm: 72.5,
     currentSessionSecs: 600,
     limitSecs: 2400,
+    standLimitSecs: 900,
     limitRemaining: 1800,
     limitRatio: 0.25,
     breakSecs: 0,
@@ -144,13 +145,13 @@ describe("OneBarWidget", () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it("big number shows elapsed/total format for standing", () => {
+  it("big number shows break elapsed/standing target for standing", () => {
     render(
       <OneBarWidget
         {...props({
           state: "Standing",
-          currentSessionSecs: 180,
-          limitSecs: 600,
+          breakSecs: 180,
+          standLimitSecs: 600,
         })}
       />,
     );

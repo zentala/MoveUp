@@ -17,12 +17,25 @@ const levelColor: Record<MetricLevel, string> = {
   red: "var(--signal-alert)",
 };
 
+/** Hover tooltips explaining what each KPI measures. */
+const KPI_TOOLTIPS: Record<string, string> = {
+  standing_pct:
+    "Standing % — how much of your desk time was spent standing. Green: ≥15%, Yellow: 10-15%, Red: <10%",
+  position_rate:
+    "Position changes per hour — how often you switch between sitting and standing. Green: ≥1/h, Yellow: 0.5-1/h, Red: <0.5/h",
+  hourly_breaks:
+    "Hourly breaks — hours with at least 5 min away from screen. Green: all hours covered, Yellow: 1-2 missed, Red: ≥3 missed",
+  longest_session:
+    "Screen time — longest continuous time at computer without 5+ min break. Green: <45m, Yellow: 45-75m, Red: >75m. Resets after 5 min away.",
+};
+
 /** Single KPI badge. */
 const KpiBadge: FC<{ metric: MetricSnapshot }> = ({ metric }) => (
   <span
     className="kpi-strip__badge"
     data-testid={`kpi-badge-${metric.id}`}
     style={{ borderColor: levelColor[metric.result.level] }}
+    title={KPI_TOOLTIPS[metric.id] ?? metric.label}
   >
     <span className="kpi-strip__label">{metric.label}</span>
     <span
