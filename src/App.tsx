@@ -12,6 +12,7 @@ import { useWidgetData } from "@/hooks/useWidgetData";
 import { useActiveWidget } from "@/hooks/useActiveWidget";
 import { resolveWidget } from "@/widgets/registry";
 import SettingsPanel from "@/components/SettingsPanel";
+import { ConnectionOverlay } from "@/components/ConnectionOverlay";
 import "@/styles/globals.css";
 
 /** Whether we are running inside Tauri (desktop) or a browser (remote display). */
@@ -35,7 +36,8 @@ export default function App() {
   }
   const [showSettings, setShowSettings] = useState(false);
   const [activeWidgetId] = useActiveWidget();
-  const widgetProps = useWidgetData(() => setShowSettings(true));
+  const { widgetProps, wsConnected, sensorConnected } = useWidgetData(() => setShowSettings(true));
+  const isRemote = !isTauri;
 
   // Request Wake Lock in remote display mode to keep screen on
   useEffect(() => {
@@ -81,6 +83,9 @@ export default function App() {
 
   return (
     <main className="app">
+      {isRemote && wsConnected !== undefined && (
+        <ConnectionOverlay wsConnected={wsConnected} sensorConnected={sensorConnected} />
+      )}
       <ActiveWidget {...widgetProps} />
 
       {/* Debug: overlay state — DEV only */}

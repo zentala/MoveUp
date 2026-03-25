@@ -166,6 +166,14 @@ See `.arch/overlay/MODE-COMPARISON.md` for comparison.
 - **Serial**: `serialport` crate, background thread
 - **Activity tracking**: Rust (keyboard/mouse hooks via `rdev` or Windows API)
 
+## Remote Display (Phone Dashboard)
+- Embedded HTTP+WS server on `:3390` (configurable via `DESK_REMOTE_PORT`)
+- Same React UI served to browsers; `useDeskAuto()` hook selects WS or Tauri IPC
+- Auto-reconnects with exponential backoff; REST polling fallback when WS is down
+- `ConnectionOverlay` component shows connection/sensor status in remote mode
+- See `docs/REMOTE_DISPLAY.md` for phone setup instructions
+- Key files: `remote_server.rs`, `ws_broadcaster.rs`, `useRemoteDesk.ts`, `ConnectionOverlay.tsx`
+
 ## Tauri Plugins
 - `tauri-plugin-notification` — native desktop notifications ("time to stand")
 - `tauri-plugin-autostart` — start app at system login

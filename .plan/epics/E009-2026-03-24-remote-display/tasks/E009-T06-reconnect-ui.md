@@ -1,7 +1,8 @@
 ---
 id: E009-T06
 epic: E009
-status: pending
+status: done
+completed: 2026-03-25
 created: 2026-03-24
 branch: feat/E009-T06-reconnect-ui
 depends_on: [E009-T04, E009-T05]
@@ -88,10 +89,10 @@ wsConnected?: boolean; // undefined in Tauri mode, true/false in remote mode
 4. Reconnect sensor → banner disappears
 
 ## Definition of Done
-- [ ] `ConnectionOverlay` component exists and is rendered in remote mode
-- [ ] Reconnecting state shows semi-transparent overlay
-- [ ] Sensor disconnected shows subtle banner
-- [ ] Normal state shows no extra UI
-- [ ] `wsConnected` exposed in `UseDeskResult`
-- [ ] Unit tests pass
+- [x] `ConnectionOverlay` component exists and is rendered in remote mode
+- [x] Reconnecting state shows semi-transparent overlay
+- [x] Sensor disconnected shows subtle banner
+- [x] Normal state shows no extra UI
+- [x] `wsConnected` exposed in `UseDeskResult`
+- [x] Unit tests pass
 - [ ] Visual verification on phone-sized viewport

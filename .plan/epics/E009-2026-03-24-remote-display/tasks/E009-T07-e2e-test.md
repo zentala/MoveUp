@@ -1,7 +1,8 @@
 ---
 id: E009-T07
 epic: E009
-status: pending
+status: done
+completed: 2026-03-25
 created: 2026-03-24
 branch: feat/E009-T07-e2e-test
 depends_on: [E009-T06]
@@ -142,9 +143,9 @@ Add a brief section about the remote display:
 
 ## Definition of Done
 - [ ] All 5 e2e scenarios pass manually (including Vite proxy failure)
-- [ ] Integration tests in `tests/integration/remote-display.test.ts`
-- [ ] `docs/REMOTE_DISPLAY.md` written with setup instructions
-- [ ] CLAUDE.md updated with remote display section
-- [ ] **`.arch/ARCHITECTURE.md` updated** — add remote_server, ws_broadcaster to component map
-- [ ] **`.arch/ARCHITECTURE.md` data flow updated** — add WS broadcast path
+- [x] Integration tests in `tests/integration/remote-display.test.ts`
+- [x] `docs/REMOTE_DISPLAY.md` written with setup instructions
+- [x] CLAUDE.md updated with remote display section
+- [x] **`.arch/ARCHITECTURE.md` updated** — add remote_server, ws_broadcaster to component map
+- [x] **`.arch/ARCHITECTURE.md` data flow updated** — add WS broadcast path
 - [ ] PROJECT.xml updated if maintained

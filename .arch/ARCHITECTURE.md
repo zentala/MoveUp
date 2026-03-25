@@ -47,9 +47,11 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 │  colors.rs    (progress-to-color mapping)                    │
 │  commands.rs  (IPC: get_session_state, inject_reading, etc.) │
 │  commands_config.rs (IPC: settings, calibration, overlay)    │
+│  remote_server.rs   (HTTP+WS server on :3390)               │
+│  ws_broadcaster.rs  (broadcasts state to WS clients)         │
 │  lib.rs       (app entry, plugins, AppState)                 │
 └──────────────────────┬──────────────────────────────────────┘
-                       │ IPC commands + events
+                       │ IPC commands + events + HTTP/WS
 ┌──────────────────────▼──────────────────────────────────────┐
 │                  REACT FRONTEND                              │
 │                                                              │
@@ -58,7 +60,10 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 │    ├── widgets/TimelineZen/  (timeline view)                 │
 │    └── widgets/Placeholder/  (fallback)                      │
 │                                                              │
-│  hooks/useDesk.ts    (IPC bridge, polls session state)       │
+│  hooks/useDesk.ts        (IPC bridge, polls session state)   │
+│  hooks/useRemoteDesk.ts  (WS bridge for remote display)     │
+│  hooks/useDeskAuto.ts    (auto-selects IPC or WS)           │
+│  components/ConnectionOverlay.tsx (remote mode status)       │
 │  components/         (ProgressBar, KpiStrip, Settings, etc.) │
 │  types.ts            (shared TS types matching Rust DTOs)    │
 └─────────────────────────────────────────────────────────────┘
@@ -92,6 +97,13 @@ VL53L1X sensor
         → IPC emit (desk:state-changed → frontend)
     → useDesk hook (frontend polls via get_session_state)
     → Widget renders (OneBar, TimelineZen, etc.)
+
+Remote display path (parallel to IPC):
+    tray_controller.rs
+        → ws_broadcaster.rs (snapshot + events to all WS clients)
+        → remote_server.rs (:3390 — serves React UI + /display/ws + /display/api)
+        → useRemoteDesk.ts (WS client in browser, auto-reconnect)
+        → Widget renders (same components, phone viewport)
 ```
 
 ## Key Architectural Decisions
