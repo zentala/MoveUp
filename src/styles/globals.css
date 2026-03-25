@@ -731,3 +731,46 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Remote display mode ───────────────────────────────────────── */
+/* Applied when running in browser (not Tauri) via .remote-display
+ * class on <html>. Fills the screen, scales fonts for readability
+ * at arm's length, hides settings. */
+
+.remote-display {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-size: clamp(14px, 2.5vw, 20px);
+}
+
+.remote-display #root {
+  height: 100vh;
+}
+
+.remote-display .app {
+  height: 100vh;
+}
+
+/* Hide settings gear in remote mode — read-only display */
+.remote-display .one-bar__settings-btn {
+  display: none;
+}
+
+/* Portrait orientation overlay — prompt landscape rotation */
+@media (orientation: portrait) {
+  .remote-display body::before {
+    content: "Please rotate to landscape";
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel-base, #141210);
+    color: var(--ink-secondary, #b0a898);
+    font-size: 1.5rem;
+    z-index: 9999;
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+  }
+}

@@ -52,6 +52,8 @@ export interface UseDeskResult {
   error: string | null;
   /** Transition info (auto-clears after 30s). */
   transition: TransitionInfo | null;
+  /** True when the WebSocket to the backend is connected (remote mode only). */
+  wsConnected?: boolean;
   calibrate: (position: "sitting" | "standing") => Promise<void>;
   setSitLimit: (mins: number) => Promise<void>;
   setStandLimit: (mins: number) => Promise<void>;

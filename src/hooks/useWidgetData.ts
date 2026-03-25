@@ -4,10 +4,10 @@
  * Centralizes the mapping from raw desk state to the presentation
  * contract that widgets consume, keeping App.tsx lean.
  *
- * The backend already sends live values (computed via DateTime arithmetic)
- * every 1s, so no client-side timer interpolation is needed.
+ * Uses useDeskAuto() which auto-selects Tauri IPC (desktop) or
+ * WebSocket (remote display) based on runtime environment.
  */
-import { useDesk } from "@/hooks/useDesk";
+import { useDeskAuto } from "@/hooks/useDeskAuto";
 import type { WidgetProps } from "@/types";
 
 /**
@@ -17,7 +17,7 @@ import type { WidgetProps } from "@/types";
  * @returns WidgetProps ready to pass to any widget component
  */
 export function useWidgetData(onOpenSettings: () => void): WidgetProps {
-  const desk = useDesk();
+  const desk = useDeskAuto();
 
   return {
     connected: desk.connected,

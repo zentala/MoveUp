@@ -1,7 +1,7 @@
 ---
 id: E009-T04
 epic: E009
-status: pending
+status: done
 created: 2026-03-24
 branch: feat/E009-T04-use-remote-desk
 depends_on: [E009-T03]

@@ -14,6 +14,14 @@ import { resolveWidget } from "@/widgets/registry";
 import SettingsPanel from "@/components/SettingsPanel";
 import "@/styles/globals.css";
 
+/** Whether we are running inside Tauri (desktop) or a browser (remote display). */
+const isTauri = !!window.__TAURI_INTERNALS__;
+
+// Add remote-display class to <html> when running in browser mode
+if (!isTauri) {
+  document.documentElement.classList.add("remote-display");
+}
+
 const MockupGallery = lazy(() => import("@/pages/MockupGallery"));
 
 export default function App() {
@@ -28,6 +36,14 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [activeWidgetId] = useActiveWidget();
   const widgetProps = useWidgetData(() => setShowSettings(true));
+
+  // Request Wake Lock in remote display mode to keep screen on
+  useEffect(() => {
+    if (isTauri) return;
+    if ("wakeLock" in navigator) {
+      navigator.wakeLock.request("screen").catch(() => {});
+    }
+  }, []);
 
   // Listen for tray commands: show-widget resets to main, show-settings opens settings
   useEffect(() => {

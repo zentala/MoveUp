@@ -4,6 +4,12 @@
  * Covers all Tauri event payloads, command return types, and domain enums.
  */
 
+declare global {
+  interface Window {
+    __TAURI_INTERNALS__?: unknown;
+  }
+}
+
 /** Possible ergonomic states detected by the desk sensor. */
 export type DeskState = "Sitting" | "Standing" | "Walking" | "Away";
 
