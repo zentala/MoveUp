@@ -35,3 +35,18 @@
 - **Issue 3: No test for Vite proxy failure**
   - Fix: added Scenario 5 manual test in T07
 - All task files updated with eng review fixes
+
+## Session 2026-03-25 01:15 — Implementation Complete
+
+- **Goal**: Implement all 7 tasks of E009 Remote Display epic
+- **Done**:
+  - Wave 0: version bump to 0.3.0 (aa4f7fc)
+  - Wave 1: ws_broadcaster.rs + remote_server.rs — axum HTTP+WS on :3390 (5049c8a)
+  - Wave 2: useRemoteDesk.ts + useDeskAuto.ts + responsive CSS (918f2e7)
+  - Wave 3: ConnectionOverlay.tsx + docs + ARCHITECTURE.md update (f801782)
+  - Split oversized files: commands_welcome.rs, tray_helpers.rs (250-line limit)
+- **Decisions**: today_cache in AppState (no SQLite in hot path), wsConnectedRef for interval closure
+- **Findings this session**: 0
+- **Improvements logged**: 0
+- **Test totals**: Rust 339 (+9), TypeScript 189 (+21) = 528 total
+- **Next**: Dogfood on real phone, visual verification, manual e2e scenarios

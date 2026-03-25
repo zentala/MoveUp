@@ -37,3 +37,14 @@
 - NotificationService centralized 6 toasts, wired notification_backend config
 - Popup redesign: timer-first, Unicode KPI icons, color unification
 - 13 tasks, 508 tests total
+
+## 2026-03-25 — E009: Remote Display — Web Kiosk (v0.3.0)
+- Embedded HTTP+WS server (axum on :3390) serves React UI to phones via LAN
+- ws_broadcaster.rs: tokio broadcast channel, RemoteDisplayState, zero SQLite in hot path
+- remote_server.rs: WS with max 10 clients, heartbeat, graceful port binding
+- useRemoteDesk.ts: WS-based hook, auto-reconnect with exponential backoff
+- useDeskAuto.ts: auto-selects Tauri IPC or WebSocket based on runtime
+- ConnectionOverlay: reconnecting overlay + sensor-disconnected banner
+- Responsive CSS: landscape enforcement, portrait prompt, wake lock
+- ADRs: [001-remote-display-web-kiosk](./../.arch/ADR/001-remote-display-web-kiosk.md)
+- 7 tasks, 528 tests total (+32 new)

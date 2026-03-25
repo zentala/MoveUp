@@ -98,3 +98,12 @@
 - [x] E008-T11 — Process guard restore — E008, 2026-03-24
 - [x] E008-T12 — Regression tests for popup standing timer — E008, 2026-03-24
 - [x] E008-T13 — Final UX-FLOW.md verification — E008, 2026-03-24
+
+## E009 — Remote Display / Web Kiosk (2026-03-25)
+- [x] [E009-T01 — Version bump](epics/E009-2026-03-24-remote-display/tasks/E009-T01-version-bump.md) — E009, 2026-03-25
+- [x] [E009-T02 — WS broadcaster](epics/E009-2026-03-24-remote-display/tasks/E009-T02-ws-broadcaster.md) — E009, 2026-03-25
+- [x] [E009-T03 — HTTP+WS server](epics/E009-2026-03-24-remote-display/tasks/E009-T03-http-server.md) — E009, 2026-03-25
+- [x] [E009-T04 — useRemoteDesk hook](epics/E009-2026-03-24-remote-display/tasks/E009-T04-use-remote-desk-hook.md) — E009, 2026-03-25
+- [x] [E009-T05 — Responsive display](epics/E009-2026-03-24-remote-display/tasks/E009-T05-responsive-display.md) — E009, 2026-03-25
+- [x] [E009-T06 — Connection overlay](epics/E009-2026-03-24-remote-display/tasks/E009-T06-reconnect-ui.md) — E009, 2026-03-25
+- [x] [E009-T07 — E2E tests + docs](epics/E009-2026-03-24-remote-display/tasks/E009-T07-e2e-test.md) — E009, 2026-03-25

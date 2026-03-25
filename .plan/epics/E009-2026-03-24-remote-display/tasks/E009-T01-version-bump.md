@@ -1,7 +1,8 @@
 ---
 id: E009-T01
 epic: E009
-status: pending
+status: done
+completed: 2026-03-25
 created: 2026-03-24
 branch: feat/E009-T01-version-bump
 ---
