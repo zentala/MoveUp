@@ -181,6 +181,12 @@ Full details: [`.claude/rules/installer.md`](.claude/rules/installer.md)
 | [Marketing Launch Plan](.plan/vision/2026-03-25-marketing-launch-plan.md) | Two-site strategy; 5 Reddit/HN posts (full text); Google/FB ads (500 PLN/mo); KPI dashboard; content calendar; SEO; social proof; conversion optimization |
 | [Story-Driven Launch](.plan/vision/2026-03-26-story-driven-launch.md) | Founder story landing page; 3 product tiers (Basic €49/Pro €79/Founder €149); mission/vision; viral video strategy; influencer outreach; privacy-first analytics; app telemetry opt-in; sedentary research report |
 
+### Pricing (canonical source of truth)
+
+**File: [`.plan/vision/config/pricing.json`](.plan/vision/config/pricing.json)**
+All landing pages, docs, and tasks MUST read pricing from this file.
+Do NOT hardcode prices in markdown — they may change or be A/B tested.
+
 ### Key Business Context (for all agents)
 
 - **Positioning:** "Developer Platform + Reference Hardware" — software is the business, hardware is the entry point

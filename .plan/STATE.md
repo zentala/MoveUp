@@ -1,21 +1,14 @@
 ---
-updated: 2026-03-26T12:00:00Z
-active_epic: none
-active_epic_path: null
-current_wave: null
+updated: 2026-03-26T23:30:00Z
+active_epic: E010
+active_epic_path: .plan/epics/E010-2026-03-25-marketing-launch
+current_wave: 1
 ---
 
 ## Status
 - E000 (maintenance) — open (permanent)
-- E001 (App Foundation, 2026-03-15) — **DONE**
-- E002 (Overlay Progress Bar, 2026-03-16) — **DONE**
-- E003 (Installer & Distribution, 2026-03-16) — **DONE**
-- E004 (Session Alerts & Snooze, 2026-03-20) — **DONE**
-- E005 (UX Communication + Widgets, 2026-03-21) — **DONE**
-- E006 (Session Bugs & Polish, 2026-03-22) — **DONE**
-- E007 (KPI Dashboard + Timer UX, 2026-03-23) — **DONE** (v0.1.0)
-- E008 (UX Integrity, 2026-03-24) — **DONE** (v0.2.0)
-- E009 (Remote Display — Web Kiosk, 2026-03-25) — **DONE** (v0.3.0)
+- E001–E009 — **DONE** (v0.3.0)
+- E010 (Marketing Launch, 2026-03-25) — **ACTIVE** (planning complete, execution not started)
 
 ## Version
 - Current: `v0.3.0`
@@ -26,16 +19,31 @@ current_wave: null
 - TypeScript: 189 tests
 - Total: 534
 
-## New This Session
-- Away time excluded from standing in DB queries (3 files, shared helper)
-- DeskState centralized classification (from_db_str, is_desk_position, is_standing_like)
-- Overlay default changed to Live (was Demo in debug)
-- `/ergo-review` skill for motivation analytics
-- Progressive break credit + analytics process saved to memory
+## E010 Progress
+- 22 tasks defined across 5 waves
+- Wave 1 (next): Landing page rebuild (#2), real usage data (#6), research report (#14), hero GIF (#19)
+- 0 tasks completed
+
+## New This Session (2026-03-25/26)
+- 7 vision documents created (business, validation, distribution, premium, marketing, story-driven, hw options)
+- 7 ADRs (002-007 + existing 001)
+- Hardware options doc (.arch/hardware/HARDWARE-OPTIONS.md)
+- Canonical pricing config (.plan/vision/config/pricing.json)
+- CLAUDE.md refactored 520→220 lines (overlay+installer → .claude/rules/)
+- E010 epic created with PLAN, ORCHESTRATOR, JOURNAL
+- Memory updated (business strategy, validation priorities)
+- Superseded status added to older vision docs
+
+## Key Documents Created
+- `.plan/vision/2026-03-24-business-vision.md` — GTM, certification, moat
+- `.plan/vision/2026-03-25-marketing-launch-plan.md` — posts, ads, SEO, growth (needs splitting)
+- `.plan/vision/2026-03-26-story-driven-launch.md` — latest: story format, 3 tiers, mission
+- `.plan/vision/config/pricing.json` — canonical pricing source
+- `.arch/hardware/HARDWARE-OPTIONS.md` — MCU, PCB, sensors, BOM
+- `.arch/ADR/002-007` — ToF, USB-only, dev kit, open core, CE, plexi
 
 ## Next Steps
-1. Dogfood remote display on real phone — visual verification
-2. Manual e2e scenarios (reconnect, sensor disconnect, multiple clients)
-3. Gamification research report (BACKLOG task)
-4. Notification flag persistence fix (BACKLOG P2)
-5. Pick next epic
+1. **Execute Wave 1**: rebuild landing page (#2) + collect real data (#6)
+2. Split marketing-launch-plan.md (1059 lines) into focused documents
+3. Record hero GIF/video (#19)
+4. Sedentary lifestyle research report (#14)

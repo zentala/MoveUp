@@ -1,0 +1,28 @@
+# ADR 005: Open Core Software Model (Open Source App + Closed Cloud)
+
+- **Status**: accepted
+- **Date**: 2026-03-24
+- **Epic**: pre-epic (business strategy)
+- **Context**: The hardware is simple (ToF + MCU) and easy to clone. The desktop app could also be cloned. We need a strategy that makes the ecosystem MORE valuable when people contribute, while retaining revenue-generating features as proprietary.
+- **Decision**: Open Core model — desktop app and SDK are open source; cloud backend, AI algorithms, and premium integrations are closed source (proprietary SaaS).
+- **Alternatives**:
+  - **Fully proprietary**: All software closed source. But: no community contributions, no trust, competitors write their own app anyway, no ecosystem effect. Rejected: misses the network effect.
+  - **Fully open source (donation-based)**: Everything open, rely on donations/sponsorships. But: donation revenue is negligible for niche products, no sustainable business model. Rejected: not a viable business.
+  - **Open source with dual licensing (AGPL + commercial)**: Forces cloud deployers to buy license. But: scares away contributors, complex legally. Rejected: overkill for our scale.
+- **Consequences**:
+  - **Open source (MIT or Apache 2.0):**
+    - Desktop app (Tauri + React)
+    - UI components, skin/plugin system
+    - Device communication protocol
+    - SDK for third-party integrations
+    - Basic tracking, daily stats, gamification
+  - **Closed source (proprietary):**
+    - Cloud sync backend
+    - AI/ML coaching algorithms
+    - Advanced scoring engine
+    - Smartwatch integrations
+    - Team/enterprise features
+  - Community can build skins → no incentive to fork the whole app
+  - Contributors improve the product we sell premium features on top of
+  - Revenue comes from SaaS subscriptions (10-30 PLN/month), not software licenses
+  - Must maintain healthy relationship with community — don't close-source popular features

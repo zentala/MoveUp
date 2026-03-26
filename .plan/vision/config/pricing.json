@@ -1,0 +1,73 @@
+{
+  "$schema": "Canonical pricing config — all docs and landing page read from here",
+  "$note": "Values are examples and will be A/B tested. Geo-specific overrides possible.",
+  "$decision_status": "NOT FINALIZED — testing different tier structures",
+
+  "tiers": {
+    "basic": {
+      "name": "Basic Kit",
+      "price_eur": 49,
+      "threshold": 200,
+      "contents": [
+        "VL53L1X ToF sensor on carrier PCB",
+        "Microcontroller (pre-flashed firmware)",
+        "USB-C cable",
+        "Mounting tape",
+        "Desktop app (open source)"
+      ],
+      "tagline": "Awareness — know how much you actually sit"
+    },
+    "pro": {
+      "name": "Pro Kit",
+      "price_eur": 79,
+      "threshold": 500,
+      "contents": [
+        "Everything in Basic",
+        "Vibration motor (haptic alerts)",
+        "Presence sensor (desk activity detection)"
+      ],
+      "tagline": "Active Coaching — your desk nudges you"
+    },
+    "founder": {
+      "name": "Founder's Edition",
+      "price_eur": 149,
+      "threshold": null,
+      "threshold_note": "Ships with Pro batch",
+      "contents": [
+        "Everything in Pro",
+        "5 years Pro cloud subscription",
+        "Smartwatch integration (when available)",
+        "Priority feature requests",
+        "Direct support channel",
+        "Name in credits",
+        "Beta access"
+      ],
+      "tagline": "Full Investment — fund the future of desk ergonomics"
+    }
+  },
+
+  "saas": {
+    "pro_monthly_eur": 4.99,
+    "pro_yearly_eur": 39.99,
+    "enterprise": "TBD"
+  },
+
+  "shipping": {
+    "poland": { "cost_eur": 0, "carrier": "InPost", "days": "1-2" },
+    "eu_nearby": { "cost_eur": 8, "carrier": "DPD/DHL", "days": "2-4" },
+    "eu_far": { "cost_eur": 8, "carrier": "DPD/DHL", "days": "3-6" },
+    "uk": { "cost_eur": 15, "carrier": "DHL Express", "days": "5-7" },
+    "us_canada": { "cost_eur": 18, "carrier": "Poczta Polska", "days": "7-14" },
+    "rest_of_world": { "cost_eur": 20, "carrier": "Poczta Polska", "days": "10-21" }
+  },
+
+  "referral": {
+    "discount_eur": 5,
+    "credit_eur": 5
+  },
+
+  "geo_overrides": {
+    "$note": "Future: different pricing per region. Not active yet.",
+    "us": { "basic_usd": 54, "pro_usd": 89, "founder_usd": 169 }
+  }
+}

@@ -163,6 +163,12 @@ Maximum flexibility for users.
 ---
 
 ## Out of Scope (for now)
-- Cloud sync
-- Multi-user
 - Multiple monitors for progress bar
+
+---
+
+## Related Vision Documents
+
+- **[Business Vision & GTM](./2026-03-24-business-vision.md)** — dev kit → SaaS → consumer product strategy
+- **[Validation & Marketing](./2026-03-25-validation-and-gtm.md)** — landing page, pre-sale, marketing posts
+- **[Premium Tier Definition](./2026-03-25-premium-tier-definition.md)** — free vs Pro features, implementation epics
