@@ -15,6 +15,8 @@ pub const BREAK_SHORT_SECS: i64 = 300;
 pub const BREAK_LONG_SECS: i64 = 600;
 /// Sitting seconds subtracted for a short break (20 minutes).
 pub const SHORT_BREAK_CREDIT_SECS: i64 = 1200;
+/// Gap between sensor readings that indicates machine sleep/suspend (5 minutes).
+pub const SLEEP_GAP_THRESHOLD_SECS: i64 = 300;
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
@@ -198,7 +200,7 @@ pub struct CompletedSession {
 }
 
 /// Result of processing a sensor reading.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ReadingResult {
     pub state_change: Option<StateChangedPayload>,
     pub completed_session: Option<CompletedSession>,

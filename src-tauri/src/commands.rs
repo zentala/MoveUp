@@ -218,4 +218,5 @@ pub fn trigger_test_notification(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| format!("Notification error: {}", e))
 }
 
+// DB backup commands moved to commands_backup.rs
 // Welcome popup commands moved to commands_welcome.rs

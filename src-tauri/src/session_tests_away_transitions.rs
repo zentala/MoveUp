@@ -103,6 +103,71 @@ mod tests {
         );
     }
 
+    /// Regression test: Standing + inactive MUST transition to Away.
+    /// Bug report: user was standing, walked away, app stayed in Standing.
+    /// Verifies: (1) state transitions to Away, (2) break_started preserved,
+    /// (3) state_change event is emitted, (4) break credit applied on return.
+    #[test]
+    fn standing_to_away_on_inactivity() {
+        let mut m = SessionManager::new();
+
+        // 1. Start Sitting
+        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        assert_eq!(m.state.state, DeskState::Sitting);
+        m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(600));
+        m.state.sitting_seconds = 600;
+        m.state.sitting_seconds_total = 600;
+
+        // 2. Stand up (active) — should transition to Standing
+        advance_ticks(&mut m, 1200, true, DEBOUNCE_COUNT as usize);
+        assert_eq!(m.state.state, DeskState::Standing, "should be Standing when desk high + active");
+        assert!(m.state.break_started.is_some(), "break_started must be set on Sitting→Standing");
+        let break_start = m.state.break_started.unwrap();
+
+        // 3. Walk away (inactive, desk still high) — MUST transition to Away
+        let mut last = ReadingResult {
+            state_change: None,
+            completed_session: None,
+            break_credit: None,
+        };
+        for _ in 0..DEBOUNCE_COUNT {
+            last = m.on_reading(1200, false);  // high desk + inactive
+        }
+        assert_eq!(
+            m.state.state, DeskState::Away,
+            "Standing + inactive MUST transition to Away (not stay Standing)"
+        );
+        assert!(
+            last.state_change.is_some(),
+            "state_change event must be emitted for Standing→Away"
+        );
+        assert_eq!(
+            last.state_change.as_ref().unwrap().state,
+            DeskState::Away,
+            "emitted state must be Away"
+        );
+        // break_started must be preserved (break continues through Away)
+        assert_eq!(
+            m.state.break_started,
+            Some(break_start),
+            "break_started must be preserved on Standing→Away"
+        );
+
+        // 4. Stay away for 10+ minutes — simulate with fake break_started
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(700));
+
+        // 5. Return and sit down — break credit should apply
+        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        assert_eq!(m.state.state, DeskState::Sitting);
+        assert_eq!(
+            m.state.last_break_credit, BreakCredit::Full,
+            ">=10 min break (standing+away) = full credit"
+        );
+        assert_eq!(m.state.sitting_seconds, 0, "full credit resets sitting to 0");
+    }
+
+    // Sleep inflation tests moved to session_tests_sleep.rs
+
     #[test]
     fn standing_away_standing_sitting_only_counts_standing() {
         let mut m = SessionManager::new();

@@ -14,6 +14,31 @@ impl SessionManager {
         if self.state.first_reading_at.is_none() {
             self.state.first_reading_at = Some(now);
         }
+
+        // Detect sleep/suspend: if gap since last reading > 5 minutes,
+        // the machine likely slept. Rewind timestamps to prevent inflation.
+        if let Some(prev_tick) = self.state.last_tick_ts {
+            let gap_secs = (now - prev_tick).num_seconds();
+            if gap_secs > SLEEP_GAP_THRESHOLD_SECS {
+                info!(
+                    "Sleep gap detected: {}s since last reading. Rewinding timestamps.",
+                    gap_secs
+                );
+                // Rewind start timestamps to just before now, preserving committed values.
+                // This prevents handle_state_exit from adding hours of elapsed time.
+                let rewind_to = now - chrono::Duration::seconds(1);
+                if self.state.sitting_started.is_some() {
+                    self.state.sitting_started = Some(rewind_to);
+                }
+                if self.state.standing_bout_started.is_some() {
+                    self.state.standing_bout_started = Some(rewind_to);
+                }
+                if self.state.standing_session_started.is_some() {
+                    self.state.standing_session_started = Some(rewind_to);
+                }
+            }
+        }
+
         self.state.last_tick_ts = Some(now);
 
         // Compute raw calibrated desk height (used for state machine decisions).

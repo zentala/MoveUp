@@ -7,10 +7,12 @@ mod alert_popup;
 mod alert_popup_window;
 mod colors;
 mod commands;
+mod commands_backup;
 mod commands_config;
 mod commands_welcome;
 mod config;
 mod db;
+mod db_backup;
 mod db_queries;
 mod db_sessions;
 mod event_logger;
@@ -40,12 +42,10 @@ mod overlay_tests;
 mod overlay_variant_tests;
 #[cfg(test)]
 mod alert_manager_tests;
-#[cfg(test)]
-mod alert_snooze_tests;
-#[cfg(test)]
-mod config_tests;
-#[cfg(test)]
-mod db_tests;
+#[cfg(test)] mod alert_snooze_tests;
+#[cfg(test)] mod config_tests;
+#[cfg(test)] mod db_tests;
+#[cfg(test)] mod db_tests_roundtrip;
 mod serial;
 mod serial_parser;
 mod serial_periodic;
@@ -57,7 +57,6 @@ mod session_breaks;
 mod session_daily;
 mod session_reading;
 pub mod session_types;
-// Session test modules
 #[cfg(test)] mod session_tests;
 #[cfg(test)] mod session_tests_alerts;
 #[cfg(test)] mod session_tests_floating;
@@ -71,6 +70,9 @@ pub mod session_types;
 #[cfg(test)] mod session_tests_kpi;
 #[cfg(test)] mod session_tests_away;
 #[cfg(test)] mod session_tests_away_transitions;
+#[cfg(test)] mod session_tests_scenarios;
+#[cfg(test)] mod session_tests_scenarios_adv;
+#[cfg(test)] mod session_tests_sleep;
 mod tray;
 mod tray_controller;
 mod tray_helpers;
@@ -142,6 +144,8 @@ pub fn run() {
                     commands_config::get_settings,
                     commands_config::save_settings,
                     commands_config::get_overlay_state,
+                    commands_backup::list_db_backups,
+                    commands_backup::restore_db_backup,
                 ]
             }
             #[cfg(not(any(test, debug_assertions)))]
@@ -162,6 +166,8 @@ pub fn run() {
                     commands_config::calibrate,
                     commands_config::get_settings,
                     commands_config::save_settings,
+                    commands_backup::list_db_backups,
+                    commands_backup::restore_db_backup,
                 ]
             }
         })
@@ -170,6 +176,11 @@ pub fn run() {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
             info!("App data dir: {:?}", app_data_dir);
+
+            // Auto-backup DB before anything else (eager, not lazy)
+            let db_path = app_data_dir.join("desk.db");
+            info!("DB path: {}", db_path.display());
+            db_backup::backup_database(&app_data_dir);
 
             // Initialize loggers now that app_data_dir is known.
             let logs_dir = app_data_dir.join("logs");
@@ -182,13 +193,8 @@ pub fn run() {
                 event: event_logger.clone(),
             });
 
-            // System tray icon and context menu.
             tray::setup_tray(app.handle())?;
-
-            // Wire state-changed events to tray + overlay updates.
             tray_controller::setup(app.handle());
-
-            // Apply Acrylic blur and position to bottom-right corner.
             setup_helpers::position_main_window(app.handle());
 
             // Load config from store and apply to SessionManager before sensor scan starts.

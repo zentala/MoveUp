@@ -82,6 +82,7 @@ pub fn handle_reading(
     alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
     let active = is_active();
+    let idle_secs = crate::activity::get_idle_seconds();
     let (state_before, result) = {
         let mut sess = session.lock().unwrap();
         let before = sess.current_state();
@@ -92,11 +93,19 @@ pub fn handle_reading(
         (before, res)
     };
 
+    // Diagnostic: log idle time every ~30s when Standing to catch is_active() issues
+    if state_before == DeskState::Standing && idle_secs > 30 {
+        log::debug!(
+            "Standing idle diagnostic: idle={}s active={} mm={}",
+            idle_secs, active, mm
+        );
+    }
+
     if let Some(ref payload) = result.state_change {
         let height_cm = payload.desk_height_cm;
         event_logger.log(&format!(
-            "STATE {:?}\u{2192}{:?} h={:.0}cm",
-            state_before, payload.state, height_cm
+            "STATE {:?}\u{2192}{:?} h={:.0}cm idle={}s",
+            state_before, payload.state, height_cm, idle_secs
         ));
         let _ = app.emit("desk:state-changed", payload);
 

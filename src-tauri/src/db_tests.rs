@@ -241,3 +241,5 @@ fn test_session_row_json_field_names() {
     assert!(json.get("ended_at").is_none(), "raw field name must not appear");
     assert!(json.get("duration_seconds").is_none(), "raw field name must not appear");
 }
+
+// Multi-cycle round-trip test in db_tests_roundtrip.rs
