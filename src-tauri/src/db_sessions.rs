@@ -10,8 +10,9 @@ use crate::session_types::DeskState;
 
 // ─── Insert operations ───────────────────────────────────────────────────────
 
-/// Inserts a completed sitting session into the database.
-/// Returns an error if the insert fails.
+/// Inserts a completed session into the database.
+/// `date_local` is set to the LOCAL date at time of insert (timezone-safe queries).
+/// This means the date reflects the user's timezone when the session happened.
 pub fn insert_session(
     conn: &Connection,
     started_at: &str,
@@ -19,9 +20,22 @@ pub fn insert_session(
     state: &str,
     duration_seconds: i64,
 ) -> Result<(), rusqlite::Error> {
+    let date_local = chrono::Local::now().format("%Y-%m-%d").to_string();
+    insert_session_with_date(conn, started_at, ended_at, state, duration_seconds, &date_local)
+}
+
+/// Insert with explicit date_local (used by tests and migration).
+pub fn insert_session_with_date(
+    conn: &Connection,
+    started_at: &str,
+    ended_at: &str,
+    state: &str,
+    duration_seconds: i64,
+    date_local: &str,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
-        "INSERT INTO sessions (started_at, ended_at, state, duration_seconds) VALUES (?, ?, ?, ?)",
-        rusqlite::params![started_at, ended_at, state, duration_seconds],
+        "INSERT INTO sessions (started_at, ended_at, state, duration_seconds, date_local) VALUES (?, ?, ?, ?, ?)",
+        rusqlite::params![started_at, ended_at, state, duration_seconds, date_local],
     )?;
     Ok(())
 }
@@ -61,12 +75,16 @@ pub fn accumulate_state_duration(
 }
 
 /// Loads today's total sitting and standing seconds from the database.
+/// Uses `date_local` column for timezone-safe queries. Falls back to
+/// `started_at LIKE` for rows without `date_local` (pre-migration).
 pub fn load_today_totals(conn: &Connection) -> Result<TodayTotals, String> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     let mut stmt = conn
         .prepare(
-            "SELECT state, duration_seconds FROM sessions WHERE started_at LIKE ? AND ended_at IS NOT NULL",
+            "SELECT state, duration_seconds FROM sessions \
+             WHERE (date_local = ?1 OR (date_local IS NULL AND started_at LIKE ?2)) \
+             AND ended_at IS NOT NULL",
         )
         .map_err(|e| {
             let msg = format!("Failed to prepare query: {}", e);
@@ -75,7 +93,7 @@ pub fn load_today_totals(conn: &Connection) -> Result<TodayTotals, String> {
         })?;
 
     let rows = stmt
-        .query_map(rusqlite::params![format!("{}%", today)], |row| {
+        .query_map(rusqlite::params![&today, format!("{}%", today)], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
         })
         .map_err(|e| {
@@ -107,12 +125,14 @@ pub fn load_today_totals(conn: &Connection) -> Result<TodayTotals, String> {
     Ok(TodayTotals { sitting_secs, standing_secs, position_changes })
 }
 
-/// Loads sitting and standing totals for a given date (YYYY-MM-DD).
+/// Loads sitting and standing totals for a given local date (YYYY-MM-DD).
 /// Away/unknown states are excluded from both totals.
 pub fn get_totals_for_date(conn: &Connection, date: &str) -> Result<(i64, i64), String> {
     let mut stmt = conn
         .prepare(
-            "SELECT state, duration_seconds FROM sessions WHERE started_at LIKE ? AND ended_at IS NOT NULL",
+            "SELECT state, duration_seconds FROM sessions \
+             WHERE (date_local = ?1 OR (date_local IS NULL AND started_at LIKE ?2)) \
+             AND ended_at IS NOT NULL",
         )
         .map_err(|e| {
             let msg = format!("Failed to prepare query: {}", e);
@@ -121,7 +141,7 @@ pub fn get_totals_for_date(conn: &Connection, date: &str) -> Result<(i64, i64), 
         })?;
 
     let rows = stmt
-        .query_map(rusqlite::params![format!("{}%", date)], |row| {
+        .query_map(rusqlite::params![date, format!("{}%", date)], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
         })
         .map_err(|e| {

@@ -3,7 +3,7 @@
 use rusqlite::Connection;
 
 use crate::db::{init_schema, SessionRow};
-use crate::db_sessions::{insert_session, load_today_totals, get_totals_for_date};
+use crate::db_sessions::{insert_session, insert_session_with_date, load_today_totals, get_totals_for_date};
 use crate::db_queries::get_today_summary;
 use crate::db_sessions::get_yesterday_totals;
 
@@ -196,12 +196,13 @@ fn test_totals_for_date_excludes_away() {
     let conn = test_conn();
     init_schema(&conn).unwrap();
 
-    insert_session(&conn, "2025-06-15T08:00:00Z", "2025-06-15T08:30:00Z", "Sitting", 1800).unwrap();
-    insert_session(&conn, "2025-06-15T08:30:00Z", "2025-06-15T08:40:00Z", "Standing", 600).unwrap();
-    insert_session(&conn, "2025-06-15T08:40:00Z", "2025-06-15T09:40:00Z", "Away", 3600).unwrap();
-    insert_session(&conn, "2025-06-15T09:40:00Z", "2025-06-15T10:10:00Z", "Sitting", 1800).unwrap();
+    let d = "2025-06-15";
+    insert_session_with_date(&conn, "2025-06-15T08:00:00Z", "2025-06-15T08:30:00Z", "Sitting", 1800, d).unwrap();
+    insert_session_with_date(&conn, "2025-06-15T08:30:00Z", "2025-06-15T08:40:00Z", "Standing", 600, d).unwrap();
+    insert_session_with_date(&conn, "2025-06-15T08:40:00Z", "2025-06-15T09:40:00Z", "Away", 3600, d).unwrap();
+    insert_session_with_date(&conn, "2025-06-15T09:40:00Z", "2025-06-15T10:10:00Z", "Sitting", 1800, d).unwrap();
 
-    let (sitting, standing) = get_totals_for_date(&conn, "2025-06-15").unwrap();
+    let (sitting, standing) = get_totals_for_date(&conn, d).unwrap();
     assert_eq!(sitting, 3600, "sitting: 1800 + 1800, Away excluded");
     assert_eq!(standing, 600, "standing: only Standing, not Away");
 }

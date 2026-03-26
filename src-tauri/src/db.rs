@@ -54,6 +54,17 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
                 ",
             );
         }
+        // date_local: stores the LOCAL date when a session was recorded.
+        // Queries use this column instead of parsing UTC timestamps,
+        // so timezone changes (e.g. travel) don't break daily aggregation.
+        if !cols.contains(&"date_local".to_string()) {
+            let _ = conn.execute("ALTER TABLE sessions ADD COLUMN date_local TEXT", []);
+            // Backfill existing rows: extract date from UTC started_at.
+            // Not perfectly timezone-correct for historical data, but best effort.
+            let _ = conn.execute_batch(
+                "UPDATE sessions SET date_local = SUBSTR(started_at, 1, 10) WHERE date_local IS NULL",
+            );
+        }
     }
 
     Ok(())
