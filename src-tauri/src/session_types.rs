@@ -27,6 +27,29 @@ pub enum DeskState {
     Away,
 }
 
+impl DeskState {
+    /// Parses a DB state string. Returns `None` for unknown/Away states.
+    pub fn from_db_str(s: &str) -> Option<Self> {
+        match s {
+            "Sitting" => Some(Self::Sitting),
+            "Standing" => Some(Self::Standing),
+            "Walking" => Some(Self::Walking),
+            "Away" => Some(Self::Away),
+            _ => None,
+        }
+    }
+
+    /// Whether this state represents a physical desk position (not Away).
+    pub fn is_desk_position(&self) -> bool {
+        matches!(self, Self::Sitting | Self::Standing | Self::Walking)
+    }
+
+    /// Whether this state counts toward standing/break time.
+    pub fn is_standing_like(&self) -> bool {
+        matches!(self, Self::Standing | Self::Walking)
+    }
+}
+
 /// Notification event to be sent to the user.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NotificationEvent {

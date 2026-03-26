@@ -6,6 +6,7 @@ use log::error;
 use rusqlite::Connection;
 
 use crate::db::SessionRow;
+use crate::session_types::DeskState;
 
 // ─── Insert operations ───────────────────────────────────────────────────────
 
@@ -32,16 +33,30 @@ pub fn insert_session(
 pub struct TodayTotals {
     pub sitting_secs: i64,
     pub standing_secs: i64,
-    pub away_secs: i64,
     /// Number of desk position changes (excludes Away transitions).
     pub position_changes: u32,
 }
 
 impl TodayTotals {
-    /// Creates totals for testing (away_secs and position_changes default to 0).
+    /// Creates totals for testing (position_changes defaults to 0).
     #[cfg(test)]
     pub fn from_secs(sitting: i64, standing: i64) -> Self {
-        Self { sitting_secs: sitting, standing_secs: standing, away_secs: 0, position_changes: 0 }
+        Self { sitting_secs: sitting, standing_secs: standing, position_changes: 0 }
+    }
+}
+
+/// Accumulates duration into sitting or standing based on state string.
+/// Returns `true` if state is a desk position (counted for position changes).
+pub fn accumulate_state_duration(
+    state_str: &str,
+    duration: i64,
+    sitting: &mut i64,
+    standing: &mut i64,
+) -> bool {
+    match DeskState::from_db_str(state_str) {
+        Some(DeskState::Sitting) => { *sitting += duration; true }
+        Some(s) if s.is_standing_like() => { *standing += duration; true }
+        _ => false, // Away/Walking-without-standing/unknown: excluded
     }
 }
 
@@ -71,7 +86,6 @@ pub fn load_today_totals(conn: &Connection) -> Result<TodayTotals, String> {
 
     let mut sitting_secs = 0i64;
     let mut standing_secs = 0i64;
-    let mut away_secs = 0i64;
     let mut desk_state_rows = 0u32;
 
     for row_result in rows {
@@ -81,19 +95,16 @@ pub fn load_today_totals(conn: &Connection) -> Result<TodayTotals, String> {
             msg
         })?;
 
-        match state.as_str() {
-            "Sitting" => sitting_secs += duration,
-            "Standing" | "Walking" => standing_secs += duration,
-            _ => { away_secs += duration; continue; }
+        if accumulate_state_duration(&state, duration, &mut sitting_secs, &mut standing_secs) {
+            desk_state_rows += 1;
         }
-        desk_state_rows += 1;
     }
 
     // position_changes = transitions between desk states (Sitting↔Standing).
     // Away transitions are excluded — leaving the desk isn't a position change.
     let position_changes = desk_state_rows.saturating_sub(1);
 
-    Ok(TodayTotals { sitting_secs, standing_secs, away_secs, position_changes })
+    Ok(TodayTotals { sitting_secs, standing_secs, position_changes })
 }
 
 /// Loads sitting and standing totals for a given date (YYYY-MM-DD).
@@ -128,11 +139,7 @@ pub fn get_totals_for_date(conn: &Connection, date: &str) -> Result<(i64, i64), 
             msg
         })?;
 
-        match state.as_str() {
-            "Sitting" => sitting_secs += duration,
-            "Standing" | "Walking" => standing_secs += duration,
-            _ => {} // Away/unknown: excluded from both totals
-        }
+        accumulate_state_duration(&state, duration, &mut sitting_secs, &mut standing_secs);
     }
 
     Ok((sitting_secs, standing_secs))

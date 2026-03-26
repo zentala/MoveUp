@@ -112,7 +112,6 @@ fn test_away_excluded_from_standing_and_sitting() {
     let totals = load_today_totals(&conn).unwrap();
     assert_eq!(totals.sitting_secs, 3600, "sitting: 1800 + 1800");
     assert_eq!(totals.standing_secs, 600, "standing: only Standing, not Away");
-    assert_eq!(totals.away_secs, 3600, "away: 1 hour");
     // 3 desk-state rows (Sitting, Standing, Sitting) → 2 position changes
     // Away row excluded from position_changes count
     assert_eq!(totals.position_changes, 2, "Away doesn't count as position change");

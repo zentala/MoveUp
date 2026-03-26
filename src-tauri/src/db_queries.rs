@@ -6,7 +6,7 @@ use log::error;
 use rusqlite::Connection;
 
 use crate::db::TodaySummary;
-use crate::db_sessions::{get_yesterday_totals, map_session_row};
+use crate::db_sessions::{accumulate_state_duration, get_yesterday_totals, map_session_row};
 
 /// Returns today's complete summary including all sessions and aggregate times.
 pub fn get_today_summary(conn: &Connection) -> Result<TodaySummary, String> {
@@ -43,11 +43,7 @@ pub fn get_today_summary(conn: &Connection) -> Result<TodaySummary, String> {
 
     for session in &sessions {
         if let Some(duration) = session.duration_seconds {
-            match session.state.as_str() {
-                "Sitting" => sitting_secs += duration,
-                "Standing" | "Walking" => standing_secs += duration,
-                _ => {} // Away/unknown: excluded
-            }
+            accumulate_state_duration(&session.state, duration, &mut sitting_secs, &mut standing_secs);
         }
     }
 

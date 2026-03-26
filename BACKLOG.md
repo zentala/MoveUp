@@ -143,21 +143,45 @@ Alert: max ciągła praca przy komputerze. Standing ≠ przerwa od ekranu.
 
 ---
 
-## State Machine Redesign: Away Detection
+## Away Detection — Runtime Diagnostic (2026-03-25)
 
-> Current state machine is fundamentally broken for Away detection.
+> State machine logic FIXED (commit c305f08): `!active → Away` regardless of desk height.
+> Unit tests pass (340/340), including Standing→Away regression test.
+> BUT: user reports Standing + inactive does NOT transition to Away at runtime.
 
-- **Problem 1: "Walking" is a misnomer** — we don't know if user walks. We know: desk HIGH + no keyboard/mouse. Should be `Away` or `Inactive`.
-- **Problem 2: Desk LOW + inactive = still "Sitting"** — if user leaves with desk down, app counts sitting time, fires alerts. Wrong.
-- **Problem 3: `Away` enum variant exists but is unreachable** — only used as initial state. `away_bout_secs` counter is dead code. Timeline never shows Away periods.
-- **Proposed fix:**
-  - `active == false` (≥60s no input) → `Away`, regardless of desk height
-  - Remove or rename `Walking` → merge into `Away`
-  - `away_bout_secs` logic becomes reachable, `continuous_computer_secs` reset works
-  - Away sessions saved to DB → visible in timeline (gray blocks)
-  - Away time NOT counted as sitting or standing
-- **Impact:** touches `session_reading.rs`, `session_types.rs`, all widgets, timeline, tray tooltip, tests
-- **Priority:** HIGH — without this, sitting timer is wrong every time user walks away with desk down
+**Status:** Diagnostic logging added to `serial_periodic.rs`. Next occurrence, check:
+- Event log: `STATE Standing→Away idle=XXs` — if missing, `is_active()` never returned false
+- Debug log: `Standing idle diagnostic: idle=XXs` — shows Windows API idle value
+
+**Open questions:**
+1. Does something on Windows reset `GetLastInputInfo` when overlay bar is in standing (gold) mode?
+2. Is there a race condition where UI snapshot reads old state before transition?
+3. Could the floating window (Tauri webview) or overlay (WinAPI) generate synthetic input?
+
+**Next steps:**
+- Run app with `RUST_LOG=desk_lib=debug`, reproduce, check logs
+- If `is_active()` always returns true during standing: investigate WinAPI interactions
+- Add integration test: `inject_reading(1200, false)` from frontend → verify UI shows Away
+
+---
+
+## DB Persistence in Dev Mode (2026-03-25)
+
+> Database keeps getting reset during development. User needs persistent data even in dev mode.
+
+**Current behavior:**
+- DB path: `{AppData}/com.zentala.desk/desk.db`
+- Lazy-initialized via `ensure_initialized()` — only opens when first IPC command fires
+- `load_today_totals()` overwrites in-memory counters with DB values on init
+- In dev mode (`pnpm tauri:dev`), rebuilds may change identifier → different `app_data_dir` → lost DB
+
+**Proposed fixes:**
+1. **Eager DB init** — open DB in `setup()`, not lazy on first IPC call. Prevents lost sessions before frontend loads.
+2. **Log DB path at startup** — print `info!("DB: {}", db_path)` so user can verify path stays consistent.
+3. **DB backup on startup** — copy `desk.db` → `desk.db.bak` before opening, protect against corruption.
+4. **Pin `identifier` in dev mode** — ensure `tauri.conf.json` identifier doesn't change between builds.
+
+**Priority:** HIGH — data loss during development is unacceptable when testing break patterns
 
 ---
 
@@ -198,6 +222,16 @@ Phase 2 (future): Tauri Mobile native Android app.
 Phase 3 (future): Standalone — sensor communicates wirelessly (BLE/WiFi) with phone, no PC needed.
 
 See `.plan/vision/2026-03-15-desk-app-vision.md` → "Remote Display" section for full vision.
+
+---
+
+## Motivation Analytics & Adaptive Coaching (ongoing process)
+
+- **Progressive break credit curve** — replace step function (<5m=0, 5-9m=-20m, ≥10m=reset) with smooth curve where every minute of break gives increasing credit. Short breaks (1-4 min) should give *some* reward. See memory: `project_progressive_break_credit.md`.
+- **`/ergo-review` skill** — agent reads minute snapshots + event log, analyzes sitting/standing patterns, discusses UX effectiveness with user, proposes parameter tweaks. Created as `.claude/skills/ergo-review/`.
+- **Notification outcome tracking** — log whether a notification led to action within 5 min (standing/away). Currently we fire notifications but don't track if they worked. Needed for measuring motivation effectiveness.
+- **Configurable break credit parameters** — move hardcoded `BREAK_SHORT_SECS`, `BREAK_LONG_SECS`, `SHORT_BREAK_CREDIT_SECS` to `AppConfig` so they can be tuned without code changes.
+- **Adaptive motivation engine (long-term)** — A/B test different notification strategies, learn what works for this user, optimize automatically. Needs: notification outcomes, sufficient history, parameter framework.
 
 ---
 
