@@ -170,7 +170,7 @@ Alert: max ciągła praca przy komputerze. Standing ≠ przerwa od ekranu.
 > Database keeps getting reset during development. User needs persistent data even in dev mode.
 
 **Current behavior:**
-- DB path: `{AppData}/com.zentala.desk/desk.db`
+- DB path: `{AppData}/io.zntl.desk/desk.db`
 - Lazy-initialized via `ensure_initialized()` — only opens when first IPC command fires
 - `load_today_totals()` overwrites in-memory counters with DB values on init
 - In dev mode (`pnpm tauri:dev`), rebuilds may change identifier → different `app_data_dir` → lost DB
@@ -232,6 +232,34 @@ See `.plan/vision/2026-03-15-desk-app-vision.md` → "Remote Display" section fo
 - **Notification outcome tracking** — log whether a notification led to action within 5 min (standing/away). Currently we fire notifications but don't track if they worked. Needed for measuring motivation effectiveness.
 - **Configurable break credit parameters** — move hardcoded `BREAK_SHORT_SECS`, `BREAK_LONG_SECS`, `SHORT_BREAK_CREDIT_SECS` to `AppConfig` so they can be tuned without code changes.
 - **Adaptive motivation engine (long-term)** — A/B test different notification strategies, learn what works for this user, optimize automatically. Needs: notification outcomes, sufficient history, parameter framework.
+
+---
+
+## Fullscreen Debug Dashboard (2026-03-26)
+
+Dedicated fullscreen window for debugging and verifying app behavior. NOT the popup — a separate Tauri WebviewWindow.
+
+### Must show:
+1. **Timeline visualization** — full-day timeline bar (like popup but bigger), color-coded by state (green=standing, red=sitting, gray=away, gold=break credit applied)
+2. **Event log overlay** — event log entries mapped to timeline positions. Each STATE/CREDIT/ALERT/NOTIF event visible as markers on the timeline
+3. **Counter dashboard** — all live counters with their data source explained:
+   - `sitting_seconds` — "Total sitting today (committed + live elapsed)"
+   - `standing_seconds` — "Total standing today (committed + live bout)"
+   - `break_seconds` — "Current break duration (from break_started)"
+   - `position_changes` — "Sit↔Stand transitions only"
+   - `daily_score` — "Points formula: -0.5/min sit, +1.0/min stand, +5.0/lap"
+   - `continuous_computer_secs` — "Time at keyboard without 5min break"
+4. **Raw state dump** — all SessionState fields, updated live (1s polling)
+5. **DB session history** — list of CompletedSession rows from SQLite for today, with started_at, ended_at, state, duration_secs
+
+### Purpose:
+When user sees timeline not matching reality, they can open this view and immediately compare: "timeline shows X, but event log says Y, and DB has Z." No more guessing.
+
+### Implementation:
+- New Tauri WebviewWindow (like welcome popup pattern)
+- Route: `/#/debug-dashboard`
+- Read-only — no mutations
+- IPC: `get_dashboard_state` (existing) + new `get_event_log` + `get_db_sessions_today`
 
 ---
 

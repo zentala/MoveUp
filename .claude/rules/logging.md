@@ -4,7 +4,7 @@
 
 All logs are in `{app_data_dir}/logs/` — typically:
 ```
-C:\Users\{user}\AppData\Roaming\com.zentala.desk\logs\
+C:\Users\{user}\AppData\Roaming\io.zntl.desk\logs\
 ```
 
 ## Minute snapshots

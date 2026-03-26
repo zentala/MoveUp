@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-26T23:30:00Z
+updated: 2026-03-27T02:00:00Z
 active_epic: E010
 active_epic_path: .plan/epics/E010-2026-03-25-marketing-launch
 current_wave: 1
@@ -15,7 +15,7 @@ current_wave: 1
 - Rule: each new epic bumps `0.MAJOR.0`
 
 ## Test Totals
-- Rust: 345 tests
+- Rust: 356 tests
 - TypeScript: 189 tests
 - Total: 534
 

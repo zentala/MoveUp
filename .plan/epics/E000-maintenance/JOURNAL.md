@@ -1,5 +1,28 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-26 (night) — Away detection investigation + DB backup + scenario tests
+
+- **Goal**: Debug why Standing+inactive doesn't transition to Away; fix DB persistence; improve test coverage
+- **Done**:
+  - **Investigation**: Full pipeline trace (serial→is_active→on_reading→handle_state_exit→tray_controller). State machine logic is correct — tests pass. Event logs confirm Standing→Away DOES work at runtime (idle=60s transitions logged). Real bug was overnight sleep inflating sitting_seconds (41954s after restart).
+  - **Sleep gap detection**: `on_reading()` now detects >5min gap between readings, rewinds timestamps to prevent inflation. Const `SLEEP_GAP_THRESHOLD_SECS` in session_types.rs.
+  - **DB auto-backup**: New `db_backup.rs` module — timestamped backups on every app start, max 30 retained, restore with safety copy. Eager init in `setup()`. IPC commands `list_db_backups`/`restore_db_backup`. Skill `/db-backup` created.
+  - **PowerShell launcher**: `tauri-dev.ps1` replaces broken `tauri-dev.sh` (bash couldn't find node). Package.json updated. Old bash script deleted.
+  - **8 scenario tests**: Realistic multi-cycle patterns from actual event logs: typical morning (6 transitions), standing oscillation, short breaks, timeline records, app restart, rapid changes, user's exact bug (Stand 18m→Away→Sit), daily reset.
+  - **DB round-trip test**: Multi-cycle insert→load_today_totals→get_today_summary verifying persistence.
+  - **Diagnostic logging**: `serial_periodic.rs` logs idle_secs on every state transition + debug log when Standing idle>30s.
+  - **Path fix**: `com.zentala.desk` → `io.zntl.desk` in 4 docs.
+  - **Fullscreen Debug Dashboard**: Added to BACKLOG — timeline + event log overlay + counter dashboard + DB viewer.
+  - **Domains added** to global CLAUDE.md (zentala.io, devstage.io, infopill.news, etc.)
+  - 356 Rust tests passing (was 340)
+- **Decisions**: Sleep detected by gap in readings (not OS events). Break credit logic unchanged. PowerShell is primary shell.
+- **Findings this session**: 3
+  1. Standing→Away works at runtime (confirmed by event logs) — earlier report was stale or intermittent
+  2. Overnight sitting inflation: `sitting_started` timestamp includes sleep duration → 41954s after restart
+  3. App identifier is `io.zntl.desk` not `com.zentala.desk` — docs were wrong
+- **Improvements logged**: 5 (sleep gap const, dead bash script, DB round-trip test, injectable clock needed, simulate_elapsed is hacky)
+- **Next**: Implement Fullscreen Debug Dashboard. Dogfood with sleep detection fix. Consider injectable clock for time-based tests.
+
 ## Session 2026-03-26 — Away DB fix + DRY refactor + overlay default
 
 - **Goal**: Fix Away time inflating standing%, refactor state classification, fix overlay demo default
