@@ -130,11 +130,9 @@ fn set_variant_ignored_in_demo_mode() {
 }
 
 #[test]
-fn data_source_defaults_to_demo_in_debug() {
-    if cfg!(debug_assertions) {
-        let state = OverlayState::default();
-        assert_eq!(state.data_source, DataSource::Demo);
-    }
+fn data_source_defaults_to_live() {
+    let state = OverlayState::default();
+    assert_eq!(state.data_source, DataSource::Live);
 }
 
 #[test]

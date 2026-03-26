@@ -42,7 +42,7 @@ pub struct OverlayState {
 ///
 /// Default: `Demo` in debug builds, `Live` in release builds.
 fn parse_data_source() -> DataSource {
-    let default = if cfg!(debug_assertions) { DataSource::Demo } else { DataSource::Live };
+    let default = DataSource::Live;
     let result = match std::env::var("OVERLAY_DATA").as_deref() {
         Ok("demo") => DataSource::Demo,
         Ok("live") => DataSource::Live,

@@ -2,17 +2,16 @@
 # tauri-dev.sh — Unified tauri dev launcher with process guard
 #
 # Usage:
-#   bash scripts/tauri-dev.sh                  # demo mode (default)
-#   bash scripts/tauri-dev.sh --live           # real sensor data
+#   bash scripts/tauri-dev.sh                  # live mode (default, real sensor)
+#   bash scripts/tauri-dev.sh --demo           # cycling demo animation
 #   bash scripts/tauri-dev.sh --mock           # simulated sit/stand
-#   bash scripts/tauri-dev.sh --demo           # explicit demo
-#   bash scripts/tauri-dev.sh --live --force   # live + auto-kill old instance
-#   bash scripts/tauri-dev.sh --force          # demo + auto-kill
+#   bash scripts/tauri-dev.sh --force          # live + auto-kill old instance
+#   bash scripts/tauri-dev.sh --demo --force   # demo + auto-kill
 #
 # Flags:
-#   --live    OVERLAY_DATA=live
+#   --live    OVERLAY_DATA=live (default)
 #   --mock    OVERLAY_DATA=mock
-#   --demo    OVERLAY_DATA=demo (default)
+#   --demo    OVERLAY_DATA=demo
 #   --force   Auto-kill previous desk.exe without prompting
 
 set -euo pipefail

@@ -27,20 +27,20 @@ OVERLAY_VARIANT=0|1|2           ← visual style of the bar
 
 ## Data Sources (`OVERLAY_DATA`)
 
-### Demo (`demo`) — default in debug builds
+### Live (`live`) — default in all builds
+- Bar driven by real session data from `tray_controller.rs`
+- Shows when sitting (`DeskState::Sitting`), hides otherwise
+- Progress = `sitting_seconds / session_limit_secs`
+- Color: green (0%) → yellow (60%) → red (85%+)
+- **Use case:** Production use with desk sensor connected
+
+### Demo (`demo`) — requires `OVERLAY_DATA=demo`
 - Cycling animation: 0% → 25% → 50% → 75% → 100%, looping every 25 seconds
 - Each stage lasts 5 seconds (300 frames @ 60fps)
 - Color follows progress: green → yellow → red
 - Bar always visible
 - Ignores `update()`, `show()`, `hide()` calls from `tray_controller.rs`
 - **Use case:** Visual development without desk sensor
-
-### Live (`live`) — default in release builds
-- Bar driven by real session data from `tray_controller.rs`
-- Shows when sitting (`DeskState::Sitting`), hides otherwise
-- Progress = `sitting_seconds / session_limit_secs`
-- Color: green (0%) → yellow (60%) → red (85%+)
-- **Use case:** Production use with desk sensor connected
 
 ### Mock (`mock`)
 - Simulates realistic sit/stand cycle, compressed to ~3 minutes
@@ -52,16 +52,14 @@ OVERLAY_VARIANT=0|1|2           ← visual style of the bar
 
 ### Switching between data sources
 ```bash
-# Demo mode (default in debug)
+# Live mode (default — real sensor data)
 pnpm tauri:dev
 
+# Demo mode — cycling animation
+pnpm tauri:dev:demo
+
 # Mock mode — simulated sit/stand cycle
-OVERLAY_DATA=mock pnpm tauri:dev
-
-# Live mode in debug build (requires sensor)
-OVERLAY_DATA=live pnpm tauri:dev
-
-# Release build (always live unless overridden)
+pnpm tauri:dev:mock
 pnpm tauri:build
 ```
 
