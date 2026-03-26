@@ -35,6 +35,11 @@ pub fn check_periodic(
         info!("Daily reset occurred — in-memory counters cleared");
         let _ = app.emit("desk:daily-reset", ());
         event_logger.log("RESET daily");
+        // TODO: Telemetry should be sent *before* reset clears counters.
+        // Once the backend is deployed, refactor check_daily_reset to accept
+        // a pre-reset callback so the full day's data is captured.
+        let sess = session.lock().unwrap();
+        crate::telemetry::send_telemetry_if_enabled(config, &sess);
     }
 
     // Write per-minute snapshot with computed metrics.

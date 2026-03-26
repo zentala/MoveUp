@@ -27,6 +27,8 @@ fn default_kpi_session_yellow_mins() -> u32 { 75 }
 fn default_kpi_early_data_threshold_mins() -> u32 { 30 }
 fn default_active_widget() -> String { "one-bar".to_string() }
 fn default_notification_backend() -> String { "toast".to_string() }
+fn bool_false() -> bool { false }
+fn default_empty_string() -> String { String::new() }
 
 fn default_pts_standing_per_min() -> f32 {
     1.0
@@ -108,19 +110,30 @@ pub struct AppConfig {
     pub kpi_session_yellow_mins: u32,
     #[serde(default = "default_kpi_early_data_threshold_mins")]
     pub kpi_early_data_threshold_mins: u32,
+    /// Whether anonymous telemetry is enabled. Default: false (opt-in).
+    #[serde(default = "bool_false")]
+    pub telemetry_enabled: bool,
+    /// Random device ID for telemetry (UUID v4). Generated once on first load.
+    #[serde(default = "default_empty_string")]
+    pub telemetry_device_id: String,
 }
 
 impl AppConfig {
     /// Loads config from the store, returning defaults if missing or corrupt.
+    /// Generates a stable telemetry device ID on first load if not yet set.
     pub fn load<R: Runtime>(store: &Store<R>) -> Self {
-        match store.get("app_config") {
+        let mut config = match store.get("app_config") {
             Some(serde_json::Value::Object(map)) => {
                 serde_json::from_value::<AppConfig>(serde_json::Value::Object(map))
                     .unwrap_or_default()
                     .clamped()
             }
             _ => Self::default().clamped(),
+        };
+        if config.telemetry_device_id.is_empty() {
+            config.telemetry_device_id = uuid::Uuid::new_v4().to_string();
         }
+        config
     }
 
     /// Saves this config to the store.
@@ -183,6 +196,8 @@ impl Default for AppConfig {
             kpi_session_green_mins: default_kpi_session_green_mins(),
             kpi_session_yellow_mins: default_kpi_session_yellow_mins(),
             kpi_early_data_threshold_mins: default_kpi_early_data_threshold_mins(),
+            telemetry_enabled: bool_false(),
+            telemetry_device_id: default_empty_string(),
         }
     }
 }

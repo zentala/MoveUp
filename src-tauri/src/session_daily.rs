@@ -8,6 +8,7 @@ use crate::session_manager::SessionManager;
 
 impl SessionManager {
     /// Checks if a new day has begun and resets daily counters (throttled to 60s).
+    /// Sends telemetry (if enabled) before resetting, so the report covers the full day.
     pub fn check_daily_reset(&mut self) -> bool {
         let now = Utc::now();
         let today = now.date_naive();

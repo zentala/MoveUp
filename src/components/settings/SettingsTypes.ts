@@ -15,6 +15,8 @@ export interface DeskSettings {
   notify_inactivity: boolean;
   notify_daily_posture_balance: boolean;
   notify_praise_halfway: boolean;
+  /** Whether anonymous telemetry is enabled. Default: false (opt-in). */
+  telemetry_enabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: DeskSettings = {
@@ -25,4 +27,5 @@ export const DEFAULT_SETTINGS: DeskSettings = {
   notify_inactivity: true,
   notify_daily_posture_balance: true,
   notify_praise_halfway: false,
+  telemetry_enabled: false,
 };

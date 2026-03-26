@@ -86,6 +86,8 @@ mod tests {
             kpi_session_green_mins: 45,
             kpi_session_yellow_mins: 75,
             kpi_early_data_threshold_mins: 30,
+            telemetry_enabled: false,
+            telemetry_device_id: "test-uuid".to_string(),
         };
 
         let json = serde_json::to_value(&original).unwrap();
