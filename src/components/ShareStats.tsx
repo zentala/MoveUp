@@ -52,7 +52,7 @@ function buildShareText(
     `\u{1f9cd} Standing: ${standing}`,
     `\u{1f504} Position changes: ${todayChanges}`,
     `\u{23f1}\u{fe0f} Longest session: ${longest}`,
-    `\u{1f3c6} Score: ${sign}${todayScore} points`,
+    `\u{1f3c6} Score: ${sign}${Math.round(todayScore)} points`,
     "",
     "Tracked by zntlDesk \u{2014} desk.zentala.io",
   ].join("\n");
@@ -122,14 +122,22 @@ export const ShareStats: FC<ShareStatsProps> = ({
       await navigator.clipboard.writeText(shareText);
       setCopied(true);
     } catch {
-      // Fallback: select a textarea
-      const ta = document.createElement("textarea");
-      ta.value = shareText;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      setCopied(true);
+      // Fallback: select a textarea and attempt execCommand
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = shareText;
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (ok) {
+          setCopied(true);
+        } else {
+          console.warn("Copy failed — select and copy manually");
+        }
+      } catch {
+        console.warn("Copy failed — select and copy manually");
+      }
     }
   }
 
@@ -165,7 +173,7 @@ export const ShareStats: FC<ShareStatsProps> = ({
             <StatRow emoji={"\u{1f9cd}"} label="Standing" value={standingPct} level={standingLevel} />
             <StatRow emoji={"\u{1f504}"} label="Position changes" value={String(todayChanges)} />
             <StatRow emoji={"\u{23f1}\u{fe0f}"} label="Longest session" value={longestSession} level={longestLevel} />
-            <StatRow emoji={"\u{1f3c6}"} label="Score" value={`${scoreSign}${todayScore} pts`} />
+            <StatRow emoji={"\u{1f3c6}"} label="Score" value={`${scoreSign}${Math.round(todayScore)} pts`} />
           </div>
           <div className="share-card__watermark">
             Tracked by zntlDesk {"\u2014"} desk.zentala.io

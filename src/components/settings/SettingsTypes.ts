@@ -17,6 +17,8 @@ export interface DeskSettings {
   notify_praise_halfway: boolean;
   /** Whether anonymous telemetry is enabled. Default: false (opt-in). */
   telemetry_enabled: boolean;
+  /** Unique device identifier for telemetry. Auto-generated on first run. */
+  telemetry_device_id: string;
 }
 
 export const DEFAULT_SETTINGS: DeskSettings = {
@@ -28,4 +30,5 @@ export const DEFAULT_SETTINGS: DeskSettings = {
   notify_daily_posture_balance: true,
   notify_praise_halfway: false,
   telemetry_enabled: false,
+  telemetry_device_id: '',
 };

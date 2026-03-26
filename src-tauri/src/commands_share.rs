@@ -5,8 +5,9 @@ use tauri::State;
 use crate::commands::{ensure_initialized, AppState};
 use crate::metrics::MetricEngine;
 
-/// Returns formatted share text with today's desk stats.
+/// IPC command for share text generation. Used by future native share integrations.
 ///
+/// Returns formatted share text with today's desk stats.
 /// The text is suitable for pasting into social media, chat, or clipboard.
 /// Uses emoji for visual appeal and includes a watermark URL.
 #[tauri::command]
@@ -17,7 +18,7 @@ pub fn get_share_text(
     ensure_initialized(&app, &state)?;
 
     let (snapshot, ss) = {
-        let s = state.session.lock().unwrap();
+        let s = state.session.lock().map_err(|e| format!("session lock: {}", e))?;
         let now = chrono::Utc::now();
         let mut raw = s.state.clone();
         raw.sitting_seconds_total = s.get_live_sitting_seconds_total(now);
@@ -25,7 +26,7 @@ pub fn get_share_text(
         (s.snapshot(), raw)
     };
 
-    let cfg = state.config.lock().unwrap();
+    let cfg = state.config.lock().map_err(|e| format!("config lock: {}", e))?;
     let cfg = cfg.as_ref().ok_or("Config not loaded")?;
     let metrics = MetricEngine::with_defaults().compute_all(&ss, cfg);
 

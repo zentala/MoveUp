@@ -7,8 +7,18 @@ use crate::session_types::*;
 use crate::session_manager::SessionManager;
 
 impl SessionManager {
+    /// Returns true if a daily reset would occur on the next `check_daily_reset` call.
+    /// Does NOT mutate state — safe to call for pre-reset telemetry.
+    pub fn needs_daily_reset(&self) -> bool {
+        let now = Utc::now();
+        let today = now.date_naive();
+        if (now - self.last_reset_check).num_seconds() < 60 {
+            return false;
+        }
+        self.last_reset_date < today
+    }
+
     /// Checks if a new day has begun and resets daily counters (throttled to 60s).
-    /// Sends telemetry (if enabled) before resetting, so the report covers the full day.
     pub fn check_daily_reset(&mut self) -> bool {
         let now = Utc::now();
         let today = now.date_naive();

@@ -26,8 +26,13 @@ pub fn check_periodic(
     port_name: &str,
     alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
+    // Send telemetry BEFORE daily reset so we capture the full day's data.
     let daily_reset_occurred = {
         let mut sess = session.lock().unwrap();
+        let will_reset = sess.needs_daily_reset();
+        if will_reset {
+            crate::telemetry::send_telemetry_if_enabled(config, &sess);
+        }
         sess.check_daily_reset()
     };
 
@@ -35,11 +40,6 @@ pub fn check_periodic(
         info!("Daily reset occurred — in-memory counters cleared");
         let _ = app.emit("desk:daily-reset", ());
         event_logger.log("RESET daily");
-        // TODO: Telemetry should be sent *before* reset clears counters.
-        // Once the backend is deployed, refactor check_daily_reset to accept
-        // a pre-reset callback so the full day's data is captured.
-        let sess = session.lock().unwrap();
-        crate::telemetry::send_telemetry_if_enabled(config, &sess);
     }
 
     // Write per-minute snapshot with computed metrics.
