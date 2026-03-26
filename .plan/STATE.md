@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-25T01:15:00Z
+updated: 2026-03-26T12:00:00Z
 active_epic: none
 active_epic_path: null
 current_wave: null
@@ -22,16 +22,16 @@ current_wave: null
 - Rule: each new epic bumps `0.MAJOR.0`
 
 ## Test Totals
-- Rust: 339 tests
+- Rust: 345 tests
 - TypeScript: 189 tests
-- Total: 528
+- Total: 534
 
 ## New This Session
-- E009 fully implemented: 7 tasks, 4 waves, all committed
-- New Rust modules: ws_broadcaster, remote_server, commands_welcome, tray_helpers
-- New TS modules: useRemoteDesk, useDeskAuto, ConnectionOverlay
-- docs/REMOTE_DISPLAY.md, CLAUDE.md + ARCHITECTURE.md updated
-- ADR 001 created (web kiosk architecture)
+- Away time excluded from standing in DB queries (3 files, shared helper)
+- DeskState centralized classification (from_db_str, is_desk_position, is_standing_like)
+- Overlay default changed to Live (was Demo in debug)
+- `/ergo-review` skill for motivation analytics
+- Progressive break credit + analytics process saved to memory
 
 ## Next Steps
 1. Dogfood remote display on real phone — visual verification

@@ -49,115 +49,15 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 3. **Top-of-screen progress bar** — green→red over 40min session (overlay_renderer.rs)
 4. **Alert popup** — progressive escalation when limit reached (alert_manager.rs, planned)
 
-## Alert System (planned — T013-T019)
+## Alert System
 
-Progressive escalation: gentle → firm nudges when sitting limit reached.
-
-```
-session.rs (sitting_secs) → alert_manager.rs (escalation) → UI actions
-                                    ↑                           │
-                          on_standing() resets          ┌───────┴───────┐
-                                                       ▼               ▼
-                                                  overlay bar      popup window
-                                                  (pulse/flash)    (WinAPI)
-```
-
-**AlertManager** is a pure state machine — no WinAPI, no UI. Returns `Vec<AlertAction>` that `tray_controller.rs` executes. Stages are configurable modules. See TASKS.md for full escalation flow.
+AlertManager is a pure state machine — returns `Vec<AlertAction>` that `tray_controller.rs` executes. See `.claude/rules/overlay.md` for full overlay docs.
 
 ## Overlay Progress Bar
 
-Native WinAPI window (4px × full screen width) at top of screen showing sitting session progress. NOT a Tauri WebviewWindow — rendered via GDI/UpdateLayeredWindow in a background thread. Code: `src-tauri/src/overlay_renderer.rs`.
-
-**Full developer docs:** `.arch/overlay/DEVELOPER-GUIDE.md`
-
-### Three independent config axes (env vars, read at startup)
-
-| Axis | Env var | Values | Default |
-|------|---------|--------|---------|
-| Data source | `OVERLAY_DATA` | `demo`, `live`, `mock` | `demo` (debug) / `live` (release) |
-| Render mode | `OVERLAY_MODE` | `opaque`, `layered` | `opaque` |
-| Visual style | `OVERLAY_VARIANT` | `0` solid, `1` gradient, `2` pulsing | `0` |
-| Bar height | `OVERLAY_HEIGHT` | `1`–`20` px | `4` |
-
-Any combination is valid. All are independent.
-
-### Data sources (`DataSource` enum in `overlay_renderer.rs`)
-
-- **Demo** — cycling animation 0%→25%→50%→75%→100% every 25s. Bar always visible. Ignores `update()/show()/hide()`. Default in debug.
-- **Live** — real sensor data. `tray_controller.rs` calls `overlay.update(progress, color)` on every `desk:distance` event (~1/s) and `show()/hide()` on state transitions. Default in release.
-- **Mock** — simulated 40-min sit + 10-min stand compressed to ~3 min. Bar visible during sit, hidden during stand. Ignores external updates.
-
-### pnpm scripts
-
-```bash
-pnpm tauri:dev                    # demo mode (default)
-pnpm tauri:dev:live               # real sensor data
-pnpm tauri:dev:mock               # simulated sit/stand
-pnpm tauri:dev:live --force       # live + auto-kill previous instance
-pnpm tauri:dev --force            # demo + auto-kill
-```
-
-All variants go through `scripts/tauri-dev.sh` which handles process guard + env vars.
-Append `--force` to any variant to auto-kill a running instance without prompting.
-
-### Pre-dev process guard
-
-All `tauri:dev*` scripts use `scripts/tauri-dev.sh` which detects if `desk.exe` is already
-running. On Windows, `cargo` cannot replace a running `.exe` (OS error 5: Access Denied).
-
-If a previous instance is detected:
-- **[k] Kill** old process, start new build (default, auto-selects after 10s)
-- **[s] Skip** — keep old process, abort build
-
-Auto-kill (no prompt): pass `--force` flag.
-
-### Data flow (Live mode)
-
-```
-serial.rs ──desk:distance──→ tray_controller.rs ──→ overlay.update(progress, color)
-serial.rs ──desk:state-changed──→ tray_controller.rs ──→ overlay.show() / hide()
-```
-
-### Render modes
-
-- **OPAQUE** (default): GDI `BeginPaint`/`FillRect`, black background, reliable
-- **LAYERED** (experimental): `UpdateLayeredWindow`, transparent background, complex
-
-See `.arch/overlay/MODE-COMPARISON.md` for comparison.
-
-### Debug tools
-
-- **Popup debug line**: `get_overlay_state` IPC command (debug builds) shows data_source, progress%, visible in app popup
-- **Rust logging**: `RUST_LOG=desk_lib::overlay_renderer=debug` for verbose overlay logs
-- **auto-test.sh**: `.arch/overlay/test-infrastructure/auto-test.sh [opaque|layered]`
-
-### Key rules
-
-- Don't remove working render code without proven replacement (caused invisible bar before)
-- Test OPAQUE mode — that's what users see. Don't test only LAYERED and claim success.
-- Bar shows minimum 1px when visible (even at 0% progress)
-- Arrow cursor on overlay window (not loading cursor)
-- 101 Rust unit tests cover: DataSource parsing, demo/mock progress, guard behavior, color mapping, bar width
-
-### Overlay project docs
-
-| File | Purpose |
-|------|---------|
-| `.arch/overlay/DEVELOPER-GUIDE.md` | **START HERE** — full reference |
-| `.arch/overlay/KNOWLEDGE-BASE.md` | Architecture, root causes, pitfalls |
-| `.arch/overlay/MODE-COMPARISON.md` | OPAQUE vs LAYERED comparison |
-| `.plan/epics/E002-2026-03-16-overlay-progress-bar/ORCHESTRATOR.md` | Overlay task list (E002) |
-| `.arch/overlay/test-infrastructure/` | auto-test.sh |
-
-### Key source files
-
-| File | What it does |
-|------|-------------|
-| `overlay_renderer.rs` | WinAPI window, `DataSource` enum, demo/mock/live logic, rendering variants |
-| `tray_controller.rs` | Wires sensor events → overlay + tray icon updates |
-| `colors.rs` | `color_for_progress()` — green→yellow→red gradient |
-| `serial.rs` | Sensor reader, emits `desk:distance` + `desk:state-changed` |
-| `session.rs` | Session state machine (sitting/standing/walking/away) |
+Native WinAPI overlay at top of screen. Full docs: [`.claude/rules/overlay.md`](.claude/rules/overlay.md)
+- Dev: `pnpm tauri:dev` (live sensor, default) / `pnpm tauri:dev:demo` (animation) / `pnpm tauri:dev:mock` (sim)
+- Key files: `overlay_renderer.rs`, `tray_controller.rs`, `colors.rs`, `serial.rs`, `session.rs`
 
 ## Stack
 - **Frontend**: React + TypeScript (Vite, port 1443)
@@ -264,211 +164,54 @@ If tests fail, the build is halted. Commit is NOT blocked (tests don't run on pr
 
 ## Installer & Distribution
 
-### Build Command
+Full details: [`.claude/rules/installer.md`](.claude/rules/installer.md)
+- Build: `pnpm tauri:build` (runs tests → builds frontend → compiles Rust → NSIS installer)
+- Size targets: installer 60-70 MB, peak memory <250 MB
+- Code signing & auto-update: scaffolded, not yet active
 
-```bash
-pnpm tauri:build
-```
+## Vision & Strategy Docs
 
-This command:
-1. Runs `pnpm test:all` (unit + Rust tests must pass)
-2. Builds React frontend (optimized, code-split)
-3. Compiles Rust backend with LTO enabled
-4. Generates Windows installer (NSIS format)
-5. Outputs to `src-tauri/target/release/bundle/`
+| Document | What it covers |
+|----------|---------------|
+| [Product Vision](`.plan/vision/2026-03-15-desk-app-vision.md`) | Hardware, states, UI, session logic, remote display phases |
+| [Business Vision & GTM](.plan/vision/2026-03-24-business-vision.md) | Dev kit → SaaS → consumer product; pricing; open core; certification CE; funding (Kickstarter + EU grants); competitive moat |
+| [Validation & Marketing](.plan/vision/2026-03-25-validation-and-gtm.md) | Landing page design; pre-order (49 EUR) + waitlist; marketing posts (Reddit, HN); validation thresholds; fulfillment plan |
+| [Premium Tier Definition](.plan/vision/2026-03-25-premium-tier-definition.md) | Free vs Pro features; Pro = cloud sync, history, AI coaching, smartwatch; implementation epics E010-E014 with tasks |
+| [Distribution & Tiers](.plan/vision/2026-03-25-distribution-and-tiers.md) | 3 tiers (DIY free / Dev Kit 49 EUR / Founder's 99 EUR); EU-first shipping; future regional hubs (deferred); pre-order threshold model |
+| [Marketing Launch Plan](.plan/vision/2026-03-25-marketing-launch-plan.md) | Two-site strategy; 5 Reddit/HN posts (full text); Google/FB ads (500 PLN/mo); KPI dashboard; content calendar; SEO; social proof; conversion optimization |
+| [Story-Driven Launch](.plan/vision/2026-03-26-story-driven-launch.md) | Founder story landing page; 3 product tiers (Basic €49/Pro €79/Founder €149); mission/vision; viral video strategy; influencer outreach; privacy-first analytics; app telemetry opt-in; sedentary research report |
 
-### Output Files
+### Key Business Context (for all agents)
 
-- `zntlDesk_*.exe` — Installer executable
-- `.exe.sig` — Code signature (if signing enabled)
-- `Latest.json` — Auto-update manifest (generated by CI/CD)
+- **Positioning:** "Developer Platform + Reference Hardware" — software is the business, hardware is the entry point
+- **Three tiers:** Basic Kit (49 EUR, 200 threshold), Pro Kit (79 EUR, 500 threshold), Founder's Edition (149 EUR, 5yr Pro + smartwatch)
+- **Phase 1 (now):** DIY Kickstarter on own site, story-driven landing page, EU-only shipping from Poland
+- **Analytics:** Privacy-first (Plausible/CF Analytics, NO Google Analytics). App telemetry opt-in only.
+- **Software model:** Open core — app is open source (MIT/Apache), cloud/AI/smartwatch are closed/paid
+- **Certification:** USB-only (no RED), ToF sensor Class 1 (no laser cert), CE via self-declaration, EMC ~5-15k PLN
+- **Hardware design:** Off-the-shelf modules (VL53L1X + MCU), plexi/PCB carrier mount, no custom PCB
+- **Revenue:** Hardware margin (thin) + SaaS subscriptions (4.99 EUR/month) — SaaS is the real revenue after validation
 
-### Size Targets & Baselines
+### Architecture Decision Records
 
-**Installer size:** 60–70 MB (NSIS compressed)
-**Peak memory:** < 250 MB (alert: > 300 MB)
-**Stable memory:** < 200 MB
-**Bundle size growth:** < 20 MB per release
+| ADR | Decision |
+|-----|----------|
+| [001](.arch/ADR/001-remote-display-web-kiosk.md) | Remote display via embedded HTTP+WS server |
+| [002](.arch/ADR/002-tof-sensor-over-laser.md) | VL53L1X ToF module — Class 1 eye-safe, no laser re-certification |
+| [003](.arch/ADR/003-usb-only-no-radio-phase1.md) | USB-only in Phase 1 — avoids RED directive, saves 15-50k PLN |
+| [004](.arch/ADR/004-dev-kit-before-consumer-product.md) | Dev Kit before consumer product — validate demand first |
+| [005](.arch/ADR/005-open-core-software-model.md) | Open core — app open source, cloud/AI closed |
+| [006](.arch/ADR/006-self-declaration-ce-not-notified-body.md) | CE self-declaration (not notified body) |
+| [007](.arch/ADR/007-plexi-mount-dev-kit-enclosure.md) | Plexi/PCB carrier mount for dev kit |
 
-To check current sizes:
-```bash
-pnpm build:report
-```
+### Hardware Design
 
-Output: `.build-sizes.json` (installer bytes, timestamps)
-
-### Memory Profiling
-
-Before tagging a release, run:
-```bash
-pnpm test:perf
-```
-
-This launches the full app, samples memory every 500ms for 10 seconds, and compares against baseline.
-
-**Baseline file:** `.perf-baseline.json`
-- Peak memory (MB)
-- Stable memory (MB)
-- Trend (stable/growing/shrinking)
-
-If memory exceeds targets, review strategies in `docs/OPTIMIZATION_GUIDE.md`.
-
-## Icon Requirements
-
-Icons must exist in `src-tauri/icons/`:
-- **32x32.png** — Tray icon, system tray display
-- **128x128.png** — App window icon
-- **icon.ico** — Installer icon, Windows display
-
-If icons are missing, `pnpm tauri:build` fails with:
-```
-error: Icon file not found: icons/icon.ico
-```
-
-To generate icons from a PNG:
-[Link to Tauri icon guide](https://tauri.app/en/develop/guides/assets/#icons)
-
-## Code Signing (Scaffolded)
-
-Code signing ensures Windows trusts the installer and prevents "Unknown Publisher" warnings.
-
-### Why Code Signing?
-
-When users download zntlDesk:
-- **Without signing:** "Unknown Publisher" warning, SmartScreen blocks
-- **With signing:** Trusted publisher, installs without warnings
-
-### Setup (One-time)
-
-1. **Acquire Windows code-signing certificate** (.pfx file):
-   - Vendor: DigiCert, GlobalSign, Sectigo, etc.
-   - Cost: ~$200–500/year
-   - Requirements: Personal ID, proof of company/domain ownership
-   - File: `mycert.pfx` + private key password
-
-2. **Store certificate securely:**
-   - Never commit `.pfx` to Git
-   - Store on secure file storage or GitHub Secrets
-
-3. **Add to GitHub Secrets** (Settings → Secrets and variables):
-   - Secret name: `SIGN_CERT_PFX`
-   - Value: Base64-encoded `.pfx` file content
-   - Secret name: `SIGN_CERT_PASSWORD`
-   - Value: certificate password
-
-4. **Reference in CI/CD** (`.github/workflows/release.yml`):
-   ```yaml
-   env:
-     SIGN_CERT_PATH: ./cert.pfx
-     SIGN_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
-   ```
-
-### Signing Script
-
-Location: `scripts/sign-installer.sh`
-
-**Current status:** Template (placeholder commands)
-**Future:** Will use `signtool.exe` (Windows SDK) to sign `.exe`
-
-### Implementation Timeline
-
-- **Now:** Scaffolded (placeholder in scripts/)
-- **Upon first release:** Acquire certificate + integrate into CI/CD
-- **T007 (GitHub Releases):** Full CI/CD integration with signing
-
-## Auto-Update Mechanism (Scaffolded)
-
-Users can auto-update when new versions ship to GitHub Releases.
-
-### How It Works (Future Implementation)
-
-1. **Check phase:** Tauri checks GitHub Releases for new versions (every 24 hours)
-2. **Download:** If new version found, downloads installer in background
-3. **Verify:** Validates code signature (if signing enabled)
-4. **Notify:** Prompts user: "Update available: Install now or later?"
-5. **Apply:** Updates installed on next app launch or immediately if user chooses
-6. **Preserve:** User data remains intact after update
-
-### User Experience
-
-See `docs/USER_UPDATES.md` for complete user guide.
-
-**User can:**
-- Disable auto-checks in Settings
-- Manually trigger update check
-- Choose to install now or on next launch
-- Rollback to previous version if needed
-
-### Configuration (scaffolded in `tauri.conf.json`)
-
-```json
-{
-  "updater": {
-    "active": false,
-    "dialog": true,
-    "pubkey": "dW1....",
-    "endpoints": [
-      "https://releases.githubusercontent.com/repos/zentala/zntl-tray/releases/latest"
-    ]
-  }
-}
-```
-
-**Status:** Placeholder (disabled until signing is implemented)
-
-### Setup Timeline
-
-- **Now:** Placeholder in tauri.conf.json
-- **Upon code signing:** Activate signing + configure updater
-- **T007 (CI/CD):** Auto-generate update manifests and publish to GitHub Releases
-
-## Pre-Release Checklist
-
-Before tagging a release version (e.g., `v0.1.0`):
-
-```bash
-# 1. Run all tests
-pnpm test:all
-
-# 2. Run performance profiling
-pnpm test:perf
-
-# 3. Check memory baseline
-cat .perf-baseline.json
-
-# 4. Check build sizes
-cat .build-sizes.json
-
-# 5. Review CHANGELOG
-# (if applicable)
-
-# 6. Tag release
-git tag v0.1.0
-
-# 7. Push to GitHub
-git push origin v0.1.0
-```
-
-**Automated checks:**
-- All tests must pass (unit, integration, Rust)
-- Memory peak < 300 MB
-- No growth > 20 MB vs baseline
-- Build size < 100 MB
-
-**Manual review:**
-- Verify release notes are accurate
-- Check CHANGELOG for completeness
-- Confirm code signing secrets are configured
-- Test installer on clean Windows VM
-
-**CI/CD (T007):**
-- Release workflow auto-generates GitHub Release
-- Signs installer (if certificate available)
-- Generates update manifest
-- Publishes to GitHub Releases
-
-## Vision Doc
-See `.plan/vision/2026-03-15-desk-app-vision.md` for full spec.
+See [`.arch/hardware/HARDWARE-OPTIONS.md`](.arch/hardware/HARDWARE-OPTIONS.md) for:
+- MCU comparison (XIAO RP2040 vs ESP32-C3 vs alternatives)
+- Carrier PCB design (replaces plexi mount, ~1 PLN/unit at 100 pcs)
+- Optional components (vibration motor, piezo presence sensor)
+- Updated BOM (~42-68 PLN per unit at production quantities)
+- Production timeline (~6-8 weeks for 100 units)
 
 ## PROJECT.xml Maintenance
 

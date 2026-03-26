@@ -1,5 +1,24 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-26 — Away DB fix + DRY refactor + overlay default
+
+- **Goal**: Fix Away time inflating standing%, refactor state classification, fix overlay demo default
+- **Done**:
+  - **Away DB fix**: `db_sessions.rs` and `db_queries.rs` if/else lumped Away into standing. Fixed with `match` on state strings. (commit e8f8b09)
+  - **DRY refactor**: Centralized state classification — `DeskState::from_db_str()`, `is_desk_position()`, `is_standing_like()`. `accumulate_state_duration()` shared helper eliminates 3x duplicated match blocks. Removed dead `away_secs` field. (commit 1a24df3)
+  - **Overlay default**: Changed from Demo (debug) to Live (always). Demo now requires explicit flag. Updated docs + test. (commit f0496db)
+  - **`/ergo-review` skill**: Created for usage log analysis + motivation UX discussion
+  - **Memory**: Progressive break credit curve, motivation analytics process
+  - **BACKLOG**: "Motivation Analytics & Adaptive Coaching" section (5 items)
+  - **Refactored `get_yesterday_totals`** → `get_totals_for_date(date)` + wrapper (testable)
+  - 345 Rust tests passing
+- **Decisions**: Live is always default overlay mode; Demo only via explicit env var/flag
+- **Findings this session**: 2
+  1. DB loading path was never fixed in 4b368c3 (only in-memory path)
+  2. Overlay Demo default was the designed behavior, not a regression — but wrong for dogfooding
+- **Improvements logged**: 0 (all fixed in same session)
+- **Next**: Dogfood with live overlay + correct standing%. Run `/ergo-review` after a day of data.
+
 ## Session 2026-03-25 — E009 Planning
 
 - **Goal**: Design and plan Remote Display epic (phone as desk dashboard)
