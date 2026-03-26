@@ -8,7 +8,7 @@ Native WinAPI window (4px × full screen width) at top of screen showing sitting
 
 | Axis | Env var | Values | Default |
 |------|---------|--------|---------|
-| Data source | `OVERLAY_DATA` | `demo`, `live`, `mock` | `demo` (debug) / `live` (release) |
+| Data source | `OVERLAY_DATA` | `demo`, `live`, `mock` | `live` (ALL builds) |
 | Render mode | `OVERLAY_MODE` | `opaque`, `layered` | `opaque` |
 | Visual style | `OVERLAY_VARIANT` | `0` solid, `1` gradient, `2` pulsing | `0` |
 | Bar height | `OVERLAY_HEIGHT` | `1`–`20` px | `4` |

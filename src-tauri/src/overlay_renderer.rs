@@ -10,7 +10,7 @@ use log::info;
 /// Data source for overlay progress bar (Demo, Live, or Mock).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataSource {
-    /// Cycling demo animation (0%→25%→50%→75%→100%). Default in debug builds.
+    /// Cycling demo animation (0%→25%→50%→75%→100%). Requires OVERLAY_DATA=demo.
     Demo,
     /// Real sensor data via tray_controller.rs. Default in release builds.
     Live,
@@ -40,7 +40,7 @@ pub struct OverlayState {
 
 /// Parses `OVERLAY_DATA` env var into a [`DataSource`].
 ///
-/// Default: `Demo` in debug builds, `Live` in release builds.
+/// Default: `Live` in ALL builds. Demo/Mock require explicit env var.
 fn parse_data_source() -> DataSource {
     let default = DataSource::Live;
     let result = match std::env::var("OVERLAY_DATA").as_deref() {
@@ -221,7 +221,7 @@ fn run_event_loop(state: Arc<Mutex<OverlayState>>) {
     let mode = std::env::var("OVERLAY_MODE").unwrap_or_else(|_| "opaque".to_string());
     let (data_source, bar_height) = state.lock()
         .map(|s| (s.data_source, s.bar_height))
-        .unwrap_or((DataSource::Demo, 4));
+        .unwrap_or((DataSource::Live, 4));
 
     info!("[OVERLAY] data_source={:?}, render_mode={}, height={}", data_source, mode, bar_height);
 

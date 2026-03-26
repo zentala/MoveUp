@@ -5,8 +5,8 @@
     Replaces tauri-dev.sh for Windows PowerShell environments where
     bash cannot find node/pnpm in PATH.
 .EXAMPLE
-    .\scripts\tauri-dev.ps1              # demo mode (default)
-    .\scripts\tauri-dev.ps1 -Live        # real sensor data
+    .\scripts\tauri-dev.ps1              # live mode (default, real sensor)
+    .\scripts\tauri-dev.ps1 -Live        # real sensor data (explicit)
     .\scripts\tauri-dev.ps1 -Mock        # simulated sit/stand
     .\scripts\tauri-dev.ps1 -Force       # auto-kill old instance
     .\scripts\tauri-dev.ps1 -Live -Force # live + auto-kill
@@ -22,10 +22,10 @@ $ProcessName = "desk"
 $ErrorActionPreference = "Stop"
 
 # --- Overlay data source ---
-if ($Live)      { $env:OVERLAY_DATA = "live" }
-elseif ($Mock)  { $env:OVERLAY_DATA = "mock" }
+# Default is ALWAYS live. Demo/Mock require explicit flag.
+if ($Mock)      { $env:OVERLAY_DATA = "mock" }
 elseif ($Demo)  { $env:OVERLAY_DATA = "demo" }
-# else: leave unset (defaults to demo in debug, live in release)
+else            { $env:OVERLAY_DATA = "live" }
 
 # --- Process guard ---
 $existing = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue

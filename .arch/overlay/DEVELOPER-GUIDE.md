@@ -10,7 +10,7 @@ All env vars are read at app startup. Restart required after changes.
 
 | Variable | Values | Default | Description |
 |----------|--------|---------|-------------|
-| `OVERLAY_DATA` | `demo`/`live`/`mock` | `demo` in debug, `live` in release | Data source (see below) |
+| `OVERLAY_DATA` | `demo`/`live`/`mock` | `live` (ALL builds) | Data source (see below) |
 | `OVERLAY_MODE` | `opaque`/`layered` | `opaque` | Render backend (see Render Modes below) |
 | `OVERLAY_HEIGHT` | `1`–`20` | `4` | Bar height in pixels |
 | `OVERLAY_VARIANT` | `0`/`1`/`2` | `0` | Bar style (see Variants below) |
