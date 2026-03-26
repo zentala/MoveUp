@@ -64,6 +64,24 @@
   font-weight: 400;
 }
 
+.one-bar__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.one-bar__share-btn {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  font-family: var(--font-mono);
+  transition: color 0.12s;
+}
+.one-bar__share-btn:hover { color: var(--beam); }
+
 .one-bar__settings-btn {
   background: none;
   border: none;

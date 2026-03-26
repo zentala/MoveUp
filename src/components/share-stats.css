@@ -1,0 +1,172 @@
+/* share-stats.css — styles for the Share My Stats modal.
+ *
+ * Uses globals.css design tokens for the instrument panel aesthetic.
+ * Dark card theme matching the app's overall look.
+ */
+
+/* ── Modal overlay ───────────────────────────────────────────────── */
+.share-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  backdrop-filter: blur(4px);
+}
+
+.share-modal {
+  width: 280px;
+  background: var(--panel-base);
+  border: 1px solid var(--rail-default);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.share-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.share-modal__title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+
+.share-modal__close {
+  background: none;
+  border: none;
+  color: var(--ink-tertiary);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.12s;
+}
+.share-modal__close:hover { color: var(--ink-primary); }
+
+/* ── Preview card ────────────────────────────────────────────────── */
+.share-card {
+  background: var(--panel-raised);
+  border: 1px solid var(--rail-subtle);
+  border-radius: var(--r-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-card__header {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-primary);
+}
+
+.share-card__time {
+  font-size: 10px;
+  color: var(--ink-tertiary);
+  letter-spacing: 0.04em;
+  margin-top: -4px;
+}
+
+.share-card__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.share-card__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.share-card__emoji {
+  font-size: 13px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.share-card__label {
+  color: var(--ink-secondary);
+  flex: 1;
+}
+
+.share-card__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.share-card__watermark {
+  font-size: 9px;
+  color: var(--ink-muted);
+  letter-spacing: 0.04em;
+  text-align: center;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rail-subtle);
+}
+
+/* ── Action buttons ──────────────────────────────────────────────── */
+.share-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.share-actions__btn {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  text-align: center;
+}
+
+.share-actions__btn--copy {
+  background: var(--beam-dim);
+  border: 1px solid var(--rail-emphasis);
+  color: var(--beam);
+  font-weight: 600;
+}
+.share-actions__btn--copy:hover {
+  background: var(--beam-glow);
+  color: var(--beam-hi);
+}
+
+.share-actions__btn--twitter {
+  background: transparent;
+  border: 1px solid var(--rail-default);
+  color: var(--ink-secondary);
+}
+.share-actions__btn--twitter:hover {
+  border-color: var(--rail-emphasis);
+  color: var(--ink-primary);
+  background: var(--panel-overlay);
+}
+
+.share-actions__btn--reddit {
+  background: transparent;
+  border: 1px solid var(--rail-default);
+  color: var(--ink-secondary);
+}
+.share-actions__btn--reddit:hover {
+  border-color: var(--rail-emphasis);
+  color: var(--ink-primary);
+  background: var(--panel-overlay);
+}

@@ -9,6 +9,7 @@ mod colors;
 mod commands;
 mod commands_backup;
 mod commands_config;
+mod commands_share;
 mod commands_welcome;
 mod config;
 mod db;
@@ -20,28 +21,21 @@ mod height_stabilizer;
 mod hourly_break_tracker;
 mod metrics;
 mod notification_service;
-#[cfg(test)]
-mod notification_service_tests;
-#[cfg(test)]
-mod notification_service_tests_edge;
+#[cfg(test)] mod notification_service_tests;
+#[cfg(test)] mod notification_service_tests_edge;
 mod overlay_layered;
 mod overlay_layered_wndproc;
 mod overlay_opaque;
 mod overlay_renderer;
 mod overlay_standing;
-#[cfg(test)]
-mod overlay_standing_tests;
+#[cfg(test)] mod overlay_standing_tests;
 mod overlay_variants;
 mod remote_server;
-#[cfg(test)]
-mod remote_server_tests;
+#[cfg(test)] mod remote_server_tests;
 mod ws_broadcaster;
-#[cfg(test)]
-mod overlay_tests;
-#[cfg(test)]
-mod overlay_variant_tests;
-#[cfg(test)]
-mod alert_manager_tests;
+#[cfg(test)] mod overlay_tests;
+#[cfg(test)] mod overlay_variant_tests;
+#[cfg(test)] mod alert_manager_tests;
 #[cfg(test)] mod alert_snooze_tests;
 #[cfg(test)] mod config_tests;
 #[cfg(test)] mod db_tests;
@@ -51,6 +45,7 @@ mod serial_parser;
 mod serial_periodic;
 mod setup_helpers;
 mod snapshot_logger;
+mod telemetry;
 pub mod session;
 pub mod session_manager;
 mod session_breaks;
@@ -76,8 +71,7 @@ pub mod session_types;
 mod tray;
 mod tray_controller;
 mod tray_helpers;
-#[cfg(test)]
-mod tray_controller_tests;
+#[cfg(test)] mod tray_controller_tests;
 mod tray_icon;
 
 use std::sync::{Arc, Mutex};
@@ -144,6 +138,7 @@ pub fn run() {
                     commands_config::get_settings,
                     commands_config::save_settings,
                     commands_config::get_overlay_state,
+                    commands_share::get_share_text,
                     commands_backup::list_db_backups,
                     commands_backup::restore_db_backup,
                 ]
@@ -166,6 +161,7 @@ pub fn run() {
                     commands_config::calibrate,
                     commands_config::get_settings,
                     commands_config::save_settings,
+                    commands_share::get_share_text,
                     commands_backup::list_db_backups,
                     commands_backup::restore_db_backup,
                 ]
