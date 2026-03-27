@@ -47,6 +47,8 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 │  colors.rs    (progress-to-color mapping)                    │
 │  commands.rs  (IPC: get_session_state, inject_reading, etc.) │
 │  commands_config.rs (IPC: settings, calibration, overlay)    │
+│  commands_share.rs  (IPC: get_share_text for viral sharing)  │
+│  telemetry.rs       (opt-in daily aggregate telemetry)       │
 │  remote_server.rs   (HTTP+WS server on :3390)               │
 │  ws_broadcaster.rs  (broadcasts state to WS clients)         │
 │  lib.rs       (app entry, plugins, AppState)                 │

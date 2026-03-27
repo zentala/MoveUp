@@ -1,49 +1,52 @@
 ---
-updated: 2026-03-27T02:00:00Z
+updated: 2026-03-27T01:30:00Z
 active_epic: E010
 active_epic_path: .plan/epics/E010-2026-03-25-marketing-launch
-current_wave: 1
+current_wave: completed (waves 1-5 done, 3 human tasks remain)
 ---
 
 ## Status
 - E000 (maintenance) — open (permanent)
-- E001–E009 — **DONE** (v0.3.0)
-- E010 (Marketing Launch, 2026-03-25) — **ACTIVE** (planning complete, execution not started)
+- E001–E009 — partially done (see ORCHESTRATOR.md per epic for remaining tasks)
+- E010 (Marketing Launch) — **19/22 tasks DONE**
 
 ## Version
 - Current: `v0.3.0`
-- Rule: each new epic bumps `0.MAJOR.0`
 
 ## Test Totals
-- Rust: 356 tests
+- Rust: 358 tests
 - TypeScript: 189 tests
-- Total: 534
+- Total: 547
 
 ## E010 Progress
-- 22 tasks defined across 5 waves
-- Wave 1 (next): Landing page rebuild (#2), real usage data (#6), research report (#14), hero GIF (#19)
-- 0 tasks completed
+- 19/22 tasks completed across 5 waves
+- 3 remaining (all require human action):
+  - T02: Collect real usage data (screenshots, photos)
+  - T14: Marketing videos (2-3)
+  - T18: Record 15-second hero GIF/video
 
-## New This Session (2026-03-25/26)
-- 7 vision documents created (business, validation, distribution, premium, marketing, story-driven, hw options)
-- 7 ADRs (002-007 + existing 001)
-- Hardware options doc (.arch/hardware/HARDWARE-OPTIONS.md)
-- Canonical pricing config (.plan/vision/config/pricing.json)
-- CLAUDE.md refactored 520→220 lines (overlay+installer → .claude/rules/)
-- E010 epic created with PLAN, ORCHESTRATOR, JOURNAL
-- Memory updated (business strategy, validation priorities)
-- Superseded status added to older vision docs
+## Artifacts Created (this session)
+### Code (3 repos)
+- **desk.zentala.io**: 11 commits — full landing page, Stripe UI, waitlist, analytics, SEO, blog, social proof, referral, social wall + code review fixes
+- **zntl-tray/apps/desk**: 10 commits — research report, post drafts, email drip, ads/influencer/PH docs, telemetry, share stats, overlay fix, timezone fix + review fixes
+- **zentala.agency**: 1 commit — zntlDesk case study page
 
-## Key Documents Created
-- `.plan/vision/2026-03-24-business-vision.md` — GTM, certification, moat
-- `.plan/vision/2026-03-25-marketing-launch-plan.md` — posts, ads, SEO, growth (needs splitting)
-- `.plan/vision/2026-03-26-story-driven-launch.md` — latest: story format, 3 tiers, mission
-- `.plan/vision/config/pricing.json` — canonical pricing source
-- `.arch/hardware/HARDWARE-OPTIONS.md` — MCU, PCB, sensors, BOM
-- `.arch/ADR/002-007` — ToF, USB-only, dev kit, open core, CE, plexi
+### Documents
+- `.plan/reports/sedentary-lifestyle-research.md` — 19 cited sources
+- `.plan/reports/launch-posts.md` — 5 Reddit/HN posts with prepared responses
+- `.plan/reports/email-drip-sequence.md` — 5-email waitlist conversion funnel
+- `.plan/reports/ads-strategy.md` — Google + Facebook ads plan
+- `.plan/reports/influencer-outreach.md` — 18 target YouTube channels
+- `.plan/reports/product-hunt-launch.md` — PH listing draft + strategy
+
+## Bug Fixes (this session)
+- Overlay Live default (3rd fix — script, fallback, docs)
+- Timezone DB query (date_local column, commit d7dad76)
+- Telemetry race condition (send before reset, commit 7ace0d1)
 
 ## Next Steps
-1. **Execute Wave 1**: rebuild landing page (#2) + collect real data (#6)
-2. Split marketing-launch-plan.md (1059 lines) into focused documents
-3. Record hero GIF/video (#19)
-4. Sedentary lifestyle research report (#14)
+1. User: take photos, record GIF/video, collect real usage stats
+2. Replace placeholder Stripe URLs, deploy landing page
+3. Build Cloudflare Worker for waitlist endpoint
+4. Create OG image, replace all [PLACEHOLDER] data
+5. Deploy zentala.agency case study
