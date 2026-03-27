@@ -263,6 +263,52 @@ When user sees timeline not matching reality, they can open this view and immedi
 
 ---
 
+## 🔴 Collect from User (zentala) — blocking launch
+
+These items require human action. Everything else is blocked until these are done.
+
+- [ ] **Real usage screenshots** — app popup showing real KPIs (not mock data)
+- [ ] **Sensor photo** — VL53L1X mounted under real desk, visible cable
+- [ ] **Desk setup photo** — full desk with sensor visible, monitor, keyboard
+- [ ] **15-second hero GIF** — screen recording: overlay bar going green→red, popup open
+- [ ] **2-3 marketing videos** — (1) "How I track sitting" 2-3min, (2) short-form 1min, (3) maker build 5-10min
+- [ ] **Real usage stats** — export 30 days of data: standing %, position changes/day, longest session. Replace all [PLACEHOLDER] markers in posts, emails, blog, social proof
+- [ ] **OG cover image** — 1200×630px for social sharing (Figma/Canva: app screenshot + sensor + headline)
+- [ ] **Stripe account** — create Stripe account, generate 3 Payment Links (Basic €49, Pro €79, Founder's €149), replace placeholder URLs in Pricing.tsx
+- [ ] **Plausible account** — sign up at plausible.io, configure desk.zentala.io domain
+- [ ] **Google Search Console** — verify desk.zentala.io, submit sitemap
+
+---
+
+## Landing Page — Post-Launch
+
+- **Cloudflare Worker for waitlist** — real endpoint to store emails (CF Worker + D1). Currently forms submit to placeholder URL
+- **Live pre-order counter** — Stripe webhook → CF Worker → KV → landing page fetches live count. Currently static JSON
+- **Share as image** — html2canvas or Rust screenshot API for better viral sharing (currently text-only)
+- **Telemetry CF Worker** — endpoint at telemetry.desk.zentala.io/api/report to receive opt-in daily aggregates
+- **Blog RSS feed** — Astro has built-in plugin, helps SEO and HN/Reddit readers
+
+---
+
+## i18n — Landing Page Translations (post-validation)
+
+Priority order based on global market size and standing desk adoption:
+1. 🇬🇧 English (done — primary)
+2. 🇵🇱 Polish (personal — zentala is Polish)
+3. 🇨🇳 Chinese (Simplified) — huge market, low English proficiency
+4. 🇧🇷🇵🇹 Portuguese — Brazil + Portugal
+5. 🇪🇸 Spanish — Latin America + Spain
+6. 🇩🇪 German — strong standing desk market
+7. 🇫🇷 French — France + francophone Africa
+8. 🇰🇷 Korean — tech-savvy market, low English
+9. 🇯🇵 Japanese — similar to Korean, secondary priority
+10. 🇸🇪🇳🇴🇩🇰 Scandinavian — high desk adoption but speak English well (lowest priority)
+
+**Not doing**: Dutch, Finnish — too small, English proficiency too high.
+**When**: after 100 pre-orders validated demand. i18n is post-product-market-fit.
+
+---
+
 ## Future Features
 
 - **Notification A/B testing** — two backends simultaneously with feature flag (T018)
