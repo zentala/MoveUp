@@ -68,6 +68,7 @@ pub mod session_types;
 #[cfg(test)] mod session_tests_scenarios;
 #[cfg(test)] mod session_tests_scenarios_adv;
 #[cfg(test)] mod session_tests_sleep;
+#[cfg(test)] mod session_tests_flush;
 mod tray;
 mod tray_controller;
 mod tray_helpers;
@@ -86,7 +87,6 @@ use snapshot_logger::SnapshotLogger;
 use tauri::Manager;
 /// App version constant, used by loggers.
 pub(crate) const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
-
 /// Holds file-based loggers, managed as separate Tauri state.
 pub(crate) struct Loggers {
     pub snapshot: Arc<SnapshotLogger>,
@@ -198,9 +198,9 @@ pub fn run() {
                 let state: tauri::State<'_, AppState> = app.state();
                 if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
                     let config = crate::config::AppConfig::load(store.inner());
-                    let mut session = state.session.lock().unwrap();
+                    let mut session = state.session.lock().unwrap_or_else(|e| e.into_inner());
                     *session = crate::session::SessionManager::new_from_config(&config);
-                    *state.config.lock().unwrap() = Some(config.clone());
+                    *state.config.lock().unwrap_or_else(|e| e.into_inner()) = Some(config.clone());
                     info!("startup: config loaded from store into SessionManager");
 
                     // Show welcome popup on first launch (or if user hasn't dismissed it).

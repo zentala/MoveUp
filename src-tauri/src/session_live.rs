@@ -74,7 +74,7 @@ impl SessionManager {
         let now = Utc::now();
         let started = match self.state.state {
             DeskState::Sitting => self.state.sitting_started,
-            DeskState::Standing => self.state.standing_bout_started,
+            DeskState::Standing | DeskState::Walking => self.state.standing_bout_started,
             _ => None,
         }?;
         let raw_elapsed = (now - started).num_seconds().max(0);

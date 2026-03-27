@@ -8,7 +8,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use log::{error, info};
+use log::{error, info, warn};
 use tauri::{AppHandle, Listener, Manager};
 use tauri_plugin_notification::NotificationExt;
 use window_vibrancy::apply_acrylic;
@@ -44,7 +44,10 @@ pub fn setup_device_notifications(app: &AppHandle) {
         let handle = app.clone();
         let last = Arc::clone(&last_notif);
         app.listen("desk:device-missing", move |_| {
-            let mut guard = last.lock().unwrap();
+            let mut guard = last.lock().unwrap_or_else(|e| {
+                log::warn!("Recovered from poisoned mutex");
+                e.into_inner()
+            });
             if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
                 let _ = handle
                     .notification()
@@ -61,7 +64,10 @@ pub fn setup_device_notifications(app: &AppHandle) {
         let handle = app.clone();
         let last = Arc::clone(&last_notif);
         app.listen("desk:device-lost", move |_| {
-            let mut guard = last.lock().unwrap();
+            let mut guard = last.lock().unwrap_or_else(|e| {
+                log::warn!("Recovered from poisoned mutex");
+                e.into_inner()
+            });
             if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
                 let _ = handle
                     .notification()
@@ -132,21 +138,29 @@ pub fn setup_broadcast_listeners(app: &AppHandle) {
 pub fn flush_session_on_shutdown(app: &AppHandle) {
     let state: tauri::State<'_, AppState> = app.state();
     let (completed, state_label) = {
-        let sess = state.session.lock().unwrap_or_else(|e| e.into_inner());
+        let Ok(sess) = state.session.try_lock() else {
+            warn!("Session lock held during shutdown — skipping flush");
+            return;
+        };
         (sess.flush_current_session(), format!("{:?}", sess.current_state()))
     };
     let Some(ref completed) = completed else { return };
-    let db_lock = state.db.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(ref conn) = *db_lock {
-        match crate::db_sessions::insert_session(
-            conn, &completed.started_at, &completed.ended_at,
-            &state_label, completed.duration_secs,
-        ) {
-            Ok(()) => info!(
-                "Graceful shutdown: saved {} session ({}s) to DB",
-                state_label, completed.duration_secs
-            ),
-            Err(e) => error!("Graceful shutdown: failed to save session: {}", e),
-        }
+    let Ok(db_lock) = state.db.try_lock() else {
+        warn!("DB lock held during shutdown — skipping flush");
+        return;
+    };
+    let Some(ref conn) = *db_lock else {
+        warn!("DB not initialized — cannot save session on shutdown");
+        return;
+    };
+    match crate::db_sessions::insert_session(
+        conn, &completed.started_at, &completed.ended_at,
+        &state_label, completed.duration_secs,
+    ) {
+        Ok(()) => info!(
+            "Graceful shutdown: saved {} session ({}s) to DB",
+            state_label, completed.duration_secs
+        ),
+        Err(e) => error!("Graceful shutdown: failed to save session: {}", e),
     }
 }
