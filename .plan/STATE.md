@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-27T01:30:00Z
+updated: 2026-03-27T03:00:00Z
 active_epic: E010
 active_epic_path: .plan/epics/E010-2026-03-25-marketing-launch
 current_wave: completed (waves 1-5 done, 3 human tasks remain)
@@ -14,9 +14,9 @@ current_wave: completed (waves 1-5 done, 3 human tasks remain)
 - Current: `v0.3.0`
 
 ## Test Totals
-- Rust: 358 tests
+- Rust: 362 tests
 - TypeScript: 189 tests
-- Total: 547
+- Total: 551
 
 ## E010 Progress
 - 19/22 tasks completed across 5 waves

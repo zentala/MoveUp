@@ -61,3 +61,22 @@
   5. Build Cloudflare Worker for waitlist endpoint
   6. Create OG image (1200×630px)
   7. Replace all [PLACEHOLDER] data in posts/emails with real usage stats
+
+## Session 2026-03-27 02:30 (continuation)
+
+- **Goal**: Code review fixes, improvements, backlog organization
+- **Done**:
+  - **Impro round 1**: 15 findings fixed (error handling, DRY pricing, unwrap→Result, telemetry race, SEO, a11y) — commits 29a7595 (landing), 7ace0d1 (desk)
+  - **Impro round 2**: 8 findings fixed (Walking flush, deadlock prevention, tests, mutex logging) — commits 3e2153d (desk), 29caba0 (landing)
+  - **Graceful shutdown**: app saves current session to DB on close — commit 4206326
+  - **Sleep gap cap**: MAX_REASONABLE_SESSION_SECS (3h) on flush — commit 8e5f664
+  - **Blog RSS feed**: @astrojs/rss, /blog/rss.xml — commit 17a636d
+  - **Pricing centralization**: ComparisonTable fixed, sync comments — commits 0817dbf, 29caba0
+  - **Waitlist Worker spec**: full CF Worker implementation ready to deploy — commit e96f6b4
+  - **Backlog update**: "Collect from User" checklist (10 items), i18n strategy, post-launch items — commit 9d92bcc
+  - **Overlay fix**: Live default enforced 3rd time (script + fallback + docs) — commit 94e6771
+  - **Timezone fix**: date_local column for timezone-safe DB queries — commit d7dad76
+- **Decisions**: date_local column (timezone-safe), try_lock on shutdown (deadlock prevention), i18n priority order (EN→PL→ZH→PT→ES→DE→FR→KR→JP)
+- **Findings**: 23 total across 2 impro rounds, all resolved
+- **Tests**: 362 Rust + 189 TypeScript = 551 total (up from 534)
+- **Next**: same as previous entry — user tasks (photos, GIF, stats) then deploy
