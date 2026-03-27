@@ -1,4 +1,3 @@
-//! lib.rs — zntl Desk Tauri backend entry point.
 mod activity;
 mod alert_actions;
 mod alert_config;
@@ -49,6 +48,7 @@ mod telemetry;
 pub mod session;
 pub mod session_manager;
 mod session_breaks;
+mod session_live;
 mod session_daily;
 mod session_reading;
 pub mod session_types;
@@ -73,7 +73,6 @@ mod tray_controller;
 mod tray_helpers;
 #[cfg(test)] mod tray_controller_tests;
 mod tray_icon;
-
 use std::sync::{Arc, Mutex};
 use alert_manager::{AlertConfig, AlertManager};
 use alert_popup::AlertPopup;
@@ -241,6 +240,11 @@ pub fn run() {
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error running Desk");
+        .build(tauri::generate_context!())
+        .expect("error building Desk")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                setup_helpers::flush_session_on_shutdown(app);
+            }
+        });
 }
