@@ -17,6 +17,9 @@ pub const BREAK_LONG_SECS: i64 = 600;
 pub const SHORT_BREAK_CREDIT_SECS: i64 = 1200;
 /// Gap between sensor readings that indicates machine sleep/suspend (5 minutes).
 pub const SLEEP_GAP_THRESHOLD_SECS: i64 = 300;
+/// Maximum reasonable session duration (3 hours). Longer durations indicate
+/// the app survived a sleep/suspend without the rewind in on_reading() firing.
+pub const MAX_REASONABLE_SESSION_SECS: i64 = 3 * 3600;
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

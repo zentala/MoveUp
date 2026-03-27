@@ -4,6 +4,7 @@
 //! with elapsed time from active timestamps. Used by snapshot() and UI.
 
 use chrono::{DateTime, Utc};
+use log::warn;
 
 use crate::session_types::*;
 use crate::session_manager::SessionManager;
@@ -68,31 +69,28 @@ impl SessionManager {
     /// Snapshots the current in-progress session as a CompletedSession for DB persistence.
     /// Does NOT modify state — safe to call on shutdown without side effects.
     /// Returns `None` if no session is currently active.
+    /// Caps duration at `MAX_REASONABLE_SESSION_SECS` to prevent sleep inflation.
     pub fn flush_current_session(&self) -> Option<CompletedSession> {
         let now = Utc::now();
-        match self.state.state {
-            DeskState::Sitting => {
-                if let Some(started) = self.state.sitting_started {
-                    let elapsed = (now - started).num_seconds().max(0);
-                    return Some(CompletedSession {
-                        started_at: started.to_rfc3339(),
-                        ended_at: now.to_rfc3339(),
-                        duration_secs: elapsed,
-                    });
-                }
-            }
-            DeskState::Standing => {
-                if let Some(started) = self.state.standing_bout_started {
-                    let elapsed = (now - started).num_seconds().max(0);
-                    return Some(CompletedSession {
-                        started_at: started.to_rfc3339(),
-                        ended_at: now.to_rfc3339(),
-                        duration_secs: elapsed,
-                    });
-                }
-            }
-            _ => {}
-        }
-        None
+        let started = match self.state.state {
+            DeskState::Sitting => self.state.sitting_started,
+            DeskState::Standing => self.state.standing_bout_started,
+            _ => None,
+        }?;
+        let raw_elapsed = (now - started).num_seconds().max(0);
+        let elapsed = if raw_elapsed > MAX_REASONABLE_SESSION_SECS {
+            warn!(
+                "Session capped at {}s (was {}s — likely sleep gap)",
+                MAX_REASONABLE_SESSION_SECS, raw_elapsed
+            );
+            MAX_REASONABLE_SESSION_SECS
+        } else {
+            raw_elapsed
+        };
+        Some(CompletedSession {
+            started_at: started.to_rfc3339(),
+            ended_at: now.to_rfc3339(),
+            duration_secs: elapsed,
+        })
     }
 }
