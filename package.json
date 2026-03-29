@@ -11,7 +11,7 @@
     "tauri:dev:live": "powershell -ExecutionPolicy Bypass -File scripts/tauri-dev.ps1 -Live",
     "tauri:dev:mock": "powershell -ExecutionPolicy Bypass -File scripts/tauri-dev.ps1 -Mock",
     "tauri:dev:demo": "powershell -ExecutionPolicy Bypass -File scripts/tauri-dev.ps1 -Demo",
-    "tauri:build": "pnpm test:all && tauri build && node scripts/build-report.js",
+    "tauri:build": "pnpm test:all && tauri build && node scripts/build-report.cjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run --config vite.config.ts",
