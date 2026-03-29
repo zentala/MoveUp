@@ -1,5 +1,18 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-29 — Build fix, autostart, tray icon improvements
+
+- **Goal**: Fix broken build, enable autostart for dev builds, improve tray icon visibility
+- **Done**:
+  - Fixed `build-report.cjs` monorepo bundle path (2147449)
+  - Auto-enable autostart on first run for dev builds (d56c2a0)
+  - Tray icon: show icon when sensor disconnected, bigger desk silhouette, 12x12 status dot (6faf2e8)
+  - Extract tray icon magic numbers to named constants, improve autostart error handling (37ad1fe)
+- **Decisions**: No ADRs — cosmetic/UX changes only
+- **Findings this session**: 0
+- **Improvements logged**: 0 (all addressed inline)
+- **Next**: Generate PNG tray icons (tray-standing.png missing), consider round dot instead of square
+
 ## Session 2026-03-26 (night) — Away detection investigation + DB backup + scenario tests
 
 - **Goal**: Debug why Standing+inactive doesn't transition to Away; fix DB persistence; improve test coverage
