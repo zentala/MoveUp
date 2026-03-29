@@ -1,5 +1,11 @@
 # Desk App — CLAUDE.md
 
+## Naming
+- **Product name**: SmartDesk (exe: `SmartDesk.exe`, camelCase, no spaces)
+- **Display name**: "Smart Desk" (with space — used in notifications, window titles, share text)
+- **Legacy name**: zntlDesk — same app, old name. Treat as synonym. Docs still use it in places.
+- **Internal IDs**: `io.zntl.desk` (bundle identifier), `zntl-desk` (npm package) — do NOT change
+
 ## Purpose
 Ergonomics tracker for a sit/stand desk. Detects sitting/standing via laser sensor, tracks session durations, and nudges user to take breaks via visual cues and notifications.
 
