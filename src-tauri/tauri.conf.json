@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Smart Desk",
+  "productName": "SmartDesk",
   "version": "0.3.0",
   "identifier": "io.zntl.desk",
   "build": {

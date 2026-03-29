@@ -14,7 +14,7 @@ const TIMEOUT_MS = 60000; // 60 seconds
 function killExistingApp(): void {
   try {
     if (process.platform === 'win32') {
-      execSync('taskkill /IM "Smart Desk.exe" /F', { stdio: 'ignore' });
+      execSync('taskkill /IM SmartDesk.exe /F', { stdio: 'ignore' });
     }
   } catch {
     // App not running is OK
