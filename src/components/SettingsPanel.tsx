@@ -18,6 +18,7 @@ import NotificationsSection from "./settings/NotificationsSection";
 import WidgetPickerSection from "./settings/WidgetPickerSection";
 import DebugSection from "./settings/DebugSection";
 import TelemetrySection from "./settings/TelemetrySection";
+import { AutostartToggle } from "@zntl/shared-ui";
 
 export type { SettingsPanelProps, DeskSettings } from "./settings/SettingsTypes";
 
@@ -156,6 +157,10 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
         {activeTab === 3 && (
           <>
             <WidgetPickerSection />
+            <div className="settings-panel__section">
+              <h3 className="settings-panel__section-title">Startup</h3>
+              <AutostartToggle appName="Desk" />
+            </div>
             <TelemetrySection settings={settings} onChange={setSettings} />
             <div className="settings-panel__section">
               <button className="btn btn--secondary" onClick={() => invoke("show_welcome")}>
