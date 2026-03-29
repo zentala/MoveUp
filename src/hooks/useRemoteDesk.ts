@@ -54,7 +54,8 @@ export function useRemoteDesk(): UseDeskResult {
   const [limitUsedSecs, setLimitUsedSecs] = useState(0);
   const [dailyScore, setDailyScore] = useState(0);
   const [metrics, setMetrics] = useState<MetricSnapshot[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  // TODO: wire setError to WS failure states
+  const [error] = useState<string | null>(null);
   const [transition, setTransition] = useState<TransitionInfo | null>(null);
   const [todaySummary, setTodaySummary] = useState<TodaySummaryDto | null>(null);
 

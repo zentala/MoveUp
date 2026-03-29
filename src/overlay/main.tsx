@@ -22,7 +22,6 @@ canvas.width = window.innerWidth || 1920;
 let currentProgress = 0.35; // TEST: Start at 35% so we see something
 let currentColor = "#ffc107"; // TEST: Amber color
 let targetProgress = 0.35;
-let targetColor = "#ffc107";
 
 console.log("🎨 Canvas setup: " + canvas.width + "x" + canvas.height);
 
@@ -49,7 +48,6 @@ setTimeout(() => {
   listen<OverlayPayload>("overlay:progress", ({ payload }) => {
     console.log("✓✓✓ EVENT RECEIVED! ✓✓✓", payload);
     targetProgress = Math.min(payload.progress, 1.0);
-    targetColor = payload.color;
     currentColor = payload.color;
   }).catch((err) => {
     console.error("✗ Listener error:", err);

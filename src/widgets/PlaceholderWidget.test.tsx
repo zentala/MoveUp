@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PlaceholderWidget } from "./PlaceholderWidget";
-import type { WidgetProps } from "@/types";
+import type { WidgetProps, DeskState } from "@/types";
 
 function mockWidgetProps(overrides: Partial<WidgetProps> = {}): WidgetProps {
   return {
@@ -14,6 +14,7 @@ function mockWidgetProps(overrides: Partial<WidgetProps> = {}): WidgetProps {
     deskHeightCm: 72.5,
     currentSessionSecs: 600,
     limitSecs: 2400,
+    standLimitSecs: 900,
     limitRemaining: 1800,
     limitRatio: 0.25,
     breakSecs: 0,
@@ -50,7 +51,7 @@ describe("PlaceholderWidget", () => {
   });
 
   it("shows waiting when state is null", () => {
-    render(<PlaceholderWidget {...mockWidgetProps({ state: null })} />);
+    render(<PlaceholderWidget {...mockWidgetProps({ state: null as unknown as DeskState })} />);
     expect(screen.getByText(/waiting/)).toBeInTheDocument();
   });
 

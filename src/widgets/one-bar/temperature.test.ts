@@ -13,6 +13,7 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     deskHeightCm: 72.5,
     currentSessionSecs: 600,
     limitSecs: 2400,
+    standLimitSecs: 900,
     limitRemaining: 1800,
     limitRatio: 0.25,
     breakSecs: 0,

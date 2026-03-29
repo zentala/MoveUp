@@ -10,7 +10,7 @@ import { vi } from "vitest";
  * Tests that call Tauri commands (invoke, listen, etc.) will use these mocks.
  */
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(async (cmd: string, args?: any) => {
+  invoke: vi.fn(async (cmd: string, _args?: any) => {
     // Default mock responses per command
     const responses: Record<string, any> = {
       get_session_state: {
@@ -49,7 +49,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
     return responses[cmd] ?? null;
   }),
-  listen: vi.fn(async (event: string, handler: any) => {
+  listen: vi.fn(async (_event: string, _handler: any) => {
     // Return an unlisten function
     return vi.fn();
   }),
@@ -60,7 +60,7 @@ vi.mock("@tauri-apps/api/core", () => ({
  * Mock @tauri-apps/api/event for event listening in components.
  */
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn(async (event: string, handler: any) => {
+  listen: vi.fn(async (_event: string, _handler: any) => {
     return vi.fn();
   }),
   unlisten: vi.fn(),

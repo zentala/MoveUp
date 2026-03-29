@@ -62,6 +62,8 @@ export interface SessionStateDto {
   standing_seconds: number;
   break_seconds: number;
   session_limit_secs: number;
+  /** Standing session limit in seconds. */
+  stand_limit_secs: number;
   desk_height_cm: number;
   position_changes: number;
   /** Seconds of sitting limit consumed (accounts for break credits). */

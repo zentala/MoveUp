@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TimelineZenWidget } from "./TimelineZenWidget";
-import type { WidgetProps, SessionEntry } from "@/types";
+import type { WidgetProps, SessionEntry, DeskState } from "@/types";
 
 function mockWidgetProps(overrides: Partial<WidgetProps> = {}): WidgetProps {
   return {
@@ -17,6 +17,7 @@ function mockWidgetProps(overrides: Partial<WidgetProps> = {}): WidgetProps {
     deskHeightCm: 72.5,
     currentSessionSecs: 600,
     limitSecs: 2400,
+    standLimitSecs: 900,
     limitRemaining: 1800,
     limitRatio: 0.25,
     breakSecs: 0,
@@ -74,7 +75,7 @@ describe("TimelineZenWidget", () => {
   });
 
   it("renders with null state", () => {
-    render(<TimelineZenWidget {...mockWidgetProps({ state: null })} />);
+    render(<TimelineZenWidget {...mockWidgetProps({ state: null as unknown as DeskState })} />);
     expect(screen.getByTestId("timeline-zen-widget")).toBeInTheDocument();
   });
 

@@ -4,7 +4,7 @@
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
-  MockWebSocket, makeSnapshot,
+  MockWebSocket,
   setupMocks, teardownMocks, importHook,
 } from "./remoteDesk.test-helpers";
 
@@ -68,14 +68,14 @@ describe("useRemoteDesk reconnection", () => {
 
 describe("useDeskAuto", () => {
   it("detects Tauri when __TAURI_INTERNALS__ exists", () => {
-    (window as Record<string, unknown>).__TAURI_INTERNALS__ = { invoke: vi.fn() };
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = { invoke: vi.fn() };
     const isTauri = !!window.__TAURI_INTERNALS__;
     expect(isTauri).toBe(true);
-    delete (window as Record<string, unknown>).__TAURI_INTERNALS__;
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
   });
 
   it("detects browser when __TAURI_INTERNALS__ is absent", () => {
-    delete (window as Record<string, unknown>).__TAURI_INTERNALS__;
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
     const isTauri = !!window.__TAURI_INTERNALS__;
     expect(isTauri).toBe(false);
   });
@@ -83,7 +83,7 @@ describe("useDeskAuto", () => {
 
 describe("remote-display class", () => {
   it("is added to documentElement when not in Tauri", () => {
-    delete (window as Record<string, unknown>).__TAURI_INTERNALS__;
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
     const isTauri = !!window.__TAURI_INTERNALS__;
     if (!isTauri) {
       document.documentElement.classList.add("remote-display");
@@ -93,13 +93,13 @@ describe("remote-display class", () => {
   });
 
   it("is NOT added when __TAURI_INTERNALS__ is present", () => {
-    (window as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
     document.documentElement.classList.remove("remote-display");
     const isTauri = !!window.__TAURI_INTERNALS__;
     if (!isTauri) {
       document.documentElement.classList.add("remote-display");
     }
     expect(document.documentElement.classList.contains("remote-display")).toBe(false);
-    delete (window as Record<string, unknown>).__TAURI_INTERNALS__;
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
   });
 });
