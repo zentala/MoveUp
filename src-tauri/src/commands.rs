@@ -8,8 +8,6 @@ use tokio::sync::broadcast;
 
 use rusqlite::Connection;
 use tauri::{Emitter, Manager, State};
-use tauri_plugin_notification::NotificationExt;
-
 use crate::{alert_manager::AlertManager, alert_popup::AlertPopup, config::AppConfig,
     db::TodaySummary, metrics::{DashboardState, MetricEngine},
     overlay_renderer::OverlayRenderer,
@@ -210,12 +208,8 @@ pub fn trigger_test_notification(app: tauri::AppHandle) -> Result<(), String> {
         return Err(format!("Rate limited: wait {}s", 60 - (now - last)));
     }
     LAST_TEST_NOTIFICATION.store(now, Ordering::Relaxed);
-    app.notification()
-        .builder()
-        .title("zntlDesk — Test")
-        .body("Notifications are working!")
-        .show()
-        .map_err(|e| format!("Notification error: {}", e))
+    crate::notify::show("zntlDesk — Test", "Notifications are working!");
+    Ok(())
 }
 
 // DB backup commands moved to commands_backup.rs

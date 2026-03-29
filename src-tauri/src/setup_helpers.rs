@@ -24,8 +24,10 @@ const DEVICE_NOTIFICATION_COOLDOWN_SECS: u64 = 300;
 pub fn ensure_autostart(app: &AppHandle) {
     let autostart = app.autolaunch();
     if !autostart.is_enabled().unwrap_or(false) {
-        let _ = autostart.enable();
-        info!("autostart: enabled for {}", std::env::current_exe().unwrap_or_default().display());
+        match autostart.enable() {
+            Ok(()) => info!("autostart: enabled for {}", std::env::current_exe().unwrap_or_default().display()),
+            Err(e) => warn!("autostart: failed to enable: {}", e),
+        }
     }
 }
 
@@ -59,19 +61,13 @@ pub fn setup_device_notifications(app: &AppHandle) {
                 e.into_inner()
             });
             if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
-                let _ = handle
-                    .notification()
-                    .builder()
-                    .title("zntlDesk")
-                    .body("Sensor not connected. Plug in desk sensor.")
-                    .show();
+                crate::notify::show("zntlDesk", "Sensor not connected. Plug in desk sensor.");
                 *guard = Instant::now();
             }
         });
     }
 
     {
-        let handle = app.clone();
         let last = Arc::clone(&last_notif);
         app.listen("desk:device-lost", move |_| {
             let mut guard = last.lock().unwrap_or_else(|e| {
@@ -79,12 +75,7 @@ pub fn setup_device_notifications(app: &AppHandle) {
                 e.into_inner()
             });
             if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
-                let _ = handle
-                    .notification()
-                    .builder()
-                    .title("zntlDesk")
-                    .body("Sensor disconnected. Check USB cable.")
-                    .show();
+                crate::notify::show("zntlDesk", "Sensor disconnected. Check USB cable.");
                 *guard = Instant::now();
             }
         });

@@ -124,25 +124,36 @@ pub fn update_tray_tooltip(
 /// - Gray (#808080) — walking or away
 fn generate_tray_icon(state: DeskState, progress_ratio: f32) -> Option<Image<'static>> {
     const SIZE: u32 = 32;
+    // Desk silhouette geometry
+    const DESK_TOP: u32 = 2;
+    const DESK_BOTTOM: u32 = 7;
+    const DESK_LEFT: u32 = 1;
+    const DESK_RIGHT: u32 = 31;
+    const LEG_TOP: u32 = 7;
+    const LEG_BOTTOM: u32 = 18;
+    const LEG_WIDTH: u32 = 3;
+    const LEFT_LEG_X: u32 = 3;
+    const RIGHT_LEG_X: u32 = 26;
+    // Status dot geometry
+    const DOT_SIZE: u32 = 12;
+    const DOT_RAISE: u32 = 2;
+    const DOT_X: u32 = SIZE - DOT_SIZE;
+    const DOT_Y: u32 = SIZE - DOT_SIZE - DOT_RAISE;
+
     let pixels = (SIZE * SIZE) as usize;
     let mut rgba = vec![0u8; pixels * 4]; // transparent background
 
-    // Draw white desk silhouette (maximized)
-    // Desk surface: y=2..7, x=1..31 (full width, thick top)
-    for y in 2u32..7 {
-        for x in 1u32..31 {
+    // Draw white desk silhouette
+    for y in DESK_TOP..DESK_BOTTOM {
+        for x in DESK_LEFT..DESK_RIGHT {
             set_pixel(&mut rgba, SIZE, x, y, 255, 255, 255, 255);
         }
     }
-    // Left leg: x=3..6, y=7..18
-    for y in 7u32..18 {
-        for x in 3u32..6 {
+    for y in LEG_TOP..LEG_BOTTOM {
+        for x in LEFT_LEG_X..(LEFT_LEG_X + LEG_WIDTH) {
             set_pixel(&mut rgba, SIZE, x, y, 255, 255, 255, 255);
         }
-    }
-    // Right leg: x=26..29, y=7..18
-    for y in 7u32..18 {
-        for x in 26u32..29 {
+        for x in RIGHT_LEG_X..(RIGHT_LEG_X + LEG_WIDTH) {
             set_pixel(&mut rgba, SIZE, x, y, 255, 255, 255, 255);
         }
     }
@@ -158,9 +169,9 @@ fn generate_tray_icon(state: DeskState, progress_ratio: f32) -> Option<Image<'st
         _ => (128, 128, 128),                  // gray #808080
     };
 
-    // 12x12 dot at bottom-right corner, raised 2px
-    for y in 18u32..(SIZE - 2) {
-        for x in 20u32..SIZE {
+    // Status dot at bottom-right corner
+    for y in DOT_Y..(DOT_Y + DOT_SIZE) {
+        for x in DOT_X..SIZE {
             set_pixel(&mut rgba, SIZE, x, y, dr, dg, db, 255);
         }
     }
