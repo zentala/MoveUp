@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use log::{error, info, warn};
 use tauri::{AppHandle, Listener, Manager};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_notification::NotificationExt;
 use window_vibrancy::apply_acrylic;
 
@@ -18,6 +19,15 @@ use crate::ws_broadcaster::{self, DisplayEvent};
 
 /// Minimum interval between device-missing/lost notifications (5 minutes).
 const DEVICE_NOTIFICATION_COOLDOWN_SECS: u64 = 300;
+
+/// Enables autostart on first run so the build exe launches on login.
+pub fn ensure_autostart(app: &AppHandle) {
+    let autostart = app.autolaunch();
+    if !autostart.is_enabled().unwrap_or(false) {
+        let _ = autostart.enable();
+        info!("autostart: enabled for {}", std::env::current_exe().unwrap_or_default().display());
+    }
+}
 
 /// Applies Acrylic blur and positions the main window in the bottom-right corner.
 pub fn position_main_window(app: &AppHandle) {

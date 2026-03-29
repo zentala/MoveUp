@@ -187,6 +187,7 @@ pub fn run() {
                 event: event_logger.clone(),
             });
 
+            setup_helpers::ensure_autostart(app.handle());
             tray::setup_tray(app.handle())?;
             tray_controller::setup(app.handle());
             setup_helpers::position_main_window(app.handle());
