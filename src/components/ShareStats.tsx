@@ -54,7 +54,7 @@ function buildShareText(
     `\u{23f1}\u{fe0f} Longest session: ${longest}`,
     `\u{1f3c6} Score: ${sign}${Math.round(todayScore)} points`,
     "",
-    "Tracked by zntlDesk \u{2014} desk.zentala.io",
+    "Tracked by Smart Desk \u{2014} desk.zentala.io",
   ].join("\n");
 }
 
@@ -67,7 +67,7 @@ function twitterShareUrl(text: string): string {
 
 /** Builds a Reddit submit URL with pre-filled title. */
 function redditShareUrl(text: string): string {
-  const title = "My desk ergonomics stats today \u{2014} tracked by zntlDesk";
+  const title = "My desk ergonomics stats today \u{2014} tracked by Smart Desk";
   return `https://reddit.com/submit?title=${encodeURIComponent(title)}&url=${encodeURIComponent(DESK_URL)}&selftext=true&text=${encodeURIComponent(text)}`;
 }
 
@@ -176,7 +176,7 @@ export const ShareStats: FC<ShareStatsProps> = ({
             <StatRow emoji={"\u{1f3c6}"} label="Score" value={`${scoreSign}${Math.round(todayScore)} pts`} />
           </div>
           <div className="share-card__watermark">
-            Tracked by zntlDesk {"\u2014"} desk.zentala.io
+            Tracked by Smart Desk {"\u2014"} desk.zentala.io
           </div>
         </div>
 

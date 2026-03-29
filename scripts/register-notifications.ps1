@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Registers AppUserModelId for zntlDesk notifications (dev mode).
+    Registers AppUserModelId for Smart Desk notifications (dev mode).
 .DESCRIPTION
     Windows toast notifications require a registered AUMID to display
     the correct app name. Installed builds get this via Start Menu

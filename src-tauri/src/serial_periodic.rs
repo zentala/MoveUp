@@ -72,7 +72,7 @@ pub fn check_periodic(
         sitting_secs,
         standing_secs,
     );
-    NotificationService::dispatch(&intents, app, config, event_logger, alert_popup);
+    NotificationService::dispatch(&intents, config, event_logger, alert_popup);
 }
 
 /// Processes a single sensor reading through the session state machine.
@@ -123,7 +123,6 @@ pub fn handle_reading(
                 let intent = NotificationService::praise_halfway_intent();
                 NotificationService::dispatch(
                     &[intent],
-                    app,
                     config,
                     event_logger,
                     alert_popup,
@@ -161,7 +160,7 @@ pub fn handle_reading(
         let sitting = session.lock().unwrap().snapshot().sitting_seconds;
         event_logger.log(&format!("ALERT sit_limit sitting={}s", sitting));
         let intent = NotificationService::sit_limit_intent();
-        NotificationService::dispatch(&[intent], app, config, event_logger, alert_popup);
+        NotificationService::dispatch(&[intent], config, event_logger, alert_popup);
     }
 
     let stand_alert = { session.lock().unwrap().should_stand_alert() };
@@ -169,6 +168,6 @@ pub fn handle_reading(
         let standing = session.lock().unwrap().snapshot().standing_session_secs;
         event_logger.log(&format!("ALERT stand_limit standing={}s", standing));
         let intent = NotificationService::stand_limit_intent();
-        NotificationService::dispatch(&[intent], app, config, event_logger, alert_popup);
+        NotificationService::dispatch(&[intent], config, event_logger, alert_popup);
     }
 }

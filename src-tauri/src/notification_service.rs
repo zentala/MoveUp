@@ -5,7 +5,6 @@
 //! and manages suppression gates centrally.
 
 use log::info;
-use tauri::AppHandle;
 
 use crate::alert_popup::AlertPopup;
 use crate::config::AppConfig;
@@ -115,7 +114,6 @@ impl NotificationService {
     /// - `"both"` — both toast and popup
     pub fn dispatch(
         intents: &[NotificationIntent],
-        _app: &AppHandle,
         config: &AppConfig,
         event_logger: &EventLogger,
         alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,

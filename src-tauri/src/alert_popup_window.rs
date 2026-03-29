@@ -34,7 +34,7 @@ pub(crate) fn run_popup_window(visible_flag: Arc<AtomicBool>, msg: String, user_
     use windows::core::PCWSTR;
 
     const CLASS_NAME: &str = "zntlAlertPopup\0";
-    const WINDOW_TITLE: &str = "zntl Desk Alert\0";
+    const WINDOW_TITLE: &str = "Smart Desk Alert\0";
 
     let msg_wide: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
 

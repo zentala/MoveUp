@@ -15,11 +15,14 @@ pub fn show(title: &str, body: &str) {
     let title = title.to_string();
     let body = body.to_string();
     tauri::async_runtime::spawn(async move {
-        let _ = notify_rust::Notification::new()
+        if let Err(e) = notify_rust::Notification::new()
             .appname("Smart Desk")
             .summary(&title)
             .body(&body)
             .app_id(APP_ID)
-            .show();
+            .show()
+        {
+            log::warn!("Toast notification failed: {e}");
+        }
     });
 }
