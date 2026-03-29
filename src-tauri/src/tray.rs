@@ -33,13 +33,14 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .item(&quit_item)
         .build()?;
 
-    // Load initial tray icon (default: idle state, 0.0 progress)
-    // Try to load PNG, but don't fail if it's missing (e.g., in dev mode before bundling)
+    // Load initial tray icon (disconnected state — gray dot)
     let mut builder = TrayIconBuilder::with_id("main-tray");
-    if let Ok(icon_path) = icon_path_for_state(app, DeskState::Away, 0.0) {
-        if let Ok(icon) = Image::from_path(&icon_path) {
-            builder = builder.icon(icon);
-        }
+    let initial_icon = icon_path_for_state(app, DeskState::Away, 0.0)
+        .ok()
+        .and_then(|p| Image::from_path(&p).ok())
+        .or_else(|| generate_tray_icon(DeskState::Away, 0.0));
+    if let Some(icon) = initial_icon {
+        builder = builder.icon(icon);
     }
 
     builder
@@ -126,22 +127,22 @@ fn generate_tray_icon(state: DeskState, progress_ratio: f32) -> Option<Image<'st
     let pixels = (SIZE * SIZE) as usize;
     let mut rgba = vec![0u8; pixels * 4]; // transparent background
 
-    // Draw white desk silhouette
-    // Desk surface: y=10..14, x=4..28
-    for y in 10u32..14 {
-        for x in 4u32..28 {
+    // Draw white desk silhouette (maximized)
+    // Desk surface: y=2..7, x=1..31 (full width, thick top)
+    for y in 2u32..7 {
+        for x in 1u32..31 {
             set_pixel(&mut rgba, SIZE, x, y, 255, 255, 255, 255);
         }
     }
-    // Left leg: x=6..8, y=14..22
-    for y in 14u32..22 {
-        for x in 6u32..8 {
+    // Left leg: x=3..6, y=7..18
+    for y in 7u32..18 {
+        for x in 3u32..6 {
             set_pixel(&mut rgba, SIZE, x, y, 255, 255, 255, 255);
         }
     }
-    // Right leg: x=24..26, y=14..22
-    for y in 14u32..22 {
-        for x in 24u32..26 {
+    // Right leg: x=26..29, y=7..18
+    for y in 7u32..18 {
+        for x in 26u32..29 {
             set_pixel(&mut rgba, SIZE, x, y, 255, 255, 255, 255);
         }
     }
@@ -157,9 +158,9 @@ fn generate_tray_icon(state: DeskState, progress_ratio: f32) -> Option<Image<'st
         _ => (128, 128, 128),                  // gray #808080
     };
 
-    // 4x4 dot at bottom-right (x=26..30, y=26..30)
-    for y in 26u32..30 {
-        for x in 26u32..30 {
+    // 12x12 dot at bottom-right corner, raised 2px
+    for y in 18u32..(SIZE - 2) {
+        for x in 20u32..SIZE {
             set_pixel(&mut rgba, SIZE, x, y, dr, dg, db, 255);
         }
     }

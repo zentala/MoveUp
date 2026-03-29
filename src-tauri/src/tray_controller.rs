@@ -30,6 +30,17 @@ pub fn setup(app: &AppHandle) {
     app.listen("desk:distance", move |_event| {
         update_overlay_progress(&handle2);
     });
+
+    // Device disconnected: show gray tray icon with "disconnected" tooltip
+    let handle3 = app.clone();
+    app.listen("desk:device-lost", move |_event| {
+        let _ = tray::update_tray(&handle3, "Desk — sensor disconnected", DeskState::Away, 0.0);
+    });
+
+    let handle4 = app.clone();
+    app.listen("desk:device-missing", move |_event| {
+        let _ = tray::update_tray(&handle4, "Desk — no sensor found", DeskState::Away, 0.0);
+    });
 }
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
