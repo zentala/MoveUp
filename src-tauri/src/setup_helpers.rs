@@ -11,7 +11,6 @@ use std::time::Instant;
 use log::{error, info, warn};
 use tauri::{AppHandle, Listener, Manager};
 use tauri_plugin_autostart::ManagerExt;
-use tauri_plugin_notification::NotificationExt;
 use window_vibrancy::apply_acrylic;
 
 use crate::commands::AppState;
@@ -53,7 +52,6 @@ pub fn setup_device_notifications(app: &AppHandle) {
     ));
 
     {
-        let handle = app.clone();
         let last = Arc::clone(&last_notif);
         app.listen("desk:device-missing", move |_| {
             let mut guard = last.lock().unwrap_or_else(|e| {
@@ -61,7 +59,7 @@ pub fn setup_device_notifications(app: &AppHandle) {
                 e.into_inner()
             });
             if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
-                crate::notify::show("zntlDesk", "Sensor not connected. Plug in desk sensor.");
+                crate::notify::show("Sensor not connected", "Plug in desk sensor.");
                 *guard = Instant::now();
             }
         });
@@ -75,7 +73,7 @@ pub fn setup_device_notifications(app: &AppHandle) {
                 e.into_inner()
             });
             if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
-                crate::notify::show("zntlDesk", "Sensor disconnected. Check USB cable.");
+                crate::notify::show("Sensor disconnected", "Check USB cable.");
                 *guard = Instant::now();
             }
         });

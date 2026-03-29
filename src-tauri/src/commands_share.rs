@@ -56,7 +56,7 @@ pub fn get_share_text(
          \u{23f1}\u{fe0f} Longest session: {}\n\
          \u{1f3c6} Score: {}{:.0} points\n\
          \n\
-         Tracked by zntlDesk \u{2014} desk.zentala.io",
+         Tracked by Smart Desk \u{2014} desk.zentala.io",
         standing_pct, position_changes, longest_session,
         score_sign, score,
     );

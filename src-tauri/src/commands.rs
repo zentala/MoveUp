@@ -198,7 +198,7 @@ pub fn inject_reading(
 /// Rate-limited: max once per 60 seconds to prevent spam.
 /// Available in all builds (not debug-only) so users can test from settings.
 #[tauri::command]
-pub fn trigger_test_notification(app: tauri::AppHandle) -> Result<(), String> {
+pub fn trigger_test_notification(_app: tauri::AppHandle) -> Result<(), String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -208,7 +208,7 @@ pub fn trigger_test_notification(app: tauri::AppHandle) -> Result<(), String> {
         return Err(format!("Rate limited: wait {}s", 60 - (now - last)));
     }
     LAST_TEST_NOTIFICATION.store(now, Ordering::Relaxed);
-    crate::notify::show("zntlDesk — Test", "Notifications are working!");
+    crate::notify::show("Test notification", "Notifications are working!");
     Ok(())
 }
 

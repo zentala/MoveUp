@@ -6,7 +6,6 @@
 
 use log::info;
 use tauri::AppHandle;
-use tauri_plugin_notification::NotificationExt;
 
 use crate::alert_popup::AlertPopup;
 use crate::config::AppConfig;
@@ -116,7 +115,7 @@ impl NotificationService {
     /// - `"both"` — both toast and popup
     pub fn dispatch(
         intents: &[NotificationIntent],
-        app: &AppHandle,
+        _app: &AppHandle,
         config: &AppConfig,
         event_logger: &EventLogger,
         alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,
@@ -130,12 +129,7 @@ impl NotificationService {
             event_logger.log(&format!("NOTIF {}", log_tag));
 
             if use_toast {
-                let _ = app
-                    .notification()
-                    .builder()
-                    .title(&intent.title)
-                    .body(&intent.body)
-                    .show();
+                crate::notify::show(&intent.title, &intent.body);
             }
 
             if use_popup {

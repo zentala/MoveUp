@@ -20,6 +20,7 @@ mod height_stabilizer;
 mod hourly_break_tracker;
 mod metrics;
 mod notification_service;
+mod notify;
 #[cfg(test)] mod notification_service_tests;
 #[cfg(test)] mod notification_service_tests_edge;
 mod overlay_layered;
@@ -229,7 +230,6 @@ pub fn run() {
 
             // Throttled notifications for missing/lost sensor.
             setup_helpers::setup_device_notifications(app.handle());
-
             Ok(())
         })
         .on_window_event(|window, event| {

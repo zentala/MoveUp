@@ -10,7 +10,7 @@ pub fn show_welcome_window(app: &tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
     WebviewWindowBuilder::new(app, "welcome", WebviewUrl::App("welcome.html".into()))
-        .title("zntlDesk \u{2014} Witaj!")
+        .title("Smart Desk \u{2014} Witaj!")
         .inner_size(480.0, 420.0)
         .resizable(false)
         .always_on_top(true)

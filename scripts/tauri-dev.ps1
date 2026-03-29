@@ -82,5 +82,8 @@ if ($existing) {
     }
 }
 
+# --- Ensure notification AUMID is registered (dev mode) ---
+& "$PSScriptRoot\register-notifications.ps1"
+
 # --- Launch tauri dev ---
 pnpm exec tauri dev
