@@ -1,7 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const BUNDLE_DIR = 'src-tauri/target/release/bundle';
+// In a pnpm monorepo, Tauri builds to the workspace root target/ dir
+const BUNDLE_DIR_MONOREPO = '../../target/release/bundle';
+const BUNDLE_DIR_LOCAL = 'src-tauri/target/release/bundle';
+const BUNDLE_DIR = fs.existsSync(BUNDLE_DIR_MONOREPO) ? BUNDLE_DIR_MONOREPO : BUNDLE_DIR_LOCAL;
 const BASELINE_FILE = '.build-sizes.json';
 const LOG_FILE = '.build-log.txt';
 
