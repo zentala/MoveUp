@@ -9,12 +9,12 @@ const BASELINE_FILE = '.perf-baseline.json';
 const TIMEOUT_MS = 60000; // 60 seconds
 
 /**
- * Kill existing zntlDesk processes (Windows)
+ * Kill existing Smart Desk processes (Windows)
  */
 function killExistingApp(): void {
   try {
     if (process.platform === 'win32') {
-      execSync('taskkill /IM zntlDesk.exe /F', { stdio: 'ignore' });
+      execSync('taskkill /IM "Smart Desk.exe" /F', { stdio: 'ignore' });
     }
   } catch {
     // App not running is OK
