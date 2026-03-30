@@ -15,6 +15,7 @@ import SettingsTabBar from "./settings/SettingsTabBar";
 import type { SettingsTabIndex } from "./settings/SettingsTabBar";
 import CalibrationSection from "./settings/CalibrationSection";
 import NotificationsSection from "./settings/NotificationsSection";
+import ProfileSelector from "./settings/ProfileSelector";
 import WidgetPickerSection from "./settings/WidgetPickerSection";
 import DebugSection from "./settings/DebugSection";
 import TelemetrySection from "./settings/TelemetrySection";
@@ -101,45 +102,10 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
 
       <div className="settings-panel__body">
         {activeTab === 0 && (
-          <div className="settings-panel__section">
-            <h3 className="settings-panel__section-title">Time Limits</h3>
-            <div className="settings-panel__field">
-              <label htmlFor="sitting-limit" className="settings-panel__label">
-                Remind me to stand after (minutes)
-              </label>
-              <div className="settings-panel__slider-row">
-                <input
-                  id="sitting-limit"
-                  type="range"
-                  min="10" max="90" step="5"
-                  value={settings.sit_limit_mins}
-                  onChange={(e) =>
-                    setSettings({ ...settings, sit_limit_mins: parseInt(e.target.value, 10) })
-                  }
-                  className="settings-panel__slider"
-                />
-                <span className="settings-panel__value">{settings.sit_limit_mins}</span>
-              </div>
-            </div>
-            <div className="settings-panel__field">
-              <label htmlFor="standing-limit" className="settings-panel__label">
-                Remind me to sit after (minutes)
-              </label>
-              <div className="settings-panel__slider-row">
-                <input
-                  id="standing-limit"
-                  type="range"
-                  min="5" max="60" step="5"
-                  value={settings.stand_limit_mins}
-                  onChange={(e) =>
-                    setSettings({ ...settings, stand_limit_mins: parseInt(e.target.value, 10) })
-                  }
-                  className="settings-panel__slider"
-                />
-                <span className="settings-panel__value">{settings.stand_limit_mins}</span>
-              </div>
-            </div>
-          </div>
+          <>
+            <ProfileSelector type="ergonomic" label="Ergonomic Profile" />
+            <ProfileSelector type="communication" label="Communication Profile" />
+          </>
         )}
 
         {activeTab === 1 && (

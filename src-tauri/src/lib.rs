@@ -11,6 +11,7 @@ mod profile_loader;
 mod commands;
 mod commands_backup;
 mod commands_config;
+mod commands_profiles;
 mod commands_share;
 mod commands_welcome;
 mod config;
@@ -147,6 +148,13 @@ pub fn run() {
                     commands_share::get_share_text,
                     commands_backup::list_db_backups,
                     commands_backup::restore_db_backup,
+                    commands_profiles::list_communication_profiles,
+                    commands_profiles::list_ergonomic_profiles,
+                    commands_profiles::get_active_profiles,
+                    commands_profiles::switch_communication_profile,
+                    commands_profiles::switch_ergonomic_profile,
+                    commands_profiles::open_profile_in_editor,
+                    commands_profiles::duplicate_profile,
                 ]
             }
             #[cfg(not(any(test, debug_assertions)))]
@@ -170,6 +178,13 @@ pub fn run() {
                     commands_share::get_share_text,
                     commands_backup::list_db_backups,
                     commands_backup::restore_db_backup,
+                    commands_profiles::list_communication_profiles,
+                    commands_profiles::list_ergonomic_profiles,
+                    commands_profiles::get_active_profiles,
+                    commands_profiles::switch_communication_profile,
+                    commands_profiles::switch_ergonomic_profile,
+                    commands_profiles::open_profile_in_editor,
+                    commands_profiles::duplicate_profile,
                 ]
             }
         })
