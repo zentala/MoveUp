@@ -1,0 +1,27 @@
+{
+  "id": "strict",
+  "name": "Strict",
+  "description": "Maximum movement — short limits, harsh penalties",
+  "limits": {
+    "sitting_secs": 1500,
+    "standing_secs": 900,
+    "standing_target_secs": 600,
+    "standing_max_secs": 3600
+  },
+  "scoring": {
+    "pts_standing_per_min": 1.5,
+    "pts_session_bonus": 8.0,
+    "pts_sitting_per_min": -1.0
+  },
+  "kpi": {
+    "standing_green_pct": 15.0,
+    "standing_yellow_pct": 10.0,
+    "changes_green": 1.0,
+    "changes_yellow": 0.5,
+    "break_yellow_missed": 2,
+    "break_red_missed": 3,
+    "session_green_mins": 45,
+    "session_yellow_mins": 75,
+    "early_data_threshold_mins": 30
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "id": "gentle",
+  "name": "Gentle",
+  "description": "Soft reminders — no blinking, no popups",
+  "notification_backend": "toast",
+  "escalation": {
+    "sitting": [
+      {
+        "at": -300,
+        "tray": "yellow",
+        "overlay": "yellow",
+        "popup_header": "yellow",
+        "notify": null
+      },
+      {
+        "at": 0,
+        "tray": "yellow",
+        "overlay": "yellow",
+        "popup_header": "yellow",
+        "notify": "toast"
+      }
+    ],
+    "standing": [
+      {
+        "at": -300,
+        "tray": "yellow",
+        "overlay": "yellow",
+        "popup_header": "yellow",
+        "notify": null
+      },
+      {
+        "at": 0,
+        "tray": "yellow",
+        "overlay": "yellow",
+        "popup_header": "yellow",
+        "notify": "toast"
+      }
+    ]
+  },
+  "snooze": {
+    "durations_mins": [15, 30, 60, 120],
+    "tone_shift_after_dismisses": 3
+  },
+  "disconnected": {
+    "tray": "blink_gray",
+    "overlay": "hidden",
+    "popup_header": "gray",
+    "notify_once": "toast"
+  },
+  "inactive": {
+    "tray": "none",
+    "overlay": "hidden",
+    "popup_header": "neutral"
+  },
+  "baseline": {
+    "sitting": {
+      "tray": "none",
+      "overlay": "neutral",
+      "popup_header": "neutral"
+    },
+    "standing": {
+      "tray": "none",
+      "overlay": "progress",
+      "popup_header": "neutral"
+    }
+  },
+  "standing_overlay": {
+    "show_lap_counter": true,
+    "flash_on_lap_complete": true,
+    "bar_color": "#b0a898",
+    "lap_flash_color": "#ffc107"
+  },
+  "timeline": {
+    "sitting_within_limit": "neutral",
+    "sitting_over_limit": "red",
+    "standing_within_limit": "subtle",
+    "standing_over_limit": "red",
+    "away": "gray"
+  },
+  "blink_patterns": {
+    "blink_red": {
+      "color": "red",
+      "on_ms": 250,
+      "off_ms": 250,
+      "count": 3,
+      "pause_ms": 8500
+    },
+    "blink_gray": {
+      "color": "gray",
+      "on_ms": 250,
+      "off_ms": 250,
+      "count": 3,
+      "pause_ms": 8500
+    }
+  },
+  "overlay_patterns": {
+    "pulse_red": {
+      "color": "red",
+      "min_brightness": 0.4,
+      "max_brightness": 1.0,
+      "cycle_ms": 1000
+    }
+  },
+  "messages": {
+    "sitting_limit_toast": "Time to change position",
+    "sitting_overdue_popup": "You've been sitting for {minutes} minutes. Stand up!",
+    "standing_limit_toast": "Maybe sit down for a bit",
+    "standing_overdue_popup": "You've been standing for {minutes} minutes.",
+    "sensor_disconnected": "Desk sensor not connected",
+    "neutral_popup_messages": [
+      "Time for a stretch!",
+      "Your body needs a break"
+    ],
+    "positive_popup_messages": [
+      "Even 2 min standing helps blood flow",
+      "Quick stand = fresh mind"
+    ]
+  },
+  "periodic_notifications": {
+    "inactivity_enabled": true,
+    "inactivity_after_mins": 60,
+    "posture_balance_enabled": true,
+    "praise_halfway_enabled": true
+  }
+}

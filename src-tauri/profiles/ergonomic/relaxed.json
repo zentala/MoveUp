@@ -1,0 +1,27 @@
+{
+  "id": "relaxed",
+  "name": "Relaxed",
+  "description": "Long focus sessions — generous limits, low penalties",
+  "limits": {
+    "sitting_secs": 3600,
+    "standing_secs": 1800,
+    "standing_target_secs": 1200,
+    "standing_max_secs": 7200
+  },
+  "scoring": {
+    "pts_standing_per_min": 0.5,
+    "pts_session_bonus": 3.0,
+    "pts_sitting_per_min": -0.25
+  },
+  "kpi": {
+    "standing_green_pct": 15.0,
+    "standing_yellow_pct": 10.0,
+    "changes_green": 1.0,
+    "changes_yellow": 0.5,
+    "break_yellow_missed": 2,
+    "break_red_missed": 3,
+    "session_green_mins": 45,
+    "session_yellow_mins": 75,
+    "early_data_threshold_mins": 30
+  }
+}

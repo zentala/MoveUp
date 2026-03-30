@@ -10,7 +10,6 @@ use std::time::SystemTime;
 use serde::de::DeserializeOwned;
 
 use crate::communication_profile::CommunicationProfile;
-use crate::ergonomic_profile::ErgonomicProfile;
 
 // ── load_profile ─────────────────────────────────────────────────────────────
 
@@ -129,15 +128,37 @@ fn mtime(path: &Path) -> Option<SystemTime> {
     std::fs::metadata(path).ok()?.modified().ok()
 }
 
+// ── Built-in profile JSON content ────────────────────────────────────────────
+
+/// Built-in communication profiles embedded in the binary.
+const COMM_PROFILE_DEFAULT: &str = include_str!("../profiles/communication/default.json");
+const COMM_PROFILE_AGGRESSIVE: &str = include_str!("../profiles/communication/aggressive.json");
+const COMM_PROFILE_GENTLE: &str = include_str!("../profiles/communication/gentle.json");
+const COMM_PROFILE_SILENT: &str = include_str!("../profiles/communication/silent.json");
+
+/// Built-in ergonomic profiles embedded in the binary.
+const ERGO_PROFILE_DEFAULT: &str = include_str!("../profiles/ergonomic/default.json");
+const ERGO_PROFILE_STRICT: &str = include_str!("../profiles/ergonomic/strict.json");
+const ERGO_PROFILE_RELAXED: &str = include_str!("../profiles/ergonomic/relaxed.json");
+
 // ── ensure_profiles_dir ──────────────────────────────────────────────────────
 
-/// Create the `profiles/` directory tree under `app_data_dir` and write default
-/// JSON files for any profiles that don't already exist.
+/// Create the `profiles/` directory tree under `app_data_dir` and write all
+/// built-in profile JSON files if they don't already exist.
 ///
-/// Layout written:
+/// Copies embedded JSON profiles from the binary to the app data directory.
+/// This ensures users have a full set of built-in profiles to choose from and
+/// allows them to customize profiles by editing these files.
+///
+/// Layout created:
 /// ```text
 /// <app_data_dir>/profiles/ergonomic/default.json
+/// <app_data_dir>/profiles/ergonomic/strict.json
+/// <app_data_dir>/profiles/ergonomic/relaxed.json
 /// <app_data_dir>/profiles/communication/default.json
+/// <app_data_dir>/profiles/communication/aggressive.json
+/// <app_data_dir>/profiles/communication/gentle.json
+/// <app_data_dir>/profiles/communication/silent.json
 /// ```
 pub fn ensure_profiles_dir(app_data_dir: &Path) {
     let ergo_dir = app_data_dir.join("profiles").join("ergonomic");
@@ -149,21 +170,25 @@ pub fn ensure_profiles_dir(app_data_dir: &Path) {
         }
     }
 
-    write_default_if_missing::<ErgonomicProfile>(&ergo_dir.join("default.json"));
-    write_default_if_missing::<CommunicationProfile>(&comm_dir.join("default.json"));
+    // Write ergonomic profiles
+    write_if_missing(&ergo_dir.join("default.json"), ERGO_PROFILE_DEFAULT);
+    write_if_missing(&ergo_dir.join("strict.json"), ERGO_PROFILE_STRICT);
+    write_if_missing(&ergo_dir.join("relaxed.json"), ERGO_PROFILE_RELAXED);
+
+    // Write communication profiles
+    write_if_missing(&comm_dir.join("default.json"), COMM_PROFILE_DEFAULT);
+    write_if_missing(&comm_dir.join("aggressive.json"), COMM_PROFILE_AGGRESSIVE);
+    write_if_missing(&comm_dir.join("gentle.json"), COMM_PROFILE_GENTLE);
+    write_if_missing(&comm_dir.join("silent.json"), COMM_PROFILE_SILENT);
 }
 
-fn write_default_if_missing<T: serde::Serialize + Default>(path: &Path) {
+/// Write embedded profile JSON content to disk if the file doesn't exist.
+fn write_if_missing(path: &Path, content: &str) {
     if path.exists() {
         return;
     }
-    match serde_json::to_string_pretty(&T::default()) {
-        Ok(json) => {
-            if let Err(e) = std::fs::write(path, json) {
-                log::warn!("ensure_profiles_dir: cannot write {:?}: {}", path, e);
-            }
-        }
-        Err(e) => log::warn!("ensure_profiles_dir: serialize failed for {:?}: {}", path, e),
+    if let Err(e) = std::fs::write(path, content) {
+        log::warn!("ensure_profiles_dir: cannot write {:?}: {}", path, e);
     }
 }
 
