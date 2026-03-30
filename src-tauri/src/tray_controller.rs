@@ -134,6 +134,7 @@ fn update_from_policy(app: &AppHandle) {
         standing_lap_progress,
         standing_lap,
         standing_lap_flash,
+        continuous_computer_secs: snapshot.continuous_computer_secs,
     };
 
     let signals = app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).evaluate(&input);

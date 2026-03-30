@@ -31,6 +31,8 @@ pub struct PolicyInput {
     pub standing_lap: u32,
     /// Trigger a flash animation on lap reset.
     pub standing_lap_flash: bool,
+    /// Continuous seconds at the computer (Sitting+Standing). Resets after 5+ min Away.
+    pub continuous_computer_secs: i64,
 }
 
 // ---------------------------------------------------------------------------
@@ -53,6 +55,8 @@ pub struct CommunicationPolicy {
     last_notify_time: Option<Instant>,
     /// How many notifications have been fired this escalation (resets on position change).
     notify_count: u32,
+    /// Whether the screen break nudge has been fired this computer session.
+    screen_break_nudge_fired: bool,
 }
 
 impl CommunicationPolicy {
@@ -67,6 +71,7 @@ impl CommunicationPolicy {
             last_notify_step: None,
             last_notify_time: None,
             notify_count: 0,
+            screen_break_nudge_fired: false,
         }
     }
 
@@ -108,10 +113,29 @@ impl CommunicationPolicy {
         let offset = input.elapsed_secs - limit_secs;
         let active_step = steps.iter().enumerate().filter(|(_, s)| offset >= s.at).last();
 
-        match active_step {
+        let mut signals = match active_step {
             Some((idx, step)) => self.step_to_signals(step, idx, input),
             None => self.make_baseline(input),
+        };
+
+        // Screen break nudge: when standing within limits but computer time exceeded.
+        // Only nudges when Standing (Sitting has its own escalation) and no existing notification.
+        if input.state == DeskState::Standing
+            && signals.notify.is_none()
+            && !self.screen_break_nudge_fired
+            && self.ergo_profile.limits.max_continuous_computer_secs > 0
+            && input.continuous_computer_secs >= self.ergo_profile.limits.max_continuous_computer_secs as i64
+            && self.comm_profile.screen_break_nudge.enabled
+        {
+            if let Some(msg) = crate::screen_break_nudge::pick_nudge_message(
+                &self.comm_profile.screen_break_nudge.messages,
+            ) {
+                signals.notify = Some(NotifySignal::Toast(msg));
+                self.screen_break_nudge_fired = true;
+            }
         }
+
+        signals
     }
 
     /// Record a user dismiss — start a snooze timer and advance the snooze index.
@@ -136,6 +160,7 @@ impl CommunicationPolicy {
         self.last_notify_step = None;
         self.last_notify_time = None;
         self.notify_count = 0;
+        self.screen_break_nudge_fired = false;
     }
 
     /// Clear the disconnect-notified flag when the sensor reconnects.

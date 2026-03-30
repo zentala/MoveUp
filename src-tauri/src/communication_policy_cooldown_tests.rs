@@ -24,6 +24,7 @@ mod tests {
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
+            continuous_computer_secs: 0,
         }
     }
 

@@ -25,6 +25,7 @@ mod tests {
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
+            continuous_computer_secs: 0,
         }
     }
 
@@ -36,6 +37,7 @@ mod tests {
             standing_lap_progress: progress,
             standing_lap: 0,
             standing_lap_flash: false,
+            continuous_computer_secs: 0,
         }
     }
 
@@ -133,6 +135,7 @@ mod tests {
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
+            continuous_computer_secs: 0,
         };
         let sig1 = p.evaluate(&input);
         assert!(matches!(sig1.tray, TraySignal::Blink(_)));
@@ -155,6 +158,7 @@ mod tests {
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
+            continuous_computer_secs: 0,
         };
         let sig = p.evaluate(&input);
         assert_eq!(sig.tray, TraySignal::None);
@@ -214,6 +218,7 @@ mod tests {
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
+            continuous_computer_secs: 0,
         };
         // Fire disconnect toast
         let sig1 = p.evaluate(&disconnected_input);
@@ -240,6 +245,7 @@ mod tests {
             standing_lap_progress: 0.5,
             standing_lap: 1,
             standing_lap_flash: false,
+            continuous_computer_secs: 0,
         };
         let sig = p.evaluate(&input);
         assert_eq!(sig.tray, TraySignal::None);
