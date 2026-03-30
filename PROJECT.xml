@@ -18,18 +18,22 @@
       <debounce>5 stable readings required before state change</debounce>
     </feature>
     <feature name="session-tracking">
-      <description>Tracks sitting session duration, enforces 40-min default limit, break credit rules</description>
+      <description>Tracks sitting session duration, enforces configurable limit (default 40 min), break credit rules (proportional multiplier)</description>
     </feature>
     <feature name="points-system">
       <description>+1/min standing, +5/lap bonus, -0.5/min sitting; daily_score in tooltip + floating window</description>
     </feature>
     <feature name="standing-progress-bar">
-      <description>Gold overlay bar fills 0-to-standing_target_mins, lap flash at 100%</description>
+      <description>Overlay bar fills 0-to-standing_target_mins, lap flash at 100%</description>
+    </feature>
+    <feature name="communication-architecture">
+      <description>Profile-driven signal system: CommunicationPolicy decides signals (tray/overlay/notify), CommunicationProfile configures thresholds, visual patterns and escalation. Replaces AlertManager.</description>
+      <profiles path="src-tauri/profiles/">JSON files for communication (default/aggressive/gentle/silent/demo) and ergonomic (standard/strict/relaxed/demo/default) profiles</profiles>
     </feature>
     <feature name="ui">
-      <component name="system-tray">Height tooltip, colored dot icon (green/yellow/red/gold), context menu</component>
+      <component name="system-tray">Height tooltip, colored dot icon (neutral/yellow/red), context menu</component>
       <component name="floating-window">Widget-based: OneBar, TimelineZen, or Placeholder via registry</component>
-      <component name="overlay-bar">4px top-of-screen WinAPI bar, green-to-red (sitting) or gold (standing)</component>
+      <component name="overlay-bar">4px top-of-screen WinAPI bar, neutral-to-red (sitting progress)</component>
       <component name="alert-popup">WinAPI popup at session limit, progressive escalation with snooze</component>
       <component name="welcome-popup">First-launch onboarding, Tauri WebviewWindow, dismiss persisted</component>
       <component name="transition-banner">30s banner after sit-to-stand or stand-to-sit</component>
@@ -41,7 +45,7 @@
       <description>SQLite stores session history, today summaries</description>
     </feature>
     <feature name="settings">
-      <description>Sit/stand limits, calibration, notification prefs, widget picker — tauri-plugin-store</description>
+      <description>Sit/stand limits, calibration, notification prefs, widget picker, profile selector — tauri-plugin-store</description>
     </feature>
     <feature name="auto-connect">
       <description>Auto-detects zntl-desk-sensor v1 on serial ports via PING/PONG handshake</description>
@@ -62,11 +66,13 @@
       <file name="main.rs">Binary entry — calls lib::run()</file>
       <file name="commands.rs">IPC commands: list_ports, start_auto_connect, stop_reading, get_session_state, get_today_summary, inject_reading, trigger_test_notification, dismiss_welcome, show_welcome</file>
       <file name="commands_config.rs">Config IPC: set_session_limit, set_stand_limit, calibrate, get_settings, save_settings, get_overlay_state</file>
+      <file name="commands_profiles.rs">Profile IPC: list_communication_profiles, list_ergonomic_profiles, get_active_profiles, switch_communication_profile, switch_ergonomic_profile, open_profile_in_editor, duplicate_profile</file>
+      <file name="commands_profiles_tests.rs">11 validation tests for profile commands</file>
       <file name="session.rs">SessionManager constructor + re-exports</file>
       <file name="session_types.rs">Structs: SessionState, SessionStateDto, DeskState, StateChangedPayload, AppConfig fields</file>
       <file name="session_manager.rs">SessionManager impl: on_reading, state transitions, score accumulation</file>
       <file name="session_reading.rs">Reading processing logic split from session_manager</file>
-      <file name="session_breaks.rs">Break credit rules: &lt;5min, 5-9min, gte10min</file>
+      <file name="session_breaks.rs">Break credit rules: &lt;5min, 5-9min, gte10min (proportional multiplier)</file>
       <file name="serial.rs">Background serial reader — auto-detect, parse, emit events</file>
       <file name="serial_parser.rs">parse_distance + device detection helpers</file>
       <file name="serial_periodic.rs">Periodic notification check loop</file>
@@ -74,22 +80,49 @@
       <file name="db.rs">SQLite connection + schema</file>
       <file name="db_sessions.rs">Session CRUD operations</file>
       <file name="db_queries.rs">TodaySummary + aggregate queries</file>
-      <file name="config.rs">AppConfig struct — tauri-plugin-store persistence</file>
+      <file name="config.rs">AppConfig struct — tauri-plugin-store persistence (slimmed: 20 fields moved to profiles)</file>
       <file name="tray.rs">System tray — icon, tooltip, context menu, left-click toggle</file>
-      <file name="tray_controller.rs">Wires desk events to tray + overlay + alerts</file>
+      <file name="tray_controller.rs">Wires desk events to tray + overlay + communication policy signals</file>
       <file name="tray_icon.rs">Generates RGBA tray icons by state + progress (white base + colored dot)</file>
-      <file name="colors.rs">Progress-to-color mapping + color_for_standing()</file>
+      <file name="tray_blink.rs">Tray icon blinking engine — animates icon at configurable intervals</file>
+      <file name="tray_blink_tests.rs">10 unit tests for blink engine</file>
+      <file name="tray_signal_exec.rs">Signal execution dispatcher — routes TraySignal/OverlaySignal/NotifySignal to subsystems</file>
+      <file name="communication_policy.rs">CommunicationPolicy — central signal decision engine; maps session state to output signals</file>
+      <file name="communication_policy_helpers.rs">Signal parsing helpers for CommunicationPolicy</file>
+      <file name="communication_policy_tests.rs">14 unit tests for signal decision logic</file>
+      <file name="communication_types.rs">Signal enums: TraySignal, OverlaySignal, NotifySignal, PopupSignal</file>
+      <file name="communication_profile.rs">CommunicationProfile struct — escalation thresholds, signal mappings, visual patterns</file>
+      <file name="communication_profile_defaults.rs">Default factory functions for built-in communication profiles</file>
+      <file name="communication_profile_visuals.rs">Visual config structs: blink patterns, overlay animation configs</file>
+      <file name="ergonomic_profile.rs">ErgonomicProfile struct — session limits, scoring rules, KPI thresholds</file>
+      <file name="profile_loader.rs">Profile JSON loading, validation, file-system watching</file>
+      <file name="profile_reload.rs">Hot-reload logic — polls active profile file for changes</file>
+      <file name="colors.rs">Progress-to-color mapping — neutral/yellow/red palette (green/gold removed)</file>
       <file name="overlay_renderer.rs">OverlayRenderer, OverlayState, DataSource, demo/mock progress</file>
       <file name="overlay_opaque.rs">OPAQUE render backend (GDI BeginPaint/FillRect)</file>
       <file name="overlay_layered.rs">LAYERED render backend (UpdateLayeredWindow)</file>
       <file name="overlay_layered_wndproc.rs">Window procedure for LAYERED overlay</file>
       <file name="overlay_variants.rs">Render variant pixels (solid, gradient, pulsing)</file>
-      <file name="overlay_standing.rs">Standing bar render logic (gold bar + lap indicators)</file>
-      <file name="alert_manager.rs">AlertManager state machine — progressive escalation</file>
-      <file name="alert_actions.rs">AlertAction enum + AlertStage</file>
-      <file name="alert_config.rs">AlertConfig — snooze durations, messages</file>
+      <file name="overlay_standing.rs">Standing bar render logic</file>
       <file name="alert_popup.rs">AlertPopup — show/dismiss lifecycle</file>
       <file name="alert_popup_window.rs">WinAPI popup window thread</file>
+    </layer>
+
+    <layer name="profiles" path="src-tauri/profiles/">
+      <dir name="communication/">
+        <file name="default.json">Default communication profile — balanced escalation</file>
+        <file name="aggressive.json">Aggressive communication — early escalation, persistent signals</file>
+        <file name="gentle.json">Gentle communication — late escalation, subtle signals</file>
+        <file name="silent.json">Silent mode — no tray blink, no notifications</file>
+        <file name="demo.json">Demo profile — fast cycle for testing</file>
+      </dir>
+      <dir name="ergonomic/">
+        <file name="standard.json">Standard ergonomic profile — 40min sit limit, default scoring</file>
+        <file name="strict.json">Strict ergonomic — shorter sit limit, higher score pressure</file>
+        <file name="relaxed.json">Relaxed ergonomic — longer sit limit, lenient scoring</file>
+        <file name="demo.json">Demo ergonomic profile — compressed timeframes for testing</file>
+        <file name="default.json">Default ergonomic profile (symlink/alias to standard)</file>
+      </dir>
     </layer>
 
     <layer name="react-frontend" path="src/">
@@ -111,7 +144,7 @@
       <dir name="components/">
         <file name="HeightRail.tsx">Visual left-side accent bar</file>
         <file name="SessionProgress.tsx">Sitting session timer and progress</file>
-        <file name="SettingsPanel.tsx">Settings UI — limits, calibration, notifications, widget picker</file>
+        <file name="SettingsPanel.tsx">Settings UI — limits, calibration, notifications, widget picker, profile selector</file>
         <file name="StateIndicator.tsx">Badge showing current state</file>
         <file name="TodayStats.tsx">Today totals: sitting, standing, changes, score</file>
         <file name="TransitionBanner.tsx">30s banner after state transition</file>
@@ -122,6 +155,7 @@
           <file name="CalibrationSection.tsx">Calibration UI section</file>
           <file name="NotificationsSection.tsx">Notification prefs section</file>
           <file name="WidgetPickerSection.tsx">Widget selection dropdown</file>
+          <file name="ProfileSelector.tsx">Profile dropdown — switch communication and ergonomic profiles</file>
           <file name="SettingsTypes.ts">Settings type definitions</file>
         </dir>
       </dir>
@@ -144,6 +178,7 @@
       <event name="desk:sensor-error" direction="rust-to-js">Serial or sensor error</event>
       <event name="desk:state-changed" direction="rust-to-js">State transition payload</event>
       <event name="desk:daily-reset" direction="rust-to-js">New day detected, counters reset</event>
+      <event name="desk:popup-theme" direction="rust-to-js">Popup signal: Neutral / Yellow / Red / Gray — tells frontend what urgency theme to render</event>
     </layer>
 
     <layer name="ipc-commands">
@@ -153,6 +188,13 @@
       <command name="get_session_state">Current SessionStateDto snapshot</command>
       <command name="get_today_summary">TodaySummaryDto from SQLite</command>
       <command name="inject_reading">Debug: simulate sensor reading</command>
+      <command name="list_communication_profiles">List available communication profile IDs and metadata</command>
+      <command name="list_ergonomic_profiles">List available ergonomic profile IDs and metadata</command>
+      <command name="get_active_profiles">Get currently active communication and ergonomic profile IDs</command>
+      <command name="switch_communication_profile">Switch active communication profile by ID</command>
+      <command name="switch_ergonomic_profile">Switch active ergonomic profile by ID</command>
+      <command name="open_profile_in_editor">Open profile JSON file in system default editor</command>
+      <command name="duplicate_profile">Duplicate an existing profile with a new name</command>
     </layer>
 
   </architecture>
@@ -161,8 +203,8 @@
     <strategy coverage-gate="80%">3-layer: Unit to Integration to E2E</strategy>
 
     <layer name="unit-rust" path="src-tauri/src/" runner="cargo test">
-      <files>session_tests.rs, session_tests_alerts.rs, session_tests_daily.rs, session_tests_props.rs, session_tests_floating.rs, session_tests_score.rs, overlay_tests.rs, overlay_variant_tests.rs, overlay_standing_tests.rs, alert_manager_tests.rs, alert_snooze_tests.rs, config_tests.rs, db_tests.rs, tray_controller_tests.rs</files>
-      <count>183 tests</count>
+      <files>session_tests.rs, session_tests_alerts.rs, session_tests_daily.rs, session_tests_props.rs, session_tests_floating.rs, session_tests_score.rs, overlay_tests.rs, overlay_variant_tests.rs, overlay_standing_tests.rs, communication_policy_tests.rs, tray_blink_tests.rs, commands_profiles_tests.rs, config_tests.rs, db_tests.rs, tray_controller_tests.rs</files>
+      <count>208 tests (183 existing + 14 communication_policy + 10 tray_blink + 11 commands_profiles, minus removed alert tests)</count>
     </layer>
 
     <layer name="unit-ts" path="src/**/*.test.tsx" runner="pnpm test:unit">
