@@ -172,6 +172,9 @@ impl SessionManager {
         self.state.last_accumulate_ts = Some(now);
         self.last_accumulate_ran = true;
 
+        // Refresh system idle time from activity module.
+        self.state.idle_secs = crate::activity::get_idle_seconds() as i64;
+
         // Continuous computer timer and Away bout tracking.
         // Walking is grouped with Away (both = not at computer).
         match self.state.state {
@@ -187,7 +190,7 @@ impl SessionManager {
                 self.state.away_bout_secs += 1;
                 // After 5 continuous minutes of Away: reset continuous computer timer
                 // and count as a position change (fires exactly once at 300s).
-                if self.state.away_bout_secs == 300 {
+                if self.state.away_bout_secs == self.state.computer_break_reset_secs {
                     self.state.continuous_computer_secs = 0;
                     self.state.position_changes += 1;
                 }

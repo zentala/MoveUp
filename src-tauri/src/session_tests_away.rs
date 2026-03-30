@@ -173,4 +173,52 @@ mod tests {
         let events = m.check_notification_conditions(&comm);
         assert!(events.len() >= 2, "should fire when sitting, got {:?}", events);
     }
+
+    // ─── Configurable Computer Break Reset ──────────────────────────────
+
+    #[test]
+    fn computer_timer_resets_at_configurable_threshold() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Away;
+        m.state.continuous_computer_secs = 4500;
+        m.state.computer_break_reset_secs = 5; // 5s instead of default 300s
+        m.state.last_accumulate_ts = None;
+
+        for i in 0..5 {
+            let now = Utc::now() + chrono::Duration::seconds(i);
+            m.state.last_accumulate_ts =
+                if i == 0 { None } else { Some(now - chrono::Duration::seconds(1)) };
+            m.accumulate_ongoing(now);
+        }
+
+        assert_eq!(
+            m.state.continuous_computer_secs, 0,
+            "computer timer should reset at configurable threshold (5s)"
+        );
+        assert_eq!(
+            m.state.position_changes, 1,
+            "position change should fire at configurable threshold"
+        );
+    }
+
+    #[test]
+    fn computer_timer_does_not_reset_before_threshold() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Away;
+        m.state.continuous_computer_secs = 4500;
+        m.state.computer_break_reset_secs = 10;
+        m.state.last_accumulate_ts = None;
+
+        for i in 0..5 {
+            let now = Utc::now() + chrono::Duration::seconds(i);
+            m.state.last_accumulate_ts =
+                if i == 0 { None } else { Some(now - chrono::Duration::seconds(1)) };
+            m.accumulate_ongoing(now);
+        }
+
+        assert_eq!(
+            m.state.continuous_computer_secs, 4500,
+            "computer timer must not reset before reaching threshold"
+        );
+    }
 }
