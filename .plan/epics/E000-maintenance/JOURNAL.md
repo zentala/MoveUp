@@ -1,5 +1,14 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-30 — Timeline Skin System
+
+- **Goal**: Fix timeline readability (all segments were indistinguishable brown-gray)
+- **Done**: Implemented 3 switchable timeline skins (Semantic, Amber, Clinical) with CSS var-driven architecture. Settings dropdown in More tab. Fixed walking state inconsistency in OneBar. (commits: e43b1c5, 6d22b87)
+- **Decisions**: Skins are independent from communication/ergonomic profiles (visual preference ≠ behavioral logic). No external library needed — pure CSS vars + flexbox. Research confirmed Fitbit/Garmin use the same pattern.
+- **Findings this session**: 0
+- **Improvements logged**: walking state was mapped to standing in OneBar (fixed), `:root` CSS duplication (fixed), DRY hook extraction deferred (LOW)
+- **Next**: Dogfood skins with real sensor data, consider skin preview strip in Settings, extract generic `usePersistedSetting` hook if more settings added
+
 ## Session 2026-03-30 — Notification Anti-Spam & Backlog Triage
 
 - **Goal**: Fix duplicate notification spam, clean up autostart registry, triage backlog

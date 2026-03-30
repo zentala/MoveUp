@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-30T21:00:00Z
+updated: 2026-03-30T22:45:00Z
 active_epic: E000
 active_epic_path: .plan/epics/E000-maintenance
 current_wave: n/a
@@ -43,8 +43,16 @@ Major refactor completed in E000-maintenance:
 - Cleaned 3 stale autostart registry entries
 - ADR 010 — notification escalating silence philosophy
 
+## Recent: Timeline Skin System (2026-03-30)
+- 3 switchable skins: Semantic (default), Amber, Clinical
+- CSS var-driven (`--tl-*`), skin class on widget container
+- Settings dropdown in More tab, persisted in AppConfig
+- Fixed walking state inconsistency (OneBar mapped walking→standing)
+- 2 commits, 14 files changed
+
 ## Next Steps
-1. Fix timeline readability (BACKLOG — all-gray, indistinguishable states)
-2. Dogfood notification anti-spam — verify no more spam in daily use
-3. E010 human tasks (photos, video, GIF)
+1. Dogfood timeline skins + notification anti-spam in daily use
+2. Consider skin preview strip in Settings dropdown
+3. Extract generic `usePersistedSetting` hook (DRY)
+4. E010 human tasks (photos, video, GIF)
 4. Deploy landing page + waitlist endpoint
