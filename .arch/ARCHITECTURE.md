@@ -24,7 +24,8 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 │    ├── session_types.rs    (DeskState, SessionState, DTOs)   │
 │    ├── session_manager.rs  (state machine, score)            │
 │    ├── session_reading.rs  (reading processing)              │
-│    └── session_breaks.rs   (break credit rules)              │
+│    ├── session_breaks.rs   (break credit rules)              │
+│    └── session_persistence.rs (flag+credit store persist)    │
 │       │                                                      │
 │       ├──→ db.rs / db_sessions.rs / db_queries.rs (SQLite)   │
 │       │                                                      │

@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-30T22:45:00Z
+updated: 2026-03-30T23:30:00Z
 active_epic: E000
 active_epic_path: .plan/epics/E000-maintenance
 current_wave: n/a
@@ -14,9 +14,9 @@ current_wave: n/a
 - Current: `v0.3.0`
 
 ## Test Totals
-- Rust: 393 tests
+- Rust: 403 tests
 - TypeScript: 197 tests
-- Total: 590
+- Total: 600
 
 ## Recent: Communication Architecture (2026-03-30)
 
@@ -50,9 +50,16 @@ Major refactor completed in E000-maintenance:
 - Fixed walking state inconsistency (OneBar mapped walking→standing)
 - 2 commits, 14 files changed
 
+## Recent: Session State Persistence (2026-03-30)
+- Notification flags, break credit, daily_score persisted to tauri-plugin-store
+- Survives restarts within same day (date-guarded)
+- Store cleared on daily reset
+- 10 new tests (round-trip, serde, daily-reset interaction)
+- 1 commit, 8 files changed (2 new + 6 modified)
+
 ## Next Steps
-1. Dogfood timeline skins + notification anti-spam in daily use
-2. Consider skin preview strip in Settings dropdown
+1. Dogfood persistence + timeline skins + notification anti-spam in daily use
+2. Consider persisting CommunicationPolicy escalation cooldown state
 3. Extract generic `usePersistedSetting` hook (DRY)
 4. E010 human tasks (photos, video, GIF)
-4. Deploy landing page + waitlist endpoint
+5. Deploy landing page + waitlist endpoint

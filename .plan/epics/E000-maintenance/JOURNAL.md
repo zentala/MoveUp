@@ -233,3 +233,14 @@
 - **Findings this session**: 1 (DB loading path was never fixed in 4b368c3, only in-memory path was)
 - **Improvements logged**: 0
 - **Next**: Dogfood with all fixes. Gamification research report. Pick next epic.
+
+## Session 2026-03-30 — Session State Persistence
+
+- **Goal**: Persist notification flags and break credit across app restarts (P2 bug from BACKLOG)
+- **Done**: New `session_persistence.rs` module — persists flags, credited sitting_seconds, and daily_score to tauri-plugin-store. Date-guarded (discards stale data after midnight). Store cleared on daily reset. DRY `save_via_app()` + `clear()` helpers. 10 new tests including full round-trip scenario. (commit: 5bed2aa)
+- **Decisions**: Used tauri-plugin-store (same as AppConfig) instead of SQLite — simpler, no migration. Date guard approach instead of explicit expiry timestamps.
+- **Findings this session**: 2
+  - Break credit was also lost on restart (not just flags) — `load_today_totals` loaded raw DB value without credit reduction
+  - `setup_helpers.rs` had dual init path with `commands.rs::ensure_initialized` — both now load persisted state
+- **Improvements logged**: 1 (CommunicationPolicy escalation state not yet persisted — deferred, LOW)
+- **Next**: Dogfood persistence with real usage. Consider persisting escalation cooldown state.
