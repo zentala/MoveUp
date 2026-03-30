@@ -37,14 +37,15 @@
   --beam-dim:  rgba(217, 119, 6, 0.08);
 
   /* Semantic signals — synced with src-tauri/src/colors.rs */
-  --signal-ok:    #4caf50;
+  --signal-neutral: #2c2920;
   --signal-warn:  #ffc107;
   --signal-alert: #f44336;
-  --signal-up:    #DAA520;
   --signal-away:  #808080;
 
+  /* KPI metric evaluation colors — NOT for position state */
+  --signal-ok: #4caf50;
+
   /* Semantic glow — derived from signal colors */
-  --glow-ok:    rgba( 76, 175,  80, 0.18);
   --glow-warn:  rgba(255, 193,   7, 0.18);
   --glow-alert: rgba(244,  67,  54, 0.18);
 
@@ -205,9 +206,9 @@ body {
   transition: background 0.3s, box-shadow 0.3s;
 }
 
-.state-indicator__dot--sitting  { background: var(--signal-ok);   box-shadow: 0 0 5px var(--glow-ok); }
-.state-indicator__dot--standing { background: var(--signal-up);   box-shadow: 0 0 6px var(--beam-glow); }
-.state-indicator__dot--walking  { background: var(--signal-up);   box-shadow: 0 0 6px var(--beam-glow); }
+.state-indicator__dot--sitting  { background: var(--signal-neutral); }
+.state-indicator__dot--standing { background: var(--beam);   box-shadow: 0 0 6px var(--beam-glow); }
+.state-indicator__dot--walking  { background: var(--beam);   box-shadow: 0 0 6px var(--beam-glow); }
 .state-indicator__dot--away     { background: var(--signal-away); }
 
 .state-indicator__label {
@@ -272,7 +273,7 @@ body {
   transition: width 0.5s ease, background 0.5s ease;
 }
 
-.progress-fill--ok    { background: var(--signal-ok); }
+.progress-fill--ok    { background: var(--signal-neutral); }
 .progress-fill--warn  { background: var(--signal-warn); }
 .progress-fill--alert { background: var(--signal-alert); }
 
@@ -346,7 +347,7 @@ body {
   flex-shrink: 0;
 }
 
-.status-dot--green  { background: var(--signal-ok);    box-shadow: 0 0 4px var(--glow-ok); }
+.status-dot--green  { background: var(--signal-neutral); }
 .status-dot--yellow { background: var(--signal-warn);  box-shadow: 0 0 4px var(--glow-warn); }
 .status-dot--red    { background: var(--signal-alert); box-shadow: 0 0 4px var(--glow-alert); }
 
@@ -696,7 +697,7 @@ body {
 }
 
 .delta--better {
-  color: var(--signal-ok);
+  color: var(--signal-warn);
 }
 
 .delta--worse {

@@ -77,7 +77,7 @@ impl Default for OverlayState {
             .min(2); // 0=solid, 1=gradient, 2=pulsing
         Self {
             progress: 0.0,
-            color_rgb: (76, 175, 80), // green
+            color_rgb: crate::colors::NEUTRAL, // neutral default
             visible: false,
             needs_redraw: false,
             frame_count: 0,
@@ -204,7 +204,7 @@ pub(crate) fn mock_progress(frame_count: u32) -> (f32, (u8, u8, u8), bool) {
         (progress, (r, g, b), true)
     } else {
         // Stand phase: bar hidden, progress reset
-        (0.0, (76, 175, 80), false)
+        (0.0, crate::colors::NEUTRAL, false)
     }
 }
 

@@ -58,7 +58,7 @@ fn color_for_progress_works_with_renderer() {
     let (r, g, b, _css) = color_for_progress(0.3);
     renderer.update(0.3, (r, g, b));
     let state = renderer.state.lock().unwrap();
-    assert_eq!(state.color_rgb, (76, 175, 80));
+    assert_eq!(state.color_rgb, (0x2c, 0x29, 0x20));
 }
 
 #[test]

@@ -9,9 +9,9 @@
 .one-bar--warm    { --ob-bg: #12100c;              --ob-glow: 0 0 12px rgba(140,40,40,0.04); }
 .one-bar--hot     { --ob-bg: #140e0c;              --ob-glow: 0 0 16px rgba(180,40,40,0.06); }
 .one-bar--burning { --ob-bg: #16100c;              --ob-glow: 0 0 20px rgba(200,40,40,0.1); }
-.one-bar--standing { --ob-bg: #0e100c;             --ob-glow: 0 0 12px var(--glow-ok); }
+.one-bar--standing { --ob-bg: #0e100c;             --ob-glow: 0 0 12px var(--beam-glow); }
 .one-bar--away    { --ob-bg: var(--panel-base);    --ob-glow: none; }
-.one-bar--reset   { --ob-bg: #0e110c;             --ob-glow: 0 0 14px var(--glow-ok); }
+.one-bar--reset   { --ob-bg: #0e110c;             --ob-glow: 0 0 14px var(--beam-glow); }
 
 /* Main container — fills entire window */
 .one-bar {
@@ -121,9 +121,9 @@
 }
 .one-bar__timeline-block:hover { opacity: 0.8; }
 
-.one-bar__timeline-block--sitting  { background-color: var(--signal-alert); opacity: 0.7; }
-.one-bar__timeline-block--standing { background-color: var(--signal-ok); opacity: 0.7; }
-.one-bar__timeline-block--away     { background-color: var(--ink-muted); }
+.one-bar__timeline-block--sitting  { background-color: var(--signal-neutral); opacity: 0.9; }
+.one-bar__timeline-block--standing { background-color: var(--ink-muted); opacity: 0.5; }
+.one-bar__timeline-block--away     { background-color: var(--ink-muted); opacity: 0.3; }
 
 .one-bar__timeline-block--current {
   box-shadow: inset -2px 0 4px rgba(255,255,255,0.2);

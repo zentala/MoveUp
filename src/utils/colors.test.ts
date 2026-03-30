@@ -7,11 +7,9 @@ import { describe, it, expect } from "vitest";
 import {
   THRESHOLD_YELLOW,
   THRESHOLD_RED,
-  SITTING_GREEN,
+  NEUTRAL,
   SITTING_YELLOW,
   SITTING_RED,
-  STANDING_START,
-  STANDING_END,
   AWAY_GRAY,
   sittingColorForRatio,
 } from "@/utils/colors";
@@ -22,15 +20,13 @@ describe("color constants match Rust colors.rs", () => {
     expect(THRESHOLD_RED).toBe(0.85);
   });
 
-  it("sitting colors match", () => {
-    expect(SITTING_GREEN).toBe("#4caf50");
-    expect(SITTING_YELLOW).toBe("#ffc107");
-    expect(SITTING_RED).toBe("#f44336");
+  it("neutral color matches", () => {
+    expect(NEUTRAL).toBe("#2c2920");
   });
 
-  it("standing gradient endpoints match", () => {
-    expect(STANDING_START).toBe("#DAA520");
-    expect(STANDING_END).toBe("#FFD720");
+  it("sitting warning colors match", () => {
+    expect(SITTING_YELLOW).toBe("#ffc107");
+    expect(SITTING_RED).toBe("#f44336");
   });
 
   it("away color is gray", () => {
@@ -39,10 +35,10 @@ describe("color constants match Rust colors.rs", () => {
 });
 
 describe("sittingColorForRatio", () => {
-  it("returns green below 60%", () => {
-    expect(sittingColorForRatio(0)).toBe("#4caf50");
-    expect(sittingColorForRatio(0.3)).toBe("#4caf50");
-    expect(sittingColorForRatio(0.59)).toBe("#4caf50");
+  it("returns neutral below 60%", () => {
+    expect(sittingColorForRatio(0)).toBe("#2c2920");
+    expect(sittingColorForRatio(0.3)).toBe("#2c2920");
+    expect(sittingColorForRatio(0.59)).toBe("#2c2920");
   });
 
   it("returns yellow at 60-84%", () => {

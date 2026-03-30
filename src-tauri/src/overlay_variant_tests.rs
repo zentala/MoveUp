@@ -29,9 +29,9 @@ fn demo_progress_cycles_correctly() {
 #[test]
 fn demo_progress_returns_correct_colors() {
     let (_, color) = demo_progress(0);
-    assert_eq!(color, (76, 175, 80));
+    assert_eq!(color, (0x2c, 0x29, 0x20));
     let (_, color) = demo_progress(600);
-    assert_eq!(color, (76, 175, 80));
+    assert_eq!(color, (0x2c, 0x29, 0x20));
     let (_, color) = demo_progress(900);
     assert_eq!(color, (255, 193, 7));
     let (_, color) = demo_progress(1200);
