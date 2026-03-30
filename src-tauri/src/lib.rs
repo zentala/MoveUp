@@ -74,9 +74,12 @@ pub mod session_types;
 #[cfg(test)] mod session_tests_sleep;
 #[cfg(test)] mod session_tests_flush;
 mod tray;
+mod tray_blink;
+mod tray_icon;
 mod tray_controller;
 mod tray_helpers;
 mod tray_signal_exec;
+#[cfg(test)] mod tray_blink_tests;
 #[cfg(test)] mod tray_controller_tests;
 use std::sync::{Arc, Mutex};
 use alert_popup::AlertPopup;
@@ -85,11 +88,11 @@ use communication_profile::CommunicationProfile;
 use ergonomic_profile::ErgonomicProfile;
 use commands::AppState;
 use event_logger::EventLogger;
-use log::info;
 use overlay_renderer::OverlayRenderer;
 use serial::ConnectionState;
 use session::SessionManager;
 use snapshot_logger::SnapshotLogger;
+use tray_signal_exec::BlinkState;
 use tauri::Manager;
 /// App version constant, used by loggers.
 pub(crate) const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -124,6 +127,7 @@ pub fn run() {
             ws_tx: ws_broadcaster::create_channel(),
             today_cache: Arc::new(Mutex::new(crate::db::TodaySummary::default())),
         })
+        .manage(BlinkState::new())
         .invoke_handler({
             #[cfg(any(test, debug_assertions))]
             {
@@ -188,76 +192,7 @@ pub fn run() {
                 ]
             }
         })
-        .setup(|app| {
-            // Create app data directory
-            let app_data_dir = app.path().app_data_dir()?;
-            std::fs::create_dir_all(&app_data_dir)?;
-            info!("App data dir: {:?}", app_data_dir);
-
-            // Load communication + ergonomic profiles into CommunicationPolicy.
-            setup_helpers::load_profiles(app.handle());
-
-            // Auto-backup DB before anything else (eager, not lazy)
-            let db_path = app_data_dir.join("desk.db");
-            info!("DB path: {}", db_path.display());
-            db_backup::backup_database(&app_data_dir);
-
-            // Initialize loggers now that app_data_dir is known.
-            let logs_dir = app_data_dir.join("logs");
-            let snapshot_logger = Arc::new(SnapshotLogger::new(logs_dir.clone()));
-            snapshot_logger.cleanup_old_logs(7);
-            let event_logger = Arc::new(EventLogger::new(logs_dir));
-            event_logger.log(&format!("START v{}", APP_VERSION));
-            app.manage(Loggers {
-                snapshot: snapshot_logger.clone(),
-                event: event_logger.clone(),
-            });
-
-            setup_helpers::ensure_autostart(app.handle());
-            tray::setup_tray(app.handle())?;
-            tray_controller::setup(app.handle());
-            setup_helpers::position_main_window(app.handle());
-
-            // Load config from store and apply to SessionManager before sensor scan starts.
-            // This ensures calibration values are correct from the first sensor reading.
-            {
-                let state: tauri::State<'_, AppState> = app.state();
-                if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
-                    let config = crate::config::AppConfig::load(store.inner());
-                    let ergo = state.comm_policy.lock().unwrap().ergo_profile().clone();
-                    let mut session = state.session.lock().unwrap_or_else(|e| e.into_inner());
-                    *session = crate::session::SessionManager::new_from_config(&config, &ergo);
-                    *state.config.lock().unwrap_or_else(|e| e.into_inner()) = Some(config.clone());
-                    info!("startup: config loaded from store into SessionManager");
-
-                    // Show welcome popup on first launch (or if user hasn't dismissed it).
-                    if config.show_welcome_on_startup {
-                        if let Err(e) = commands_welcome::show_welcome_window(app.handle()) {
-                            log::warn!("Failed to show welcome popup: {}", e);
-                        }
-                    }
-                }
-            }
-
-            // Spawn remote display server + wire broadcast listeners.
-            setup_helpers::setup_remote_display(app.handle());
-
-            // Kick off auto-detection immediately on startup.
-            let state: tauri::State<'_, AppState> = app.state();
-            serial::scan_and_connect(
-                app.handle().clone(),
-                state.conn.clone(),
-                state.session.clone(),
-                state.db.clone(),
-                state.config.clone(),
-                snapshot_logger,
-                event_logger,
-            );
-
-            // Throttled notifications for missing/lost sensor.
-            setup_helpers::setup_device_notifications(app.handle());
-            Ok(())
-        })
+        .setup(|app| setup_helpers::perform_app_setup(app))
         .on_window_event(|window, event| {
             // T038: Hide the popup window when it loses focus (click outside).
             if window.label() == "main" {

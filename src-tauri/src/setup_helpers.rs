@@ -1,6 +1,6 @@
 //! setup_helpers.rs — Extracted setup logic from lib.rs.
 //!
-//! Contains window positioning, device notification listeners,
+//! Contains app setup, window positioning, device notification listeners,
 //! broadcast event wiring for the remote display WebSocket server,
 //! and graceful shutdown session persistence.
 
@@ -15,6 +15,68 @@ use window_vibrancy::apply_acrylic;
 
 use crate::commands::AppState;
 use crate::ws_broadcaster::{self, DisplayEvent};
+
+/// Main app setup — called from the Tauri `.setup()` closure in `lib.rs`.
+///
+/// Initialises logging, loads config, sets up tray, controllers, and serial scan.
+pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let app_data_dir = app.path().app_data_dir()?;
+    std::fs::create_dir_all(&app_data_dir)?;
+    info!("App data dir: {:?}", app_data_dir);
+
+    load_profiles(app.handle());
+    crate::db_backup::backup_database(&app_data_dir);
+    info!("DB path: {}", app_data_dir.join("desk.db").display());
+
+    let logs_dir = app_data_dir.join("logs");
+    let snapshot_logger = Arc::new(crate::snapshot_logger::SnapshotLogger::new(logs_dir.clone()));
+    snapshot_logger.cleanup_old_logs(7);
+    let event_logger = Arc::new(crate::event_logger::EventLogger::new(logs_dir));
+    event_logger.log(&format!("START v{}", crate::APP_VERSION));
+    app.manage(crate::Loggers {
+        snapshot: snapshot_logger.clone(),
+        event: event_logger.clone(),
+    });
+
+    ensure_autostart(app.handle());
+    crate::tray::setup_tray(app.handle())?;
+    crate::tray_controller::setup(app.handle());
+    crate::tray_signal_exec::start_blink_thread(app.handle().clone());
+    position_main_window(app.handle());
+
+    {
+        let state: tauri::State<'_, AppState> = app.state();
+        if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+            let config = crate::config::AppConfig::load(store.inner());
+            let ergo = state.comm_policy.lock().unwrap().ergo_profile().clone();
+            let mut session = state.session.lock().unwrap_or_else(|e| e.into_inner());
+            *session = crate::session::SessionManager::new_from_config(&config, &ergo);
+            *state.config.lock().unwrap_or_else(|e| e.into_inner()) = Some(config.clone());
+            info!("startup: config loaded from store into SessionManager");
+            if config.show_welcome_on_startup {
+                if let Err(e) = crate::commands_welcome::show_welcome_window(app.handle()) {
+                    log::warn!("Failed to show welcome popup: {}", e);
+                }
+            }
+        }
+    }
+
+    setup_remote_display(app.handle());
+
+    let state: tauri::State<'_, AppState> = app.state();
+    crate::serial::scan_and_connect(
+        app.handle().clone(),
+        state.conn.clone(),
+        state.session.clone(),
+        state.db.clone(),
+        state.config.clone(),
+        snapshot_logger,
+        event_logger,
+    );
+
+    setup_device_notifications(app.handle());
+    Ok(())
+}
 
 /// Minimum interval between device-missing/lost notifications (5 minutes).
 const DEVICE_NOTIFICATION_COOLDOWN_SECS: u64 = 300;

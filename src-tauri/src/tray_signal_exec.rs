@@ -1,8 +1,15 @@
 //! Signal execution — maps CommunicationPolicy signals to UI side-effects.
 //!
 //! Extracted from `tray_controller.rs` to keep it under 250 lines.
+//!
+//! Blink engine: [`TrayBlinker`] lives in a `Mutex<TrayBlinker>` inside [`BlinkState`],
+//! which is managed as Tauri app state. A background thread ticks the blinker at ~50ms
+//! and calls `tray::update_tray` / `tray::update_tray_no_dot` based on the result.
 
-use tauri::AppHandle;
+use std::sync::Mutex;
+use std::thread;
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Manager};
 
 use crate::{
     colors::{color_for_progress, color_for_standing},
@@ -10,9 +17,78 @@ use crate::{
     communication_types::{NotifySignal, OverlaySignal, PopupSignal, TraySignal},
     session::DeskState,
     tray,
+    tray_blink::{BlinkPattern, TrayBlinker},
 };
 
+// ─── BlinkState ───────────────────────────────────────────────────────────────
+
+/// Shared state for the blink background thread.
+pub struct BlinkState {
+    pub blinker: Mutex<TrayBlinker>,
+    /// Name of the currently active blink pattern (empty = none).
+    pub active_pattern_name: Mutex<String>,
+    /// Progress ratio forwarded from the last TraySignal::Blink cycle.
+    pub progress: Mutex<f32>,
+}
+
+impl BlinkState {
+    pub fn new() -> Self {
+        Self {
+            blinker: Mutex::new(TrayBlinker::new()),
+            active_pattern_name: Mutex::new(String::new()),
+            progress: Mutex::new(0.0),
+        }
+    }
+}
+
+impl Default for BlinkState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ─── Blink thread ────────────────────────────────────────────────────────────
+
+/// Spawns the blink background thread (call once from `lib.rs` setup).
+///
+/// The thread wakes every 50ms when the blinker is active, calls `tick()`,
+/// and updates the tray icon accordingly.
+pub fn start_blink_thread(app: AppHandle) {
+    thread::spawn(move || {
+        const TICK_MS: u64 = 50;
+        let mut last = Instant::now();
+
+        loop {
+            thread::sleep(Duration::from_millis(TICK_MS));
+            let elapsed = last.elapsed().as_millis() as u64;
+            last = Instant::now();
+
+            let blink_state = app.state::<BlinkState>();
+            let mut blinker = blink_state.blinker.lock().unwrap();
+
+            if !blinker.is_active() {
+                continue;
+            }
+
+            let dot_visible = blinker.tick(elapsed);
+            let progress = *blink_state.progress.lock().unwrap();
+            drop(blinker);
+
+            if dot_visible {
+                let _ = tray::update_tray(&app, "", DeskState::Sitting, progress.max(0.86));
+            } else {
+                let _ = tray::update_tray_no_dot(&app, "");
+            }
+        }
+    });
+}
+
+// ─── Signal executors ─────────────────────────────────────────────────────────
+
 /// Maps a [`TraySignal`] to a tray icon update.
+///
+/// For `Blink`, looks up the pattern in the communication profile and starts
+/// (or keeps) the blinker. For any non-Blink signal, stops the blinker.
 pub(crate) fn execute_tray(
     signal: &TraySignal,
     app: &AppHandle,
@@ -24,17 +100,75 @@ pub(crate) fn execute_tray(
         0.0
     };
 
+    // Stop any active blinker for non-Blink signals
+    if !matches!(signal, TraySignal::Blink(_)) {
+        if let Some(blink_state) = app.try_state::<BlinkState>() {
+            let mut blinker = blink_state.blinker.lock().unwrap();
+            if blinker.is_active() {
+                blinker.stop();
+            }
+            drop(blinker);
+            *blink_state.active_pattern_name.lock().unwrap() = String::new();
+        }
+    }
+
     match signal {
         TraySignal::None => {
-            let _ = tray::update_tray(app, "", DeskState::Away, 0.0);
+            let _ = tray::update_tray_no_dot(app, "");
         }
         TraySignal::Yellow => {
             let _ = tray::update_tray(app, "", DeskState::Sitting, 0.7);
         }
-        TraySignal::Red | TraySignal::Blink(_) => {
+        TraySignal::Red => {
             let _ = tray::update_tray(app, "", DeskState::Sitting, progress.max(0.86));
         }
+        TraySignal::Blink(pattern_name) => {
+            execute_tray_blink(app, pattern_name, progress);
+        }
     }
+}
+
+/// Starts or continues a blink pattern by name from the active communication profile.
+fn execute_tray_blink(app: &AppHandle, pattern_name: &str, progress: f32) {
+    let blink_state = match app.try_state::<BlinkState>() {
+        Some(s) => s,
+        None => {
+            // BlinkState not registered — fall back to red dot
+            let _ = tray::update_tray(app, "", DeskState::Sitting, progress.max(0.86));
+            return;
+        }
+    };
+
+    // Update stored progress for the blink thread to use
+    *blink_state.progress.lock().unwrap() = progress;
+
+    let mut current_name = blink_state.active_pattern_name.lock().unwrap();
+    if *current_name == pattern_name {
+        // Already running this pattern — nothing to do
+        return;
+    }
+
+    // Look up pattern in the communication profile
+    let app_state = app.state::<AppState>();
+    let profile = app_state.comm_policy.lock().unwrap().comm_profile().clone();
+    let bp = profile.blink_patterns.get(pattern_name);
+
+    let blink_pattern = if let Some(bp) = bp {
+        BlinkPattern {
+            on_ms: bp.on_ms as u64,
+            off_ms: bp.off_ms as u64,
+            count: bp.count,
+            pause_ms: bp.pause_ms as u64,
+        }
+    } else {
+        // Unknown pattern name — use a sensible default (3× blink / 10s)
+        BlinkPattern { on_ms: 250, off_ms: 250, count: 3, pause_ms: 8500 }
+    };
+
+    *current_name = pattern_name.to_string();
+    drop(current_name);
+
+    blink_state.blinker.lock().unwrap().start(blink_pattern);
 }
 
 /// Maps an [`OverlaySignal`] to overlay renderer calls.
@@ -85,9 +219,6 @@ pub(crate) fn execute_overlay(
 }
 
 /// Emits a `desk:popup-theme` event so the frontend can update the popup colour scheme.
-///
-/// The frontend floating window listens for this event and applies the
-/// appropriate CSS class / theme. `Neutral` resets to the default appearance.
 pub(crate) fn execute_popup(signal: &PopupSignal, app: &AppHandle) {
     use tauri::Emitter;
     let theme = match signal {
