@@ -43,6 +43,7 @@ mod ws_broadcaster;
 #[cfg(test)] mod overlay_tests;
 #[cfg(test)] mod overlay_variant_tests;
 #[cfg(test)] mod communication_policy_tests;
+#[cfg(test)] mod commands_profiles_tests;
 #[cfg(test)] mod config_tests;
 #[cfg(test)] mod db_tests;
 #[cfg(test)] mod db_tests_roundtrip;

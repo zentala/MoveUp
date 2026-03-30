@@ -42,7 +42,7 @@ const DEFAULT_PROFILE_ID: &str = "default";
 
 /// Rejects profile IDs that could be used for path traversal.
 /// Only alphanumeric characters, dashes, and underscores are allowed.
-fn validate_profile_id(id: &str) -> Result<(), String> {
+pub(crate) fn validate_profile_id(id: &str) -> Result<(), String> {
     if id.is_empty() || !id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
         return Err(format!(
             "Invalid profile ID '{}': only alphanumeric, dash, underscore allowed",
@@ -67,6 +67,24 @@ fn save_active_id(app: &AppHandle, key: &str, id: &str) -> Result<(), String> {
         .ok_or_else(|| "Failed to access store".to_string())?;
     store.set(key, serde_json::Value::String(id.to_string()));
     store.save().map_err(|e| format!("Failed to save store: {}", e))
+}
+
+/// Converts a display name into a valid profile ID slug.
+///
+/// Lowercases the string, maps non-alphanumeric characters to dashes, collapses
+/// consecutive dashes, and strips leading/trailing dashes. Returns `None` if the
+/// result would be empty (e.g. input was `"!!!"`).
+pub(crate) fn slugify_profile_name(name: &str) -> Option<String> {
+    let slug: String = name
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    if slug.is_empty() { None } else { Some(slug) }
 }
 
 fn profiles_dir(app: &AppHandle, subdir: &str) -> Result<std::path::PathBuf, String> {
@@ -203,15 +221,8 @@ pub fn duplicate_profile(source_path: String, new_name: String) -> Result<String
     let dir = src.parent().ok_or("Invalid source path")?;
 
     // Slugify new_name to use as file stem
-    let new_id: String = new_name
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect::<String>()
-        .split('-')
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("-");
+    let new_id = slugify_profile_name(&new_name)
+        .ok_or_else(|| format!("Cannot derive a valid ID from name '{}'", new_name))?;
 
     validate_profile_id(&new_id)?;
     let dest = dir.join(format!("{}.json", new_id));
