@@ -92,25 +92,25 @@ describe("OneBarWidget", () => {
     expect(el.className).toContain("one-bar--reset");
   });
 
-  it("shows desk height in header", () => {
+  it("shows desk height in header via StateIndicator", () => {
     render(<OneBarWidget {...props({ deskHeightCm: 72.4 })} />);
-    expect(screen.getByText("(72 cm)")).toBeInTheDocument();
+    expect(screen.getByText("72 cm")).toBeInTheDocument();
   });
 
-  it("shows state label in header with correct text", () => {
+  it("shows state label in header via StateIndicator", () => {
     const { rerender } = render(<OneBarWidget {...props({ state: "Sitting" })} />);
-    expect(screen.getByText("sitting")).toBeInTheDocument();
+    expect(screen.getByText("Sitting")).toBeInTheDocument();
 
     rerender(<OneBarWidget {...props({ state: "Standing" })} />);
-    expect(screen.getByText("standing")).toBeInTheDocument();
+    expect(screen.getByText("Standing")).toBeInTheDocument();
 
     rerender(<OneBarWidget {...props({ state: "Away" })} />);
-    expect(screen.getByText("away")).toBeInTheDocument();
+    expect(screen.getByText("Away")).toBeInTheDocument();
   });
 
-  it("header has state tooltip with current state and height", () => {
-    render(<OneBarWidget {...props({ state: "Sitting", deskHeightCm: 72 })} />);
-    expect(screen.getByTitle(/Current state: sitting/)).toBeInTheDocument();
+  it("shows activity status in header via StateIndicator", () => {
+    render(<OneBarWidget {...props({ idleSecs: 0 })} />);
+    expect(screen.getByText("Active")).toBeInTheDocument();
   });
 
   it("shows elapsed/total as big number", () => {

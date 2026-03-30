@@ -10,73 +10,47 @@
  */
 import { useState, type FC } from "react";
 import type { WidgetProps } from "@/types";
+import StateIndicator from "@/components/StateIndicator";
 import { computeTemperature } from "./one-bar/temperature";
 import { useTimelineSkin, skinClassName } from "@/hooks/useTimelineSkin";
 import { OneBarTimeline } from "./one-bar/OneBarTimeline";
 import { OneBarTimer } from "./one-bar/OneBarTimer";
 import { KpiStrip } from "./one-bar/KpiStrip";
 import { ShareStats } from "@/components/ShareStats";
-import { stateColor } from "@/utils/colors";
 import "./one-bar/one-bar.css";
-
-/** State labels for each desk state. */
-const STATE_LABELS: Record<string, string> = {
-  Sitting: "sitting",
-  Standing: "standing",
-  Walking: "walking",
-  Away: "away",
-};
 
 /** Header props with share callback. */
 interface HeaderProps extends WidgetProps {
   onOpenShare: () => void;
 }
 
-/** Header row: colored state dot + label + height + share + gear. */
-const OneBarHeader: FC<HeaderProps> = (props) => {
-  const label = STATE_LABELS[props.state] ?? props.state;
-  const heightLabel =
-    props.deskHeightCm > 0 ? `(${props.deskHeightCm.toFixed(0)} cm)` : "";
-  const dotColor = stateColor(props.state, props.limitRatio);
-  const tooltip = `Current state: ${label}${heightLabel ? ` — desk at ${props.deskHeightCm.toFixed(0)} cm` : ""}`;
-
-  return (
-    <div className="one-bar__header">
-      <div className="one-bar__header-left" title={tooltip}>
-        <span
-          className="one-bar__header-dot"
-          style={{ backgroundColor: dotColor }}
-        />
-        <span
-          className="one-bar__header-state"
-          style={{ color: dotColor }}
-        >
-          {label}
-        </span>
-        <span className="one-bar__header-context">@ desk</span>
-        {heightLabel && (
-          <span className="one-bar__height">{heightLabel}</span>
-        )}
-      </div>
-      <div className="one-bar__header-actions">
-        <button
-          className="one-bar__share-btn"
-          onClick={props.onOpenShare}
-          title="Share my stats"
-        >
-          {"\u{2197}"}
-        </button>
-        <button
-          className="one-bar__settings-btn"
-          onClick={props.onOpenSettings}
-          title="Settings"
-        >
-          {"\u2699"}
-        </button>
-      </div>
+/** Header row: StateIndicator (dot + label + height + activity) + share + gear. */
+const OneBarHeader: FC<HeaderProps> = (props) => (
+  <div className="one-bar__header">
+    <StateIndicator
+      state={props.state}
+      deskHeightCm={props.deskHeightCm}
+      idleSecs={props.idleSecs}
+      showActivity
+    />
+    <div className="one-bar__header-actions">
+      <button
+        className="one-bar__share-btn"
+        onClick={props.onOpenShare}
+        title="Share my stats"
+      >
+        {"\u{2197}"}
+      </button>
+      <button
+        className="one-bar__settings-btn"
+        onClick={props.onOpenSettings}
+        title="Settings"
+      >
+        {"\u2699"}
+      </button>
     </div>
-  );
-};
+  </div>
+);
 
 /** One Bar widget — horizontal layout with header, timer, KPIs, timeline. */
 export const OneBarWidget: FC<WidgetProps> = (props) => {
