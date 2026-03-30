@@ -187,6 +187,12 @@ Full details: [`.claude/rules/installer.md`](.claude/rules/installer.md)
 - Size targets: installer 60-70 MB, peak memory <250 MB
 - Code signing & auto-update: scaffolded, not yet active
 
+## Business Context (REQUIRED reading for planning)
+
+**File: [`.plan/BUSINESS_CONTEXT.md`](.plan/BUSINESS_CONTEXT.md)**
+
+Every agent planning features, epics, or strategy MUST read this file first. It contains links to all vision docs, research reports, ADRs, design specs, and pricing config. This is the accumulated business knowledge that informs all product decisions.
+
 ## Vision & Strategy Docs
 
 | Document | What it covers |
