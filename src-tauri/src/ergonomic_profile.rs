@@ -16,6 +16,8 @@ fn default_break_min_secs() -> u32 { 60 }
 fn default_break_credit_multiplier() -> f32 { 2.0 }
 fn default_day_break_min_secs() -> u32 { 21600 }
 fn default_posture_balance_min_sitting_secs() -> u32 { 21600 }
+fn default_max_continuous_computer_secs() -> u32 { 3600 }
+fn default_computer_break_reset_secs() -> u32 { 300 }
 
 fn default_pts_standing_per_min() -> f32 { 1.0 }
 fn default_pts_session_bonus() -> f32 { 5.0 }
@@ -79,6 +81,17 @@ pub struct Limits {
     /// Default: 21600 (6 hours).
     #[serde(default = "default_posture_balance_min_sitting_secs")]
     pub posture_balance_min_sitting_secs: u32,
+
+    /// Maximum continuous computer time (Sitting+Standing) before screen break nudge (seconds).
+    /// Default: 3600 (60 minutes). Set 0 to disable.
+    #[serde(default = "default_max_continuous_computer_secs")]
+    pub max_continuous_computer_secs: u32,
+
+    /// Away duration to fully reset continuous computer timer (seconds).
+    /// Replaces the hardcoded 300s in session_reading.rs.
+    /// Default: 300 (5 minutes).
+    #[serde(default = "default_computer_break_reset_secs")]
+    pub computer_break_reset_secs: u32,
 }
 
 impl Default for Limits {
@@ -92,6 +105,8 @@ impl Default for Limits {
             break_credit_multiplier: default_break_credit_multiplier(),
             day_break_min_secs: default_day_break_min_secs(),
             posture_balance_min_sitting_secs: default_posture_balance_min_sitting_secs(),
+            max_continuous_computer_secs: default_max_continuous_computer_secs(),
+            computer_break_reset_secs: default_computer_break_reset_secs(),
         }
     }
 }
