@@ -10,8 +10,6 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::activity::is_active;
 use crate::commands::AppState;
-use crate::communication_profile::CommunicationProfile;
-use crate::ergonomic_profile::ErgonomicProfile;
 use crate::event_logger::EventLogger;
 use crate::metrics::MetricEngine;
 use crate::notification_service::NotificationService;
@@ -49,6 +47,10 @@ pub fn check_periodic(
         info!("Daily reset occurred — in-memory counters cleared");
         let _ = app.emit("desk:daily-reset", ());
         event_logger.log("RESET daily");
+        // Clear stale persisted flags so they don't leak into tomorrow.
+        if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+            crate::session_persistence::clear(store.inner());
+        }
     }
 
     // Write per-minute snapshot with computed metrics.
@@ -87,6 +89,11 @@ pub fn check_periodic(
         event_logger,
         alert_popup,
     );
+
+    // Persist flags if any notifications were fired in this periodic check.
+    if !notification_events.is_empty() {
+        save_session_state(app, session);
+    }
 
     // Hot-reload communication and ergonomic profiles if files changed on disk.
     reload_profiles_if_changed(app);
@@ -136,6 +143,9 @@ pub fn handle_reading(
             state_before, payload.state, height_cm, idle_secs
         ));
         let _ = app.emit("desk:state-changed", payload);
+
+        // Persist notification flags and credit-reduced sitting_seconds on state change.
+        save_session_state(app, session);
 
         if state_before == DeskState::Sitting && payload.state == DeskState::Standing {
             let praise = {
@@ -195,6 +205,7 @@ pub fn handle_reading(
             event_logger,
             alert_popup,
         );
+        save_session_state(app, session);
     }
 
     let stand_alert = { session.lock().unwrap().should_stand_alert() };
@@ -208,7 +219,14 @@ pub fn handle_reading(
             event_logger,
             alert_popup,
         );
+        save_session_state(app, session);
     }
+}
+
+/// Persists notification flags and credit-reduced sitting_seconds to the store.
+fn save_session_state(app: &AppHandle, session: &Arc<Mutex<SessionManager>>) {
+    let sess = session.lock().unwrap();
+    crate::session_persistence::save_via_app(app, &sess);
 }
 
 // Profile hot-reload logic extracted to profile_reload.rs

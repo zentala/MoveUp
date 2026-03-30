@@ -62,6 +62,13 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
         state.session.lock().unwrap().load_today_totals(&totals);
     }
 
+    // Restore persisted notification flags and credit-reduced sitting_seconds.
+    if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+        if let Some(persisted) = crate::session_persistence::PersistedSessionState::load(store.inner()) {
+            state.session.lock().unwrap().load_persisted_state(&persisted);
+        }
+    }
+
     // Populate today_cache from DB on first init
     if let Ok(summary) = crate::db::get_today_summary(&conn) {
         *state.today_cache.lock().unwrap() = summary;

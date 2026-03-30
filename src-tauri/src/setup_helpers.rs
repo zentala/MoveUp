@@ -1,8 +1,5 @@
-//! setup_helpers.rs — Extracted setup logic from lib.rs.
-//!
-//! Contains app setup, window positioning, device notification listeners,
-//! broadcast event wiring for the remote display WebSocket server,
-//! and graceful shutdown session persistence.
+//! setup_helpers.rs — App setup, window positioning, device notifications,
+//! remote display wiring, and graceful shutdown persistence.
 
 use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
@@ -51,6 +48,10 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
             let ergo = state.comm_policy.lock().unwrap().ergo_profile().clone();
             let mut session = state.session.lock().unwrap_or_else(|e| e.into_inner());
             *session = crate::session::SessionManager::new_from_config(&config, &ergo);
+            // Restore persisted flags and credit-reduced sitting_seconds.
+            if let Some(persisted) = crate::session_persistence::PersistedSessionState::load(store.inner()) {
+                session.load_persisted_state(&persisted);
+            }
             *state.config.lock().unwrap_or_else(|e| e.into_inner()) = Some(config.clone());
             info!("startup: config loaded from store into SessionManager");
             if config.show_welcome_on_startup {
@@ -107,7 +108,7 @@ pub fn position_main_window(app: &AppHandle) {
     }
 }
 
-/// Sets up throttled notifications for missing/lost sensor events.
+/// Throttled notifications for missing/lost sensor events.
 pub fn setup_device_notifications(app: &AppHandle) {
     let last_notif = Arc::new(Mutex::new(
         Instant::now() - std::time::Duration::from_secs(DEVICE_NOTIFICATION_COOLDOWN_SECS),
@@ -162,8 +163,7 @@ pub fn setup_remote_display(app: &AppHandle) {
     setup_broadcast_listeners(app);
 }
 
-/// Sets up broadcast listeners for device and daily-reset events.
-/// Forwards these events to the WebSocket broadcast channel for remote clients.
+/// Forwards device/daily-reset events to WebSocket for remote clients.
 pub fn setup_broadcast_listeners(app: &AppHandle) {
     // desk:device-connected → broadcast to remote clients
     let handle1 = app.clone();
@@ -194,7 +194,7 @@ pub fn setup_broadcast_listeners(app: &AppHandle) {
     });
 }
 
-/// Ensures profile directories exist and loads profiles into CommunicationPolicy.
+/// Loads communication + ergonomic profiles into CommunicationPolicy.
 pub fn load_profiles(app: &AppHandle) {
     let app_data_dir = match app.path().app_data_dir() {
         Ok(d) => d,
@@ -215,8 +215,7 @@ pub fn load_profiles(app: &AppHandle) {
     info!("Loaded communication + ergonomic profiles from {:?}", app_data_dir);
 }
 
-/// Saves any in-progress session to DB on graceful shutdown.
-/// Called from `RunEvent::Exit` in `lib.rs`.
+/// Persists session flags + credit and flushes in-progress session to DB on exit.
 pub fn flush_session_on_shutdown(app: &AppHandle) {
     let state: tauri::State<'_, AppState> = app.state();
     let (completed, state_label) = {
@@ -224,6 +223,7 @@ pub fn flush_session_on_shutdown(app: &AppHandle) {
             warn!("Session lock held during shutdown — skipping flush");
             return;
         };
+        crate::session_persistence::save_via_app(app, &sess);
         (sess.flush_current_session(), format!("{:?}", sess.current_state()))
     };
     let Some(ref completed) = completed else { return };

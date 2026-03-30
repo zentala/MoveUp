@@ -47,6 +47,7 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 - **Day Break Credit** (ADR 009): breaks ≥ `day_break_min_secs` (default 6h) reset notification flags and daily_score for a fresh motivational start. Does NOT reset daily KPI counters.
 - **PostureBalance notification**: only fires when `sitting_seconds_total >= 6h` AND `sitting_seconds > standing_seconds * 2`. Prevents false "sitting most of today" after short sessions.
 - Debounce state changes: require 5s stable reading
+- **Session State Persistence**: notification flags, credit-reduced `sitting_seconds`, and `daily_score` are persisted to `tauri-plugin-store` (key: `persisted_session_state`). Survives app restarts within the same day. Date-guarded: stale data from a previous day is discarded on load. Cleared on daily reset. Save points: every state transition, alert fire, periodic notification, and shutdown.
 
 ## UI Components
 1. **System tray** — `↕ 72 cm` tooltip + color dot (green/yellow/red by progress)

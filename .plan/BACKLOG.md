@@ -128,6 +128,7 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 
 ## Gamification & Scoring
 
+- [x] **Notification flag persistence** — done: flags + credit-reduced `sitting_seconds` + `daily_score` persisted to tauri-plugin-store, survive restarts. Date-guarded (discards stale data after midnight).
 - **Gamification techniques research** — deep research report listing 100+ gamification techniques (loss aversion, streaks, milestones, social proof, progression systems, comeback mechanics, etc.). Output: `.plan/reports/gamification-techniques.md` with categorized list, brief descriptions, and applicability to desk app. Reference material for future epic planning.
 - **Scoring & metrics redesign** — umbrella task for iterating on daily_score formula, KPI thresholds, comeback mechanics (show user HOW to recover negative score), penalty/reward balance. Collect ideas here, plan as epic when ready.
 - **Notification flag persistence** — `alert_fired`, `standing_target_reached_fired`, `notify_inactivity_fired` etc. reset on app restart causing notification spam. Persist in DB or derive from today's event log on startup. Priority: P2 (affects UX on every dev restart).
