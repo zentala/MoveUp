@@ -25,7 +25,9 @@ fn build_intents_posture_balance_content() {
         600,
     );
     assert_eq!(intents.len(), 1);
-    assert!(intents[0].title.contains("sitting most"));
+    // Title now shows actual numbers: "Sitting 2h 0m vs standing 0h 10m"
+    assert!(intents[0].title.contains("Sitting"), "title: {}", intents[0].title);
+    assert!(intents[0].title.contains("standing"), "title: {}", intents[0].title);
     assert!(intents[0].body.contains("standing"));
 }
 
@@ -37,7 +39,9 @@ fn build_intents_posture_balance_zero_standing() {
         0,
     );
     assert_eq!(intents.len(), 1);
-    assert!(intents[0].title.contains("sitting"));
+    // "Sitting 1h 0m vs standing 0h 0m"
+    assert!(intents[0].title.contains("Sitting"), "title: {}", intents[0].title);
+    assert!(intents[0].title.contains("0h 0m"), "title: {}", intents[0].title);
 }
 
 #[test]

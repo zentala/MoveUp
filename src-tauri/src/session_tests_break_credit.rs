@@ -136,4 +136,5 @@ mod break_credit_tests {
         }
         assert_eq!(m.state.sitting_seconds, 0, "2h break should fully reset sitting");
     }
+
 }

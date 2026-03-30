@@ -23,6 +23,9 @@ pub struct SessionManager {
     pub standing_target_reached_fired: bool,
     /// Smooths raw sensor readings for stable UI display.
     pub(crate) height_stabilizer: HeightStabilizer,
+    /// Set to `true` by `apply_break_credit` when a day-level break credit fires.
+    /// Consumed by the periodic tick to log the event, then cleared.
+    pub(crate) day_break_applied: bool,
     /// Set to `true` by `accumulate_ongoing` when it actually executes (not throttled).
     /// Callers use this to gate per-second work like `accumulate_score_tick`.
     pub(crate) last_accumulate_ran: bool,
@@ -67,6 +70,8 @@ impl SessionManager {
                 sitting_seconds_total: 0,
                 break_min_secs: BREAK_MIN_SECS,
                 break_credit_multiplier: BREAK_CREDIT_MULTIPLIER as f32,
+                day_break_min_secs: DAY_BREAK_MIN_SECS,
+                posture_balance_min_sitting_secs: POSTURE_BALANCE_MIN_SITTING_SECS,
             },
             pending_state: None,
             pending_count: 0,
@@ -81,6 +86,7 @@ impl SessionManager {
             notify_posture_balance_fired: false,
             praise_halfway_fired_today: false,
             standing_target_reached_fired: false,
+            day_break_applied: false,
             height_stabilizer: HeightStabilizer::new(),
             last_accumulate_ran: false,
             hourly_break_tracker: HourlyBreakTracker::new(),
@@ -126,6 +132,8 @@ impl SessionManager {
                 sitting_seconds_total: 0,
                 break_min_secs: ergo.limits.break_min_secs as i64,
                 break_credit_multiplier: ergo.limits.break_credit_multiplier,
+                day_break_min_secs: ergo.limits.day_break_min_secs as i64,
+                posture_balance_min_sitting_secs: ergo.limits.posture_balance_min_sitting_secs as i64,
             },
             pending_state: None,
             pending_count: 0,
@@ -140,6 +148,7 @@ impl SessionManager {
             notify_posture_balance_fired: false,
             praise_halfway_fired_today: false,
             standing_target_reached_fired: false,
+            day_break_applied: false,
             height_stabilizer: HeightStabilizer::new(),
             last_accumulate_ran: false,
             hourly_break_tracker: HourlyBreakTracker::new(),

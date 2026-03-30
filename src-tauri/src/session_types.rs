@@ -17,6 +17,12 @@ pub const BREAK_MIN_SECS: i64 = 60;
 pub const BREAK_CREDIT_MULTIPLIER: f64 = 2.0;
 /// Gap between sensor readings that indicates machine sleep/suspend (5 minutes).
 pub const SLEEP_GAP_THRESHOLD_SECS: i64 = 300;
+/// Default minimum break to trigger day-level reset (6 hours).
+/// Overridden by ergonomic profile `limits.day_break_min_secs`.
+pub const DAY_BREAK_MIN_SECS: i64 = 21600;
+/// Default minimum sitting_seconds_total before PostureBalance fires (6 hours).
+/// Overridden by ergonomic profile `limits.posture_balance_min_sitting_secs`.
+pub const POSTURE_BALANCE_MIN_SITTING_SECS: i64 = 21600;
 /// Maximum reasonable session duration (3 hours). Longer durations indicate
 /// the app survived a sleep/suspend without the rewind in on_reading() firing.
 pub const MAX_REASONABLE_SESSION_SECS: i64 = 3 * 3600;
@@ -134,6 +140,10 @@ pub struct SessionState {
     pub break_min_secs: i64,
     /// Break credit multiplier. Each sec of break cancels this many secs of sitting.
     pub break_credit_multiplier: f32,
+    /// Minimum break to trigger day-level reset (seconds). From ergonomic profile.
+    pub day_break_min_secs: i64,
+    /// Minimum sitting_seconds_total before PostureBalance notification fires.
+    pub posture_balance_min_sitting_secs: i64,
 }
 
 /// Serialisable DTO emitted with state-change events.

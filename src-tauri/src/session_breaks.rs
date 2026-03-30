@@ -138,6 +138,23 @@ impl SessionManager {
         } else {
             self.state.last_break_credit = BreakCredit::Partial;
         }
+
+        // Day Break Credit: long breaks (e.g. sleep) reset notification flags
+        // and daily_score for a fresh motivational start.
+        // Does NOT reset daily KPI counters (sitting_seconds_total, standing_seconds, etc.).
+        let day_min = self.state.day_break_min_secs;
+        if day_min > 0 && break_secs >= day_min {
+            log::info!(
+                "Day break credit: {}s break >= {}s threshold — resetting flags and score",
+                break_secs, day_min
+            );
+            self.notify_inactivity_fired = false;
+            self.notify_posture_balance_fired = false;
+            self.praise_halfway_fired_today = false;
+            self.standing_target_reached_fired = false;
+            self.state.daily_score = 0.0;
+            self.day_break_applied = true;
+        }
     }
 
     /// Checks notification conditions and returns events that should fire.
@@ -163,7 +180,9 @@ impl SessionManager {
         if pn.posture_balance_enabled
             && !self.notify_posture_balance_fired
         {
-            if self.state.sitting_seconds > self.state.standing_seconds * 2 {
+            if self.state.sitting_seconds_total >= self.state.posture_balance_min_sitting_secs
+                && self.state.sitting_seconds > self.state.standing_seconds * 2
+            {
                 self.notify_posture_balance_fired = true;
                 events.push(NotificationEvent::PostureBalance);
             }

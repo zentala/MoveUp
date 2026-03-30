@@ -119,7 +119,8 @@ mod tests {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Sitting;
         let comm = comm_with(false, true);
-        m.state.sitting_seconds = 3600;
+        m.state.sitting_seconds = 22000;
+        m.state.sitting_seconds_total = 22000;
         m.state.standing_seconds = 1000;
         let events = m.check_notification_conditions(&comm);
         assert!(events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)));

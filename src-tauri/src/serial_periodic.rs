@@ -155,11 +155,17 @@ pub fn handle_reading(
     }
 
     if let Some((ref credit, dur)) = result.break_credit {
-        let sitting = session.lock().unwrap().snapshot().sitting_seconds;
+        let mut sess = session.lock().unwrap();
+        let sitting = sess.snapshot().sitting_seconds;
         event_logger.log(&format!(
             "CREDIT {:?} dur={}s sitting={}",
             credit, dur, sitting
         ));
+        if sess.day_break_applied {
+            event_logger.log(&format!("CREDIT day_break dur={}s", dur));
+            sess.day_break_applied = false;
+        }
+        drop(sess);
     }
 
     if let Some(ref completed) = result.completed_session {

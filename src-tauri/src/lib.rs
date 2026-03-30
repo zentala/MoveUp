@@ -70,6 +70,7 @@ pub mod session_types;
 #[cfg(test)] mod session_tests_timers_live;
 #[cfg(test)] mod session_tests_serde;
 #[cfg(test)] mod session_tests_break_credit;
+#[cfg(test)] mod session_tests_day_break;
 #[cfg(test)] mod session_tests_kpi;
 #[cfg(test)] mod session_tests_away;
 #[cfg(test)] mod session_tests_away_transitions;

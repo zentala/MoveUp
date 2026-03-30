@@ -45,14 +45,19 @@ impl NotificationService {
                     "Time to move.".to_string(),
                 ),
                 NotificationEvent::PostureBalance => {
-                    let ratio = if standing_secs > 0 {
-                        sitting_secs as f32 / standing_secs as f32
-                    } else {
-                        f32::INFINITY
-                    };
-                    info!("Posture balance ratio: {:.1}", ratio);
+                    let sit_h = sitting_secs / 3600;
+                    let sit_m = (sitting_secs % 3600) / 60;
+                    let stand_h = standing_secs / 3600;
+                    let stand_m = (standing_secs % 3600) / 60;
+                    info!(
+                        "Posture balance: sitting {}h{}m vs standing {}h{}m",
+                        sit_h, sit_m, stand_h, stand_m
+                    );
                     (
-                        "You've been sitting most of today".to_string(),
+                        format!(
+                            "Sitting {}h {}m vs standing {}h {}m",
+                            sit_h, sit_m, stand_h, stand_m
+                        ),
                         "Consider standing for a while.".to_string(),
                     )
                 }

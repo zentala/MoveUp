@@ -14,6 +14,8 @@ fn default_standing_target_secs() -> u32 { 900 }
 fn default_standing_max_secs() -> u32 { 5400 }
 fn default_break_min_secs() -> u32 { 60 }
 fn default_break_credit_multiplier() -> f32 { 2.0 }
+fn default_day_break_min_secs() -> u32 { 21600 }
+fn default_posture_balance_min_sitting_secs() -> u32 { 21600 }
 
 fn default_pts_standing_per_min() -> f32 { 1.0 }
 fn default_pts_session_bonus() -> f32 { 5.0 }
@@ -65,6 +67,18 @@ pub struct Limits {
     /// Default 2.0 = 1 min break cancels 2 min sitting.
     #[serde(default = "default_break_credit_multiplier")]
     pub break_credit_multiplier: f32,
+
+    /// Minimum break duration (seconds) to trigger a "day break" — resets
+    /// notification flags and daily_score for a fresh motivational start.
+    /// Default: 21600 (6 hours). Set 0 to disable.
+    #[serde(default = "default_day_break_min_secs")]
+    pub day_break_min_secs: u32,
+
+    /// Minimum total sitting seconds today before PostureBalance notification fires.
+    /// Prevents misleading "sitting most of today" after short periods.
+    /// Default: 21600 (6 hours).
+    #[serde(default = "default_posture_balance_min_sitting_secs")]
+    pub posture_balance_min_sitting_secs: u32,
 }
 
 impl Default for Limits {
@@ -76,6 +90,8 @@ impl Default for Limits {
             standing_max_secs: default_standing_max_secs(),
             break_min_secs: default_break_min_secs(),
             break_credit_multiplier: default_break_credit_multiplier(),
+            day_break_min_secs: default_day_break_min_secs(),
+            posture_balance_min_sitting_secs: default_posture_balance_min_sitting_secs(),
         }
     }
 }

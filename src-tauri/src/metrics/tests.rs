@@ -40,6 +40,8 @@ mod tests {
             sitting_seconds_total: 0,
             break_min_secs: 60,
             break_credit_multiplier: 2.0,
+            day_break_min_secs: DAY_BREAK_MIN_SECS,
+            posture_balance_min_sitting_secs: POSTURE_BALANCE_MIN_SITTING_SECS,
         }
     }
 

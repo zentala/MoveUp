@@ -160,7 +160,8 @@ mod tests {
     fn notifications_fire_after_returning_from_away() {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Sitting;
-        m.state.sitting_seconds = 5000;
+        m.state.sitting_seconds = 22000;
+        m.state.sitting_seconds_total = 22000;
         m.state.standing_seconds = 100;
         m.state.last_position_change_at =
             Some(Utc::now() - chrono::Duration::minutes(120));
