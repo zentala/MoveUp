@@ -13,7 +13,6 @@ use tauri::{
     AppHandle, Emitter, Manager,
 };
 
-use crate::tray_icon::icon_for_state_and_progress;
 use crate::session::DeskState;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -188,6 +187,33 @@ fn set_pixel(buf: &mut [u8], width: u32, x: u32, y: u32, r: u8, g: u8, b: u8, a:
     buf[idx + 3] = a;
 }
 
+/// Selects the appropriate PNG tray icon name based on sitting state and progress.
+///
+/// Returns the icon file name (without `.png` extension):
+/// - `tray-ok` (green) — sitting, <60% of session limit
+/// - `tray-warn` (amber) — sitting, 60-85% of limit
+/// - `tray-alert` (red) — sitting, >85% of limit
+/// - `tray-standing` (gold) — standing (positive feedback)
+/// - `tray-idle` (gray) — walking or away
+fn icon_for_state_and_progress(state: DeskState, ratio: f32) -> &'static str {
+    const THRESHOLD_YELLOW: f32 = 0.60;
+    const THRESHOLD_RED: f32 = 0.85;
+
+    match state {
+        DeskState::Sitting => {
+            if ratio >= THRESHOLD_RED {
+                "tray-alert"
+            } else if ratio >= THRESHOLD_YELLOW {
+                "tray-warn"
+            } else {
+                "tray-ok"
+            }
+        }
+        DeskState::Standing => "tray-standing",
+        _ => "tray-idle", // Walking, Away
+    }
+}
+
 /// Resolves the PNG icon path for a given state and progress ratio.
 ///
 /// Uses `icon_for_state_and_progress()` to select the icon name based on both
@@ -224,5 +250,58 @@ fn show_main_window_settings(app: &AppHandle) {
         let _ = app.emit("desk:show-settings", ());
         let _ = window.show();
         let _ = window.set_focus();
+    }
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sitting_below_60_percent_returns_ok() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Sitting, 0.3), "tray-ok");
+    }
+
+    #[test]
+    fn sitting_60_to_85_percent_returns_warn() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Sitting, 0.7), "tray-warn");
+    }
+
+    #[test]
+    fn sitting_above_85_percent_returns_alert() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Sitting, 0.9), "tray-alert");
+    }
+
+    #[test]
+    fn sitting_exactly_60_percent_returns_warn() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Sitting, 0.60), "tray-warn");
+    }
+
+    #[test]
+    fn sitting_exactly_85_percent_returns_alert() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Sitting, 0.85), "tray-alert");
+    }
+
+    #[test]
+    fn standing_returns_standing() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 0.5), "tray-standing");
+    }
+
+    #[test]
+    fn walking_returns_idle() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Walking, 0.5), "tray-idle");
+    }
+
+    #[test]
+    fn away_returns_idle() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Away, 0.5), "tray-idle");
+    }
+
+    #[test]
+    fn standing_returns_standing_regardless_of_progress() {
+        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 0.0), "tray-standing");
+        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 1.0), "tray-standing");
     }
 }
