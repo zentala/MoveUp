@@ -26,6 +26,8 @@ Open core model: app is open source (MIT/Apache), cloud/AI/smartwatch are closed
 | Report | What it covers | When to read |
 |--------|---------------|-------------|
 | [Sedentary Lifestyle Research](reports/sedentary-lifestyle-research.md) | 19 cited sources on health risks of sitting; used in landing page copy and marketing posts | Landing page, content, health claims |
+| [Screen Time & Eye Health](reports/screen-time-eye-health-research.md) | CVS thresholds, 20-20-20 rule, break frequency guidelines, 12 cited sources; informs computer time alert defaults | Computer time feature, content, health claims |
+| [Sit-Stand-Walk Cycle](reports/sit-stand-walk-cycle-research.md) | Standing ≠ screen break, Cornell 20-8-2 rule, walk-away evidence, unified cycle rationale | Work cycle design (ADR 011) |
 | [Launch Posts](reports/launch-posts.md) | 5 ready-to-post Reddit/HN posts with prepared responses to common objections | Community launch, marketing |
 | [Email Drip Sequence](reports/email-drip-sequence.md) | 5-email waitlist conversion funnel (welcome → story → social proof → urgency → last chance) | Email marketing, waitlist |
 | [Ads Strategy](reports/ads-strategy.md) | Google + Facebook ads plan (500 PLN/mo budget); target keywords; audience segments | Paid marketing |
@@ -52,6 +54,9 @@ Do NOT hardcode prices — they may change or be A/B tested.
 | [006](.arch/ADR/006-self-declaration-ce-not-notified-body.md) | CE self-declaration (not notified body) | Certification |
 | [007](.arch/ADR/007-plexi-mount-dev-kit-enclosure.md) | Plexi/PCB carrier mount for dev kit | Hardware design |
 | [008](.arch/ADR/008-proportional-break-credit.md) | Proportional break credit (configurable multiplier) | Session logic, scoring |
+| [009](.arch/ADR/009-day-break-credit.md) | Day break credit (6h+ resets flags/score) | Session logic, daily reset |
+| [010](.arch/ADR/010-notification-escalating-silence.md) | Escalating silence after repeated notifications | Notification UX |
+| [011](.arch/ADR/011-unified-sit-stand-walk-cycle.md) | Unified sit-stand-walk cycle (no separate screen timer) | Computer time, screen breaks, work cycle |
 
 ## Hardware Design
 

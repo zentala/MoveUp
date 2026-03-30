@@ -150,6 +150,12 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 
 ---
 
+## Content / Articles
+
+- [ ] **Article: Screen time & eye health** — blog post for landing page based on [screen time research report](reports/screen-time-eye-health-research.md). Topics: CVS statistics, 20-20-20 rule, break frequency research, how SmartDesk helps. Target: SEO for "screen break reminder" / "computer eye strain". Link to product page. Priority: P2 — write after computer time alert feature ships.
+
+---
+
 ## Future Features
 
 - **Notification A/B testing** — now enabled via communication profiles: switch between profiles to A/B test notification strategies (T018)
