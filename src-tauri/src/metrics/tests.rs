@@ -42,6 +42,9 @@ mod tests {
             break_credit_multiplier: 2.0,
             day_break_min_secs: DAY_BREAK_MIN_SECS,
             posture_balance_min_sitting_secs: POSTURE_BALANCE_MIN_SITTING_SECS,
+            max_continuous_computer_secs: 3600,
+            computer_break_reset_secs: 300,
+            idle_secs: 0,
         }
     }
 

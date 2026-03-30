@@ -144,6 +144,12 @@ pub struct SessionState {
     pub day_break_min_secs: i64,
     /// Minimum sitting_seconds_total before PostureBalance notification fires.
     pub posture_balance_min_sitting_secs: i64,
+    /// Maximum continuous computer time (from ergonomic profile).
+    pub max_continuous_computer_secs: i64,
+    /// Away duration to reset continuous computer timer (from ergonomic profile).
+    pub computer_break_reset_secs: i64,
+    /// Current system idle time in seconds (refreshed every tick from activity.rs).
+    pub idle_secs: i64,
 }
 
 /// Serialisable DTO emitted with state-change events.
@@ -174,6 +180,12 @@ pub struct SessionStateDto {
     pub longest_computer_session_secs: i64,
     /// Raw total sitting seconds today (never reduced by break credit).
     pub sitting_seconds_total: i64,
+    /// Current system idle time in seconds.
+    pub idle_secs: i64,
+    /// Current continuous Away duration (seconds).
+    pub away_bout_secs: i64,
+    /// Maximum continuous computer time limit (seconds, from ergonomic profile).
+    pub max_continuous_computer_secs: i64,
 }
 
 /// Break credit type applied when returning from standing to sitting.

@@ -131,6 +131,9 @@ mod tests {
                 continuous_computer_secs: 150,
                 longest_computer_session_secs: 150,
                 sitting_seconds_total: 100,
+                idle_secs: 0,
+                away_bout_secs: 0,
+                max_continuous_computer_secs: 3600,
             },
             metrics: vec![],
             today: TodaySummary {

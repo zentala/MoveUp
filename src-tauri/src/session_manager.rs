@@ -72,6 +72,9 @@ impl SessionManager {
                 break_credit_multiplier: BREAK_CREDIT_MULTIPLIER as f32,
                 day_break_min_secs: DAY_BREAK_MIN_SECS,
                 posture_balance_min_sitting_secs: POSTURE_BALANCE_MIN_SITTING_SECS,
+                max_continuous_computer_secs: 3600,
+                computer_break_reset_secs: 300,
+                idle_secs: 0,
             },
             pending_state: None,
             pending_count: 0,
@@ -134,6 +137,9 @@ impl SessionManager {
                 break_credit_multiplier: ergo.limits.break_credit_multiplier,
                 day_break_min_secs: ergo.limits.day_break_min_secs as i64,
                 posture_balance_min_sitting_secs: ergo.limits.posture_balance_min_sitting_secs as i64,
+                max_continuous_computer_secs: ergo.limits.max_continuous_computer_secs as i64,
+                computer_break_reset_secs: ergo.limits.computer_break_reset_secs as i64,
+                idle_secs: 0,
             },
             pending_state: None,
             pending_count: 0,
@@ -200,6 +206,9 @@ impl SessionManager {
             continuous_computer_secs: self.state.continuous_computer_secs,
             longest_computer_session_secs: self.state.longest_computer_session_secs,
             sitting_seconds_total: self.get_live_sitting_seconds_total(now),
+            idle_secs: self.state.idle_secs,
+            away_bout_secs: self.state.away_bout_secs,
+            max_continuous_computer_secs: self.state.max_continuous_computer_secs,
         }
     }
 
