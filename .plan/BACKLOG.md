@@ -10,7 +10,7 @@
 
 ## UX Issues — High Priority
 
-- [ ] **Timeline readability** — after color palette change, all timeline segments (sitting, standing, away) are shades of brown-gray (`#2c2920`, `#403830` @ 0.5-0.6 opacity, `#706858` @ 0.3). Completely unreadable — can't tell when you sat vs stood vs left. Needs distinct colors: muted burgundy for sitting, soft green for standing, neutral gray for away. Note: state indicator dots already use amber (`--beam`) for standing — timeline should follow a similar pattern. Discuss before implementing. Files: `timeline-zen.css`, `one-bar.css`, `globals.css`.
+- [x] **Timeline readability** — fixed: implemented timeline skin system with 3 switchable themes (Semantic, Amber, Clinical). Each skin defines distinct `--tl-*` CSS vars. Dropdown in Settings → More → Timeline Theme. Default: Semantic (burgundy/green/blue/gray).
 
 ---
 

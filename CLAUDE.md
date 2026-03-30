@@ -70,6 +70,13 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 
 **Color dictionary**: Yellow (#ffc107) = warning, Red (#f44336) = action needed, Gray (#808080) = sensor issue, None = all OK. Green removed from system.
 
+**Timeline skins**: 3 switchable color themes for timeline segments (`--tl-*` CSS vars in `globals.css`):
+- **Semantic** (default) — burgundy/green/blue/gray, health-app convention
+- **Amber** — copper/amber/gold/shadow, instrument panel aesthetic
+- **Clinical** — purple/teal/sage/steel, data-viz feel
+
+Setting: Settings → More → Timeline Theme. Persisted in `AppConfig.timeline_skin`. Hook: `useTimelineSkin()`. CSS: `.tl-skin-{id}` class on widget container.
+
 **Spec**: `docs/superpowers/specs/2026-03-30-communication-architecture-design.md`
 
 ## Overlay Progress Bar
