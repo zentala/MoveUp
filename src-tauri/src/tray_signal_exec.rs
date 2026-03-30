@@ -17,7 +17,7 @@ use crate::{
     communication_types::{NotifySignal, OverlaySignal, PopupSignal, TraySignal},
     session::DeskState,
     tray,
-    tray_blink::{BlinkPattern, TrayBlinker},
+    tray_blink::{BlinkPattern, TrayBlinker, DEFAULT_BLINK_PATTERN},
 };
 
 // ─── BlinkState ───────────────────────────────────────────────────────────────
@@ -64,14 +64,18 @@ pub fn start_blink_thread(app: AppHandle) {
             last = Instant::now();
 
             let blink_state = app.state::<BlinkState>();
-            let mut blinker = blink_state.blinker.lock().unwrap();
+            let mut blinker = blink_state.blinker
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
 
             if !blinker.is_active() {
                 continue;
             }
 
             let dot_visible = blinker.tick(elapsed);
-            let progress = *blink_state.progress.lock().unwrap();
+            let progress = *blink_state.progress
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             drop(blinker);
 
             if dot_visible {
@@ -103,12 +107,12 @@ pub(crate) fn execute_tray(
     // Stop any active blinker for non-Blink signals
     if !matches!(signal, TraySignal::Blink(_)) {
         if let Some(blink_state) = app.try_state::<BlinkState>() {
-            let mut blinker = blink_state.blinker.lock().unwrap();
+            let mut blinker = blink_state.blinker.lock().unwrap_or_else(|e| e.into_inner());
             if blinker.is_active() {
                 blinker.stop();
             }
             drop(blinker);
-            *blink_state.active_pattern_name.lock().unwrap() = String::new();
+            *blink_state.active_pattern_name.lock().unwrap_or_else(|e| e.into_inner()) = String::new();
         }
     }
 
@@ -140,9 +144,9 @@ fn execute_tray_blink(app: &AppHandle, pattern_name: &str, progress: f32) {
     };
 
     // Update stored progress for the blink thread to use
-    *blink_state.progress.lock().unwrap() = progress;
+    *blink_state.progress.lock().unwrap_or_else(|e| e.into_inner()) = progress;
 
-    let mut current_name = blink_state.active_pattern_name.lock().unwrap();
+    let mut current_name = blink_state.active_pattern_name.lock().unwrap_or_else(|e| e.into_inner());
     if *current_name == pattern_name {
         // Already running this pattern — nothing to do
         return;
@@ -150,7 +154,7 @@ fn execute_tray_blink(app: &AppHandle, pattern_name: &str, progress: f32) {
 
     // Look up pattern in the communication profile
     let app_state = app.state::<AppState>();
-    let profile = app_state.comm_policy.lock().unwrap().comm_profile().clone();
+    let profile = app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).comm_profile().clone();
     let bp = profile.blink_patterns.get(pattern_name);
 
     let blink_pattern = if let Some(bp) = bp {
@@ -162,13 +166,13 @@ fn execute_tray_blink(app: &AppHandle, pattern_name: &str, progress: f32) {
         }
     } else {
         // Unknown pattern name — use a sensible default (3× blink / 10s)
-        BlinkPattern { on_ms: 250, off_ms: 250, count: 3, pause_ms: 8500 }
+        DEFAULT_BLINK_PATTERN.clone()
     };
 
     *current_name = pattern_name.to_string();
     drop(current_name);
 
-    blink_state.blinker.lock().unwrap().start(blink_pattern);
+    blink_state.blinker.lock().unwrap_or_else(|e| e.into_inner()).start(blink_pattern);
 }
 
 /// Maps an [`OverlaySignal`] to overlay renderer calls.
@@ -237,7 +241,7 @@ pub(crate) fn execute_notify(signal: &NotifySignal, app_state: &AppState) {
             crate::notify::show("Smart Desk", msg);
         }
         NotifySignal::Popup(msg) => {
-            app_state.alert_popup.lock().unwrap().show(msg.clone());
+            app_state.alert_popup.lock().unwrap_or_else(|e| e.into_inner()).show(msg.clone());
         }
     }
 }

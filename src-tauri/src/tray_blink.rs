@@ -23,6 +23,14 @@ pub struct BlinkPattern {
     pub pause_ms: u64,
 }
 
+/// Default blink pattern: 3 blinks (250ms on/off), 8.5s pause.
+pub const DEFAULT_BLINK_PATTERN: BlinkPattern = BlinkPattern {
+    on_ms: 250,
+    off_ms: 250,
+    count: 3,
+    pause_ms: 8500,
+};
+
 /// Current phase within the blink cycle.
 #[derive(Debug, Clone, PartialEq)]
 enum BlinkPhase {
@@ -66,7 +74,16 @@ impl TrayBlinker {
     }
 
     /// Start a new blink pattern. Replaces any active pattern and resets state.
+    ///
+    /// Validates and enforces minimum timings to prevent infinite cycling.
     pub fn start(&mut self, pattern: BlinkPattern) {
+        // Ensure minimum timing to prevent infinite cycling
+        let pattern = BlinkPattern {
+            on_ms: pattern.on_ms.max(50),
+            off_ms: pattern.off_ms.max(50),
+            count: pattern.count.max(1),
+            pause_ms: pattern.pause_ms.max(100),
+        };
         self.pattern = pattern;
         self.phase = BlinkPhase::On;
         self.step = 0;
