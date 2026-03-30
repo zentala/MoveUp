@@ -102,7 +102,7 @@
     }
   },
   "messages": {
-    "sitting_limit_toast": "Time to change position",
+    "sitting_limit_toast": "Time for a change — stand up or step away from the screen",
     "sitting_overdue_popup": "You've been sitting for {minutes} minutes. Stand up!",
     "standing_limit_toast": "Maybe sit down for a bit",
     "standing_overdue_popup": "You've been standing for {minutes} minutes.",
@@ -114,6 +114,16 @@
     "positive_popup_messages": [
       "Even 2 min standing helps blood flow",
       "Quick stand = fresh mind"
+    ]
+  },
+  "screen_break_nudge": {
+    "enabled": true,
+    "messages": [
+      "You've been at the screen a while — perfect moment to grab water",
+      "Your eyes would love a 5-minute break",
+      "Quick stretch? 2 minutes is all it takes",
+      "Step away for a moment — your focus will be sharper when you return",
+      "Screen break time — look out the window for a minute"
     ]
   },
   "periodic_notifications": {

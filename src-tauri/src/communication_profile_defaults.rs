@@ -176,6 +176,18 @@ pub(super) fn default_messages() -> MessageConfig {
     }
 }
 
+pub(super) fn default_nudge_enabled() -> bool { true }
+
+pub(super) fn default_nudge_messages() -> Vec<String> {
+    vec![
+        "You've been at the screen a while — perfect moment to grab water".to_string(),
+        "Your eyes would love a 5-minute break".to_string(),
+        "Quick stretch? 2 minutes is all it takes".to_string(),
+        "Step away for a moment — your focus will be sharper when you return".to_string(),
+        "Screen break time — look out the window for a minute".to_string(),
+    ]
+}
+
 pub(super) fn default_periodic() -> PeriodicNotificationConfig {
     PeriodicNotificationConfig {
         inactivity_enabled: true,

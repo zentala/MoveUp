@@ -113,6 +113,28 @@ impl Default for MessageConfig {
     fn default() -> Self { defs::default_messages() }
 }
 
+// ── ScreenBreakNudgeConfig ───────────────────────────────────────────────────
+
+/// Configuration for the screen-break nudge toast.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScreenBreakNudgeConfig {
+    /// Whether screen break nudges are enabled.
+    #[serde(default = "defs::default_nudge_enabled")]
+    pub enabled: bool,
+    /// Pool of encouraging messages (one is chosen randomly).
+    #[serde(default = "defs::default_nudge_messages")]
+    pub messages: Vec<String>,
+}
+
+impl Default for ScreenBreakNudgeConfig {
+    fn default() -> Self {
+        Self {
+            enabled: defs::default_nudge_enabled(),
+            messages: defs::default_nudge_messages(),
+        }
+    }
+}
+
 // ── PeriodicNotificationConfig ───────────────────────────────────────────────
 
 /// Configuration for time-based background notifications.

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::communication_profile_defaults as defs;
 pub use crate::communication_profile_visuals::{
     BlinkPattern, MessageConfig, OverlayPattern, PeriodicNotificationConfig,
-    StandingOverlayConfig, TimelineConfig,
+    ScreenBreakNudgeConfig, StandingOverlayConfig, TimelineConfig,
 };
 
 // ── EscalationStep ───────────────────────────────────────────────────────────
@@ -208,6 +208,10 @@ pub struct CommunicationProfile {
     #[serde(default)]
     pub messages: MessageConfig,
 
+    /// Screen break nudge configuration (fires when standing + computer time exceeded).
+    #[serde(default)]
+    pub screen_break_nudge: ScreenBreakNudgeConfig,
+
     /// Periodic background notification settings.
     #[serde(default)]
     pub periodic_notifications: PeriodicNotificationConfig,
@@ -238,6 +242,7 @@ impl Default for CommunicationProfile {
             blink_patterns: defs::default_blink_patterns(),
             overlay_patterns: defs::default_overlay_patterns(),
             messages: MessageConfig::default(),
+            screen_break_nudge: ScreenBreakNudgeConfig::default(),
             periodic_notifications: PeriodicNotificationConfig::default(),
         }
     }

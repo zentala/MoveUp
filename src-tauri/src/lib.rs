@@ -28,6 +28,7 @@ mod hourly_break_tracker;
 mod metrics;
 mod notification_service;
 mod notify;
+mod screen_break_nudge;
 #[cfg(test)] mod notification_service_tests;
 #[cfg(test)] mod notification_service_tests_edge;
 mod overlay_layered;
