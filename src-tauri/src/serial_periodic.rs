@@ -6,9 +6,12 @@
 use std::sync::{Arc, Mutex};
 
 use log::{error, info};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::activity::is_active;
+use crate::commands::AppState;
+use crate::communication_profile::CommunicationProfile;
+use crate::ergonomic_profile::ErgonomicProfile;
 use crate::event_logger::EventLogger;
 use crate::metrics::MetricEngine;
 use crate::notification_service::NotificationService;
@@ -73,6 +76,9 @@ pub fn check_periodic(
         standing_secs,
     );
     NotificationService::dispatch(&intents, config, event_logger, alert_popup);
+
+    // Hot-reload communication and ergonomic profiles if files changed on disk.
+    reload_profiles_if_changed(app);
 }
 
 /// Processes a single sensor reading through the session state machine.
@@ -170,4 +176,49 @@ pub fn handle_reading(
         let intent = NotificationService::stand_limit_intent();
         NotificationService::dispatch(&[intent], config, event_logger, alert_popup);
     }
+}
+
+/// Reloads communication and ergonomic profiles from disk if they changed.
+///
+/// Uses thread-local `ProfileWatcher` instances to track file modification times.
+/// Called every ~60s from `check_periodic`.
+fn reload_profiles_if_changed(app: &AppHandle) {
+    use crate::profile_loader::{load_profile, ProfileWatcher};
+    use std::cell::RefCell;
+
+    thread_local! {
+        static WATCHERS: RefCell<Option<(ProfileWatcher, ProfileWatcher)>> = const { RefCell::new(None) };
+    }
+
+    let app_data_dir = match app.path().app_data_dir() {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+    let comm_path = app_data_dir.join("profiles/communication/default.json");
+    let ergo_path = app_data_dir.join("profiles/ergonomic/default.json");
+
+    WATCHERS.with(|w| {
+        let mut w = w.borrow_mut();
+        if w.is_none() {
+            *w = Some((
+                ProfileWatcher::new(comm_path.clone()),
+                ProfileWatcher::new(ergo_path.clone()),
+            ));
+            return; // First call — just initialise, don't reload
+        }
+        let (comm_watcher, ergo_watcher) = w.as_mut().unwrap();
+
+        let state: tauri::State<'_, AppState> = app.state();
+
+        if comm_watcher.has_changed() {
+            let profile = load_profile::<CommunicationProfile>(&comm_path);
+            info!("Hot-reloaded communication profile from {:?}", comm_path);
+            state.comm_policy.lock().unwrap().set_comm_profile(profile);
+        }
+        if ergo_watcher.has_changed() {
+            let profile = load_profile::<ErgonomicProfile>(&ergo_path);
+            info!("Hot-reloaded ergonomic profile from {:?}", ergo_path);
+            state.comm_policy.lock().unwrap().set_ergo_profile(profile);
+        }
+    });
 }

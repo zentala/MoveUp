@@ -132,6 +132,27 @@ pub fn setup_broadcast_listeners(app: &AppHandle) {
     });
 }
 
+/// Ensures profile directories exist and loads profiles into CommunicationPolicy.
+pub fn load_profiles(app: &AppHandle) {
+    let app_data_dir = match app.path().app_data_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            warn!("Cannot get app_data_dir for profiles: {}", e);
+            return;
+        }
+    };
+    crate::profile_loader::ensure_profiles_dir(&app_data_dir);
+    let comm_path = app_data_dir.join("profiles/communication/default.json");
+    let ergo_path = app_data_dir.join("profiles/ergonomic/default.json");
+    let comm = crate::profile_loader::load_profile::<crate::communication_profile::CommunicationProfile>(&comm_path);
+    let ergo = crate::profile_loader::load_profile::<crate::ergonomic_profile::ErgonomicProfile>(&ergo_path);
+    let state: tauri::State<'_, AppState> = app.state();
+    let mut policy = state.comm_policy.lock().unwrap();
+    policy.set_comm_profile(comm);
+    policy.set_ergo_profile(ergo);
+    info!("Loaded communication + ergonomic profiles from {:?}", app_data_dir);
+}
+
 /// Saves any in-progress session to DB on graceful shutdown.
 /// Called from `RunEvent::Exit` in `lib.rs`.
 pub fn flush_session_on_shutdown(app: &AppHandle) {

@@ -1,14 +1,15 @@
 //! Wires `desk:state-changed` + `desk:distance` events to tray tooltip,
-//! overlay progress bar, and [`AlertManager`] state machine.
+//! overlay progress bar, and [`CommunicationPolicy`] signal engine.
 
 use tauri::{AppHandle, Listener, Manager};
 
 use crate::{
-    alert_manager::AlertAction,
-    colors::{color_for_progress, color_for_standing},
+    colors::color_for_progress,
     commands::AppState,
+    communication_policy::PolicyInput,
     session::{DeskState, StateChangedPayload},
     tray,
+    tray_signal_exec,
     ws_broadcaster::{self, DisplayEvent},
 };
 
@@ -17,7 +18,6 @@ use crate::{
 /// Registers `desk:state-changed` and `desk:distance` event listeners.
 /// Call once from `lib.rs` setup.
 pub fn setup(app: &AppHandle) {
-    // State transitions: update tray icon + show/hide overlay + reset alerts
     let handle = app.clone();
     app.listen("desk:state-changed", move |event| {
         if let Ok(payload) = serde_json::from_str::<StateChangedPayload>(event.payload()) {
@@ -25,45 +25,44 @@ pub fn setup(app: &AppHandle) {
         }
     });
 
-    // Every sensor reading: update overlay progress + drive alert state machine
     let handle2 = app.clone();
     app.listen("desk:distance", move |_event| {
-        update_overlay_progress(&handle2);
+        update_from_policy(&handle2);
     });
 
-    // Device disconnected: show gray tray icon with "disconnected" tooltip
     let handle3 = app.clone();
     app.listen("desk:device-lost", move |_event| {
-        let _ = tray::update_tray(&handle3, "Desk — sensor disconnected", DeskState::Away, 0.0);
+        let _ = tray::update_tray(&handle3, "Desk \u{2014} sensor disconnected", DeskState::Away, 0.0);
     });
 
     let handle4 = app.clone();
     app.listen("desk:device-missing", move |_event| {
-        let _ = tray::update_tray(&handle4, "Desk — no sensor found", DeskState::Away, 0.0);
+        let _ = tray::update_tray(&handle4, "Desk \u{2014} no sensor found", DeskState::Away, 0.0);
+    });
+
+    let handle5 = app.clone();
+    app.listen("desk:device-connected", move |_event| {
+        let app_state = handle5.state::<AppState>();
+        app_state.comm_policy.lock().unwrap().on_sensor_connected();
     });
 }
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
-/// Reacts to a state-change event by updating tray, overlay, and alerts.
+/// Reacts to a state-change event: notify policy of position change, then evaluate.
 fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
+    let app_state = app.state::<AppState>();
 
-    // Read session snapshot, overlay, alert_manager, and alert_popup from managed state.
-    let (snapshot, overlay, alert_manager, alert_popup) = {
-        let app_state = app.state::<AppState>();
-        let snap = app_state.session.lock().unwrap().snapshot();
-        let overlay = app_state.overlay.clone();
-        let alert_manager = app_state.alert_manager.clone();
-        let alert_popup = app_state.alert_popup.clone();
-        (snap, overlay, alert_manager, alert_popup)
-    };
+    app_state.comm_policy.lock().unwrap().on_position_changed();
+
+    let snapshot = app_state.session.lock().unwrap().snapshot();
+    let overlay = app_state.overlay.clone();
 
     let progress = if snapshot.session_limit_secs > 0 {
         payload.sitting_seconds as f32 / snapshot.session_limit_secs as f32
     } else {
         0.0
     };
-    let (r, g, b, _css_color) = color_for_progress(progress);
 
     let label = build_tooltip_label(
         payload.desk_height_cm,
@@ -73,29 +72,18 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
         payload.break_seconds,
         snapshot.daily_score,
     );
-
     let _ = tray::update_tray(app, &label, payload.state.clone(), progress);
 
-    // Update WinAPI overlay
     if payload.state == DeskState::Sitting {
-        log::debug!("→ Showing overlay, progress: {:.0}%", progress * 100.0);
+        let (r, g, b, _) = color_for_progress(progress);
         overlay.clear_standing();
         overlay.update(progress, (r, g, b));
         overlay.show();
     } else {
-        log::debug!("→ Hiding overlay (state: {:?})", payload.state);
         overlay.clear_standing();
         overlay.hide();
     }
 
-    // Notify AlertManager of standing — resets escalation state
-    if payload.state == DeskState::Standing {
-        let actions = alert_manager.lock().unwrap().on_standing();
-        execute_alert_actions(&actions, &overlay, &alert_popup);
-    }
-
-    // Broadcast state change to remote display clients
-    let app_state = app.state::<AppState>();
     ws_broadcaster::broadcast_event(
         &app_state.ws_tx,
         &DisplayEvent::StateChanged(
@@ -103,21 +91,15 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
         ),
     );
 
-    // Refresh today_cache from DB on state transitions (new session row may exist)
     refresh_today_cache(app);
 }
 
-/// Updates overlay progress on every sensor reading and drives the alert state machine.
-fn update_overlay_progress(app: &AppHandle) {
-
+/// Evaluates CommunicationPolicy each tick (~1/s) and executes returned signals.
+fn update_from_policy(app: &AppHandle) {
     let app_state = app.state::<AppState>();
 
-    // Check if user dismissed the popup — triggers snooze logic in alert_manager
     if app_state.alert_popup.lock().unwrap().take_user_dismissed() {
-        let actions = app_state.alert_manager.lock().unwrap().dismiss();
-        let overlay = app_state.overlay.clone();
-        let alert_popup = app_state.alert_popup.clone();
-        execute_alert_actions(&actions, &overlay, &alert_popup);
+        app_state.comm_policy.lock().unwrap().dismiss();
     }
 
     let session = app_state.session.lock().unwrap();
@@ -126,93 +108,77 @@ fn update_overlay_progress(app: &AppHandle) {
     let mut raw_state = session.state.clone();
     raw_state.sitting_seconds_total = session.get_live_sitting_seconds_total(now);
     raw_state.standing_seconds = session.get_live_standing_seconds(now);
-    drop(session); // Release lock before calling tray/overlay
+    drop(session);
 
-    // Broadcast session + metrics to remote display clients (~1/s).
-    // All data is from memory — zero DB access in the hot path.
-    {
-        let config_guard = app_state.config.lock().unwrap();
-        let config = config_guard.as_ref().cloned().unwrap_or_default();
-        drop(config_guard);
-        let metrics = crate::metrics::MetricEngine::with_defaults()
-            .compute_all(&raw_state, &config);
-        let today = app_state.today_cache.lock().unwrap().clone();
-        let remote_state = ws_broadcaster::RemoteDisplayState {
-            session: snapshot.clone(),
-            metrics,
-            today,
-        };
-        ws_broadcaster::broadcast_event(
-            &app_state.ws_tx,
-            &DisplayEvent::Snapshot(remote_state),
-        );
-    }
-
-    // Update tooltip every second regardless of state
+    broadcast_remote_state(app, &app_state, &snapshot, &raw_state);
     update_tooltip(app, &snapshot);
 
-    // Standing mode: show gold bar filling over standing_target
-    if snapshot.state == DeskState::Standing {
-        let target_secs = snapshot.stand_limit_secs;
-        if target_secs > 0 {
-            // break_seconds = current standing session duration (resets on sit)
-            let session_secs = snapshot.break_seconds;
-            let session_lap = (session_secs / target_secs) as u32;
-            let lap_progress = (session_secs % target_secs) as f32 / target_secs as f32;
-            let total_laps = (snapshot.standing_seconds / target_secs) as u32;
-            let (r, g, b) = color_for_standing(lap_progress);
+    let is_connected = app_state.conn.connected_port.lock().unwrap().is_some();
+    let (standing_lap_progress, standing_lap, standing_lap_flash) =
+        compute_standing_lap(&snapshot);
 
-            let overlay = app_state.overlay.clone();
-            overlay.update(lap_progress, (r, g, b));
-            overlay.update_standing(lap_progress, total_laps);
-            overlay.show();
-            overlay.maybe_flash_lap(session_lap);
-        }
-        return;
-    }
-
-    if snapshot.state != DeskState::Sitting {
-        return;
-    }
-
-    let progress = if snapshot.session_limit_secs > 0 {
-        snapshot.sitting_seconds as f32 / snapshot.session_limit_secs as f32
-    } else {
-        0.0
+    let elapsed_secs = match snapshot.state {
+        DeskState::Sitting => snapshot.sitting_seconds,
+        DeskState::Standing => snapshot.break_seconds,
+        _ => 0,
     };
 
-    let (r, g, b, _) = color_for_progress(progress);
+    let input = PolicyInput {
+        state: snapshot.state.clone(),
+        elapsed_secs,
+        sensor_connected: is_connected,
+        standing_lap_progress,
+        standing_lap,
+        standing_lap_flash,
+    };
+
+    let signals = app_state.comm_policy.lock().unwrap().evaluate(&input);
+
+    tray_signal_exec::execute_tray(&signals.tray, app, &snapshot);
+
     let overlay = app_state.overlay.clone();
-    let alert_manager = app_state.alert_manager.clone();
-    let alert_popup = app_state.alert_popup.clone();
+    tray_signal_exec::execute_overlay(&signals.overlay, &overlay, &snapshot);
 
-    overlay.update(progress, (r, g, b));
-
-    // Tick the alert state machine and execute any returned actions
-    let actions = alert_manager.lock().unwrap().tick(progress);
-    execute_alert_actions(&actions, &overlay, &alert_popup);
+    if let Some(ref notify) = signals.notify {
+        tray_signal_exec::execute_notify(notify, &app_state);
+    }
 }
 
-/// Executes a list of [`AlertAction`]s against the overlay and popup.
-fn execute_alert_actions(
-    actions: &[AlertAction],
-    overlay: &crate::overlay_renderer::OverlayRenderer,
-    alert_popup: &std::sync::Arc<std::sync::Mutex<crate::alert_popup::AlertPopup>>,
-) {
-    for action in actions {
-        match action {
-            AlertAction::PulseBar => overlay.set_variant(2),
-            AlertAction::StopPulse => overlay.set_variant(0),
-            AlertAction::ShowPopup(msg) => {
-                alert_popup.lock().unwrap().show(msg.clone());
-            }
-            AlertAction::DismissPopup => {
-                alert_popup.lock().unwrap().dismiss();
-            }
-            // Stages 3-5 not implemented — T017
-            AlertAction::ExpandOverlay | AlertAction::FullScreenNudge => {}
-        }
+/// Computes standing lap progress, lap count, and flash trigger.
+fn compute_standing_lap(snapshot: &crate::session::SessionStateDto) -> (f32, u32, bool) {
+    if snapshot.state != DeskState::Standing || snapshot.stand_limit_secs <= 0 {
+        return (0.0, 0, false);
     }
+    let target = snapshot.stand_limit_secs;
+    let session_secs = snapshot.break_seconds;
+    let session_lap = (session_secs / target) as u32;
+    let lap_progress = (session_secs % target) as f32 / target as f32;
+    let total_laps = (snapshot.standing_seconds / target) as u32;
+    (lap_progress, total_laps, session_lap > 0)
+}
+
+/// Broadcasts session state + metrics to remote display WebSocket clients.
+fn broadcast_remote_state(
+    _app: &AppHandle,
+    app_state: &AppState,
+    snapshot: &crate::session::SessionStateDto,
+    raw_state: &crate::session_types::SessionState,
+) {
+    let config_guard = app_state.config.lock().unwrap();
+    let config = config_guard.as_ref().cloned().unwrap_or_default();
+    drop(config_guard);
+    let metrics = crate::metrics::MetricEngine::with_defaults()
+        .compute_all(raw_state, &config);
+    let today = app_state.today_cache.lock().unwrap().clone();
+    let remote_state = ws_broadcaster::RemoteDisplayState {
+        session: snapshot.clone(),
+        metrics,
+        today,
+    };
+    ws_broadcaster::broadcast_event(
+        &app_state.ws_tx,
+        &DisplayEvent::Snapshot(remote_state),
+    );
 }
 
 /// Updates tray tooltip from a session snapshot (called every ~1s).
@@ -228,7 +194,6 @@ fn update_tooltip(app: &AppHandle, snapshot: &crate::session::SessionStateDto) {
     let _ = tray::update_tray_tooltip(app, &label);
 }
 
-// Tooltip formatting and today-cache refresh moved to tray_helpers.rs
 use crate::tray_helpers::{build_tooltip_label, refresh_today_cache};
 
 // Tests moved to tray_controller_tests.rs

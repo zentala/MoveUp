@@ -80,11 +80,14 @@ pub mod session_types;
 mod tray;
 mod tray_controller;
 mod tray_helpers;
+mod tray_signal_exec;
 #[cfg(test)] mod tray_controller_tests;
 mod tray_icon;
 use std::sync::{Arc, Mutex};
-use alert_manager::{AlertConfig, AlertManager};
 use alert_popup::AlertPopup;
+use communication_policy::CommunicationPolicy;
+use communication_profile::CommunicationProfile;
+use ergonomic_profile::ErgonomicProfile;
 use commands::AppState;
 use event_logger::EventLogger;
 use log::info;
@@ -118,7 +121,10 @@ pub fn run() {
             db: Arc::new(Mutex::new(None)),
             config: Arc::new(Mutex::new(None)),
             overlay: Arc::new(OverlayRenderer::new()),
-            alert_manager: Arc::new(Mutex::new(AlertManager::new(AlertConfig::default()))),
+            comm_policy: Arc::new(Mutex::new(CommunicationPolicy::new(
+                CommunicationProfile::default(),
+                ErgonomicProfile::default(),
+            ))),
             alert_popup: Arc::new(Mutex::new(AlertPopup::new())),
             ws_tx: ws_broadcaster::create_channel(),
             today_cache: Arc::new(Mutex::new(crate::db::TodaySummary::default())),
@@ -178,6 +184,9 @@ pub fn run() {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
             info!("App data dir: {:?}", app_data_dir);
+
+            // Load communication + ergonomic profiles into CommunicationPolicy.
+            setup_helpers::load_profiles(app.handle());
 
             // Auto-backup DB before anything else (eager, not lazy)
             let db_path = app_data_dir.join("desk.db");

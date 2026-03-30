@@ -8,7 +8,8 @@ use tokio::sync::broadcast;
 
 use rusqlite::Connection;
 use tauri::{Emitter, Manager, State};
-use crate::{alert_manager::AlertManager, alert_popup::AlertPopup, config::AppConfig,
+use crate::{alert_popup::AlertPopup, communication_policy::CommunicationPolicy,
+    config::AppConfig,
     db::TodaySummary, metrics::{DashboardState, MetricEngine},
     overlay_renderer::OverlayRenderer,
     serial::{available_port_infos, scan_and_connect, ConnectionState, PortInfo},
@@ -26,8 +27,8 @@ pub struct AppState {
     pub db: Arc<Mutex<Option<Connection>>>,
     pub config: Arc<Mutex<Option<AppConfig>>>,
     pub overlay: Arc<OverlayRenderer>,
-    /// Alert escalation state machine (Idle -> Stage1 -> Stage2).
-    pub alert_manager: Arc<Mutex<AlertManager>>,
+    /// Central communication policy engine (replaces AlertManager).
+    pub comm_policy: Arc<Mutex<CommunicationPolicy>>,
     /// WinAPI popup window shown at Stage2.
     pub alert_popup: Arc<Mutex<AlertPopup>>,
     /// Broadcast sender for remote display WebSocket clients.
