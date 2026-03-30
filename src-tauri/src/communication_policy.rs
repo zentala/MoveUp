@@ -49,6 +49,10 @@ pub struct CommunicationPolicy {
     disconnect_notified: bool,
     /// Index of the last escalation step for which a notification was fired.
     last_notify_step: Option<usize>,
+    /// When the last notification was fired — enforces cooldown between reminders.
+    last_notify_time: Option<Instant>,
+    /// How many notifications have been fired this escalation (resets on position change).
+    notify_count: u32,
 }
 
 impl CommunicationPolicy {
@@ -61,6 +65,8 @@ impl CommunicationPolicy {
             snooze_index: 0,
             disconnect_notified: false,
             last_notify_step: None,
+            last_notify_time: None,
+            notify_count: 0,
         }
     }
 
@@ -109,6 +115,9 @@ impl CommunicationPolicy {
     }
 
     /// Record a user dismiss — start a snooze timer and advance the snooze index.
+    ///
+    /// Resets `notify_count` so the user gets a fresh notification schedule after
+    /// the snooze expires (they engaged by clicking Dismiss, so treat as fresh).
     pub fn dismiss(&mut self) {
         let durations = &self.comm_profile.snooze.durations_mins;
         let idx = self.snooze_index.min(durations.len().saturating_sub(1));
@@ -116,6 +125,8 @@ impl CommunicationPolicy {
         self.snoozed_until = Some(Instant::now() + Duration::from_secs(mins as u64 * 60));
         self.snooze_index = (self.snooze_index + 1).min(durations.len().saturating_sub(1));
         self.last_notify_step = None;
+        self.last_notify_time = None;
+        self.notify_count = 0;
     }
 
     /// Reset snooze state and notification tracking on position change.
@@ -123,6 +134,8 @@ impl CommunicationPolicy {
         self.snoozed_until = None;
         self.snooze_index = 0;
         self.last_notify_step = None;
+        self.last_notify_time = None;
+        self.notify_count = 0;
     }
 
     /// Clear the disconnect-notified flag when the sensor reconnects.
@@ -180,6 +193,16 @@ impl CommunicationPolicy {
         Signals { tray, overlay, popup, notify }
     }
 
+    /// Returns the cooldown in seconds before the next notification can fire,
+    /// or `None` if all configured reminders have been exhausted (→ silence).
+    ///
+    /// Schedule is driven by `snooze.notify_cooldowns_secs` in the communication
+    /// profile, so each profile (aggressive, gentle, etc.) can tune independently.
+    fn notify_cooldown_secs(&self) -> Option<u64> {
+        let cooldowns = &self.comm_profile.snooze.notify_cooldowns_secs;
+        cooldowns.get(self.notify_count as usize).copied()
+    }
+
     fn build_step_notify(
         &mut self,
         step: &EscalationStep,
@@ -187,17 +210,32 @@ impl CommunicationPolicy {
         input: &PolicyInput,
     ) -> Option<NotifySignal> {
         if let Some(notify_type) = &step.notify.clone() {
-            if self.last_notify_step != Some(idx) {
-                self.last_notify_step = Some(idx);
-                let is_firm = self.snooze_index
-                    >= self.comm_profile.snooze.tone_shift_after_dismisses as usize;
-                let msg = helpers::message_for_state(
-                    &input.state, notify_type, &self.comm_profile.messages, is_firm,
-                );
-                Some(helpers::make_notify_signal(notify_type, &msg))
-            } else {
-                None
+            // Already fired this exact step — skip
+            if self.last_notify_step == Some(idx) {
+                return None;
             }
+
+            // Check escalating cooldown
+            let cooldown = match self.notify_cooldown_secs() {
+                Some(cd) => cd,
+                None => return None, // max notifications reached, stay silent
+            };
+            if let Some(last) = self.last_notify_time {
+                if last.elapsed() < Duration::from_secs(cooldown) {
+                    return None;
+                }
+            }
+
+            self.last_notify_step = Some(idx);
+            self.last_notify_time = Some(Instant::now());
+            self.notify_count += 1;
+
+            let is_firm = self.snooze_index
+                >= self.comm_profile.snooze.tone_shift_after_dismisses as usize;
+            let msg = helpers::message_for_state(
+                &input.state, notify_type, &self.comm_profile.messages, is_firm,
+            );
+            Some(helpers::make_notify_signal(notify_type, &msg))
         } else {
             if self.last_notify_step.map_or(true, |prev| prev < idx) {
                 self.last_notify_step = Some(idx);

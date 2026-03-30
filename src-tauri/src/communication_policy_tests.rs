@@ -74,18 +74,18 @@ mod tests {
         assert!(matches!(sig.notify, Some(NotifySignal::Toast(_))));
     }
 
-    // ── 4. Sitting overdue (at=+300) → Blink + PulseRed + Popup ──────────────
+    // ── 4. Sitting overdue (at=+300) → Blink + PulseRed, visual-only ────────
 
     #[test]
-    fn sitting_overdue_blink_and_popup() {
+    fn sitting_overdue_blink_visual_only() {
         let mut p = default_policy();
         // Advance past at=0 first to record that notify step
         let _ = p.evaluate(&sitting_input(2400));
-        // Now at limit+300 = 2700s
+        // Now at limit+300 = 2700s — visual escalation, no second notification
         let sig = p.evaluate(&sitting_input(2700));
         assert!(matches!(sig.tray, TraySignal::Blink(_)));
         assert!(matches!(sig.overlay, OverlaySignal::PulseRed { .. }));
-        assert!(matches!(sig.notify, Some(NotifySignal::Popup(_))));
+        assert!(sig.notify.is_none(), "overdue step should be visual-only, no notification");
     }
 
     // ── 5. Standing baseline ──────────────────────────────────────────────────
@@ -228,6 +228,7 @@ mod tests {
     }
 
     // ── 14. Walking state → inactive signals ────────────────────────────────
+    // Cooldown tests (14-17) moved to communication_policy_cooldown_tests.rs
 
     #[test]
     fn walking_state_is_treated_as_inactive() {

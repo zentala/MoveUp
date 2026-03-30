@@ -15,6 +15,8 @@ use super::communication_profile::{
 pub(super) fn default_notification_backend() -> String { "toast".to_string() }
 pub(super) fn default_snooze_durations() -> Vec<u32> { vec![5, 15, 30, 60] }
 pub(super) fn default_tone_shift() -> u8 { 3 }
+/// Escalating cooldown: immediate → 5 min → 15 min → 30 min → silence.
+pub(super) fn default_notify_cooldowns() -> Vec<u64> { vec![0, 300, 900, 1800] }
 
 pub(super) fn default_disconnected() -> ChannelConfig {
     ChannelConfig {
@@ -84,12 +86,14 @@ pub(super) fn default_sitting_escalation() -> Vec<EscalationStep> {
             popup_header: "red".to_string(),
             notify: Some("toast".to_string()),
         },
+        // Visual-only escalation at +5 min: blink + pulse, no second notification.
+        // Reminder toast fires later via notify_count cooldown (5 min after first).
         EscalationStep {
             at: 300,
             tray: "blink_red".to_string(),
             overlay: "pulse_red".to_string(),
             popup_header: "red".to_string(),
-            notify: Some("popup".to_string()),
+            notify: None,
         },
     ]
 }
@@ -110,12 +114,14 @@ pub(super) fn default_standing_escalation() -> Vec<EscalationStep> {
             popup_header: "red".to_string(),
             notify: Some("toast".to_string()),
         },
+        // Visual-only escalation at +5 min: blink + pulse, no second notification.
+        // Reminder toast fires later via notify_count cooldown (5 min after first).
         EscalationStep {
             at: 300,
             tray: "blink_red".to_string(),
             overlay: "pulse_red".to_string(),
             popup_header: "red".to_string(),
-            notify: Some("popup".to_string()),
+            notify: None,
         },
     ]
 }

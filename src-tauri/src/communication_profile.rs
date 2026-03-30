@@ -70,6 +70,13 @@ pub struct SnoozeConfig {
     /// Number of dismisses before the communication tone shifts (becomes firmer).
     #[serde(default = "defs::default_tone_shift")]
     pub tone_shift_after_dismisses: u8,
+
+    /// Escalating cooldown between auto-reminders (seconds). Each entry is the
+    /// minimum silence after the Nth notification. After all entries are exhausted,
+    /// no more notifications are sent until position changes.
+    /// Default: `[0, 300, 900, 1800]` → immediate, 5 min, 15 min, 30 min, then silence.
+    #[serde(default = "defs::default_notify_cooldowns")]
+    pub notify_cooldowns_secs: Vec<u64>,
 }
 
 impl Default for SnoozeConfig {
@@ -77,6 +84,7 @@ impl Default for SnoozeConfig {
         Self {
             durations_mins: defs::default_snooze_durations(),
             tone_shift_after_dismisses: defs::default_tone_shift(),
+            notify_cooldowns_secs: defs::default_notify_cooldowns(),
         }
     }
 }

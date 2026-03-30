@@ -24,7 +24,7 @@
         "tray": "blink_red",
         "overlay": "pulse_red",
         "popup_header": "red",
-        "notify": "popup"
+        "notify": null
       }
     ],
     "standing": [
@@ -47,7 +47,7 @@
         "tray": "blink_red",
         "overlay": "pulse_red",
         "popup_header": "red",
-        "notify": "popup"
+        "notify": null
       }
     ]
   },
