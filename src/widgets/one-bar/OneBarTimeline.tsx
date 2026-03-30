@@ -14,8 +14,9 @@ function blockModifier(state: string): string {
     case "Sitting":
       return "sitting";
     case "Standing":
-    case "Walking":
       return "standing";
+    case "Walking":
+      return "walking";
     case "Away":
       return "away";
     default:

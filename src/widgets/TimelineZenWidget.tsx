@@ -6,6 +6,7 @@
  */
 import type { FC } from "react";
 import type { WidgetProps } from "@/types";
+import { useTimelineSkin, skinClassName } from "@/hooks/useTimelineSkin";
 import { ZenTimeline } from "./timeline-zen/ZenTimeline";
 import { ZenStatus } from "./timeline-zen/ZenStatus";
 import "./timeline-zen/timeline-zen.css";
@@ -16,8 +17,9 @@ import "./timeline-zen/timeline-zen.css";
  * proportions and colors of the blocks.
  */
 export const TimelineZenWidget: FC<WidgetProps> = (props) => {
+  const [skin] = useTimelineSkin();
   return (
-    <div className="zen-widget" data-testid="timeline-zen-widget">
+    <div className={`zen-widget ${skinClassName(skin)}`} data-testid="timeline-zen-widget">
       <ZenTimeline sessions={props.todaySessions} />
       <ZenStatus
         state={props.state}

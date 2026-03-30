@@ -14,6 +14,7 @@ fn default_sitting_mm() -> i32 { 720 }
 fn default_standing_mm() -> i32 { 1050 }
 fn default_thickness_mm() -> i32 { 30 }
 fn default_active_widget() -> String { "one-bar".to_string() }
+fn default_timeline_skin() -> String { "semantic".to_string() }
 fn bool_false() -> bool { false }
 fn default_empty_string() -> String { String::new() }
 
@@ -35,6 +36,9 @@ pub struct AppConfig {
     /// Which widget layout is active (validated by TS widget registry).
     #[serde(default = "default_active_widget")]
     pub active_widget: String,
+    /// Timeline color skin: "semantic", "amber", or "clinical".
+    #[serde(default = "default_timeline_skin")]
+    pub timeline_skin: String,
     /// Show welcome popup on startup. Set to false after first dismiss.
     #[serde(default = "bool_true")]
     pub show_welcome_on_startup: bool,
@@ -99,6 +103,7 @@ impl Default for AppConfig {
             standing_mm: default_standing_mm(),
             desk_thickness_mm: default_thickness_mm(),
             active_widget: default_active_widget(),
+            timeline_skin: default_timeline_skin(),
             show_welcome_on_startup: bool_true(),
             telemetry_enabled: bool_false(),
             telemetry_device_id: default_empty_string(),

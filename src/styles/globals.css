@@ -56,6 +56,41 @@
   --r-sm: 3px;
   --r-md: 5px;
   --r-lg: 8px;
+
+}
+
+/* ── Timeline skins ────────────────────────────────────────────── */
+.tl-skin-semantic {
+  --tl-sitting:  #8b3a3a;
+  --tl-standing: #3a6b4a;
+  --tl-walking:  #3a5a6b;
+  --tl-away:     #3a3a3a;
+  --tl-sit-opacity:   0.75;
+  --tl-stand-opacity:  0.7;
+  --tl-walk-opacity:   0.65;
+  --tl-away-opacity:   0.35;
+}
+
+.tl-skin-amber {
+  --tl-sitting:  #6b4226;
+  --tl-standing: #d97706;
+  --tl-walking:  #92700a;
+  --tl-away:     #2a2520;
+  --tl-sit-opacity:   0.8;
+  --tl-stand-opacity:  0.45;
+  --tl-walk-opacity:   0.4;
+  --tl-away-opacity:   0.5;
+}
+
+.tl-skin-clinical {
+  --tl-sitting:  #5c4a6b;
+  --tl-standing: #2a7a8a;
+  --tl-walking:  #3a7060;
+  --tl-away:     #2a2a30;
+  --tl-sit-opacity:   0.75;
+  --tl-stand-opacity:  0.7;
+  --tl-walk-opacity:   0.6;
+  --tl-away-opacity:   0.35;
 }
 
 /* ── Reset ──────────────────────────────────────────────────────── */

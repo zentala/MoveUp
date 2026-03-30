@@ -121,9 +121,10 @@
 }
 .one-bar__timeline-block:hover { opacity: 0.8; }
 
-.one-bar__timeline-block--sitting  { background-color: var(--signal-neutral); opacity: 0.9; }
-.one-bar__timeline-block--standing { background-color: var(--ink-muted); opacity: 0.5; }
-.one-bar__timeline-block--away     { background-color: var(--ink-muted); opacity: 0.3; }
+.one-bar__timeline-block--sitting  { background-color: var(--tl-sitting);  opacity: var(--tl-sit-opacity); }
+.one-bar__timeline-block--standing { background-color: var(--tl-standing); opacity: var(--tl-stand-opacity); }
+.one-bar__timeline-block--walking  { background-color: var(--tl-walking);  opacity: var(--tl-walk-opacity); }
+.one-bar__timeline-block--away     { background-color: var(--tl-away);     opacity: var(--tl-away-opacity); }
 
 .one-bar__timeline-block--current {
   box-shadow: inset -2px 0 4px rgba(255,255,255,0.2);

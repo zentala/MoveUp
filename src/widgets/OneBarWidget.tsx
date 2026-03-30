@@ -11,6 +11,7 @@
 import { useState, type FC } from "react";
 import type { WidgetProps } from "@/types";
 import { computeTemperature } from "./one-bar/temperature";
+import { useTimelineSkin, skinClassName } from "@/hooks/useTimelineSkin";
 import { OneBarTimeline } from "./one-bar/OneBarTimeline";
 import { OneBarTimer } from "./one-bar/OneBarTimer";
 import { KpiStrip } from "./one-bar/KpiStrip";
@@ -81,10 +82,11 @@ const OneBarHeader: FC<HeaderProps> = (props) => {
 export const OneBarWidget: FC<WidgetProps> = (props) => {
   const [showShare, setShowShare] = useState(false);
   const temperature = computeTemperature(props);
+  const [skin] = useTimelineSkin();
 
   return (
     <div
-      className={`one-bar one-bar--${temperature}`}
+      className={`one-bar one-bar--${temperature} ${skinClassName(skin)}`}
       data-testid="one-bar-widget"
     >
       <OneBarHeader {...props} onOpenShare={() => setShowShare(true)} />

@@ -46,6 +46,7 @@ mod tests {
             standing_mm: 1100,
             desk_thickness_mm: 35,
             active_widget: "two-bar".to_string(),
+            timeline_skin: "amber".to_string(),
             show_welcome_on_startup: false,
             telemetry_enabled: false,
             telemetry_device_id: "test-uuid".to_string(),

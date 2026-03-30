@@ -15,6 +15,8 @@ export interface DeskSettings {
   notify_inactivity: boolean;
   notify_daily_posture_balance: boolean;
   notify_praise_halfway: boolean;
+  /** Timeline color skin: "semantic" | "amber" | "clinical". */
+  timeline_skin: string;
   /** Whether anonymous telemetry is enabled. Default: false (opt-in). */
   telemetry_enabled: boolean;
   /** Unique device identifier for telemetry. Auto-generated on first run. */
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: DeskSettings = {
   notify_inactivity: true,
   notify_daily_posture_balance: true,
   notify_praise_halfway: false,
+  timeline_skin: 'semantic',
   telemetry_enabled: false,
   telemetry_device_id: '',
 };
