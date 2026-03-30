@@ -370,45 +370,65 @@ Source: `session_breaks.rs:11-95`, `session_types.rs:12-17`, `session_manager.rs
 
 ## 6. Color Language
 
-### Semantic Signal Tokens (CSS) — updated E002-T06
+### Communication Architecture (updated 2026-03-30)
 
-| Token | Hex Value | Meaning | Where Used |
-|-------|-----------|---------|------------|
-| `--signal-ok` | `#4caf50` | Green — sitting within limit | KPI badges, progress bar |
-| `--signal-warn` | `#ffc107` | Yellow — approaching limit | KPI badges, progress bar |
-| `--signal-alert` | `#f44336` | Red — limit exceeded | KPI badges, progress bar |
-| `--signal-up` | `#DAA520` | Gold — standing state | Standing indicators, bar |
-| `--signal-away` | `#808080` | Gray — away/idle | Away indicators |
+All visual signals are driven by **CommunicationPolicy** which reads from a JSON communication profile. Colors have a unified dictionary — each color means one thing everywhere.
 
-### Overlay Bar Colors (Rust — `colors.rs`)
+### Color Dictionary (global, immutable — profiles do NOT change these)
 
-| Progress Range | Color | Hex | RGB |
-|---------------|-------|-----|-----|
-| < 60% | Green | `#4caf50` | (76, 175, 80) |
-| 60-85% | Yellow | `#ffc107` | (255, 193, 7) |
-| >= 85% | Red | `#f44336` | (244, 67, 54) |
+| Color | Hex | Meaning |
+|-------|-----|---------|
+| **None** | — | No action needed. Tray: no dot visible. |
+| **Yellow** | `#ffc107` | Heads-up: change position soon |
+| **Red** | `#f44336` | Change position now |
+| **Gray** | `#808080` | System issue (sensor disconnected) |
+| **Neutral** | `#2c2920` | Subtle progress indicator (no urgency) |
 
-### Standing Bar Colors (Rust — `colors.rs`)
+**Green and gold are removed.** Sitting at a computer is never "green." Standing has no special color — it uses neutral progress bar. Absence of signal = OK.
 
-Interpolates from goldenrod to bright gold as standing lap progresses:
+### KPI Badge Colors (independent from communication policy)
 
-| Progress | Color | RGB |
-|----------|-------|-----|
-| 0% | Goldenrod | (218, 165, 32) `#DAA520` |
-| 50% | Mid-gold | (~236, ~190, 32) |
-| 100% | Bright gold | (255, 215, 32) `#FFD720` |
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `--signal-ok` | `#4caf50` | KPI metric = good (kept for metric evaluation only) |
+| `--signal-warn` | `#ffc107` | KPI metric = warning |
+| `--signal-alert` | `#f44336` | KPI metric = bad |
 
-### Tray Icon Dot Colors (Rust — `tray.rs`)
+### Signal Matrix (default communication profile)
 
-| State + Progress | Color | Hex |
-|-----------------|-------|-----|
-| Sitting < 60% | Green | `#00C864` |
-| Sitting 60-85% | Amber | `#C89600` |
-| Sitting > 85% | Red | `#C80000` |
-| Standing | Gold | `#DAA520` |
-| Walking / Away | Gray | `#808080` |
+**Sitting** (limit from ergonomic profile, default 40 min):
 
-Note: tray dot colors differ from overlay bar colors. Both use the same thresholds (60%, 85%) but different hex values.
+| Phase | Tray | Overlay | Popup header | Notification |
+|-------|------|---------|--------------|--------------|
+| Baseline (0–30 min) | nothing | neutral bar | "Sitting (12:34)" | — |
+| Warning (30–40 min) | yellow dot | yellow bar | yellow | — |
+| Limit (40–45 min) | red dot | red bar | red | toast |
+| Overdue (45+ min) | red blink 3×/10s | red pulsing | red | popup |
+
+**Standing** (limit from ergonomic profile, default 20 min):
+
+| Phase | Tray | Overlay | Popup header | Notification |
+|-------|------|---------|--------------|--------------|
+| Baseline (0–15 min) | nothing | neutral progress + lap | "Standing" | — |
+| Warning (15–20 min) | yellow dot | yellow bar | yellow | — |
+| Limit (20–25 min) | red dot | red bar | red | toast |
+| Overdue (25+ min) | red blink 3×/10s | red pulsing | red | popup |
+
+**Away/Walking**: nothing visible, overlay hidden.
+**Sensor disconnected**: gray blink 3×/10s, toast once.
+
+### Profile System
+
+Two independent profile types control behavior:
+- **Ergonomic Profile** (`profiles/ergonomic/*.json`) — limits, scoring, KPI thresholds, break credit multiplier
+- **Communication Profile** (`profiles/communication/*.json`) — escalation timing, channels, blink patterns, messages
+
+Profiles are hot-reloadable: edit JSON → app picks up changes in ~1s.
+
+### Break Credit (proportional)
+
+Each second of break cancels `break_credit_multiplier` seconds of sitting (default 2.0).
+Configurable in ergonomic profile: `limits.break_min_secs` and `limits.break_credit_multiplier`.
 
 ### Temperature Backgrounds
 
@@ -418,11 +438,10 @@ Note: tray dot colors differ from overlay bar colors. Both use the same threshol
 | `warm` | `#12100c` | Sitting, 0.5 <= limitRatio < 0.8 |
 | `hot` | `#140e0c` | Sitting, 0.8 <= limitRatio < 1.0 |
 | `burning` | `#16100c` | Sitting, limitRatio >= 1.0 (overtime) |
-| `standing` | `#0e100c` | Standing/Walking, break not yet full |
-| `reset` | `#0e110c` | Standing/Walking, break >= full reset threshold |
+| `standing` | `#0e100c` | Standing/Walking |
 | `away` | `#141210` (panel-base) | Away state |
 
-Source: `DESIGN.md:57-103`, `colors.rs`, `tray.rs:150-158`, `temperature.ts`
+Source: `communication_policy.rs`, `colors.rs`, `temperature.ts`
 
 ---
 

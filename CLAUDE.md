@@ -55,9 +55,21 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 3. **Top-of-screen progress bar** — green→red over 40min session (overlay_renderer.rs)
 4. **Alert popup** — progressive escalation when limit reached (alert_manager.rs, planned)
 
-## Alert System
+## Communication Architecture & Profiles
 
-AlertManager is a pure state machine — returns `Vec<AlertAction>` that `tray_controller.rs` executes. See `.claude/rules/overlay.md` for full overlay docs.
+**CommunicationPolicy** (`communication_policy.rs`) is the single source of truth for all UI signals. It evaluates `(state, elapsed_secs) → Signals` and tells tray, overlay, popup, and notifications what to show. TrayController only executes signals — no decision logic.
+
+**Two profile types** (JSON, hot-reloadable, in `{app_data_dir}/profiles/`):
+- **Ergonomic Profile** (`ergonomic/*.json`) — limits, scoring, KPI thresholds, break credit
+- **Communication Profile** (`communication/*.json`) — escalation timing, channels, blink patterns, messages
+
+**Built-in profiles**: default, aggressive, gentle, silent, demo (communication) + standard, strict, relaxed, demo (ergonomic).
+
+**Break credit**: proportional — each second of break cancels `break_credit_multiplier` (default 2.0) seconds of sitting. Configurable in ergonomic profile. See [ADR 008](.arch/ADR/008-proportional-break-credit.md).
+
+**Color dictionary**: Yellow (#ffc107) = warning, Red (#f44336) = action needed, Gray (#808080) = sensor issue, None = all OK. Green removed from system.
+
+**Spec**: `docs/superpowers/specs/2026-03-30-communication-architecture-design.md`
 
 ## Overlay Progress Bar
 
