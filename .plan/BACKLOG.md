@@ -12,7 +12,7 @@
 ### From E004 — Session Alerts & Snooze
 - [ ] E004-T04 — [Integration test: full alert flow](epics/E004-2026-03-20-session-alerts/tasks/E004-T04-integration-test-alert-flow.md) — basic tests exist, time simulation missing
 - [ ] T017 — Stages 3-5 implementation (no task file)
-- [ ] T018 — Notification A/B testing (no task file)
+- [ ] T018 — Notification A/B testing (no task file) — profiles now enable this; see Profile System section
 - [ ] T019 — Success notifications + gamification (no task file)
 
 ### From E006 — Session Bugs & Polish
@@ -45,8 +45,6 @@
 
 ## Alert System — Future
 
-- **AlertManager message strings in settings panel** — `AlertConfig` holds default neutral/positive message arrays. Expose as editable arrays so zentala can tune tone/wording without code changes.
-- **Notification strategy as pluggable system** — like widgets but for notifications. Different backends (toast, custom popup, both), different escalation patterns.
 - **Redesign alert popups — Tauri WebviewWindow instead of raw WinAPI** — current popups (`alert_popup_window.rs`) use raw WinAPI GDI, which looks like a 2003 Win32 dialog. Migrate to a Tauri WebviewWindow so we can style alerts with HTML/CSS using the instrument panel design system (--panel-*, --beam-*, --ink-*). This enables: dark themed popups matching the main window, animated transitions, rich content (progress bars, coach messages in popup), and the acrylic blur effect.
 
 ---
@@ -114,11 +112,26 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 - **Scoring & metrics redesign** — umbrella task for iterating on daily_score formula, KPI thresholds, comeback mechanics (show user HOW to recover negative score), penalty/reward balance. Collect ideas here, plan as epic when ready.
 - **Notification flag persistence** — `alert_fired`, `standing_target_reached_fired`, `notify_inactivity_fired` etc. reset on app restart causing notification spam. Persist in DB or derive from today's event log on startup. Priority: P2 (affects UX on every dev restart).
 
+## Profile System
+
+- [ ] **Profile editor UI** — visual form for editing profiles instead of raw JSON. Dropdown is done, but editing requires opening JSON in external editor. Build an in-app form with live preview.
+- [ ] **Per-application profiles** — auto-switch profile when gaming (detect fullscreen app), on calls (detect audio), or in presentations. Needs activity/application detection.
+- [ ] **Scheduled profiles** — time-based auto-switching (e.g., "aggressive" during work hours 9-17, "gentle" evenings). Cron-like schedule in profile config.
+- [ ] **Profile analytics** — track which profile produces better ergonomic outcomes over time. Compare daily scores across profiles.
+
+---
+
+## Communication
+
+- [ ] **Profile reload notification** — show a subtle toast/log when profile is hot-reloaded so user knows the edit was picked up. Currently silent.
+- [ ] **Overlay neutral bar style** — the "neutral" overlay bar (sitting within limit) needs visual design. Currently uses dark panel color — may need a subtle gradient or pattern to be distinguishable from "no bar."
+
+---
+
 ## Future Features
 
-- **Notification A/B testing** — two backends simultaneously with feature flag (T018)
+- **Notification A/B testing** — now enabled via communication profiles: switch between profiles to A/B test notification strategies (T018)
 - **Success notifications + gamification** — streak tracking, milestone celebrations (T019)
-- **Notification strategy plugins** — like widget system but for how/when to nudge
 - **Phone-as-hub** — old phone + BLE sensor, works without desktop app
 - **Smartwatch integration** — proximity detection, walking state, HRV
 - Data export to CSV
@@ -159,3 +172,6 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 - ~~Persistent KPI Strip~~ — implemented in E007-T08 (KpiStrip component)
 - ~~HourlyBreakTracker wiring~~ — wired into session loop, metric uses real data
 - ~~Standing % counts Away time~~ — fixed: standing_bout_started tracks actual standing only
+- ~~AlertManager message strings in settings panel~~ — superseded by CommunicationPolicy profiles (messages live in communication profile JSON, editable per profile)
+- ~~Notification strategy as pluggable system~~ — superseded by CommunicationPolicy + profiles (different backends, escalation patterns, thresholds are all configurable per profile)
+- ~~Color inconsistency (green/gold)~~ — fixed: unified color dictionary, green/gold removed from color system
