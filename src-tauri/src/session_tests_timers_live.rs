@@ -135,29 +135,29 @@ mod timer_live_tests {
     fn t042_16_full_cycle_sit_stand_sit_snapshots() {
         let mut m = SessionManager::new();
 
-        // Phase 1: Sit 5 min
+        // Phase 1: Sit 5 min → sitting_seconds committed ≈ 300s on Stand transition
         transition_to_sitting(&mut m);
         m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(300));
         let s1 = m.snapshot();
         assert!(s1.current_session_secs >= 299 && s1.current_session_secs <= 301);
         assert_eq!(s1.break_seconds, 0);
 
-        // Phase 2: Stand 5 min
+        // Phase 2: Stand 2 min (credit = 120s * 2.0 = 240s < ~300s sitting → Partial)
         transition_to_standing(&mut m);
-        let t2 = Utc::now() - chrono::Duration::seconds(300);
+        let t2 = Utc::now() - chrono::Duration::seconds(120);
         m.state.break_started = Some(t2);
         m.state.standing_bout_started = Some(t2);
         let s2 = m.snapshot();
-        assert!(s2.break_seconds >= 299 && s2.break_seconds <= 301);
+        assert!(s2.break_seconds >= 119 && s2.break_seconds <= 121);
         assert_eq!(s2.current_session_secs, 0);
         // standing_seconds should include live break
         assert!(
-            s2.standing_seconds >= 299 && s2.standing_seconds <= 301,
-            "expected ~300, got {}",
+            s2.standing_seconds >= 119 && s2.standing_seconds <= 121,
+            "expected ~120, got {}",
             s2.standing_seconds
         );
 
-        // Phase 3: Sit again (partial credit)
+        // Phase 3: Sit again — 120s break * 2.0 = 240s credit < ~300s sitting → Partial
         transition_to_sitting(&mut m);
         let s3 = m.snapshot();
         assert_eq!(m.state.last_break_credit, BreakCredit::Partial);

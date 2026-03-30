@@ -17,6 +17,8 @@ mod tests {
 
     #[test]
     fn away_to_sitting_full_credit() {
+        // break=700s, credit=700*2=1400 < sitting=2000 → Partial, sitting=600.
+        // To get Full credit, break must be >= sitting/2 = 1000s. Use 1100s.
         let mut m = SessionManager::new();
         advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
         assert_eq!(m.state.state, DeskState::Sitting);
@@ -26,11 +28,12 @@ mod tests {
         advance_ticks(&mut m, 800, false, DEBOUNCE_COUNT as usize);
         assert_eq!(m.state.state, DeskState::Away);
 
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(700));
+        // 1100s break → credit = 1100*2 = 2200 >= sitting (2000) → Full, sitting = 0
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(1100));
         advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
         assert_eq!(m.state.state, DeskState::Sitting);
 
-        assert_eq!(m.state.sitting_seconds, 0, ">=10 min away = full reset");
+        assert_eq!(m.state.sitting_seconds, 0, "break credit >= sitting => full reset");
         assert!(m.state.sitting_started.is_some(), "new session started");
     }
 
@@ -52,6 +55,7 @@ mod tests {
 
     #[test]
     fn away_to_sitting_no_credit() {
+        // Threshold is now BREAK_MIN_SECS=60 (1 min). Use 30s break to get None.
         let mut m = SessionManager::new();
         advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
         m.state.sitting_seconds = 2000;
@@ -60,11 +64,11 @@ mod tests {
         advance_ticks(&mut m, 800, false, DEBOUNCE_COUNT as usize);
         assert_eq!(m.state.state, DeskState::Away);
 
-        // 2 min away (< 5 min = no credit)
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(120));
+        // 30s away (< 60s = no credit)
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(30));
         advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
         assert_eq!(m.state.state, DeskState::Sitting);
-        assert_eq!(m.state.last_break_credit, BreakCredit::None, "<5 min = no credit");
+        assert_eq!(m.state.last_break_credit, BreakCredit::None, "<1 min = no credit");
     }
 
     #[test]

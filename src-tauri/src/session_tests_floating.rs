@@ -42,7 +42,8 @@ mod floating_window_tests {
 
     #[test]
     fn scenario_b_short_break_no_credit() {
-        // SPEC: After standing < 5 min, sitting_seconds = pre-break value
+        // SPEC (updated): threshold is now BREAK_MIN_SECS=60 (1 min).
+        // Use 30s break to get no credit.
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
 
@@ -50,26 +51,26 @@ mod floating_window_tests {
         m.state.sitting_seconds = 1800;
         m.state.sitting_started = Some(Utc::now());
 
-        // Stand for 3 min (< 5 min threshold)
+        // Stand for 30 seconds (< 60s threshold)
         transition_to_standing(&mut m);
-        // Manually set break_started to 3 min ago to simulate time passing
+        // Manually set break_started to 30s ago to simulate time passing
         m.state.break_started =
-            Some(Utc::now() - chrono::Duration::seconds(3 * 60));
+            Some(Utc::now() - chrono::Duration::seconds(30));
 
         // Sit back down
         transition_to_sitting(&mut m);
 
-        // Break credit: < 5 min = None, session continues
+        // Break credit: < 1 min = None, session continues
         // sitting_seconds should be >= 1800 (the pre-break value, plus small elapsed)
         assert!(
             m.state.sitting_seconds >= 1800,
-            "Scenario B: after short break, sitting_seconds ({}) should be >= 1800",
+            "Scenario B: after <1min break, sitting_seconds ({}) should be >= 1800",
             m.state.sitting_seconds
         );
         assert_eq!(
             m.state.last_break_credit,
             BreakCredit::None,
-            "Scenario B: short break should yield BreakCredit::None"
+            "Scenario B: <1 min break should yield BreakCredit::None"
         );
     }
 
@@ -77,7 +78,8 @@ mod floating_window_tests {
 
     #[test]
     fn scenario_c_partial_credit_7min_break() {
-        // SPEC: sitting_seconds after 7-min break = max(0, pre_break - 1200)
+        // SPEC (updated): credit = 7min * 2.0 = 840s.
+        // sitting=1800, result = 1800 - 840 = 960 (plus small elapsed).
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
 
@@ -90,12 +92,11 @@ mod floating_window_tests {
 
         transition_to_sitting(&mut m);
 
-        // 1800 - 1200 = 600 (but there's small elapsed from the transition)
-        // The key assertion: sitting_seconds should be close to 600
-        // We allow small margin for elapsed time during transition
+        // 1800 - 840 = 960 (but there's small elapsed from the transition)
+        // We allow a margin of ~60s for test execution time
         assert!(
-            m.state.sitting_seconds < 700,
-            "Scenario C: after 7-min break, sitting_seconds ({}) should be ~600",
+            m.state.sitting_seconds >= 900 && m.state.sitting_seconds < 1100,
+            "Scenario C: after 7-min break, sitting_seconds ({}) should be ~960",
             m.state.sitting_seconds
         );
         assert_eq!(
@@ -109,7 +110,8 @@ mod floating_window_tests {
 
     #[test]
     fn scenario_d_full_reset_after_12min_break() {
-        // SPEC: sitting_seconds = 0 after standing >= 10 min
+        // SPEC (updated): Full credit when credit >= sitting_seconds.
+        // sitting=2100, need break_secs * 2.0 >= 2100 → break >= 1050s (~18 min).
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
 
@@ -117,19 +119,20 @@ mod floating_window_tests {
         m.state.sitting_started = Some(Utc::now());
 
         transition_to_standing(&mut m);
+        // 18 min = 1080s → credit = 2160 >= 2100 → Full reset
         m.state.break_started =
-            Some(Utc::now() - chrono::Duration::seconds(12 * 60));
+            Some(Utc::now() - chrono::Duration::seconds(18 * 60));
 
         transition_to_sitting(&mut m);
 
         assert_eq!(
             m.state.sitting_seconds, 0,
-            "Scenario D: after 12-min break, sitting_seconds should be 0"
+            "Scenario D: after 18-min break, sitting_seconds should be 0"
         );
         assert_eq!(
             m.state.last_break_credit,
             BreakCredit::Full,
-            "Scenario D: 12-min break should yield BreakCredit::Full"
+            "Scenario D: 18-min break (credit >= sitting) should yield BreakCredit::Full"
         );
     }
 

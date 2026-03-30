@@ -140,8 +140,8 @@ mod tests {
     }
 
     // ─── Scenario 3: Short breaks that give no credit ────────────────────
-    // Sit 30min → Stand 3min → Sit 20min → Away 2min → Sit
-    // Neither break is ≥5min, so no credit applied.
+    // Sit 30min → Stand 30s → Sit 20min → Away 30s → Sit
+    // Neither break reaches BREAK_MIN_SECS (60s), so no credit applied.
 
     #[test]
     fn scenario_short_breaks_no_credit() {
@@ -151,11 +151,11 @@ mod tests {
         transition_to(&mut m, DeskState::Sitting, SIT_MM, true);
         simulate_elapsed(&mut m, 30 * 60);
 
-        // Stand 3 min (too short for credit)
+        // Stand 30s (< 60s threshold → no credit)
         transition_to(&mut m, DeskState::Standing, STAND_MM, true);
-        simulate_elapsed(&mut m, 3 * 60);
+        simulate_elapsed(&mut m, 30);
 
-        // Sit back (3min break < 5min → no credit)
+        // Sit back (30s break < 60s → no credit)
         transition_to(&mut m, DeskState::Sitting, SIT_MM, true);
         assert_eq!(m.state.last_break_credit, BreakCredit::None);
         let sitting_after = m.state.sitting_seconds;
@@ -165,11 +165,11 @@ mod tests {
         // Sit 20 more min
         simulate_elapsed(&mut m, 20 * 60);
 
-        // Away 2 min (keyboard idle)
+        // Away 30s (keyboard idle)
         transition_to(&mut m, DeskState::Away, SIT_MM, false);
-        simulate_elapsed(&mut m, 2 * 60);
+        simulate_elapsed(&mut m, 30);
 
-        // Back to sitting (2min < 5min → no credit)
+        // Back to sitting (30s < 60s → no credit)
         transition_to(&mut m, DeskState::Sitting, SIT_MM, true);
         assert_eq!(m.state.last_break_credit, BreakCredit::None);
         // Sitting should be ~50min total (30 + 20)

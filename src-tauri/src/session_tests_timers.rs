@@ -98,12 +98,13 @@ mod timer_tests {
 
     #[test]
     fn t042_08_short_standing_no_credit_session_zero() {
+        // Break must be < BREAK_MIN_SECS (60s) to get None. Use 30s.
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
         m.state.sitting_seconds = 1500;
         m.state.sitting_started = Some(Utc::now());
         transition_to_standing(&mut m);
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(3 * 60));
+        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(30));
         transition_to_sitting(&mut m);
         assert_eq!(m.state.current_session_secs, 0);
         assert_eq!(m.state.last_break_credit, BreakCredit::None);

@@ -17,22 +17,26 @@ mod tests {
 
     #[test]
     fn break_under_5_min_has_no_effect() {
+        // Old name kept for reference; threshold is now 1 min (BREAK_MIN_SECS=60).
+        // A 4-min break (240s) is >= 60s, so it now gives proportional credit: 240*2=480.
         let mut m = manager_with_sitting_secs(3000);
         m.apply_break_credit(4 * 60);
         assert_eq!(
-            m.state.sitting_seconds, 3000,
-            "short break must not reduce sitting time"
+            m.state.sitting_seconds,
+            3000 - 480,
+            "4-minute break (>=1min) should subtract 480 seconds (240s * 2.0)"
         );
     }
 
     #[test]
     fn break_7_min_subtracts_20_min() {
+        // Old name kept for reference; credit is now proportional: 7min * 2.0 = 840s.
         let mut m = manager_with_sitting_secs(3000);
         m.apply_break_credit(7 * 60);
         assert_eq!(
             m.state.sitting_seconds,
-            3000 - 1200,
-            "7-minute break should subtract 1200 seconds"
+            3000 - 840,
+            "7-minute break should subtract 840 seconds (420s * 2.0)"
         );
     }
 
@@ -48,31 +52,39 @@ mod tests {
 
     #[test]
     fn break_12_min_resets_to_zero() {
+        // Old name kept for reference; 12min break = 720s * 2.0 = 1440 credit.
+        // With sitting=3600, credit (1440) < sitting (3600) → partial, sitting = 2160.
         let mut m = manager_with_sitting_secs(3600);
         m.apply_break_credit(12 * 60);
         assert_eq!(
-            m.state.sitting_seconds, 0,
-            "10+ min break should reset sitting time"
+            m.state.sitting_seconds,
+            3600 - 1440,
+            "12-min break gives 1440s credit (720s * 2.0), sitting 3600 -> 2160"
         );
     }
 
     #[test]
     fn break_exactly_5_min_subtracts_20_min() {
+        // Old name kept for reference; credit is now proportional: 5min * 2.0 = 600s.
         let mut m = manager_with_sitting_secs(2000);
         m.apply_break_credit(5 * 60);
         assert_eq!(
-            m.state.sitting_seconds, 800,
-            "5-minute break should subtract 1200 seconds"
+            m.state.sitting_seconds,
+            2000 - 600,
+            "5-minute break should subtract 600 seconds (300s * 2.0)"
         );
     }
 
     #[test]
     fn break_exactly_10_min_resets() {
+        // Old name kept for reference; 10min break = 600s * 2.0 = 1200 credit.
+        // With sitting=3600, credit (1200) < sitting (3600) → partial, sitting = 2400.
         let mut m = manager_with_sitting_secs(3600);
         m.apply_break_credit(10 * 60);
         assert_eq!(
-            m.state.sitting_seconds, 0,
-            "10-minute break should reset to 0"
+            m.state.sitting_seconds,
+            3600 - 1200,
+            "10-min break gives 1200s credit (600s * 2.0), sitting 3600 -> 2400"
         );
     }
 

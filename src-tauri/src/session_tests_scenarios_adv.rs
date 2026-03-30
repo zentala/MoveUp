@@ -65,21 +65,22 @@ mod tests {
 
     #[test]
     fn scenario_rapid_position_changes() {
+        // Breaks are 30s each (< BREAK_MIN_SECS=60) → BreakCredit::None.
         let mut m = SessionManager::new();
         transition_to(&mut m, DeskState::Sitting, SIT_MM, true);
         simulate_elapsed(&mut m, 2 * 60);
         transition_to(&mut m, DeskState::Standing, STAND_MM, true);
-        simulate_elapsed(&mut m, 1 * 60);
+        simulate_elapsed(&mut m, 30); // 30s break < 60s threshold → None
         transition_to(&mut m, DeskState::Sitting, SIT_MM, true);
         assert_eq!(m.state.last_break_credit, BreakCredit::None);
         simulate_elapsed(&mut m, 1 * 60);
         transition_to(&mut m, DeskState::Standing, STAND_MM, true);
-        simulate_elapsed(&mut m, 1 * 60);
+        simulate_elapsed(&mut m, 30); // 30s break < 60s threshold → None
         transition_to(&mut m, DeskState::Sitting, SIT_MM, true);
         assert_eq!(m.state.last_break_credit, BreakCredit::None);
         assert_eq!(m.state.position_changes, 4);
         assert!(m.state.sitting_seconds >= 150 && m.state.sitting_seconds < 500);
-        assert!(m.state.standing_seconds >= 100 && m.state.standing_seconds < 200);
+        assert!(m.state.standing_seconds >= 50 && m.state.standing_seconds < 200);
     }
 
     // ─── Scenario 7: Stand 18min → Away → Sit (user's exact bug) ────────
