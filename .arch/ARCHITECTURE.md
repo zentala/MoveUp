@@ -30,23 +30,28 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 │       │                                                      │
 │       ▼                                                      │
 │  tray_controller.rs ──wires events──→                        │
-│    ├── tray.rs + tray_icon.rs   (system tray)                │
+│    ├── tray.rs + tray_icon.rs   (system tray icon)           │
+│    ├── tray_signal_exec.rs      (executes Signals → UI)      │
+│    ├── tray_blink.rs            (blink engine, 50ms thread)  │
 │    ├── overlay_renderer.rs      (WinAPI progress bar)        │
 │    │    ├── overlay_opaque.rs   (GDI render backend)         │
-│    │    ├── overlay_layered.rs  (experimental transparent)   │
 │    │    ├── overlay_variants.rs (solid/gradient/pulsing)     │
-│    │    └── overlay_standing.rs (gold bar + lap indicators)  │
-│    ├── alert_manager.rs         (escalation state machine)   │
-│    │    ├── alert_actions.rs    (AlertAction enum)           │
-│    │    ├── alert_config.rs     (snooze durations)           │
-│    │    └── alert_popup*.rs     (WinAPI popup window)        │
+│    │    └── overlay_standing.rs (neutral bar + lap tracking) │
+│    ├── communication_policy.rs  (central signal decisions)   │
+│    │    ├── communication_types.rs  (Signal enums)           │
+│    │    ├── communication_profile.rs (JSON profile struct)   │
+│    │    └── ergonomic_profile.rs (limits/scoring/KPI)        │
+│    ├── profile_loader.rs        (JSON load/validate/watch)   │
+│    ├── profile_reload.rs        (hot-reload active profile)  │
+│    ├── alert_popup*.rs          (WinAPI popup window)        │
 │    └── notification_service.rs  (desktop notifications)      │
 │                                                              │
 │  activity.rs  (Windows idle detection via GetLastInputInfo)  │
-│  config.rs    (AppConfig, tauri-plugin-store persistence)    │
-│  colors.rs    (progress-to-color mapping)                    │
+│  config.rs    (AppConfig — hardware/UI/telemetry only)       │
+│  colors.rs    (4-color dictionary: yellow/red/gray/neutral)  │
 │  commands.rs  (IPC: get_session_state, inject_reading, etc.) │
 │  commands_config.rs (IPC: settings, calibration, overlay)    │
+│  commands_profiles.rs (IPC: profile list/switch/duplicate)   │
 │  commands_share.rs  (IPC: get_share_text for viral sharing)  │
 │  telemetry.rs       (opt-in daily aggregate telemetry)       │
 │  remote_server.rs   (HTTP+WS server on :3390)               │
@@ -93,9 +98,11 @@ VL53L1X sensor
     → serial_parser.rs (parse distance readings)
     → SessionManager.on_reading() (state transitions, debounce)
     → tray_controller.rs (routes to all UI)
-        → overlay_renderer.rs (WinAPI 4px bar, top of screen)
-        → tray.rs (icon + tooltip update)
-        → alert_manager.rs (escalation check)
+        → CommunicationPolicy.evaluate() (central signal decisions)
+        → tray_signal_exec.rs (executes returned Signals)
+            → overlay_renderer.rs (WinAPI 4px bar, top of screen)
+            → tray.rs + tray_blink.rs (icon + blinking)
+            → notification_service.rs (toast/popup)
         → IPC emit (desk:state-changed → frontend)
     → useDesk hook (frontend polls via get_session_state)
     → Widget renders (OneBar, TimelineZen, etc.)

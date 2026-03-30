@@ -1,5 +1,29 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-30 — Communication Architecture & Profile System
+
+- **Goal**: Design and implement unified communication architecture with profile-driven signal decisions. Fix break credit bug (timer not resetting after 2h sleep).
+- **Done**:
+  - **Brainstorming**: Identified color inconsistency problem (green/gold/gray ambiguous), designed unified color dictionary (4 colors: none/yellow/red/gray), designed two-profile system (ergonomic + communication)
+  - **Design spec**: `docs/superpowers/specs/2026-03-30-communication-architecture-design.md` — full spec with CEO + Eng review
+  - **Implementation (13 tasks, 2 waves)**:
+    - Wave 1: CommunicationPolicy module, signal types, profile structs+loader, hot-reload, Settings UI dropdowns, AlertManager absorbed, AppConfig slimmed (20 fields → profiles)
+    - Wave 2: Tray blink engine (dedicated 50ms thread), green/gold removed from colors, 7 built-in profiles
+  - **Break credit fix**: Proportional system (1 min break = 2 min sitting off, configurable multiplier). Sleep gap now applies break credit. [ADR 008](.arch/ADR/008-proportional-break-credit.md)
+  - **Impro review**: Path traversal fix, mutex safety, hot-reload tracking active profile, signal warning logs, BlinkPattern validation
+  - **Tests**: 381 Rust + 197 TypeScript = 578 total (was 363+187=550 at session start)
+  - Commits: 047de75..109ec67 (25 commits)
+- **Decisions**:
+  - Green removed from system — sitting is never "green" ([ADR 008](../../.arch/ADR/008-proportional-break-credit.md))
+  - AlertManager absorbed into CommunicationPolicy — one source of truth
+  - Two profile types: ergonomic (limits/scoring/KPI) + communication (escalation/channels/patterns)
+  - Proportional break credit replaces 3-tier system
+- **Findings this session**: 2
+  1. Sleep gap detection existed but didn't apply break credit — only rewound timestamps
+  2. Autostart had 3 conflicting registry entries (zntlDesk, Smart Desk, SmartDesk)
+- **Improvements logged**: 11 (all fixed: path traversal, mutex safety, hot-reload tracking, signal warnings, blink validation, multiplier clamp, DEFAULT_BLINK_PATTERN, docs updated)
+- **Next**: Dogfood with new communication architecture. Test profile switching. Tune escalation thresholds via profiles. Clean up autostart registry entries.
+
 ## Session 2026-03-29 — Build fix, autostart, tray icon improvements
 
 - **Goal**: Fix broken build, enable autostart for dev builds, improve tray icon visibility
