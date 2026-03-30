@@ -261,6 +261,17 @@ body {
   font-weight: 500;
 }
 
+.state-indicator__activity {
+  margin-left: 0.5em;
+  font-size: 0.8em;
+  opacity: 0.5;
+}
+
+.state-indicator__activity--idle {
+  opacity: 0.8;
+  color: var(--color-warning, #ffc107);
+}
+
 /* ── SessionProgress ────────────────────────────────────────────── */
 .session-progress {
   display: flex;
