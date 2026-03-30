@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-30T18:00:00Z
+updated: 2026-03-30T21:00:00Z
 active_epic: E000
 active_epic_path: .plan/epics/E000-maintenance
 current_wave: n/a
@@ -37,9 +37,14 @@ Major refactor completed in E000-maintenance:
   - T14: Marketing videos (2-3)
   - T18: Record 15-second hero GIF/video
 
+## Recent: Notification Anti-Spam (2026-03-30)
+- Removed duplicate notifications (toast + popup) — visual-only escalation at +5 min
+- Added escalating silence (0→5m→15m→30m→silence), configurable per profile
+- Cleaned 3 stale autostart registry entries
+- ADR 010 — notification escalating silence philosophy
+
 ## Next Steps
-1. Dogfood day break credit + communication architecture
-2. Fix timeline readability (BACKLOG — colors indistinguishable)
-3. Commit unstaged communication policy fixes (duplicate notifications, spam)
-4. E010 human tasks (photos, video, GIF)
-5. Deploy landing page + waitlist endpoint
+1. Fix timeline readability (BACKLOG — all-gray, indistinguishable states)
+2. Dogfood notification anti-spam — verify no more spam in daily use
+3. E010 human tasks (photos, video, GIF)
+4. Deploy landing page + waitlist endpoint

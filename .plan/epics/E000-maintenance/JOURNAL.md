@@ -1,5 +1,25 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-30 — Notification Anti-Spam & Backlog Triage
+
+- **Goal**: Fix duplicate notification spam, clean up autostart registry, triage backlog
+- **Done**:
+  - Fixed dual notifications (toast + popup) firing at sit limit — removed popup from escalation step, visual-only at +5 min (259ce46)
+  - Added escalating silence cooldown: 0→5m→15m→30m→silence, configurable per profile via `snooze.notify_cooldowns_secs`
+  - Dismiss now resets notify_count (fresh schedule after snooze)
+  - Cleaned 3 stale autostart registry entries (zntlDesk, Smart Desk, SmartDesk)
+  - Updated all 3 JSON profiles (default, aggressive, demo)
+  - Split test file to stay under 250 lines (21 total communication_policy tests)
+  - Created ADR 010 — notification escalating silence philosophy
+  - Updated CLAUDE.md with notification philosophy section
+  - Updated BACKLOG.md: added Bugs section (marked fixed), timeline readability issue, per-profile cooldown tuning
+- **Decisions**: Visual-only escalation + escalating silence → [ADR 010](.arch/ADR/010-notification-escalating-silence.md)
+- **Findings this session**: 1 (timeline all-gray after color palette change — unreadable)
+- **Improvements logged**: 0 (all findings addressed inline)
+- **Next**: Timeline color redesign (discuss colors: muted burgundy sitting, soft green standing, gray away)
+
+---
+
 ## Session 2026-03-30 — Day Break Credit & PostureBalance Fix
 
 - **Goal**: Fix misleading "You've been sitting most of today" notification firing after 2h sitting + 2h break
