@@ -26,6 +26,8 @@ const MOCK_SETTINGS = {
   notify_inactivity: true,
   notify_daily_posture_balance: true,
   notify_praise_halfway: false,
+  enable_computer_time_tracking: true,
+  show_activity_status: true,
 };
 
 beforeEach(() => {
