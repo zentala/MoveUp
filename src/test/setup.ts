@@ -45,6 +45,12 @@ vi.mock("@tauri-apps/api/core", () => ({
         sessions: [],
       },
       list_ports: [],
+      list_communication_profiles: [],
+      list_ergonomic_profiles: [],
+      get_active_profiles: {
+        communication_id: "default",
+        ergonomic_id: "default",
+      },
     };
 
     return responses[cmd] ?? null;

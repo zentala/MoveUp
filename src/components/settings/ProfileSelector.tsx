@@ -55,10 +55,12 @@ const ProfileSelector: FC<ProfileSelectorProps> = ({ type, label }) => {
     try {
       const [list, active] = await Promise.all([
         invoke<ProfileInfo[]>(LIST_CMD[type]),
-        invoke<ActiveProfiles>("get_active_profiles"),
+        invoke<ActiveProfiles | null>("get_active_profiles"),
       ]);
-      setProfiles(list);
-      setActiveId(type === "communication" ? active.communication_id : active.ergonomic_id);
+      setProfiles(list ?? []);
+      if (active) {
+        setActiveId(type === "communication" ? active.communication_id : active.ergonomic_id);
+      }
     } catch (err) {
       setError(String(err));
     }

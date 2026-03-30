@@ -2,11 +2,10 @@
  * SettingsPanel.test.tsx — unit tests for the SettingsPanel component.
  *
  * Test Coverage:
- * - Tab bar renders all 4 tabs with first tab active by default
+ * - Tab bar renders all 5 tabs with first tab (Profiles) active by default
  * - Save button invokes save_settings with correct field names (sit_limit_mins, etc.)
  * - Back/Cancel does NOT invoke save_settings
  * - Inverted calibration (sitting_mm >= standing_mm) shows validation error and disables Save
- * - Slider values are within expected range bounds
  * - Notification toggles render with correct default values (via tab switch)
  * - Tab switching shows correct content per tab
  */
@@ -42,29 +41,34 @@ describe("SettingsPanel", () => {
     });
   });
 
-  it("renders tab bar with 4 tabs", async () => {
+  it("renders tab bar with 5 tabs", async () => {
     render(<SettingsPanel onClose={mockOnClose} />);
     await waitFor(() => {
-      expect(screen.getByText("Time")).toBeInTheDocument();
+      expect(screen.getByText("Profiles")).toBeInTheDocument();
       expect(screen.getByText("Calibr.")).toBeInTheDocument();
       expect(screen.getByText("Notif.")).toBeInTheDocument();
       expect(screen.getByText("More")).toBeInTheDocument();
+      expect(screen.getByText("Debug")).toBeInTheDocument();
     });
   });
 
-  it("shows Time tab content by default", async () => {
+  it("shows Profiles tab content by default", async () => {
     render(<SettingsPanel onClose={mockOnClose} />);
-    const slider = await screen.findByLabelText("Remind me to stand after (minutes)");
-    expect(slider).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Ergonomic Profile")).toBeInTheDocument();
+      expect(screen.getByText("Communication Profile")).toBeInTheDocument();
+    });
   });
 
   it("switches to Calibration tab on click", async () => {
     render(<SettingsPanel onClose={mockOnClose} />);
-    await screen.findByText("Time Limits");
+    await waitFor(() => {
+      expect(screen.getByText("Ergonomic Profile")).toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByText("Calibr."));
     await waitFor(() => {
-      expect(screen.queryByText("Time Limits")).not.toBeInTheDocument();
+      expect(screen.queryByText("Ergonomic Profile")).not.toBeInTheDocument();
     });
   });
 
@@ -134,22 +138,6 @@ describe("SettingsPanel", () => {
       (c) => c[0] === "save_settings"
     );
     expect(saveSettingsCalls).toHaveLength(0);
-  });
-
-  it("sitting limit slider is within 10-90 range", async () => {
-    render(<SettingsPanel onClose={mockOnClose} />);
-    const slider = await screen.findByLabelText("Remind me to stand after (minutes)");
-    expect(slider).toHaveAttribute("min", "10");
-    expect(slider).toHaveAttribute("max", "90");
-    expect(slider).toHaveAttribute("step", "5");
-  });
-
-  it("standing limit slider is within 5-60 range", async () => {
-    render(<SettingsPanel onClose={mockOnClose} />);
-    const slider = await screen.findByLabelText("Remind me to sit after (minutes)");
-    expect(slider).toHaveAttribute("min", "5");
-    expect(slider).toHaveAttribute("max", "60");
-    expect(slider).toHaveAttribute("step", "5");
   });
 
   it("notification toggles render with correct values after switching tab", async () => {

@@ -13,7 +13,6 @@ use axum::routing::get;
 use axum::{Json, Router};
 use tokio::sync::broadcast;
 use crate::communication_policy::CommunicationPolicy;
-use crate::config::AppConfig;
 use crate::db::TodaySummary;
 use crate::metrics::MetricEngine;
 use crate::session::SessionManager;
@@ -26,8 +25,6 @@ pub struct RemoteState {
     pub ws_tx: broadcast::Sender<String>,
     /// Reference to session manager for snapshot on connect.
     pub session: Arc<Mutex<SessionManager>>,
-    /// Reference to config for calibration on connect.
-    pub config: Arc<Mutex<Option<AppConfig>>>,
     /// Communication policy engine (holds ergonomic + communication profiles).
     pub comm_policy: Arc<Mutex<CommunicationPolicy>>,
     /// Cached today summary (refreshed on state transitions, not per-tick).

@@ -7,7 +7,7 @@ use tauri::AppHandle;
 use crate::{
     colors::{color_for_progress, color_for_standing},
     commands::AppState,
-    communication_types::{NotifySignal, OverlaySignal, TraySignal},
+    communication_types::{NotifySignal, OverlaySignal, PopupSignal, TraySignal},
     session::DeskState,
     tray,
 };
@@ -82,6 +82,21 @@ pub(crate) fn execute_overlay(
             }
         }
     }
+}
+
+/// Emits a `desk:popup-theme` event so the frontend can update the popup colour scheme.
+///
+/// The frontend floating window listens for this event and applies the
+/// appropriate CSS class / theme. `Neutral` resets to the default appearance.
+pub(crate) fn execute_popup(signal: &PopupSignal, app: &AppHandle) {
+    use tauri::Emitter;
+    let theme = match signal {
+        PopupSignal::Neutral => "neutral",
+        PopupSignal::Yellow => "yellow",
+        PopupSignal::Red => "red",
+        PopupSignal::Gray => "gray",
+    };
+    let _ = app.emit("desk:popup-theme", theme);
 }
 
 /// Dispatches a [`NotifySignal`] to the appropriate notification backend.

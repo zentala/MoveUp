@@ -4,7 +4,6 @@
 //! a file-mtime watcher for hot-reload, directory initialisation, and basic
 //! validation of [`CommunicationProfile`] references.
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -189,26 +188,3 @@ pub fn list_profiles(dir: &Path) -> Vec<PathBuf> {
     paths
 }
 
-// ── load_all_profiles ─────────────────────────────────────────────────────────
-
-/// Load all communication profiles from `dir` into a map keyed by file stem.
-pub fn load_all_communication_profiles(dir: &Path) -> HashMap<String, CommunicationProfile> {
-    list_profiles(dir)
-        .into_iter()
-        .filter_map(|path| {
-            let key = path.file_stem()?.to_str()?.to_string();
-            Some((key, load_profile::<CommunicationProfile>(&path)))
-        })
-        .collect()
-}
-
-/// Load all ergonomic profiles from `dir` into a map keyed by file stem.
-pub fn load_all_ergonomic_profiles(dir: &Path) -> HashMap<String, ErgonomicProfile> {
-    list_profiles(dir)
-        .into_iter()
-        .filter_map(|path| {
-            let key = path.file_stem()?.to_str()?.to_string();
-            Some((key, load_profile::<ErgonomicProfile>(&path)))
-        })
-        .collect()
-}

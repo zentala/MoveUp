@@ -13,7 +13,6 @@ fn remote_state_is_clone() {
     let state = RemoteState {
         ws_tx: tx,
         session: Arc::new(Mutex::new(SessionManager::new())),
-        config: Arc::new(Mutex::new(None)),
         comm_policy: Arc::new(Mutex::new(
             crate::communication_policy::CommunicationPolicy::new(
                 Default::default(),

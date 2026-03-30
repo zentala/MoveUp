@@ -103,6 +103,10 @@ fn update_from_policy(app: &AppHandle) {
     }
 
     let session = app_state.session.lock().unwrap();
+    // Dismiss alert popup when user stands (popup is no longer relevant).
+    if session.state.state == DeskState::Standing {
+        app_state.alert_popup.lock().unwrap().dismiss();
+    }
     let snapshot = session.snapshot();
     let now = chrono::Utc::now();
     let mut raw_state = session.state.clone();
@@ -138,6 +142,7 @@ fn update_from_policy(app: &AppHandle) {
 
     let overlay = app_state.overlay.clone();
     tray_signal_exec::execute_overlay(&signals.overlay, &overlay, &snapshot);
+    tray_signal_exec::execute_popup(&signals.popup, app);
 
     if let Some(ref notify) = signals.notify {
         tray_signal_exec::execute_notify(notify, &app_state);

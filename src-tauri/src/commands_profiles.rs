@@ -4,7 +4,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
 use crate::commands::{ensure_initialized, AppState};
-use crate::profile_loader::{list_profiles, load_profile};
+use crate::profile_loader::{list_profiles, load_profile, validate_communication_profile};
 use crate::communication_profile::CommunicationProfile;
 use crate::ergonomic_profile::ErgonomicProfile;
 
@@ -85,6 +85,10 @@ pub fn list_communication_profiles(app: AppHandle) -> Result<Vec<ProfileInfo>, S
     let mut infos: Vec<ProfileInfo> = paths.iter().filter_map(|path| {
         let id = path.file_stem()?.to_str()?.to_string();
         let p = load_profile::<CommunicationProfile>(path);
+        let errs = validate_communication_profile(&p);
+        if !errs.is_empty() {
+            log::warn!("Profile '{}' has validation errors: {:?}", id, errs);
+        }
         Some(build_profile_info::<CommunicationProfile>(
             path, &id, p.name.clone(), p.description.clone(),
         ))
