@@ -125,7 +125,7 @@ impl SessionManager {
     /// Parameters come from the ergonomic profile (configurable per profile).
     pub fn apply_break_credit(&mut self, break_secs: i64) {
         let min_secs = self.state.break_min_secs;
-        let multiplier = self.state.break_credit_multiplier;
+        let multiplier = self.state.break_credit_multiplier.clamp(0.0, 10.0);
         if break_secs < min_secs {
             self.state.last_break_credit = BreakCredit::None;
             return;

@@ -43,7 +43,7 @@ pub fn setup(app: &AppHandle) {
     let handle5 = app.clone();
     app.listen("desk:device-connected", move |_event| {
         let app_state = handle5.state::<AppState>();
-        app_state.comm_policy.lock().unwrap().on_sensor_connected();
+        app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).on_sensor_connected();
     });
 }
 
@@ -53,9 +53,9 @@ pub fn setup(app: &AppHandle) {
 fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
     let app_state = app.state::<AppState>();
 
-    app_state.comm_policy.lock().unwrap().on_position_changed();
+    app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).on_position_changed();
 
-    let snapshot = app_state.session.lock().unwrap().snapshot();
+    let snapshot = app_state.session.lock().unwrap_or_else(|e| e.into_inner()).snapshot();
     let overlay = app_state.overlay.clone();
 
     let progress = if snapshot.session_limit_secs > 0 {
@@ -98,14 +98,14 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
 fn update_from_policy(app: &AppHandle) {
     let app_state = app.state::<AppState>();
 
-    if app_state.alert_popup.lock().unwrap().take_user_dismissed() {
-        app_state.comm_policy.lock().unwrap().dismiss();
+    if app_state.alert_popup.lock().unwrap_or_else(|e| e.into_inner()).take_user_dismissed() {
+        app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).dismiss();
     }
 
-    let session = app_state.session.lock().unwrap();
+    let session = app_state.session.lock().unwrap_or_else(|e| e.into_inner());
     // Dismiss alert popup when user stands (popup is no longer relevant).
     if session.state.state == DeskState::Standing {
-        app_state.alert_popup.lock().unwrap().dismiss();
+        app_state.alert_popup.lock().unwrap_or_else(|e| e.into_inner()).dismiss();
     }
     let snapshot = session.snapshot();
     let now = chrono::Utc::now();
@@ -117,7 +117,7 @@ fn update_from_policy(app: &AppHandle) {
     broadcast_remote_state(app, &app_state, &snapshot, &raw_state);
     update_tooltip(app, &snapshot);
 
-    let is_connected = app_state.conn.connected_port.lock().unwrap().is_some();
+    let is_connected = app_state.conn.connected_port.lock().unwrap_or_else(|e| e.into_inner()).is_some();
     let (standing_lap_progress, standing_lap, standing_lap_flash) =
         compute_standing_lap(&snapshot);
 
@@ -136,7 +136,7 @@ fn update_from_policy(app: &AppHandle) {
         standing_lap_flash,
     };
 
-    let signals = app_state.comm_policy.lock().unwrap().evaluate(&input);
+    let signals = app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).evaluate(&input);
 
     tray_signal_exec::execute_tray(&signals.tray, app, &snapshot);
 
@@ -169,10 +169,10 @@ fn broadcast_remote_state(
     snapshot: &crate::session::SessionStateDto,
     raw_state: &crate::session_types::SessionState,
 ) {
-    let ergo = app_state.comm_policy.lock().unwrap().ergo_profile().clone();
+    let ergo = app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).ergo_profile().clone();
     let metrics = crate::metrics::MetricEngine::with_defaults()
         .compute_all(raw_state, &ergo);
-    let today = app_state.today_cache.lock().unwrap().clone();
+    let today = app_state.today_cache.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let remote_state = ws_broadcaster::RemoteDisplayState {
         session: snapshot.clone(),
         metrics,

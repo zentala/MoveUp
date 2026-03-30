@@ -15,7 +15,10 @@ pub(crate) fn parse_tray_signal(s: &str) -> TraySignal {
         "none" | "" => TraySignal::None,
         "yellow" => TraySignal::Yellow,
         "red" => TraySignal::Red,
-        other => TraySignal::Blink(other.to_string()),
+        other => {
+            log::warn!("Unrecognized tray signal '{}' in profile — treating as blink pattern", other);
+            TraySignal::Blink(other.to_string())
+        }
     }
 }
 
@@ -27,7 +30,10 @@ pub(crate) fn parse_overlay_signal(s: &str, progress: f32) -> OverlaySignal {
         "yellow" => OverlaySignal::Yellow { progress },
         "red" => OverlaySignal::Red { progress },
         "pulse_red" => OverlaySignal::PulseRed { progress },
-        _ => OverlaySignal::Neutral { progress },
+        other => {
+            log::warn!("Unrecognized overlay signal '{}' in profile — defaulting to Neutral", other);
+            OverlaySignal::Neutral { progress }
+        }
     }
 }
 
@@ -37,7 +43,10 @@ pub(crate) fn parse_popup_signal(s: &str) -> PopupSignal {
         "yellow" => PopupSignal::Yellow,
         "red" => PopupSignal::Red,
         "gray" => PopupSignal::Gray,
-        _ => PopupSignal::Neutral,
+        other => {
+            log::warn!("Unrecognized popup signal '{}' in profile — defaulting to Neutral", other);
+            PopupSignal::Neutral
+        }
     }
 }
 
