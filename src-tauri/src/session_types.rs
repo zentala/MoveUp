@@ -9,10 +9,11 @@ use serde::{Deserialize, Serialize};
 pub const DEBOUNCE_COUNT: u8 = 5;
 /// Default session sitting limit (45 minutes in seconds).
 pub const DEFAULT_SESSION_LIMIT_SECS: i64 = 2700;
-/// Minimum break duration before any credit applies (1 minute).
+/// Default minimum break duration before any credit applies (1 minute).
+/// Overridden by ergonomic profile `limits.break_min_secs`.
 pub const BREAK_MIN_SECS: i64 = 60;
-/// Each second of break cancels this many seconds of sitting.
-/// Default 2.0 = 1 min break cancels 2 min sitting.
+/// Default break credit multiplier: 1 sec break cancels this many secs sitting.
+/// Overridden by ergonomic profile `limits.break_credit_multiplier`.
 pub const BREAK_CREDIT_MULTIPLIER: f64 = 2.0;
 /// Gap between sensor readings that indicates machine sleep/suspend (5 minutes).
 pub const SLEEP_GAP_THRESHOLD_SECS: i64 = 300;
@@ -129,6 +130,10 @@ pub struct SessionState {
     /// Raw total sitting seconds today — never reduced by break credit.
     /// Used by standing_pct metric for accurate KPI (sitting_seconds is modified by break credit).
     pub sitting_seconds_total: i64,
+    /// Minimum break duration (seconds) before credit applies. From ergonomic profile.
+    pub break_min_secs: i64,
+    /// Break credit multiplier. Each sec of break cancels this many secs of sitting.
+    pub break_credit_multiplier: f32,
 }
 
 /// Serialisable DTO emitted with state-change events.
@@ -165,11 +170,11 @@ pub struct SessionStateDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BreakCredit {
-    /// Standing < 5 min — session continues unchanged.
+    /// Break too short — session continues unchanged.
     None,
-    /// Standing 5-9 min — session reduced by 20 min.
+    /// Proportional credit — session reduced by break × multiplier.
     Partial,
-    /// Standing >= 10 min — session reset to 0.
+    /// Credit >= sitting — session reset to 0.
     Full,
 }
 

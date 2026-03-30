@@ -38,6 +38,8 @@ mod tests {
             hourly_breaks_covered: 0,
             hourly_breaks_active: 0,
             sitting_seconds_total: 0,
+            break_min_secs: 60,
+            break_credit_multiplier: 2.0,
         }
     }
 

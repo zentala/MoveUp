@@ -6,7 +6,9 @@
     "sitting_secs": 120,
     "standing_secs": 60,
     "standing_target_secs": 30,
-    "standing_max_secs": 300
+    "standing_max_secs": 300,
+    "break_min_secs": 60,
+    "break_credit_multiplier": 2.0
   },
   "scoring": {
     "pts_standing_per_min": 1.0,

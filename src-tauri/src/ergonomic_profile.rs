@@ -12,6 +12,8 @@ fn default_sitting_secs() -> u32 { 2400 }
 fn default_standing_secs() -> u32 { 1200 }
 fn default_standing_target_secs() -> u32 { 900 }
 fn default_standing_max_secs() -> u32 { 5400 }
+fn default_break_min_secs() -> u32 { 60 }
+fn default_break_credit_multiplier() -> f32 { 2.0 }
 
 fn default_pts_standing_per_min() -> f32 { 1.0 }
 fn default_pts_session_bonus() -> f32 { 5.0 }
@@ -53,6 +55,16 @@ pub struct Limits {
     /// Maximum continuous standing before a "consider sitting" nudge (seconds).
     #[serde(default = "default_standing_max_secs")]
     pub standing_max_secs: u32,
+
+    /// Minimum break duration before any credit applies (seconds).
+    /// Breaks shorter than this are ignored. Default: 60 (1 minute).
+    #[serde(default = "default_break_min_secs")]
+    pub break_min_secs: u32,
+
+    /// Each second of break cancels this many seconds of sitting.
+    /// Default 2.0 = 1 min break cancels 2 min sitting.
+    #[serde(default = "default_break_credit_multiplier")]
+    pub break_credit_multiplier: f32,
 }
 
 impl Default for Limits {
@@ -62,6 +74,8 @@ impl Default for Limits {
             standing_secs: default_standing_secs(),
             standing_target_secs: default_standing_target_secs(),
             standing_max_secs: default_standing_max_secs(),
+            break_min_secs: default_break_min_secs(),
+            break_credit_multiplier: default_break_credit_multiplier(),
         }
     }
 }

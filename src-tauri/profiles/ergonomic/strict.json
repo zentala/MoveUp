@@ -1,12 +1,14 @@
 {
   "id": "strict",
   "name": "Strict",
-  "description": "Maximum movement — short limits, harsh penalties",
+  "description": "Maximum movement \u00e2\u20ac\u201d short limits, harsh penalties",
   "limits": {
     "sitting_secs": 1500,
     "standing_secs": 900,
     "standing_target_secs": 600,
-    "standing_max_secs": 3600
+    "standing_max_secs": 3600,
+    "break_min_secs": 60,
+    "break_credit_multiplier": 2.0
   },
   "scoring": {
     "pts_standing_per_min": 1.5,

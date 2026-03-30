@@ -1,12 +1,14 @@
 {
   "id": "relaxed",
   "name": "Relaxed",
-  "description": "Long focus sessions — generous limits, low penalties",
+  "description": "Long focus sessions \u00e2\u20ac\u201d generous limits, low penalties",
   "limits": {
     "sitting_secs": 3600,
     "standing_secs": 1800,
     "standing_target_secs": 1200,
-    "standing_max_secs": 7200
+    "standing_max_secs": 7200,
+    "break_min_secs": 60,
+    "break_credit_multiplier": 2.0
   },
   "scoring": {
     "pts_standing_per_min": 0.5,

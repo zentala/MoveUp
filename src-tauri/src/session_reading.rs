@@ -16,13 +16,19 @@ impl SessionManager {
         }
 
         // Detect sleep/suspend: if gap since last reading > 5 minutes,
-        // the machine likely slept. Rewind timestamps to prevent inflation.
+        // the machine likely slept. Treat the gap as a break and apply credit.
         if let Some(prev_tick) = self.state.last_tick_ts {
             let gap_secs = (now - prev_tick).num_seconds();
             if gap_secs > SLEEP_GAP_THRESHOLD_SECS {
                 info!(
-                    "Sleep gap detected: {}s since last reading. Rewinding timestamps.",
+                    "Sleep gap detected: {}s since last reading. Applying break credit.",
                     gap_secs
+                );
+                // Apply the sleep gap as break credit (the user was away).
+                self.apply_break_credit(gap_secs);
+                info!(
+                    "After sleep credit: sitting_seconds={}, credit={:?}",
+                    self.state.sitting_seconds, self.state.last_break_credit
                 );
                 // Rewind start timestamps to just before now, preserving committed values.
                 // This prevents handle_state_exit from adding hours of elapsed time.
