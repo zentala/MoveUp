@@ -5,6 +5,7 @@ mod alert_manager;
 mod alert_popup;
 mod alert_popup_window;
 mod colors;
+mod communication_types;
 mod commands;
 mod commands_backup;
 mod commands_config;
