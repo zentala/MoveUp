@@ -1,5 +1,23 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-30 — Day Break Credit & PostureBalance Fix
+
+- **Goal**: Fix misleading "You've been sitting most of today" notification firing after 2h sitting + 2h break
+- **Done**:
+  - Two-level break credit system: Session Break Credit (existing, ADR 008) + Day Break Credit (new, ADR 009)
+  - Day Break Credit: breaks >= 6h reset notification flags + daily_score (not KPI counters)
+  - PostureBalance guard: requires sitting_seconds_total >= 6h before firing
+  - Notification message: concrete "Sitting Xh Ym vs standing Xh Ym" instead of vague "most of today"
+  - Event logging: `CREDIT day_break dur=Xs` in events.log
+  - New ergonomic profile fields: `day_break_min_secs`, `posture_balance_min_sitting_secs`
+  - 8 new tests, 3 fixed existing tests. 393 total Rust tests passing.
+  - Commit: 659f8d6
+- **Decisions**: [ADR 009](../../.arch/ADR/009-day-break-credit.md) — two break credit levels, 6h threshold
+- **Findings this session**: 1
+  1. PostureBalance condition `sitting > standing * 2` uses mixed counters (sitting_seconds reduced by credit, sitting_seconds_total not) — edge case where heavy break-taker never triggers despite sedentary day. Tracked in BACKLOG.
+- **Improvements logged**: 0 (all addressed inline during impro)
+- **Next**: Dogfood day break credit. Timeline readability fix (BACKLOG). Communication policy fixes (duplicate notifications, notification spam — other agent's work unstaged).
+
 ## Session 2026-03-30 — Communication Architecture & Profile System
 
 - **Goal**: Design and implement unified communication architecture with profile-driven signal decisions. Fix break credit bug (timer not resetting after 2h sleep).

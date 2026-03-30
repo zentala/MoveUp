@@ -43,10 +43,9 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 
 ## Session Logic
 - Default session limit: **40 minutes** of sitting
-- Break rules:
-  - < 5 min standing → no effect
-  - 5–9 min standing → subtract 20 min from session
-  - ≥ 10 min standing → reset session to 0
+- **Session Break Credit** (ADR 008): proportional — each second of break cancels `break_credit_multiplier` (default 2.0) seconds of sitting. Breaks < `break_min_secs` (default 60s) get no credit.
+- **Day Break Credit** (ADR 009): breaks ≥ `day_break_min_secs` (default 6h) reset notification flags and daily_score for a fresh motivational start. Does NOT reset daily KPI counters.
+- **PostureBalance notification**: only fires when `sitting_seconds_total >= 6h` AND `sitting_seconds > standing_seconds * 2`. Prevents false "sitting most of today" after short sessions.
 - Debounce state changes: require 5s stable reading
 
 ## UI Components
@@ -66,6 +65,8 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 **Built-in profiles**: default, aggressive, gentle, silent, demo (communication) + standard, strict, relaxed, demo (ergonomic).
 
 **Break credit**: proportional — each second of break cancels `break_credit_multiplier` (default 2.0) seconds of sitting. Configurable in ergonomic profile. See [ADR 008](.arch/ADR/008-proportional-break-credit.md).
+
+**Notification philosophy**: fewer, well-timed nudges > bombardment. Escalation is visual-first (yellow→red→blink+pulse), with a single toast at the limit. No popup notifications by default. Escalating silence: after each reminder, cooldown grows (0→5m→15m→30m→silence). Configurable per profile via `snooze.notify_cooldowns_secs`. After all reminders exhausted, system stays silent until position changes. See [ADR 010](.arch/ADR/010-notification-escalating-silence.md).
 
 **Color dictionary**: Yellow (#ffc107) = warning, Red (#f44336) = action needed, Gray (#808080) = sensor issue, None = all OK. Green removed from system.
 

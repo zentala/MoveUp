@@ -1,5 +1,19 @@
 # Backlog — Desk App
 
+## Bugs — Fix Now
+
+- [x] **Duplicate notifications on sit limit** — fixed: removed `notify: "popup"` from second escalation step in all profiles. Now only one toast fires at limit, visual-only escalation (blink+pulse) at +5 min.
+- [x] **Notification spam when ignored** — fixed: escalating cooldown (0→5m→15m→30m→silence), configurable per profile via `snooze.notify_cooldowns_secs`. Max 4 reminders, then silence until position change.
+- [x] **3 conflicting autostart registry entries** — removed `zntlDesk`, `Smart Desk`, `SmartDesk` from HKCU Run.
+
+---
+
+## UX Issues — High Priority
+
+- [ ] **Timeline readability** — after color palette change, all timeline segments (sitting, standing, away) are shades of brown-gray (`#2c2920`, `#403830` @ 0.5-0.6 opacity, `#706858` @ 0.3). Completely unreadable — can't tell when you sat vs stood vs left. Needs distinct colors: muted burgundy for sitting, soft green for standing, neutral gray for away. Note: state indicator dots already use amber (`--beam`) for standing — timeline should follow a similar pattern. Discuss before implementing. Files: `timeline-zen.css`, `one-bar.css`, `globals.css`.
+
+---
+
 ## Open Tasks from Previous Epics
 
 ### From E002 — Overlay Progress Bar
@@ -106,6 +120,12 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 
 ---
 
+## PostureBalance Ratio Refinement
+
+- [ ] **PostureBalance ratio uses mixed counters** — condition is `sitting_seconds_total >= 6h AND sitting_seconds > standing_seconds * 2`. But `sitting_seconds` is reduced by break credit while `sitting_seconds_total` is not. After a day of 8h sitting with breaks, `sitting_seconds_total = 28800` but `sitting_seconds` may be 0 — ratio never triggers despite genuinely sedentary day. Consider using `sitting_seconds_total` for both checks, or a separate daily-ratio metric. Track in real usage first. See [ADR 009](.arch/ADR/009-day-break-credit.md).
+
+---
+
 ## Gamification & Scoring
 
 - **Gamification techniques research** — deep research report listing 100+ gamification techniques (loss aversion, streaks, milestones, social proof, progression systems, comeback mechanics, etc.). Output: `.plan/reports/gamification-techniques.md` with categorized list, brief descriptions, and applicability to desk app. Reference material for future epic planning.
@@ -125,6 +145,7 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 
 - [ ] **Profile reload notification** — show a subtle toast/log when profile is hot-reloaded so user knows the edit was picked up. Currently silent.
 - [ ] **Overlay neutral bar style** — the "neutral" overlay bar (sitting within limit) needs visual design. Currently uses dark panel color — may need a subtle gradient or pattern to be distinguishable from "no bar."
+- [ ] **Per-profile cooldown tuning** — `snooze.notify_cooldowns_secs` is now configurable per profile, but built-in profiles all use the same default `[0, 300, 900, 1800]`. Tune: aggressive = shorter (e.g., `[0, 120, 300, 600]`), gentle = longer (e.g., `[0, 600, 1800, 3600]`), silent = empty `[]` (no notifications).
 
 ---
 

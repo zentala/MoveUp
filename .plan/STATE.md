@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-30T11:00:00Z
+updated: 2026-03-30T18:00:00Z
 active_epic: E000
 active_epic_path: .plan/epics/E000-maintenance
 current_wave: n/a
@@ -14,9 +14,9 @@ current_wave: n/a
 - Current: `v0.3.0`
 
 ## Test Totals
-- Rust: 381 tests
+- Rust: 393 tests
 - TypeScript: 197 tests
-- Total: 578
+- Total: 590
 
 ## Recent: Communication Architecture (2026-03-30)
 
@@ -38,7 +38,8 @@ Major refactor completed in E000-maintenance:
   - T18: Record 15-second hero GIF/video
 
 ## Next Steps
-1. Dogfood communication architecture — test profile switching, tune thresholds
-2. Clean up 3 conflicting autostart registry entries
-3. E010 human tasks (photos, video, GIF)
-4. Deploy landing page + waitlist endpoint
+1. Dogfood day break credit + communication architecture
+2. Fix timeline readability (BACKLOG — colors indistinguishable)
+3. Commit unstaged communication policy fixes (duplicate notifications, spam)
+4. E010 human tasks (photos, video, GIF)
+5. Deploy landing page + waitlist endpoint
