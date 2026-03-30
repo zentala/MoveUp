@@ -4,7 +4,7 @@
 mod tests {
     use chrono::Utc;
 
-    use crate::config::AppConfig;
+    use crate::communication_profile::CommunicationProfile;
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
 
@@ -148,13 +148,11 @@ mod tests {
         m.state.last_position_change_at =
             Some(Utc::now() - chrono::Duration::minutes(120));
 
-        let config = AppConfig {
-            notify_inactivity: true,
-            notify_daily_posture_balance: true,
-            ..Default::default()
-        };
+        let mut comm = CommunicationProfile::default();
+        comm.periodic_notifications.inactivity_enabled = true;
+        comm.periodic_notifications.posture_balance_enabled = true;
 
-        let events = m.check_notification_conditions(&config);
+        let events = m.check_notification_conditions(&comm);
         assert!(events.is_empty(), "no notifications during Away, got {:?}", events);
     }
 
@@ -167,13 +165,11 @@ mod tests {
         m.state.last_position_change_at =
             Some(Utc::now() - chrono::Duration::minutes(120));
 
-        let config = AppConfig {
-            notify_inactivity: true,
-            notify_daily_posture_balance: true,
-            ..Default::default()
-        };
+        let mut comm = CommunicationProfile::default();
+        comm.periodic_notifications.inactivity_enabled = true;
+        comm.periodic_notifications.posture_balance_enabled = true;
 
-        let events = m.check_notification_conditions(&config);
+        let events = m.check_notification_conditions(&comm);
         assert!(events.len() >= 2, "should fire when sitting, got {:?}", events);
     }
 }

@@ -44,8 +44,6 @@ pub fn save_settings(
     session.sitting_height_cm = clamped.sitting_mm as f32 / 10.0;
     session.standing_height_cm = clamped.standing_mm as f32 / 10.0;
     session.desk_thickness_cm = clamped.desk_thickness_mm as f32 / 10.0;
-    session.set_limit_minutes(clamped.sit_limit_mins);
-    session.set_stand_limit_minutes(clamped.stand_limit_mins);
 
     Ok(())
 }

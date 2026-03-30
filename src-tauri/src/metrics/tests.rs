@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::config::AppConfig;
+    use crate::ergonomic_profile::ErgonomicProfile;
     use crate::metrics::*;
     use crate::session_types::*;
     use chrono::Utc;
@@ -41,8 +41,8 @@ mod tests {
         }
     }
 
-    fn config() -> AppConfig {
-        AppConfig::default()
+    fn ergo() -> ErgonomicProfile {
+        ErgonomicProfile::default()
     }
 
     // ─── Engine tests ────────────────────────────────────────────────────
@@ -51,8 +51,8 @@ mod tests {
     fn engine_compute_all_returns_4() {
         let engine = MetricEngine::with_defaults();
         let state = default_state();
-        let cfg = config();
-        let results = engine.compute_all(&state, &cfg);
+        let e = ergo();
+        let results = engine.compute_all(&state, &e);
         assert_eq!(results.len(), 4);
     }
 
@@ -62,8 +62,8 @@ mod tests {
     fn standing_pct_no_data() {
         let metric = standing_pct::StandingPercentMetric;
         let state = default_state();
-        let cfg = config();
-        let result = metric.compute(&state, &cfg);
+        let e = ergo();
+        let result = metric.compute(&state, &e);
         assert_eq!(result.display, "\u{2014}");
     }
 
@@ -74,8 +74,8 @@ mod tests {
         // Total must exceed early_data_threshold (30 min = 1800s)
         state.sitting_seconds_total = 1500;
         state.standing_seconds = 500;
-        let cfg = config();
-        let result = metric.compute(&state, &cfg);
+        let e = ergo();
+        let result = metric.compute(&state, &e);
         assert!((result.value - 25.0).abs() < 0.1);
         assert_eq!(result.display, "25%");
     }
@@ -84,11 +84,10 @@ mod tests {
     fn standing_pct_green() {
         let metric = standing_pct::StandingPercentMetric;
         let mut state = default_state();
-        // 15% standing -> Green (threshold is 15%). Total > 1800s threshold.
         state.sitting_seconds_total = 1700;
         state.standing_seconds = 300; // 300/(1700+300) = 15%
-        let cfg = config();
-        let result = metric.compute(&state, &cfg);
+        let e = ergo();
+        let result = metric.compute(&state, &e);
         assert_eq!(result.level, MetricLevel::Green);
     }
 
@@ -96,11 +95,10 @@ mod tests {
     fn standing_pct_red() {
         let metric = standing_pct::StandingPercentMetric;
         let mut state = default_state();
-        // 5% standing -> Red (below 10% yellow threshold). Total > 1800s.
         state.sitting_seconds_total = 1900;
         state.standing_seconds = 100; // 100/(1900+100) = 5%
-        let cfg = config();
-        let result = metric.compute(&state, &cfg);
+        let e = ergo();
+        let result = metric.compute(&state, &e);
         assert_eq!(result.level, MetricLevel::Red);
     }
 
@@ -108,15 +106,12 @@ mod tests {
     fn standing_pct_unaffected_by_break_credit() {
         let metric = standing_pct::StandingPercentMetric;
         let mut state = default_state();
-        // Simulate: 2h sitting, 10 min standing, then full break credit resets sitting_seconds
-        state.sitting_seconds_total = 7200; // raw: 2h total sitting
-        state.sitting_seconds = 0;          // reset by full break credit
-        state.standing_seconds = 600;       // 10 min standing
-        let cfg = config();
-        let result = metric.compute(&state, &cfg);
-        // Should use sitting_seconds_total: 600 / (7200 + 600) ≈ 7.7%
+        state.sitting_seconds_total = 7200;
+        state.sitting_seconds = 0;
+        state.standing_seconds = 600;
+        let e = ergo();
+        let result = metric.compute(&state, &e);
         assert!((result.value - 7.69).abs() < 0.1);
-        // NOT 100% (which would happen if using sitting_seconds = 0)
     }
 
     // ─── PositionChangeRateMetric ────────────────────────────────────────
@@ -125,8 +120,8 @@ mod tests {
     fn position_rate_no_data() {
         let metric = position_rate::PositionChangeRateMetric;
         let state = default_state();
-        let cfg = config();
-        let result = metric.compute(&state, &cfg);
+        let e = ergo();
+        let result = metric.compute(&state, &e);
         assert_eq!(result.display, "\u{2014}");
     }
 
@@ -136,9 +131,8 @@ mod tests {
         let mut state = default_state();
         state.first_reading_at = Some(Utc::now() - chrono::Duration::hours(2));
         state.position_changes = 4;
-        let cfg = config();
-        let result = metric.compute(&state, &cfg);
-        // 4 changes / 2 hours = 2.0/h -> Green (threshold is 2)
+        let e = ergo();
+        let result = metric.compute(&state, &e);
         assert!((result.value - 2.0).abs() < 0.1);
         assert_eq!(result.level, MetricLevel::Green);
     }
@@ -149,8 +143,8 @@ mod tests {
     fn longest_session_no_data() {
         let metric = longest_session::LongestSessionMetric;
         let state = default_state();
-        let cfg = config();
-        let result = metric.compute(&state, &cfg);
+        let e = ergo();
+        let result = metric.compute(&state, &e);
         assert_eq!(result.display, "\u{2014}");
     }
 
@@ -160,10 +154,10 @@ mod tests {
         let mut state = default_state();
         state.first_reading_at = Some(Utc::now() - chrono::Duration::hours(2));
         state.longest_computer_session_secs = 30 * 60; // 30 min
-        let cfg = config();
-        let result = metric.compute(&state, &cfg);
+        let e = ergo();
+        let result = metric.compute(&state, &e);
         assert_eq!(result.display, "30m");
-        assert_eq!(result.level, MetricLevel::Green); // <= 45 min
+        assert_eq!(result.level, MetricLevel::Green);
     }
 
     #[test]
@@ -172,10 +166,10 @@ mod tests {
         let mut state = default_state();
         state.first_reading_at = Some(Utc::now() - chrono::Duration::hours(2));
         state.longest_computer_session_secs = 80 * 60; // 80 min
-        let cfg = config();
-        let result = metric.compute(&state, &cfg);
+        let e = ergo();
+        let result = metric.compute(&state, &e);
         assert_eq!(result.display, "1h20m");
-        assert_eq!(result.level, MetricLevel::Red); // > 75 min
+        assert_eq!(result.level, MetricLevel::Red);
     }
 
     // ─── Utility functions ───────────────────────────────────────────────
@@ -185,9 +179,7 @@ mod tests {
         assert_eq!(threshold_level_higher_better(20.0, 15.0, 10.0), MetricLevel::Green);
         assert_eq!(threshold_level_higher_better(12.0, 15.0, 10.0), MetricLevel::Yellow);
         assert_eq!(threshold_level_higher_better(5.0, 15.0, 10.0), MetricLevel::Red);
-        // Boundary: exactly at green
         assert_eq!(threshold_level_higher_better(15.0, 15.0, 10.0), MetricLevel::Green);
-        // Boundary: exactly at yellow
         assert_eq!(threshold_level_higher_better(10.0, 15.0, 10.0), MetricLevel::Yellow);
     }
 
@@ -196,9 +188,7 @@ mod tests {
         assert_eq!(threshold_level_lower_better(30.0, 45.0, 75.0), MetricLevel::Green);
         assert_eq!(threshold_level_lower_better(60.0, 45.0, 75.0), MetricLevel::Yellow);
         assert_eq!(threshold_level_lower_better(90.0, 45.0, 75.0), MetricLevel::Red);
-        // Boundary: exactly at green
         assert_eq!(threshold_level_lower_better(45.0, 45.0, 75.0), MetricLevel::Green);
-        // Boundary: exactly at yellow
         assert_eq!(threshold_level_lower_better(75.0, 45.0, 75.0), MetricLevel::Yellow);
     }
 }

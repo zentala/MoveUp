@@ -7,7 +7,6 @@
 use log::info;
 
 use crate::alert_popup::AlertPopup;
-use crate::config::AppConfig;
 use crate::event_logger::EventLogger;
 use crate::session_types::NotificationEvent;
 
@@ -108,17 +107,17 @@ impl NotificationService {
 
     /// Routes a list of intents through the configured backend.
     ///
-    /// Reads `config.notification_backend` to decide where to send:
+    /// `notification_backend` decides where to send:
     /// - `"toast"` — native OS notification only
     /// - `"popup"` — WinAPI popup only
     /// - `"both"` — both toast and popup
     pub fn dispatch(
         intents: &[NotificationIntent],
-        config: &AppConfig,
+        notification_backend: &str,
         event_logger: &EventLogger,
         alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,
     ) {
-        let backend = config.notification_backend.as_str();
+        let backend = notification_backend;
         let use_toast = backend == "toast" || backend == "both";
         let use_popup = backend == "popup" || backend == "both";
 

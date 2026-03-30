@@ -4,8 +4,16 @@
 mod tests {
     use chrono::Utc;
 
+    use crate::communication_profile::CommunicationProfile;
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
+
+    fn comm_with(inactivity: bool, posture_balance: bool) -> CommunicationProfile {
+        let mut comm = CommunicationProfile::default();
+        comm.periodic_notifications.inactivity_enabled = inactivity;
+        comm.periodic_notifications.posture_balance_enabled = posture_balance;
+        comm
+    }
 
     // ─── Daily Reset Tests ───────────────────────────────────────────────────
 
@@ -87,13 +95,10 @@ mod tests {
     fn check_notification_conditions_inactivity_fires_after_60min() {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Sitting;
-        let config = crate::config::AppConfig {
-            notify_inactivity: true,
-            ..Default::default()
-        };
+        let comm = comm_with(true, false);
         m.state.last_position_change_at =
             Some(Utc::now() - chrono::Duration::minutes(61));
-        let events = m.check_notification_conditions(&config);
+        let events = m.check_notification_conditions(&comm);
         assert!(events.iter().any(|e| matches!(e, NotificationEvent::Inactivity)));
         assert!(m.notify_inactivity_fired);
     }
@@ -101,13 +106,10 @@ mod tests {
     #[test]
     fn check_notification_conditions_inactivity_not_disabled() {
         let mut m = SessionManager::new();
-        let config = crate::config::AppConfig {
-            notify_inactivity: false,
-            ..Default::default()
-        };
+        let comm = comm_with(false, false);
         m.state.last_position_change_at =
             Some(Utc::now() - chrono::Duration::minutes(61));
-        let events = m.check_notification_conditions(&config);
+        let events = m.check_notification_conditions(&comm);
         assert!(!events.iter().any(|e| matches!(e, NotificationEvent::Inactivity)));
         assert!(!m.notify_inactivity_fired);
     }
@@ -116,13 +118,10 @@ mod tests {
     fn check_notification_conditions_posture_balance_fires() {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Sitting;
-        let config = crate::config::AppConfig {
-            notify_daily_posture_balance: true,
-            ..Default::default()
-        };
+        let comm = comm_with(false, true);
         m.state.sitting_seconds = 3600;
         m.state.standing_seconds = 1000;
-        let events = m.check_notification_conditions(&config);
+        let events = m.check_notification_conditions(&comm);
         assert!(events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)));
         assert!(m.notify_posture_balance_fired);
     }
@@ -130,20 +129,17 @@ mod tests {
     #[test]
     fn check_notification_conditions_posture_balance_not_disabled() {
         let mut m = SessionManager::new();
-        let config = crate::config::AppConfig {
-            notify_daily_posture_balance: false,
-            ..Default::default()
-        };
+        let comm = comm_with(false, false);
         m.state.sitting_seconds = 3600;
         m.state.standing_seconds = 1000;
-        let events = m.check_notification_conditions(&config);
+        let events = m.check_notification_conditions(&comm);
         assert!(!events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)));
     }
 
     #[test]
     fn check_notification_conditions_all_reset_on_daily_reset() {
         let mut m = SessionManager::new();
-        let config = crate::config::AppConfig::default();
+        let comm = CommunicationProfile::default();
         m.notify_inactivity_fired = true;
         m.notify_posture_balance_fired = true;
         m.praise_halfway_fired_today = true;
@@ -152,7 +148,7 @@ mod tests {
         m.last_reset_check = Utc::now() - chrono::Duration::seconds(120);
         let _ = m.check_daily_reset();
         assert!(!m.standing_target_reached_fired);
-        let events = m.check_notification_conditions(&config);
+        let events = m.check_notification_conditions(&comm);
         assert_eq!(events.len(), 0, "no notifications should fire after reset");
     }
 
@@ -162,8 +158,8 @@ mod tests {
         m.state.state = DeskState::Standing;
         m.state.stand_limit_secs = 900; // 15 min
         m.state.standing_seconds = 900;
-        let config = crate::config::AppConfig::default();
-        let events = m.check_notification_conditions(&config);
+        let comm = CommunicationProfile::default();
+        let events = m.check_notification_conditions(&comm);
         assert!(events.iter().any(|e| matches!(e, NotificationEvent::StandingTargetReached)));
         assert!(m.standing_target_reached_fired);
     }
@@ -174,10 +170,10 @@ mod tests {
         m.state.state = DeskState::Standing;
         m.state.stand_limit_secs = 900;
         m.state.standing_seconds = 1000;
-        let config = crate::config::AppConfig::default();
-        let _ = m.check_notification_conditions(&config);
+        let comm = CommunicationProfile::default();
+        let _ = m.check_notification_conditions(&comm);
         assert!(m.standing_target_reached_fired);
-        let events = m.check_notification_conditions(&config);
+        let events = m.check_notification_conditions(&comm);
         assert!(!events.iter().any(|e| matches!(e, NotificationEvent::StandingTargetReached)));
     }
 

@@ -164,11 +164,9 @@ fn broadcast_remote_state(
     snapshot: &crate::session::SessionStateDto,
     raw_state: &crate::session_types::SessionState,
 ) {
-    let config_guard = app_state.config.lock().unwrap();
-    let config = config_guard.as_ref().cloned().unwrap_or_default();
-    drop(config_guard);
+    let ergo = app_state.comm_policy.lock().unwrap().ergo_profile().clone();
     let metrics = crate::metrics::MetricEngine::with_defaults()
-        .compute_all(raw_state, &config);
+        .compute_all(raw_state, &ergo);
     let today = app_state.today_cache.lock().unwrap().clone();
     let remote_state = ws_broadcaster::RemoteDisplayState {
         session: snapshot.clone(),

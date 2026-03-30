@@ -7,7 +7,7 @@ pub mod longest_session;
 #[cfg(test)]
 mod tests;
 
-use crate::config::AppConfig;
+use crate::ergonomic_profile::ErgonomicProfile;
 use crate::session::SessionStateDto;
 use crate::session_types::SessionState;
 use serde::Serialize;
@@ -49,7 +49,7 @@ pub struct DashboardState {
 pub trait Metric: Send + Sync {
     fn id(&self) -> &str;
     fn label(&self) -> &str;
-    fn compute(&self, state: &SessionState, config: &AppConfig) -> MetricResult;
+    fn compute(&self, state: &SessionState, ergo: &ErgonomicProfile) -> MetricResult;
 }
 
 /// Engine that holds all registered metrics and computes them all.
@@ -76,11 +76,15 @@ impl MetricEngine {
         self.metrics.push(metric);
     }
 
-    pub fn compute_all(&self, state: &SessionState, config: &AppConfig) -> Vec<MetricSnapshot> {
+    pub fn compute_all(
+        &self,
+        state: &SessionState,
+        ergo: &ErgonomicProfile,
+    ) -> Vec<MetricSnapshot> {
         self.metrics.iter().map(|m| MetricSnapshot {
             id: m.id().to_string(),
             label: m.label().to_string(),
-            result: m.compute(state, config),
+            result: m.compute(state, ergo),
         }).collect()
     }
 }

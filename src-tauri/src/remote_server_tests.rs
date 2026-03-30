@@ -14,6 +14,12 @@ fn remote_state_is_clone() {
         ws_tx: tx,
         session: Arc::new(Mutex::new(SessionManager::new())),
         config: Arc::new(Mutex::new(None)),
+        comm_policy: Arc::new(Mutex::new(
+            crate::communication_policy::CommunicationPolicy::new(
+                Default::default(),
+                Default::default(),
+            ),
+        )),
         today_cache: Arc::new(Mutex::new(empty_today_summary())),
         active_clients: Arc::new(AtomicUsize::new(0)),
     };

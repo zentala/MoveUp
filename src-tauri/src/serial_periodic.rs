@@ -29,6 +29,12 @@ pub fn check_periodic(
     port_name: &str,
     alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
+    let state: tauri::State<'_, AppState> = app.state();
+    let policy = state.comm_policy.lock().unwrap();
+    let ergo = policy.ergo_profile().clone();
+    let comm = policy.comm_profile().clone();
+    drop(policy);
+
     // Send telemetry BEFORE daily reset so we capture the full day's data.
     let daily_reset_occurred = {
         let mut sess = session.lock().unwrap();
@@ -53,7 +59,7 @@ pub fn check_periodic(
         let mut raw = sess.state.clone();
         raw.sitting_seconds_total = sess.get_live_sitting_seconds_total(now);
         raw.standing_seconds = sess.get_live_standing_seconds(now);
-        let metrics = MetricEngine::with_defaults().compute_all(&raw, config);
+        let metrics = MetricEngine::with_defaults().compute_all(&raw, &ergo);
         snapshot_logger.log_snapshot(
             &snapshot,
             true,
@@ -65,7 +71,7 @@ pub fn check_periodic(
 
     let (notification_events, sitting_secs, standing_secs) = {
         let mut sess = session.lock().unwrap();
-        let events = sess.check_notification_conditions(config);
+        let events = sess.check_notification_conditions(&comm);
         let snap = sess.snapshot();
         (events, snap.sitting_seconds, snap.standing_seconds)
     };
@@ -75,7 +81,12 @@ pub fn check_periodic(
         sitting_secs,
         standing_secs,
     );
-    NotificationService::dispatch(&intents, config, event_logger, alert_popup);
+    NotificationService::dispatch(
+        &intents,
+        &comm.notification_backend,
+        event_logger,
+        alert_popup,
+    );
 
     // Hot-reload communication and ergonomic profiles if files changed on disk.
     reload_profiles_if_changed(app);
@@ -88,10 +99,16 @@ pub fn handle_reading(
     mm: i32,
     session: &Arc<Mutex<SessionManager>>,
     db: &Arc<Mutex<Option<rusqlite::Connection>>>,
-    config: &crate::config::AppConfig,
+    _config: &crate::config::AppConfig,
     event_logger: &Arc<EventLogger>,
     alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
+    let state: tauri::State<'_, AppState> = app.state();
+    let policy = state.comm_policy.lock().unwrap();
+    let ergo = policy.ergo_profile().clone();
+    let comm = policy.comm_profile().clone();
+    drop(policy);
+
     let active = is_active();
     let idle_secs = crate::activity::get_idle_seconds();
     let (state_before, result) = {
@@ -99,7 +116,7 @@ pub fn handle_reading(
         let before = sess.current_state();
         let res = sess.on_reading(mm, active);
         if sess.last_accumulate_ran {
-            sess.accumulate_score_tick(config);
+            sess.accumulate_score_tick(&ergo);
         }
         (before, res)
     };
@@ -123,13 +140,13 @@ pub fn handle_reading(
         if state_before == DeskState::Sitting && payload.state == DeskState::Standing {
             let praise = {
                 let mut sess = session.lock().unwrap();
-                sess.should_send_praise_halfway(config)
+                sess.should_send_praise_halfway(&comm)
             };
             if praise {
                 let intent = NotificationService::praise_halfway_intent();
                 NotificationService::dispatch(
                     &[intent],
-                    config,
+                    &comm.notification_backend,
                     event_logger,
                     alert_popup,
                 );
@@ -166,7 +183,12 @@ pub fn handle_reading(
         let sitting = session.lock().unwrap().snapshot().sitting_seconds;
         event_logger.log(&format!("ALERT sit_limit sitting={}s", sitting));
         let intent = NotificationService::sit_limit_intent();
-        NotificationService::dispatch(&[intent], config, event_logger, alert_popup);
+        NotificationService::dispatch(
+            &[intent],
+            &comm.notification_backend,
+            event_logger,
+            alert_popup,
+        );
     }
 
     let stand_alert = { session.lock().unwrap().should_stand_alert() };
@@ -174,7 +196,12 @@ pub fn handle_reading(
         let standing = session.lock().unwrap().snapshot().standing_session_secs;
         event_logger.log(&format!("ALERT stand_limit standing={}s", standing));
         let intent = NotificationService::stand_limit_intent();
-        NotificationService::dispatch(&[intent], config, event_logger, alert_popup);
+        NotificationService::dispatch(
+            &[intent],
+            &comm.notification_backend,
+            event_logger,
+            alert_popup,
+        );
     }
 }
 

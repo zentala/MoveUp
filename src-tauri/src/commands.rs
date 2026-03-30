@@ -79,8 +79,10 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
     session.sitting_height_cm = cfg.sitting_mm as f32 / 10.0;
     session.standing_height_cm = cfg.standing_mm as f32 / 10.0;
     session.desk_thickness_cm = cfg.desk_thickness_mm as f32 / 10.0;
-    session.set_limit_minutes(cfg.sit_limit_mins);
-    session.set_stand_limit_minutes(cfg.stand_limit_mins);
+    // Limits come from the ergonomic profile (already in CommunicationPolicy)
+    let ergo = state.comm_policy.lock().unwrap().ergo_profile().clone();
+    session.state.session_limit_secs = ergo.limits.sitting_secs as i64;
+    session.state.stand_limit_secs = ergo.limits.standing_target_secs as i64;
 
     Ok(())
 }
@@ -142,9 +144,8 @@ pub fn get_dashboard_state(
         raw.standing_seconds = s.get_live_standing_seconds(now);
         (s.snapshot(), raw)
     };
-    let cfg = state.config.lock().unwrap();
-    let cfg = cfg.as_ref().ok_or("Config not loaded")?;
-    let metrics = MetricEngine::with_defaults().compute_all(&ss, cfg);
+    let ergo = state.comm_policy.lock().unwrap().ergo_profile().clone();
+    let metrics = MetricEngine::with_defaults().compute_all(&ss, &ergo);
     Ok(DashboardState { session: snapshot, metrics })
 }
 

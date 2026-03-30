@@ -12,6 +12,7 @@ use axum::response::{Html, IntoResponse};
 use axum::routing::get;
 use axum::{Json, Router};
 use tokio::sync::broadcast;
+use crate::communication_policy::CommunicationPolicy;
 use crate::config::AppConfig;
 use crate::db::TodaySummary;
 use crate::metrics::MetricEngine;
@@ -25,8 +26,10 @@ pub struct RemoteState {
     pub ws_tx: broadcast::Sender<String>,
     /// Reference to session manager for snapshot on connect.
     pub session: Arc<Mutex<SessionManager>>,
-    /// Reference to config for metric computation on connect.
+    /// Reference to config for calibration on connect.
     pub config: Arc<Mutex<Option<AppConfig>>>,
+    /// Communication policy engine (holds ergonomic + communication profiles).
+    pub comm_policy: Arc<Mutex<CommunicationPolicy>>,
     /// Cached today summary (refreshed on state transitions, not per-tick).
     pub today_cache: Arc<Mutex<TodaySummary>>,
     /// Active WS client counter (max 10).
@@ -169,14 +172,13 @@ fn build_remote_display_state(state: &RemoteState) -> RemoteDisplayState {
     raw.standing_seconds = session_mgr.get_live_standing_seconds(now);
     drop(session_mgr);
 
-    let config_guard = state
-        .config
+    let ergo = state.comm_policy
         .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    let config = config_guard.as_ref().cloned().unwrap_or_default();
-    drop(config_guard);
+        .unwrap_or_else(|e| e.into_inner())
+        .ergo_profile()
+        .clone();
 
-    let metrics = MetricEngine::with_defaults().compute_all(&raw, &config);
+    let metrics = MetricEngine::with_defaults().compute_all(&raw, &ergo);
     let today = state
         .today_cache
         .lock()

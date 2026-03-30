@@ -85,8 +85,11 @@ impl SessionManager {
         }
     }
 
-    /// Creates a manager initialized from AppConfig.
-    pub fn new_from_config(config: &crate::config::AppConfig) -> Self {
+    /// Creates a manager initialized from AppConfig (calibration) and ErgonomicProfile (limits).
+    pub fn new_from_config(
+        config: &crate::config::AppConfig,
+        ergo: &crate::ergonomic_profile::ErgonomicProfile,
+    ) -> Self {
         let now = Utc::now();
         Self {
             state: SessionState {
@@ -96,8 +99,8 @@ impl SessionManager {
                 standing_seconds: 0,
                 break_started: None,
                 break_seconds: 0,
-                session_limit_secs: config.sit_limit_mins as i64 * 60,
-                stand_limit_secs: config.standing_target_mins as i64 * 60,
+                session_limit_secs: ergo.limits.sitting_secs as i64,
+                stand_limit_secs: ergo.limits.standing_target_secs as i64,
                 desk_height_cm: 0.0,
                 last_position_change_at: None,
                 position_changes: 0,

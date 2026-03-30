@@ -1,7 +1,7 @@
 //! LongestSessionMetric — longest continuous computer session (minutes).
 
 use super::{Metric, MetricLevel, MetricResult, threshold_level_lower_better};
-use crate::config::AppConfig;
+use crate::ergonomic_profile::ErgonomicProfile;
 use crate::session_types::SessionState;
 
 pub struct LongestSessionMetric;
@@ -10,7 +10,7 @@ impl Metric for LongestSessionMetric {
     fn id(&self) -> &str { "longest_session" }
     fn label(&self) -> &str { "\u{1f441} Screen" }
 
-    fn compute(&self, state: &SessionState, config: &AppConfig) -> MetricResult {
+    fn compute(&self, state: &SessionState, ergo: &ErgonomicProfile) -> MetricResult {
         let longest_secs = state.longest_computer_session_secs
             .max(state.continuous_computer_secs); // include current session
         let longest_mins = longest_secs as f64 / 60.0;
@@ -34,8 +34,8 @@ impl Metric for LongestSessionMetric {
 
         let level = threshold_level_lower_better(
             longest_mins,
-            config.kpi_session_green_mins as f64,
-            config.kpi_session_yellow_mins as f64,
+            ergo.kpi.session_green_mins as f64,
+            ergo.kpi.session_yellow_mins as f64,
         );
 
         MetricResult {

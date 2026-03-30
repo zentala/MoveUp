@@ -1,7 +1,7 @@
 //! HourlyBreakCoverageMetric — fraction of work hours with a 5+ min screen break.
 
 use super::{Metric, MetricLevel, MetricResult};
-use crate::config::AppConfig;
+use crate::ergonomic_profile::ErgonomicProfile;
 use crate::session_types::SessionState;
 
 pub struct HourlyBreakCoverageMetric;
@@ -10,7 +10,7 @@ impl Metric for HourlyBreakCoverageMetric {
     fn id(&self) -> &str { "hourly_breaks" }
     fn label(&self) -> &str { "\u{2615} Breaks" }
 
-    fn compute(&self, state: &SessionState, config: &AppConfig) -> MetricResult {
+    fn compute(&self, state: &SessionState, ergo: &ErgonomicProfile) -> MetricResult {
         let hours_active = state.hourly_breaks_active;
 
         if hours_active == 0 {
@@ -26,7 +26,7 @@ impl Metric for HourlyBreakCoverageMetric {
         let missed = hours_active.saturating_sub(breaks);
 
         let level = if missed == 0 { MetricLevel::Green }
-            else if missed <= config.kpi_break_yellow_missed { MetricLevel::Yellow }
+            else if missed <= ergo.kpi.break_yellow_missed { MetricLevel::Yellow }
             else { MetricLevel::Red };
 
         MetricResult {

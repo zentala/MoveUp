@@ -26,9 +26,10 @@ pub fn get_share_text(
         (s.snapshot(), raw)
     };
 
-    let cfg = state.config.lock().map_err(|e| format!("config lock: {}", e))?;
-    let cfg = cfg.as_ref().ok_or("Config not loaded")?;
-    let metrics = MetricEngine::with_defaults().compute_all(&ss, cfg);
+    let ergo = state.comm_policy.lock()
+        .map_err(|e| format!("policy lock: {}", e))?
+        .ergo_profile().clone();
+    let metrics = MetricEngine::with_defaults().compute_all(&ss, &ergo);
 
     let mut standing_pct = "—".to_string();
     let mut position_changes = "—".to_string();

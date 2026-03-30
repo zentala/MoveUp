@@ -4,8 +4,15 @@
 mod tests {
     use chrono::Utc;
 
+    use crate::communication_profile::CommunicationProfile;
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
+
+    fn comm_with_praise(enabled: bool) -> CommunicationProfile {
+        let mut comm = CommunicationProfile::default();
+        comm.periodic_notifications.praise_halfway_enabled = enabled;
+        comm
+    }
 
     // ─── Stand Limit Alert Tests ─────────────────────────────────────────────
 
@@ -60,55 +67,40 @@ mod tests {
     #[test]
     fn should_send_praise_halfway_fires_at_50_percent() {
         let mut m = SessionManager::new();
-        let config = crate::config::AppConfig {
-            notify_praise_halfway: true,
-            standing_target_mins: 20,
-            ..Default::default()
-        };
+        let comm = comm_with_praise(true);
         m.state.stand_limit_secs = 1200;
         m.state.standing_seconds = 600;
-        assert!(m.should_send_praise_halfway(&config));
+        assert!(m.should_send_praise_halfway(&comm));
         assert!(m.praise_halfway_fired_today);
     }
 
     #[test]
     fn should_send_praise_halfway_not_disabled() {
         let mut m = SessionManager::new();
-        let config = crate::config::AppConfig {
-            notify_praise_halfway: false,
-            standing_target_mins: 20,
-            ..Default::default()
-        };
+        let comm = comm_with_praise(false);
         m.state.stand_limit_secs = 1200;
         m.state.standing_seconds = 600;
-        assert!(!m.should_send_praise_halfway(&config));
+        assert!(!m.should_send_praise_halfway(&comm));
     }
 
     #[test]
     fn should_send_praise_halfway_disabled_when_stand_limit_zero() {
         let mut m = SessionManager::new();
-        let config = crate::config::AppConfig {
-            notify_praise_halfway: true,
-            ..Default::default()
-        };
+        let comm = comm_with_praise(true);
         m.state.stand_limit_secs = 0;
         m.state.standing_seconds = 600;
-        assert!(!m.should_send_praise_halfway(&config));
+        assert!(!m.should_send_praise_halfway(&comm));
     }
 
     #[test]
     fn should_send_praise_halfway_fires_once_per_day() {
         let mut m = SessionManager::new();
-        let config = crate::config::AppConfig {
-            notify_praise_halfway: true,
-            standing_target_mins: 20,
-            ..Default::default()
-        };
+        let comm = comm_with_praise(true);
         m.state.stand_limit_secs = 1200;
         m.state.standing_seconds = 600;
         m.state.state = DeskState::Standing;
-        assert!(m.should_send_praise_halfway(&config));
-        assert!(!m.should_send_praise_halfway(&config), "should not fire twice");
+        assert!(m.should_send_praise_halfway(&comm));
+        assert!(!m.should_send_praise_halfway(&comm), "should not fire twice");
     }
 
     // ─── Position Changes Tests ──────────────────────────────────────────────

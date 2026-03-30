@@ -209,8 +209,9 @@ pub fn run() {
                 let state: tauri::State<'_, AppState> = app.state();
                 if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
                     let config = crate::config::AppConfig::load(store.inner());
+                    let ergo = state.comm_policy.lock().unwrap().ergo_profile().clone();
                     let mut session = state.session.lock().unwrap_or_else(|e| e.into_inner());
-                    *session = crate::session::SessionManager::new_from_config(&config);
+                    *session = crate::session::SessionManager::new_from_config(&config, &ergo);
                     *state.config.lock().unwrap_or_else(|e| e.into_inner()) = Some(config.clone());
                     info!("startup: config loaded from store into SessionManager");
 

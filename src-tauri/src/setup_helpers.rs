@@ -87,6 +87,7 @@ pub fn setup_remote_display(app: &AppHandle) {
         ws_tx: state.ws_tx.clone(),
         session: state.session.clone(),
         config: state.config.clone(),
+        comm_policy: state.comm_policy.clone(),
         today_cache: state.today_cache.clone(),
         active_clients: Arc::new(AtomicUsize::new(0)),
     };

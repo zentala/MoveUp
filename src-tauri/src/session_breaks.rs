@@ -136,14 +136,15 @@ impl SessionManager {
     /// Suppresses all notifications when user is Away (no point nagging an empty desk).
     pub fn check_notification_conditions(
         &mut self,
-        config: &crate::config::AppConfig,
+        comm: &crate::communication_profile::CommunicationProfile,
     ) -> Vec<NotificationEvent> {
         if self.state.state == DeskState::Away || self.state.state == DeskState::Walking {
             return Vec::new();
         }
+        let pn = &comm.periodic_notifications;
         let now = Utc::now();
         let mut events = Vec::new();
-        if config.notify_inactivity && !self.notify_inactivity_fired {
+        if pn.inactivity_enabled && !self.notify_inactivity_fired {
             if let Some(last_change) = self.state.last_position_change_at {
                 if (now - last_change).num_seconds() >= 60 * 60 {
                     self.notify_inactivity_fired = true;
@@ -151,7 +152,7 @@ impl SessionManager {
                 }
             }
         }
-        if config.notify_daily_posture_balance
+        if pn.posture_balance_enabled
             && !self.notify_posture_balance_fired
         {
             if self.state.sitting_seconds > self.state.standing_seconds * 2 {
@@ -172,9 +173,9 @@ impl SessionManager {
     /// Checks if praise-halfway notification should fire.
     pub fn should_send_praise_halfway(
         &mut self,
-        config: &crate::config::AppConfig,
+        comm: &crate::communication_profile::CommunicationProfile,
     ) -> bool {
-        if config.notify_praise_halfway
+        if comm.periodic_notifications.praise_halfway_enabled
             && !self.praise_halfway_fired_today
             && self.state.stand_limit_secs > 0
             && self.state.standing_seconds >= self.state.stand_limit_secs / 2

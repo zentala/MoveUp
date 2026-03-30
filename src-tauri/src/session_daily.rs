@@ -65,13 +65,13 @@ impl SessionManager {
     /// Accumulates score every tick (~1s). Called from serial_periodic after on_reading.
     ///
     /// Caller must gate this behind `last_accumulate_ran` to ensure 1 Hz rate.
-    pub fn accumulate_score_tick(&mut self, config: &crate::config::AppConfig) {
+    pub fn accumulate_score_tick(&mut self, ergo: &crate::ergonomic_profile::ErgonomicProfile) {
         match self.state.state {
             DeskState::Sitting => {
-                self.state.daily_score += config.pts_sitting_per_min / 60.0;
+                self.state.daily_score += ergo.scoring.pts_sitting_per_min / 60.0;
             }
             DeskState::Standing => {
-                self.state.daily_score += config.pts_standing_per_min / 60.0;
+                self.state.daily_score += ergo.scoring.pts_standing_per_min / 60.0;
 
                 // Compute live standing session duration from timestamp.
                 let live_standing_secs = self.state.standing_session_started
@@ -80,13 +80,13 @@ impl SessionManager {
                 self.state.standing_session_secs = live_standing_secs;
 
                 // Lap bonus: award for each target multiple crossed.
-                let target_secs = config.standing_target_mins as i64 * 60;
+                let target_secs = ergo.limits.standing_target_secs as i64;
                 if target_secs > 0 {
                     let current_lap = live_standing_secs / target_secs;
                     let awarded = self.state.lap_bonus_awarded_for_lap as i64;
                     if current_lap > awarded {
                         let missed = current_lap - awarded;
-                        self.state.daily_score += config.pts_session_bonus * missed as f32;
+                        self.state.daily_score += ergo.scoring.pts_session_bonus * missed as f32;
                         self.state.lap_bonus_awarded_for_lap = current_lap as u32;
                     }
                 }

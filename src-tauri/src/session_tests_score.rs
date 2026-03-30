@@ -2,12 +2,12 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::config::AppConfig;
+    use crate::ergonomic_profile::ErgonomicProfile;
     use crate::session_manager::SessionManager;
     use crate::session_types::DeskState;
 
-    fn default_config() -> AppConfig {
-        AppConfig::default()
+    fn default_ergo() -> ErgonomicProfile {
+        ErgonomicProfile::default()
     }
 
     fn standing_manager() -> SessionManager {
@@ -31,9 +31,9 @@ mod tests {
     #[test]
     fn sitting_60_ticks_decreases_score() {
         let mut m = sitting_manager();
-        let config = default_config();
+        let ergo = default_ergo();
         for _ in 0..60 {
-            m.accumulate_score_tick(&config);
+            m.accumulate_score_tick(&ergo);
         }
         // 60 ticks * (-0.5 / 60) = -0.5
         let expected = -0.5_f32;
@@ -44,9 +44,9 @@ mod tests {
     #[test]
     fn standing_60_ticks_increases_score() {
         let mut m = standing_manager();
-        let config = default_config();
+        let ergo = default_ergo();
         for _ in 0..60 {
-            m.accumulate_score_tick(&config);
+            m.accumulate_score_tick(&ergo);
         }
         // 60 ticks * (1.0 / 60) = 1.0 (no bonus — standing_session_started not set)
         let expected = 1.0_f32;
@@ -58,9 +58,9 @@ mod tests {
     fn walking_ticks_neutral() {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Walking;
-        let config = default_config();
+        let ergo = default_ergo();
         for _ in 0..120 {
-            m.accumulate_score_tick(&config);
+            m.accumulate_score_tick(&ergo);
         }
         assert!((m.state.daily_score - 0.0).abs() < f32::EPSILON);
     }
@@ -69,9 +69,9 @@ mod tests {
     fn away_ticks_neutral() {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Away;
-        let config = default_config();
+        let ergo = default_ergo();
         for _ in 0..120 {
-            m.accumulate_score_tick(&config);
+            m.accumulate_score_tick(&ergo);
         }
         assert!((m.state.daily_score - 0.0).abs() < f32::EPSILON);
     }
@@ -79,13 +79,13 @@ mod tests {
     #[test]
     fn lap_bonus_awarded_at_target() {
         let mut m = standing_manager();
-        let config = default_config(); // standing_target_mins = 15
+        let ergo = default_ergo(); // standing_target_secs = 900
         // Simulate 15 minutes of standing via timestamp.
         m.state.standing_session_started =
             Some(chrono::Utc::now() - chrono::Duration::seconds(15 * 60));
         let target_ticks = 15 * 60;
         for _ in 0..target_ticks {
-            m.accumulate_score_tick(&config);
+            m.accumulate_score_tick(&ergo);
         }
         // Score = 15 min * 1.0 pts/min + 5.0 bonus = 20.0
         assert_eq!(m.state.lap_bonus_awarded_for_lap, 1);
@@ -97,13 +97,13 @@ mod tests {
     #[test]
     fn no_bonus_before_target() {
         let mut m = standing_manager();
-        let config = default_config();
+        let ergo = default_ergo();
         // Simulate 14 minutes of standing (below 15 min target).
         m.state.standing_session_started =
             Some(chrono::Utc::now() - chrono::Duration::seconds(14 * 60));
         let ticks = 14 * 60;
         for _ in 0..ticks {
-            m.accumulate_score_tick(&config);
+            m.accumulate_score_tick(&ergo);
         }
         assert_eq!(m.state.lap_bonus_awarded_for_lap, 0);
     }
@@ -111,12 +111,12 @@ mod tests {
     #[test]
     fn no_double_bonus_same_lap() {
         let mut m = standing_manager();
-        let config = default_config();
+        let ergo = default_ergo();
         // Simulate 15 min + 1s of standing.
         m.state.standing_session_started =
             Some(chrono::Utc::now() - chrono::Duration::seconds(15 * 60 + 1));
         for _ in 0..(15 * 60 + 1) {
-            m.accumulate_score_tick(&config);
+            m.accumulate_score_tick(&ergo);
         }
         assert_eq!(m.state.lap_bonus_awarded_for_lap, 1,
             "bonus should be awarded exactly once for lap 1");
@@ -125,13 +125,13 @@ mod tests {
     #[test]
     fn two_laps_two_bonuses() {
         let mut m = standing_manager();
-        let config = default_config();
+        let ergo = default_ergo();
         // Simulate 30 minutes of standing (2 full laps).
         m.state.standing_session_started =
             Some(chrono::Utc::now() - chrono::Duration::seconds(30 * 60));
         let ticks = 30 * 60;
         for _ in 0..ticks {
-            m.accumulate_score_tick(&config);
+            m.accumulate_score_tick(&ergo);
         }
         assert_eq!(m.state.lap_bonus_awarded_for_lap, 2);
         // 30 min * 1.0 + 2 * 5.0 = 40.0
@@ -143,12 +143,12 @@ mod tests {
     #[test]
     fn standing_session_resets_on_sit_allow_new_bonus() {
         let mut m = standing_manager();
-        let config = default_config();
+        let ergo = default_ergo();
         // Complete 1 lap: 15 min of standing.
         m.state.standing_session_started =
             Some(chrono::Utc::now() - chrono::Duration::seconds(15 * 60));
         for _ in 0..(15 * 60) {
-            m.accumulate_score_tick(&config);
+            m.accumulate_score_tick(&ergo);
         }
         assert_eq!(m.state.lap_bonus_awarded_for_lap, 1);
 
@@ -162,7 +162,7 @@ mod tests {
         m.state.standing_session_started =
             Some(chrono::Utc::now() - chrono::Duration::seconds(15 * 60));
         for _ in 0..(15 * 60) {
-            m.accumulate_score_tick(&config);
+            m.accumulate_score_tick(&ergo);
         }
         assert_eq!(m.state.lap_bonus_awarded_for_lap, 1,
             "new standing session should earn lap 1 bonus again");
@@ -202,10 +202,10 @@ mod tests {
     }
 
     #[test]
-    fn config_defaults_correct() {
-        let config = AppConfig::default();
-        assert!((config.pts_standing_per_min - 1.0).abs() < f32::EPSILON);
-        assert!((config.pts_session_bonus - 5.0).abs() < f32::EPSILON);
-        assert!((config.pts_sitting_per_min - (-0.5)).abs() < f32::EPSILON);
+    fn ergo_profile_defaults_correct() {
+        let ergo = ErgonomicProfile::default();
+        assert!((ergo.scoring.pts_standing_per_min - 1.0).abs() < f32::EPSILON);
+        assert!((ergo.scoring.pts_session_bonus - 5.0).abs() < f32::EPSILON);
+        assert!((ergo.scoring.pts_sitting_per_min - (-0.5)).abs() < f32::EPSILON);
     }
 }
