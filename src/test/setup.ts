@@ -25,6 +25,12 @@ vi.mock("@tauri-apps/api/core", () => ({
         limit_used_secs: 0,
         daily_score: 0,
         standing_session_secs: 0,
+        continuous_computer_secs: 0,
+        longest_computer_session_secs: 0,
+        sitting_seconds_total: 0,
+        idle_secs: 0,
+        away_bout_secs: 0,
+        max_continuous_computer_secs: 7200,
       },
       get_settings: {
         sitting_mm: 750,
@@ -35,6 +41,8 @@ vi.mock("@tauri-apps/api/core", () => ({
         notify_inactivity: true,
         notify_daily_posture_balance: true,
         notify_praise_halfway: true,
+        enable_computer_time_tracking: true,
+        show_activity_status: true,
       },
       get_today_summary: {
         sitting_secs: 0,

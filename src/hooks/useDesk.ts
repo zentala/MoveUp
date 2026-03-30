@@ -50,6 +50,9 @@ export function useDesk(): UseDeskResult {
   const [metrics, setMetrics] = useState<MetricSnapshot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [transition, setTransition] = useState<TransitionInfo | null>(null);
+  const [idleSecs, setIdleSecs] = useState(0);
+  const [awayBoutSecs, setAwayBoutSecs] = useState(0);
+  const [continuousComputerSecs, setContinuousComputerSecs] = useState(0);
   const [todaySummary, setTodaySummary] = useState<TodaySummaryDto | null>(null);
   const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const portFetched = useRef(false);
@@ -108,6 +111,9 @@ export function useDesk(): UseDeskResult {
         setPositionChanges(dto.position_changes);
         setLimitUsedSecs(dto.limit_used_secs);
         setDailyScore(dto.daily_score);
+        setIdleSecs(dto.idle_secs ?? 0);
+        setAwayBoutSecs(dto.away_bout_secs ?? 0);
+        setContinuousComputerSecs(dto.continuous_computer_secs ?? 0);
         // If we get a non-Away state with height data, sensor is connected.
         // Fixes race where device-connected fires before listener mounts.
         if (dto.state !== "Away" && dto.desk_height_cm > 0) {
@@ -234,7 +240,8 @@ export function useDesk(): UseDeskResult {
     breakResetProgress,
     previousSession,
     todaySessions, todayChanges, todaySittingSecs, todayStandingSecs,
-    dailyScore, metrics, error, transition,
-    calibrate, setSitLimit, setStandLimit,
+    dailyScore, metrics, error,
+    idleSecs, awayBoutSecs, continuousComputerSecs,
+    transition, calibrate, setSitLimit, setStandLimit,
   };
 }

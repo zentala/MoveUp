@@ -50,6 +50,8 @@ export function useWidgetData(onOpenSettings: () => void): WidgetDataResult {
       todayStandingSecs: desk.todayStandingSecs,
       todaySittingSecs: desk.todaySittingSecs,
       todayScore: desk.dailyScore,
+      idleSecs: desk.idleSecs,
+      continuousComputerSecs: desk.continuousComputerSecs,
       metrics: desk.metrics,
       error: desk.error,
       onOpenSettings,

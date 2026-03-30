@@ -24,7 +24,7 @@ export const S05_STANDING_MID: Scenario = {
       mkMetric("hourly_breaks", "\u2615 Breaks", "0/1h", "red"),
       mkMetric("longest_session", "\ud83d\udc41 Screen", "48m", "yellow"),
     ],
-    error: null, onOpenSettings: noop,
+    error: null, idleSecs: 0, continuousComputerSecs: 0, onOpenSettings: noop,
   },
 };
 
@@ -48,7 +48,7 @@ export const S06_AWAY: Scenario = {
       mkMetric("hourly_breaks", "\u2615 Breaks", "0/1h", "red"),
       mkMetric("longest_session", "\ud83d\udc41 Screen", "30m", "green"),
     ],
-    error: null, onOpenSettings: noop,
+    error: null, idleSecs: 0, continuousComputerSecs: 0, onOpenSettings: noop,
   },
 };
 
@@ -75,7 +75,7 @@ export const S07_BACK_FROM_AWAY: Scenario = {
       mkMetric("hourly_breaks", "\u2615 Breaks", "1/2h", "yellow"),
       mkMetric("longest_session", "\ud83d\udc41 Screen", "40m", "green"),
     ],
-    error: null, onOpenSettings: noop,
+    error: null, idleSecs: 0, continuousComputerSecs: 0, onOpenSettings: noop,
   },
 };
 
@@ -104,7 +104,7 @@ export const S08_GOOD_DAY: Scenario = {
       mkMetric("hourly_breaks", "\u2615 Breaks", "3/4h", "green"),
       mkMetric("longest_session", "\ud83d\udc41 Screen", "35m", "green"),
     ],
-    error: null, onOpenSettings: noop,
+    error: null, idleSecs: 0, continuousComputerSecs: 0, onOpenSettings: noop,
   },
 };
 
@@ -121,6 +121,6 @@ export const S09_DISCONNECTED: Scenario = {
     breakResetThreshold: 600, breakResetProgress: 0,
     previousSession: null, todaySessions: [], todayChanges: 0,
     todayStandingSecs: 0, todaySittingSecs: 0, todayScore: 0,
-    metrics: [], error: "Sensor disconnected", onOpenSettings: noop,
+    metrics: [], error: "Sensor disconnected", idleSecs: 0, continuousComputerSecs: 0, onOpenSettings: noop,
   },
 };

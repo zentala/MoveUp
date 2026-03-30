@@ -54,6 +54,9 @@ export function useRemoteDesk(): UseDeskResult {
   const [limitUsedSecs, setLimitUsedSecs] = useState(0);
   const [dailyScore, setDailyScore] = useState(0);
   const [metrics, setMetrics] = useState<MetricSnapshot[]>([]);
+  const [idleSecs, setIdleSecs] = useState(0);
+  const [awayBoutSecs, setAwayBoutSecs] = useState(0);
+  const [continuousComputerSecs, setContinuousComputerSecs] = useState(0);
   // TODO: wire setError to WS failure states
   const [error] = useState<string | null>(null);
   const [transition, setTransition] = useState<TransitionInfo | null>(null);
@@ -76,6 +79,9 @@ export function useRemoteDesk(): UseDeskResult {
     setPositionChanges(dto.position_changes);
     setLimitUsedSecs(dto.limit_used_secs);
     setDailyScore(dto.daily_score);
+    setIdleSecs(dto.idle_secs ?? 0);
+    setAwayBoutSecs(dto.away_bout_secs ?? 0);
+    setContinuousComputerSecs(dto.continuous_computer_secs ?? 0);
     setMetrics(data.metrics);
     setTodaySummary(data.today);
     if (dto.state !== "Away" && dto.desk_height_cm > 0) {
@@ -234,6 +240,9 @@ export function useRemoteDesk(): UseDeskResult {
     dailyScore,
     metrics,
     error,
+    idleSecs,
+    awayBoutSecs,
+    continuousComputerSecs,
     transition,
     wsConnected,
     calibrate,

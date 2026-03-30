@@ -17,7 +17,7 @@ export const S01_FRESH_START: Scenario = {
     breakResetThreshold: 600, breakResetProgress: 0,
     previousSession: null, todaySessions: [], todayChanges: 0,
     todayStandingSecs: 0, todaySittingSecs: 0, todayScore: 0,
-    metrics: [], error: null, onOpenSettings: noop,
+    metrics: [], error: null, idleSecs: 0, continuousComputerSecs: 0, onOpenSettings: noop,
   },
 };
 
@@ -41,7 +41,7 @@ export const S02_SITTING_GREEN: Scenario = {
       mkMetric("hourly_breaks", "\u2615 Breaks", "—", "green"),
       mkMetric("longest_session", "\ud83d\udc41 Screen", "20m", "green"),
     ],
-    error: null, onOpenSettings: noop,
+    error: null, idleSecs: 0, continuousComputerSecs: 0, onOpenSettings: noop,
   },
 };
 
@@ -68,7 +68,7 @@ export const S03_SITTING_YELLOW: Scenario = {
       mkMetric("hourly_breaks", "\u2615 Breaks", "1/3h", "yellow"),
       mkMetric("longest_session", "\ud83d\udc41 Screen", "35m", "green"),
     ],
-    error: null, onOpenSettings: noop,
+    error: null, idleSecs: 0, continuousComputerSecs: 0, onOpenSettings: noop,
   },
 };
 
@@ -95,6 +95,6 @@ export const S04_SITTING_OVERTIME: Scenario = {
       mkMetric("hourly_breaks", "\u2615 Breaks", "0/3h", "red"),
       mkMetric("longest_session", "\ud83d\udc41 Screen", "45m", "yellow"),
     ],
-    error: null, onOpenSettings: noop,
+    error: null, idleSecs: 0, continuousComputerSecs: 0, onOpenSettings: noop,
   },
 };

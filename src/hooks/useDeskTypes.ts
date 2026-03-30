@@ -50,6 +50,12 @@ export interface UseDeskResult {
   /** KPI metric snapshots from MetricEngine. */
   metrics: MetricSnapshot[];
   error: string | null;
+  /** Current system idle time in seconds. */
+  idleSecs: number;
+  /** Current continuous Away bout duration in seconds. */
+  awayBoutSecs: number;
+  /** Continuous seconds at the computer. Resets after 5+ min Away. */
+  continuousComputerSecs: number;
   /** Transition info (auto-clears after 30s). */
   transition: TransitionInfo | null;
   /** True when the WebSocket to the backend is connected (remote mode only). */

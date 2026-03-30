@@ -74,6 +74,18 @@ export interface SessionStateDto {
   standing_session_secs: number;
   /** Current sitting session seconds (resets after break credit). */
   current_session_secs: number;
+  /** Continuous seconds at computer (Sitting+Standing). Resets after 5+ min Away. */
+  continuous_computer_secs: number;
+  /** Longest continuous computer session today (seconds). */
+  longest_computer_session_secs: number;
+  /** Raw total sitting seconds today (never reduced by break credit). */
+  sitting_seconds_total: number;
+  /** Current system idle time in seconds. */
+  idle_secs: number;
+  /** Current continuous Away duration in seconds. */
+  away_bout_secs: number;
+  /** Maximum continuous computer time limit from ergonomic profile. */
+  max_continuous_computer_secs: number;
 }
 
 /** A single tracked session within a day. */
@@ -170,6 +182,10 @@ export interface WidgetProps {
   todayStandingSecs: number;
   todaySittingSecs: number;
   todayScore: number;
+  /** Current system idle time in seconds. */
+  idleSecs: number;
+  /** Continuous seconds at the computer. Resets after 5+ min Away. */
+  continuousComputerSecs: number;
   /** KPI metric snapshots from MetricEngine. */
   metrics: MetricSnapshot[];
   error: string | null;
