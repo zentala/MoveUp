@@ -9,12 +9,11 @@ use serde::{Deserialize, Serialize};
 pub const DEBOUNCE_COUNT: u8 = 5;
 /// Default session sitting limit (45 minutes in seconds).
 pub const DEFAULT_SESSION_LIMIT_SECS: i64 = 2700;
-/// Minimum break duration for any credit (5 minutes).
-pub const BREAK_SHORT_SECS: i64 = 300;
-/// Break duration threshold for partial credit (10 minutes).
-pub const BREAK_LONG_SECS: i64 = 600;
-/// Sitting seconds subtracted for a short break (20 minutes).
-pub const SHORT_BREAK_CREDIT_SECS: i64 = 1200;
+/// Minimum break duration before any credit applies (1 minute).
+pub const BREAK_MIN_SECS: i64 = 60;
+/// Each second of break cancels this many seconds of sitting.
+/// Default 2.0 = 1 min break cancels 2 min sitting.
+pub const BREAK_CREDIT_MULTIPLIER: f64 = 2.0;
 /// Gap between sensor readings that indicates machine sleep/suspend (5 minutes).
 pub const SLEEP_GAP_THRESHOLD_SECS: i64 = 300;
 /// Maximum reasonable session duration (3 hours). Longer durations indicate

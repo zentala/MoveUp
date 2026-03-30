@@ -117,18 +117,23 @@ impl SessionManager {
         completed_session
     }
 
-    /// Applies break credit rules when returning to sitting.
+    /// Applies proportional break credit when returning to sitting.
+    ///
+    /// Each second of break cancels `BREAK_CREDIT_MULTIPLIER` seconds of sitting.
+    /// E.g., with multiplier 2.0: 10 min break cancels 20 min sitting.
+    /// Breaks under `BREAK_MIN_SECS` (1 min) get no credit.
     pub fn apply_break_credit(&mut self, break_secs: i64) {
-        if break_secs < BREAK_SHORT_SECS {
-            // Less than 5 minutes — no credit.
+        if break_secs < BREAK_MIN_SECS {
             self.state.last_break_credit = BreakCredit::None;
-        } else if break_secs < BREAK_LONG_SECS {
-            self.state.sitting_seconds =
-                (self.state.sitting_seconds - SHORT_BREAK_CREDIT_SECS).max(0);
-            self.state.last_break_credit = BreakCredit::Partial;
-        } else {
-            self.state.sitting_seconds = 0;
+            return;
+        }
+        let credit = (break_secs as f64 * BREAK_CREDIT_MULTIPLIER) as i64;
+        let before = self.state.sitting_seconds;
+        self.state.sitting_seconds = (before - credit).max(0);
+        if self.state.sitting_seconds == 0 {
             self.state.last_break_credit = BreakCredit::Full;
+        } else {
+            self.state.last_break_credit = BreakCredit::Partial;
         }
     }
 
