@@ -10,6 +10,7 @@ mod communication_profile_visuals;
 mod communication_types;
 mod ergonomic_profile;
 mod profile_loader;
+mod profile_reload;
 mod commands;
 mod commands_backup;
 mod commands_config;

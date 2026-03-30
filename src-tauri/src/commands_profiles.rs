@@ -40,6 +40,18 @@ const DEFAULT_PROFILE_ID: &str = "default";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+/// Rejects profile IDs that could be used for path traversal.
+/// Only alphanumeric characters, dashes, and underscores are allowed.
+fn validate_profile_id(id: &str) -> Result<(), String> {
+    if id.is_empty() || !id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        return Err(format!(
+            "Invalid profile ID '{}': only alphanumeric, dash, underscore allowed",
+            id
+        ));
+    }
+    Ok(())
+}
+
 fn get_active_id(app: &AppHandle, key: &str) -> String {
     app.try_state::<tauri_plugin_store::Store<tauri::Wry>>()
         .and_then(|store| {
@@ -133,6 +145,7 @@ pub fn switch_communication_profile(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
+    validate_profile_id(&id)?;
     ensure_initialized(&app, &state)?;
     let dir = profiles_dir(&app, "communication")?;
     let path = dir.join(format!("{}.json", id));
@@ -153,6 +166,7 @@ pub fn switch_ergonomic_profile(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
+    validate_profile_id(&id)?;
     ensure_initialized(&app, &state)?;
     let dir = profiles_dir(&app, "ergonomic")?;
     let path = dir.join(format!("{}.json", id));
@@ -199,6 +213,7 @@ pub fn duplicate_profile(source_path: String, new_name: String) -> Result<String
         .collect::<Vec<_>>()
         .join("-");
 
+    validate_profile_id(&new_id)?;
     let dest = dir.join(format!("{}.json", new_id));
     if dest.exists() {
         return Err(format!("Profile '{}' already exists", new_id));
