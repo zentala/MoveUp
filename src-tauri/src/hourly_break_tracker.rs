@@ -1,5 +1,6 @@
 //! hourly_break_tracker.rs — Tracks per-clock-hour Away breaks for KPI.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// AWAY_BREAK_THRESHOLD_SECS: minimum continuous Away seconds to count as a break.
@@ -7,14 +8,14 @@ const AWAY_BREAK_THRESHOLD_SECS: i64 = 300; // 5 minutes
 
 /// Tracks per-clock-hour Away breaks for the HourlyBreakCoverage KPI.
 /// Binary check per hour: was there ≥5 continuous minutes of Away?
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HourlyBreakTracker {
     /// Map of clock hour (0-23) to whether a break was taken in that hour.
-    hours_with_break: HashMap<u8, bool>,
+    pub(crate) hours_with_break: HashMap<u8, bool>,
     /// Map of clock hour (0-23) to whether the user was active in that hour.
-    hours_active: HashMap<u8, bool>,
+    pub(crate) hours_active: HashMap<u8, bool>,
     /// Current continuous Away duration in the current hour (seconds).
-    current_away_secs: i64,
+    pub(crate) current_away_secs: i64,
 }
 
 impl HourlyBreakTracker {
@@ -52,6 +53,15 @@ impl HourlyBreakTracker {
     /// Number of hours where the user was active (for denominator).
     pub fn hours_active(&self) -> u8 {
         self.hours_active.len() as u8
+    }
+
+    /// Restores tracker from persisted state (app restart within same day).
+    pub fn restore(
+        hours_with_break: HashMap<u8, bool>,
+        hours_active: HashMap<u8, bool>,
+        current_away_secs: i64,
+    ) -> Self {
+        Self { hours_with_break, hours_active, current_away_secs }
     }
 
     /// Reset for a new day.

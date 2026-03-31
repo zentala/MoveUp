@@ -6,6 +6,7 @@
 
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tauri::{Manager, Runtime};
 use tauri_plugin_store::Store;
 
@@ -34,6 +35,9 @@ pub fn clear<R: Runtime>(store: &Store<R>) {
         sitting_seconds: 0,
         daily_score: 0.0,
         daily_reset_after: Some(chrono::Utc::now().to_rfc3339()),
+        hours_with_break: HashMap::new(),
+        hours_active: HashMap::new(),
+        current_away_secs: 0,
         alert_fired: false,
         stand_alert_fired: false,
         notify_inactivity_fired: false,
@@ -83,6 +87,16 @@ pub struct PersistedSessionState {
     /// out pre-reset sessions when seeding totals after restart.
     #[serde(default)]
     pub daily_reset_after: Option<String>,
+    // ── Hourly break tracker ──
+    /// Per-hour break status (hour 0-23 → had break).
+    #[serde(default)]
+    pub hours_with_break: HashMap<u8, bool>,
+    /// Per-hour activity status (hour 0-23 → was active).
+    #[serde(default)]
+    pub hours_active: HashMap<u8, bool>,
+    /// Continuous Away seconds at time of save.
+    #[serde(default)]
+    pub current_away_secs: i64,
     // ── Notification flags ──
     pub alert_fired: bool,
     pub stand_alert_fired: bool,
@@ -101,6 +115,9 @@ impl PersistedSessionState {
             sitting_seconds: session.state.sitting_seconds,
             daily_score: session.state.daily_score,
             daily_reset_after: reset_after,
+            hours_with_break: session.hourly_break_tracker.hours_with_break.clone(),
+            hours_active: session.hourly_break_tracker.hours_active.clone(),
+            current_away_secs: session.hourly_break_tracker.current_away_secs,
             alert_fired: session.alert_fired,
             stand_alert_fired: session.stand_alert_fired,
             notify_inactivity_fired: session.notify_inactivity_fired,
@@ -157,6 +174,14 @@ impl SessionManager {
             );
         }
         self.state.daily_score = persisted.daily_score;
+        // Restore hourly break tracker.
+        self.hourly_break_tracker = crate::hourly_break_tracker::HourlyBreakTracker::restore(
+            persisted.hours_with_break.clone(),
+            persisted.hours_active.clone(),
+            persisted.current_away_secs,
+        );
+        self.state.hourly_breaks_covered = self.hourly_break_tracker.hours_with_break();
+        self.state.hourly_breaks_active = self.hourly_break_tracker.hours_active();
         self.alert_fired = persisted.alert_fired;
         self.stand_alert_fired = persisted.stand_alert_fired;
         self.notify_inactivity_fired = persisted.notify_inactivity_fired;

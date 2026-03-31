@@ -83,6 +83,7 @@ mod session_persistence;
 #[cfg(test)] mod session_tests_sleep;
 #[cfg(test)] mod session_tests_flush;
 #[cfg(test)] mod session_tests_persistence;
+#[cfg(test)] mod session_tests_break_tracker;
 mod tray;
 mod tray_blink;
 mod tray_icon;

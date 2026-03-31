@@ -1,5 +1,6 @@
-//! Tests for session_persistence.rs — flag + credit persistence across restarts.
+//! Tests for session_persistence.rs — flag + credit + break tracker persistence.
 
+use std::collections::HashMap;
 use crate::session_persistence::PersistedSessionState;
 use crate::session_manager::SessionManager;
 use crate::db_sessions::TodayTotals;
@@ -37,6 +38,9 @@ fn load_restores_credited_sitting_seconds() {
         praise_halfway_fired_today: false,
         standing_target_reached_fired: false,
         daily_reset_after: None,
+        hours_with_break: HashMap::new(),
+        hours_active: HashMap::new(),
+        current_away_secs: 0,
     };
     m.load_persisted_state(&persisted);
 
@@ -62,6 +66,9 @@ fn load_ignores_higher_persisted_sitting() {
         praise_halfway_fired_today: false,
         standing_target_reached_fired: false,
         daily_reset_after: None,
+        hours_with_break: HashMap::new(),
+        hours_active: HashMap::new(),
+        current_away_secs: 0,
     };
     m.load_persisted_state(&persisted);
 
@@ -81,6 +88,9 @@ fn stale_date_is_detected() {
         praise_halfway_fired_today: false,
         standing_target_reached_fired: false,
         daily_reset_after: None,
+        hours_with_break: HashMap::new(),
+        hours_active: HashMap::new(),
+        current_away_secs: 0,
     };
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     assert_ne!(state.date_local, today);
@@ -162,6 +172,9 @@ fn daily_reset_clears_flags_even_with_stale_persistence() {
         praise_halfway_fired_today: true,
         standing_target_reached_fired: true,
         daily_reset_after: None,
+        hours_with_break: HashMap::new(),
+        hours_active: HashMap::new(),
+        current_away_secs: 0,
     };
 
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
@@ -171,7 +184,7 @@ fn daily_reset_clears_flags_even_with_stale_persistence() {
     assert_eq!(m.state.sitting_seconds, 0);
 }
 
-/// Serde round-trip: from_session → JSON → deserialize matches.
+/// Serde round-trip: from_session → JSON → deserialize matches (includes tracker).
 #[test]
 fn serde_round_trip() {
     let mut m = SessionManager::new();
@@ -179,6 +192,10 @@ fn serde_round_trip() {
     m.state.sitting_seconds = 1234;
     m.state.daily_score = 4.2;
     m.notify_posture_balance_fired = true;
+    for _ in 0..300 {
+        m.hourly_break_tracker.tick_away(10);
+    }
+    m.hourly_break_tracker.tick_active(11);
 
     let original = PersistedSessionState::from_session(&m, None);
     let json = serde_json::to_value(&original).unwrap();
@@ -188,4 +205,9 @@ fn serde_round_trip() {
     assert_eq!(original.alert_fired, restored.alert_fired);
     assert_eq!(original.notify_posture_balance_fired, restored.notify_posture_balance_fired);
     assert!((original.daily_score - restored.daily_score).abs() < f32::EPSILON);
+    assert_eq!(original.hours_with_break, restored.hours_with_break);
+    assert_eq!(original.hours_active, restored.hours_active);
+    assert_eq!(original.current_away_secs, restored.current_away_secs);
 }
+
+// Break tracker persistence tests in session_tests_break_tracker.rs
