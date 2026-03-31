@@ -42,6 +42,9 @@ pub struct AppConfig {
     /// Show welcome popup on startup. Set to false after first dismiss.
     #[serde(default = "bool_true")]
     pub show_welcome_on_startup: bool,
+    /// Show Active/Idle status in the state indicator. Default: true.
+    #[serde(default = "bool_true")]
+    pub show_activity_status: bool,
     /// Whether anonymous telemetry is enabled. Default: false (opt-in).
     #[serde(default = "bool_false")]
     pub telemetry_enabled: bool,
@@ -105,6 +108,7 @@ impl Default for AppConfig {
             active_widget: default_active_widget(),
             timeline_skin: default_timeline_skin(),
             show_welcome_on_startup: bool_true(),
+            show_activity_status: bool_true(),
             telemetry_enabled: bool_false(),
             telemetry_device_id: default_empty_string(),
         }

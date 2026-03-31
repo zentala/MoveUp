@@ -1,10 +1,5 @@
-//! CommunicationPolicy — central brain for all UI signal decisions.
-//!
-//! Evaluates the current session state once per second and returns a [`Signals`]
-//! struct that each UI channel renderer interprets independently. No I/O, no
-//! parsing — just struct comparisons and state transitions.
-//!
-//! Signal-parsing and stateless builders live in [`communication_policy_helpers`].
+//! CommunicationPolicy — evaluates session state once/sec and returns [`Signals`]
+//! for each UI channel. Stateless helpers live in [`communication_policy_helpers`].
 
 use std::time::{Duration, Instant};
 use crate::communication_types::{NotifySignal, Signals};
@@ -13,31 +8,16 @@ use crate::communication_policy_helpers as helpers;
 use crate::ergonomic_profile::ErgonomicProfile;
 use crate::session_types::DeskState;
 
-// ---------------------------------------------------------------------------
-// PolicyInput
-// ---------------------------------------------------------------------------
-
 /// Snapshot of session data passed to [`CommunicationPolicy::evaluate`] each cycle.
 pub struct PolicyInput {
-    /// Current desk state (Sitting, Standing, Walking, Away).
     pub state: DeskState,
-    /// Elapsed seconds in the current phase (sitting or standing).
     pub elapsed_secs: i64,
-    /// Whether the hardware sensor is currently connected.
     pub sensor_connected: bool,
-    /// Overlay bar fill for standing progress (0.0–1.0).
     pub standing_lap_progress: f32,
-    /// Completed standing lap count today.
     pub standing_lap: u32,
-    /// Trigger a flash animation on lap reset.
     pub standing_lap_flash: bool,
-    /// Continuous seconds at the computer (Sitting+Standing). Resets after 5+ min Away.
     pub continuous_computer_secs: i64,
 }
-
-// ---------------------------------------------------------------------------
-// CommunicationPolicy
-// ---------------------------------------------------------------------------
 
 /// Stateful policy engine that converts session snapshots into UI signals.
 ///
@@ -49,13 +29,9 @@ pub struct CommunicationPolicy {
     snoozed_until: Option<Instant>,
     snooze_index: usize,
     disconnect_notified: bool,
-    /// Index of the last escalation step for which a notification was fired.
     last_notify_step: Option<usize>,
-    /// When the last notification was fired — enforces cooldown between reminders.
     last_notify_time: Option<Instant>,
-    /// How many notifications have been fired this escalation (resets on position change).
     notify_count: u32,
-    /// Whether the screen break nudge has been fired this computer session.
     screen_break_nudge_fired: bool,
 }
 
@@ -75,9 +51,7 @@ impl CommunicationPolicy {
         }
     }
 
-    /// Evaluate current session state and return UI signals.
-    ///
-    /// This is the hot path — called ~1/sec. No I/O, no allocation beyond signals.
+    /// Evaluate current session state and return UI signals (called ~1/sec).
     pub fn evaluate(&mut self, input: &PolicyInput) -> Signals {
         if !input.sensor_connected {
             let (sigs, fired) = helpers::disconnected_signals(&self.comm_profile, self.disconnect_notified);
@@ -118,36 +92,11 @@ impl CommunicationPolicy {
             None => self.make_baseline(input),
         };
 
-        // Reset nudge flag when computer time drops below threshold (user took a break).
-        if input.continuous_computer_secs < self.ergo_profile.limits.max_continuous_computer_secs as i64 {
-            self.screen_break_nudge_fired = false;
-        }
-
-        // Screen break nudge: when standing within limits but computer time exceeded.
-        // Only nudges when Standing (Sitting has its own escalation) and no existing notification.
-        if input.state == DeskState::Standing
-            && signals.notify.is_none()
-            && !self.screen_break_nudge_fired
-            && self.ergo_profile.limits.max_continuous_computer_secs > 0
-            && input.continuous_computer_secs >= self.ergo_profile.limits.max_continuous_computer_secs as i64
-            && self.comm_profile.screen_break_nudge.enabled
-            && !self.comm_profile.screen_break_nudge.messages.is_empty()
-        {
-            if let Some(msg) = crate::screen_break_nudge::pick_nudge_message(
-                &self.comm_profile.screen_break_nudge.messages,
-            ) {
-                signals.notify = Some(NotifySignal::Toast(msg));
-                self.screen_break_nudge_fired = true;
-            }
-        }
-
+        self.maybe_apply_screen_nudge(input, &mut signals);
         signals
     }
 
-    /// Record a user dismiss — start a snooze timer and advance the snooze index.
-    ///
-    /// Resets `notify_count` so the user gets a fresh notification schedule after
-    /// the snooze expires (they engaged by clicking Dismiss, so treat as fresh).
+    /// Record a user dismiss — start snooze timer, advance index, reset notify count.
     pub fn dismiss(&mut self) {
         let durations = &self.comm_profile.snooze.durations_mins;
         let idx = self.snooze_index.min(durations.len().saturating_sub(1));
@@ -195,6 +144,29 @@ impl CommunicationPolicy {
 
     // ── private helpers ───────────────────────────────────────────────────────
 
+    /// Check if a screen break nudge should fire and apply it to signals.
+    fn maybe_apply_screen_nudge(&mut self, input: &PolicyInput, signals: &mut Signals) {
+        if input.continuous_computer_secs < self.ergo_profile.limits.max_continuous_computer_secs as i64 {
+            self.screen_break_nudge_fired = false;
+        }
+
+        if input.state == DeskState::Standing
+            && signals.notify.is_none()
+            && !self.screen_break_nudge_fired
+            && self.ergo_profile.limits.max_continuous_computer_secs > 0
+            && input.continuous_computer_secs >= self.ergo_profile.limits.max_continuous_computer_secs as i64
+            && self.comm_profile.screen_break_nudge.enabled
+            && !self.comm_profile.screen_break_nudge.messages.is_empty()
+        {
+            if let Some(msg) = crate::screen_break_nudge::pick_nudge_message(
+                &self.comm_profile.screen_break_nudge.messages,
+            ) {
+                signals.notify = Some(NotifySignal::Toast(msg));
+                self.screen_break_nudge_fired = true;
+            }
+        }
+    }
+
     fn make_baseline(&self, input: &PolicyInput) -> Signals {
         helpers::baseline_signals(
             &input.state,
@@ -223,11 +195,7 @@ impl CommunicationPolicy {
         Signals { tray, overlay, popup, notify }
     }
 
-    /// Returns the cooldown in seconds before the next notification can fire,
-    /// or `None` if all configured reminders have been exhausted (→ silence).
-    ///
-    /// Schedule is driven by `snooze.notify_cooldowns_secs` in the communication
-    /// profile, so each profile (aggressive, gentle, etc.) can tune independently.
+    /// Cooldown before next notification, or `None` if all reminders exhausted.
     fn notify_cooldown_secs(&self) -> Option<u64> {
         let cooldowns = &self.comm_profile.snooze.notify_cooldowns_secs;
         cooldowns.get(self.notify_count as usize).copied()

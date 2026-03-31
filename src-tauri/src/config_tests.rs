@@ -48,6 +48,7 @@ mod tests {
             active_widget: "two-bar".to_string(),
             timeline_skin: "amber".to_string(),
             show_welcome_on_startup: false,
+            show_activity_status: true,
             telemetry_enabled: false,
             telemetry_device_id: "test-uuid".to_string(),
         };
