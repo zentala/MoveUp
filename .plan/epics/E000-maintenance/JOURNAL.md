@@ -1,5 +1,16 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-31 (C) — Bug fixes: seeding + break tracker persistence
+
+- **Goal**: Fix two BACKLOG bugs (seeding ignores daily reset, hourly_break_tracker not persisted)
+- **Done**: 
+  - Bug 1 (seeding) already fixed in c1d286f — marked as done in BACKLOG
+  - Bug 2 (break tracker): added Serialize/Deserialize to HourlyBreakTracker, extended PersistedSessionState with 3 fields, restore method, backward compat via serde(default) (commit: 20125d1)
+- **Decisions**: persist full HashMap state (not just counts) so tracker can continue accumulating after restart
+- **Findings this session**: 0
+- **Improvements logged**: 0
+- **Next**: dogfood unified work cycle, split position_changes (P3), E010 human tasks
+
 ## Session 2026-03-31 (B) — Timeline debug, overlay fix, seeding fix
 
 - **Goal**: Debug timeline hour markers, fix overlay visibility, clean up widget system

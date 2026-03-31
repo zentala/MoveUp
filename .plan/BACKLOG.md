@@ -2,8 +2,8 @@
 
 ## Bugs — Fix Now
 
-- [ ] **CRITICAL: Seeding ignores daily reset** — `load_today_totals()` sums ALL today's DB sessions including pre-reset ones. After restart post-reset, sitting_seconds/position_changes are inflated (e.g. 2687s instead of 540s). Fix: persist reset timestamp to store, filter DB queries by it. Affects: timer (shows overtime incorrectly), KPIs (wrong position_changes), breaks (0/1 instead of 1/1).
-- [ ] **hourly_break_tracker not persisted** — `HourlyBreakTracker` resets on app restart, loses break history. Breaks 0/1 shown even after 19min away.
+- [x] **CRITICAL: Seeding ignores daily reset** — fixed in commit `c1d286f`: `load_today_totals()` now filters by `daily_reset_after` timestamp persisted to tauri-plugin-store. Sessions started before the last daily reset are excluded from DB seeding.
+- [x] **hourly_break_tracker not persisted** — fixed: `HourlyBreakTracker` fields (`hours_with_break`, `hours_active`, `current_away_secs`) now persisted in `PersistedSessionState` via tauri-plugin-store. Survives restarts within same day. Backward compatible via `#[serde(default)]`.
 - [x] **Duplicate notifications on sit limit** — fixed: removed `notify: "popup"` from second escalation step in all profiles. Now only one toast fires at limit, visual-only escalation (blink+pulse) at +5 min.
 - [x] **Notification spam when ignored** — fixed: escalating cooldown (0→5m→15m→30m→silence), configurable per profile via `snooze.notify_cooldowns_secs`. Max 4 reminders, then silence until position change.
 - [x] **3 conflicting autostart registry entries** — removed `zntlDesk`, `Smart Desk`, `SmartDesk` from HKCU Run.

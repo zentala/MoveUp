@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-31T12:50:00Z
+updated: 2026-03-31T13:30:00Z
 active_epic: E000
 active_epic_path: .plan/epics/E000-maintenance
 current_wave: n/a
@@ -14,9 +14,9 @@ current_wave: n/a
 - Current: `v0.3.0`
 
 ## Test Totals
-- Rust: 418 tests
+- Rust: 420 tests
 - TypeScript: 170 tests
-- Total: 588
+- Total: 590
 
 ## Recent: Communication Architecture (2026-03-30)
 
