@@ -99,6 +99,19 @@ describe("OneBarTimeline", () => {
     expect(longMarkers).toBeGreaterThanOrEqual(shortMarkers);
   });
 
+  it("generates hourly markers across midnight crossing", () => {
+    // Session started 10 hours ago — guaranteed to cross at least one midnight hour boundary
+    const sessions = makeSessions(4, 10);
+    render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
+    const timeline = screen.getByTestId("one-bar-timeline");
+    const hourLabels = timeline.querySelectorAll(".one-bar__timeline-hour-label");
+    // Start + multiple hour boundaries + now = at least 5 markers for 10h span
+    expect(hourLabels.length).toBeGreaterThanOrEqual(5);
+    // Check that at least one label has ":00" (full hour boundary)
+    const texts = Array.from(hourLabels).map((el) => el.textContent ?? "");
+    expect(texts.some((t) => t.endsWith(":00"))).toBe(true);
+  });
+
   it("hour labels contain time format with colon", () => {
     const sessions = makeSessions(2, 0.5);
     render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
