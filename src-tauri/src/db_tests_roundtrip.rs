@@ -40,7 +40,7 @@ fn test_multicycle_db_roundtrip() {
         ).unwrap();
     }
 
-    let totals = load_today_totals(&conn).unwrap();
+    let totals = load_today_totals(&conn, None).unwrap();
     assert_eq!(totals.sitting_secs, 3601, "sitting: 1500+2100+1");
     assert_eq!(totals.standing_secs, 780, "standing: 480+300");
     assert_eq!(totals.position_changes, 4, "4 transitions between Sit/Stand rows");
@@ -63,4 +63,33 @@ fn test_multicycle_db_roundtrip() {
             "session {} must have positive duration", i
         );
     }
+}
+
+/// Verifies that `load_today_totals` with `after` filter excludes pre-reset sessions.
+#[test]
+fn test_load_today_totals_with_after_filter() {
+    let conn = test_conn();
+    init_schema(&conn).unwrap();
+
+    let today = chrono::Local::now().format("%Y-%m-%dT").to_string();
+
+    // Pre-reset sessions
+    insert_session(&conn, &format!("{}01:00:00Z", today), &format!("{}01:30:00Z", today), "Sitting", 1800).unwrap();
+    insert_session(&conn, &format!("{}02:00:00Z", today), &format!("{}02:15:00Z", today), "Standing", 900).unwrap();
+
+    // Post-reset sessions
+    insert_session(&conn, &format!("{}05:00:00Z", today), &format!("{}05:10:00Z", today), "Sitting", 600).unwrap();
+    insert_session(&conn, &format!("{}05:10:00Z", today), &format!("{}05:20:00Z", today), "Standing", 600).unwrap();
+
+    // Without filter: all sessions
+    let all = load_today_totals(&conn, None).unwrap();
+    assert_eq!(all.sitting_secs, 2400, "all sitting: 1800+600");
+    assert_eq!(all.standing_secs, 1500, "all standing: 900+600");
+
+    // With filter at 04:00 — only post-reset sessions
+    let after_reset = format!("{}04:00:00Z", today);
+    let filtered = load_today_totals(&conn, Some(&after_reset)).unwrap();
+    assert_eq!(filtered.sitting_secs, 600, "filtered sitting: 600 only");
+    assert_eq!(filtered.standing_secs, 600, "filtered standing: 600 only");
+    assert_eq!(filtered.position_changes, 1, "filtered: 2 desk-state rows - 1");
 }

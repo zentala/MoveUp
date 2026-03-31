@@ -77,14 +77,21 @@ pub fn accumulate_state_duration(
 /// Loads today's total sitting and standing seconds from the database.
 /// Uses `date_local` column for timezone-safe queries. Falls back to
 /// `started_at LIKE` for rows without `date_local` (pre-migration).
-pub fn load_today_totals(conn: &Connection) -> Result<TodayTotals, String> {
+///
+/// `after` — optional ISO timestamp. If set, only sessions started AFTER
+/// this time are counted. Used to exclude pre-daily-reset sessions.
+pub fn load_today_totals(conn: &Connection, after: Option<&str>) -> Result<TodayTotals, String> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    // Use a single query with started_at > ?3. When no after filter,
+    // pass empty string "" which is less than any ISO timestamp.
+    let after_val = after.unwrap_or("");
 
     let mut stmt = conn
         .prepare(
             "SELECT state, duration_seconds FROM sessions \
              WHERE (date_local = ?1 OR (date_local IS NULL AND started_at LIKE ?2)) \
-             AND ended_at IS NOT NULL",
+             AND ended_at IS NOT NULL \
+             AND started_at > ?3",
         )
         .map_err(|e| {
             let msg = format!("Failed to prepare query: {}", e);
@@ -93,9 +100,10 @@ pub fn load_today_totals(conn: &Connection) -> Result<TodayTotals, String> {
         })?;
 
     let rows = stmt
-        .query_map(rusqlite::params![&today, format!("{}%", today)], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-        })
+        .query_map(
+            rusqlite::params![&today, format!("{}%", today), after_val],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+        )
         .map_err(|e| {
             let msg = format!("Failed to query today's totals: {}", e);
             error!("{}", msg);

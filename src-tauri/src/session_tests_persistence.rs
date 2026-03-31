@@ -12,7 +12,7 @@ fn from_session_captures_all_flags() {
     m.state.sitting_seconds = 500;
     m.state.daily_score = 3.5;
 
-    let p = PersistedSessionState::from_session(&m);
+    let p = PersistedSessionState::from_session(&m, None);
     assert!(p.alert_fired);
     assert!(p.notify_inactivity_fired);
     assert!(!p.stand_alert_fired);
@@ -36,6 +36,7 @@ fn load_restores_credited_sitting_seconds() {
         notify_posture_balance_fired: false,
         praise_halfway_fired_today: false,
         standing_target_reached_fired: false,
+        daily_reset_after: None,
     };
     m.load_persisted_state(&persisted);
 
@@ -60,6 +61,7 @@ fn load_ignores_higher_persisted_sitting() {
         notify_posture_balance_fired: false,
         praise_halfway_fired_today: false,
         standing_target_reached_fired: false,
+        daily_reset_after: None,
     };
     m.load_persisted_state(&persisted);
 
@@ -78,6 +80,7 @@ fn stale_date_is_detected() {
         notify_posture_balance_fired: false,
         praise_halfway_fired_today: false,
         standing_target_reached_fired: false,
+        daily_reset_after: None,
     };
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     assert_ne!(state.date_local, today);
@@ -108,7 +111,7 @@ fn round_trip_sit_stand_restart_sit() {
     m.state.sitting_started = Some(t2);
     assert_eq!(m.state.sitting_seconds, 960);
 
-    let persisted = PersistedSessionState::from_session(&m);
+    let persisted = PersistedSessionState::from_session(&m, None);
     assert_eq!(persisted.sitting_seconds, 960);
 
     // --- Restart ---
@@ -158,6 +161,7 @@ fn daily_reset_clears_flags_even_with_stale_persistence() {
         notify_posture_balance_fired: true,
         praise_halfway_fired_today: true,
         standing_target_reached_fired: true,
+        daily_reset_after: None,
     };
 
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
@@ -176,7 +180,7 @@ fn serde_round_trip() {
     m.state.daily_score = 4.2;
     m.notify_posture_balance_fired = true;
 
-    let original = PersistedSessionState::from_session(&m);
+    let original = PersistedSessionState::from_session(&m, None);
     let json = serde_json::to_value(&original).unwrap();
     let restored: PersistedSessionState = serde_json::from_value(json).unwrap();
 

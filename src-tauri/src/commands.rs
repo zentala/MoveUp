@@ -58,7 +58,19 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
     crate::db::init_schema(&conn)
         .map_err(|e| format!("Failed to initialize database schema: {}", e))?;
 
-    if let Ok(totals) = crate::db::load_today_totals(&conn) {
+    // Load reset_after timestamp to filter out pre-daily-reset sessions.
+    // On first run (no reset_after in store), all today's sessions are loaded.
+    // After the first daily reset with this code, the filter activates.
+    let reset_after = app
+        .try_state::<tauri_plugin_store::Store<tauri::Wry>>()
+        .and_then(|store| crate::session_persistence::load_reset_after(store.inner()));
+
+    if let Some(ref ts) = reset_after {
+        log::info!("Seeding with daily_reset_after filter: {}", ts);
+    } else {
+        log::info!("Seeding without daily_reset_after filter (first run or no reset yet)");
+    }
+    if let Ok(totals) = crate::db::load_today_totals(&conn, reset_after.as_deref()) {
         state.session.lock().unwrap().load_today_totals(&totals);
     }
 
