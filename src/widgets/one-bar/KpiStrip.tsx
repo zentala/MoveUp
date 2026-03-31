@@ -22,7 +22,7 @@ const KPI_TOOLTIPS: Record<string, string> = {
   standing_pct:
     "Standing % — how much of your desk time was spent standing. Green: ≥15%, Yellow: 10-15%, Red: <10%",
   position_rate:
-    "Position changes per hour — how often you switch between sitting and standing. Green: ≥1/h, Yellow: 0.5-1/h, Red: <0.5/h",
+    "Posture changes per hour — standing up, sitting down, or stepping away from the computer. Green: ≥1/h, Yellow: 0.5-1/h, Red: <0.5/h",
   hourly_breaks:
     "Hourly breaks — hours with at least 5 min away from screen. Green: all hours covered, Yellow: 1-2 missed, Red: ≥3 missed",
   longest_session:

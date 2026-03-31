@@ -118,7 +118,11 @@ impl SessionManager {
             None
         };
 
-        // Track position changes: only Sitting<->Standing transitions.
+        // Track posture changes: Sitting<->Standing desk transitions AND extended
+        // Away resets (see accumulate_ongoing). Both count because the goal is to
+        // measure how often the user changes their physical situation — standing up
+        // AND leaving the computer are both healthy posture changes.
+        // Future: split into desk_changes + away_changes for detailed analytics.
         let is_position_change = (self.state.state == DeskState::Sitting
             && candidate == DeskState::Standing)
             || (self.state.state == DeskState::Standing
