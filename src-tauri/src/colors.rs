@@ -9,7 +9,9 @@ pub const THRESHOLD_YELLOW: f32 = 0.60;
 pub const THRESHOLD_RED: f32 = 0.85;
 
 /// Neutral color for sitting below the warning threshold.
-pub const NEUTRAL: (u8, u8, u8) = (0x2c, 0x29, 0x20);
+/// Must be clearly visible on black overlay background (#000).
+/// Previous #2C2920 was near-invisible on black — raised to #5A5548.
+pub const NEUTRAL: (u8, u8, u8) = (0x5a, 0x55, 0x48);
 
 /// Neutral dark base for completed standing laps (was goldenrod #B8860B).
 pub const STANDING_LAP_BASE: (u8, u8, u8) = (0x24, 0x20, 0x18);
@@ -29,7 +31,7 @@ pub fn color_for_standing(_progress: f32) -> (u8, u8, u8) {
 /// - ≥ 85%: red (#f44336)
 pub fn color_for_progress(progress: f32) -> (u8, u8, u8, &'static str) {
     if progress < THRESHOLD_YELLOW {
-        (NEUTRAL.0, NEUTRAL.1, NEUTRAL.2, "#2c2920") // neutral
+        (NEUTRAL.0, NEUTRAL.1, NEUTRAL.2, "#5a5548") // neutral
     } else if progress < THRESHOLD_RED {
         (255, 193, 7, "#ffc107") // yellow
     } else {
@@ -44,8 +46,8 @@ mod tests {
     #[test]
     fn color_neutral_below_60_percent() {
         let (r, g, b, css) = color_for_progress(0.3);
-        assert_eq!((r, g, b), (0x2c, 0x29, 0x20));
-        assert_eq!(css, "#2c2920");
+        assert_eq!((r, g, b), (0x5a, 0x55, 0x48));
+        assert_eq!(css, "#5a5548");
     }
 
     #[test]
@@ -66,7 +68,7 @@ mod tests {
     fn color_at_zero_is_neutral() {
         let (r, g, b, css) = color_for_progress(0.0);
         assert_eq!((r, g, b), NEUTRAL);
-        assert_eq!(css, "#2c2920");
+        assert_eq!(css, "#5a5548");
     }
 
     #[test]

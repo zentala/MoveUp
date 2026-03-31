@@ -195,9 +195,3 @@ export interface WidgetProps {
 /** A widget is a pure presentation component receiving WidgetProps. */
 export type DeskWidget = React.FC<WidgetProps>;
 
-/** Entry in the widget registry. */
-export interface WidgetRegistration {
-  id: string;
-  name: string;
-  component: DeskWidget;
-}

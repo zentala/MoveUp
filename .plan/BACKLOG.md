@@ -2,6 +2,8 @@
 
 ## Bugs — Fix Now
 
+- [ ] **CRITICAL: Seeding ignores daily reset** — `load_today_totals()` sums ALL today's DB sessions including pre-reset ones. After restart post-reset, sitting_seconds/position_changes are inflated (e.g. 2687s instead of 540s). Fix: persist reset timestamp to store, filter DB queries by it. Affects: timer (shows overtime incorrectly), KPIs (wrong position_changes), breaks (0/1 instead of 1/1).
+- [ ] **hourly_break_tracker not persisted** — `HourlyBreakTracker` resets on app restart, loses break history. Breaks 0/1 shown even after 19min away.
 - [x] **Duplicate notifications on sit limit** — fixed: removed `notify: "popup"` from second escalation step in all profiles. Now only one toast fires at limit, visual-only escalation (blink+pulse) at +5 min.
 - [x] **Notification spam when ignored** — fixed: escalating cooldown (0→5m→15m→30m→silence), configurable per profile via `snooze.notify_cooldowns_secs`. Max 4 reminders, then silence until position change.
 - [x] **3 conflicting autostart registry entries** — removed `zntlDesk`, `Smart Desk`, `SmartDesk` from HKCU Run.
@@ -91,10 +93,16 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 
 ## Activity Tracking
 
-- **Activity status in UI** — show keyboard/mouse activity status (active/idle) in floating window
-  - `activity.rs` already detects idle ≥60s via `GetLastInputInfo`, but UI doesn't expose this
-  - Show: "Active" / "Idle 2m" in widget footer or status bar
-  - Useful for debugging Away state transitions
+- [x] **Activity status in UI** — done: StateIndicator shows "Active" / "Idle Xm Ys". Toggle: Settings → More → "Show activity status".
+
+- [ ] **Split position_changes into two metrics: desk changes + posture changes** — currently `position_changes` counts both desk height changes (Sitting↔Standing) and Away resets (user left computer for 5+ min). These are different things:
+  - **Desk changes** (`desk_position_changes`) — physical desk movement (sit↔stand)
+  - **Posture changes** (`posture_changes`) — any change including leaving computer (desk changes + away returns)
+  - Both matter for health: desk changes = ergonomic variety, posture changes = not being sedentary
+  - KPI "Changes/h" should show posture_changes (broader metric)
+  - New KPI badge or detail view could show desk_position_changes separately
+  - Requires: split `position_changes` field into two, update KPI metric engine, update frontend
+  - Priority: P3 — works fine as-is, split when adding detailed analytics
 
 - **Cross-platform activity detection** — current implementation is Windows-only (`GetLastInputInfo`). Before release, need Linux/macOS support. Options: `rdev` crate (cross-platform input hooks), X11/Wayland idle APIs, macOS `CGEventSource`. Non-Windows currently returns `idle=0` (always active) — Away state will never trigger on Linux/macOS.
 

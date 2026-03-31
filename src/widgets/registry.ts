@@ -1,38 +1,11 @@
 /**
- * registry.ts — static widget registry and resolver.
+ * registry.ts — widget registry.
  *
- * Maps widget IDs to their React components. No dynamic loading —
- * all widgets are imported statically and registered here.
+ * Single widget (OneBar). Registry kept for future extensibility
+ * but no picker UI — OneBar is the only production widget.
  */
-import type { WidgetRegistration, DeskWidget } from "@/types";
-import { PlaceholderWidget } from "./PlaceholderWidget";
+import type { DeskWidget } from "@/types";
 import { OneBarWidget } from "./OneBarWidget";
-import { TimelineZenWidget } from "./TimelineZenWidget";
 
-/** All available widgets, in display order. */
-export const WIDGET_REGISTRY: WidgetRegistration[] = [
-  { id: "one-bar", name: "One Bar", component: OneBarWidget },
-  { id: "placeholder", name: "Placeholder (dev)", component: PlaceholderWidget },
-  { id: "timeline-zen", name: "Timeline Zen", component: TimelineZenWidget },
-];
-
-/** Default widget ID when none is configured or config value is invalid. */
-export const DEFAULT_WIDGET_ID = "one-bar";
-
-/**
- * Resolves a widget ID to its component. Falls back to default if not found.
- * Logs a warning when falling back.
- */
-export function resolveWidget(widgetId: string): DeskWidget {
-  const entry = WIDGET_REGISTRY.find((w) => w.id === widgetId);
-  if (entry) return entry.component;
-
-  console.warn(
-    `Widget "${widgetId}" not found in registry, falling back to "${DEFAULT_WIDGET_ID}"`,
-  );
-  const fallback = WIDGET_REGISTRY.find((w) => w.id === DEFAULT_WIDGET_ID);
-  if (fallback) return fallback.component;
-
-  // Should never happen — registry always has at least one entry
-  return PlaceholderWidget;
-}
+/** The single active widget component. */
+export const ActiveWidget: DeskWidget = OneBarWidget;

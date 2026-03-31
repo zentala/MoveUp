@@ -9,8 +9,7 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useWidgetData } from "@/hooks/useWidgetData";
-import { useActiveWidget } from "@/hooks/useActiveWidget";
-import { resolveWidget } from "@/widgets/registry";
+import { ActiveWidget } from "@/widgets/registry";
 import SettingsPanel from "@/components/SettingsPanel";
 import { ConnectionOverlay } from "@/components/ConnectionOverlay";
 import "@/styles/globals.css";
@@ -35,7 +34,6 @@ export default function App() {
     );
   }
   const [showSettings, setShowSettings] = useState(false);
-  const [activeWidgetId] = useActiveWidget();
   const { widgetProps, wsConnected, sensorConnected } = useWidgetData(() => setShowSettings(true));
   const isRemote = !isTauri;
 
@@ -70,8 +68,6 @@ export default function App() {
     const id = setInterval(pollOverlay, 2000);
     return () => clearInterval(id);
   }, []);
-
-  const ActiveWidget = resolveWidget(activeWidgetId);
 
   if (showSettings) {
     return (

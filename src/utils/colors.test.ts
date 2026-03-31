@@ -21,7 +21,7 @@ describe("color constants match Rust colors.rs", () => {
   });
 
   it("neutral color matches", () => {
-    expect(NEUTRAL).toBe("#2c2920");
+    expect(NEUTRAL).toBe("#5a5548");
   });
 
   it("sitting warning colors match", () => {
@@ -36,9 +36,9 @@ describe("color constants match Rust colors.rs", () => {
 
 describe("sittingColorForRatio", () => {
   it("returns neutral below 60%", () => {
-    expect(sittingColorForRatio(0)).toBe("#2c2920");
-    expect(sittingColorForRatio(0.3)).toBe("#2c2920");
-    expect(sittingColorForRatio(0.59)).toBe("#2c2920");
+    expect(sittingColorForRatio(0)).toBe("#5a5548");
+    expect(sittingColorForRatio(0.3)).toBe("#5a5548");
+    expect(sittingColorForRatio(0.59)).toBe("#5a5548");
   });
 
   it("returns yellow at 60-84%", () => {

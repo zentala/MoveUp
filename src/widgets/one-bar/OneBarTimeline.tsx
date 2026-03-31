@@ -62,24 +62,33 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
     );
   }
 
-  // Compute hour markers for the timeline
+  // Compute hour markers for the timeline.
+  // Always show: start hour at 0%, every full hour boundary, and current hour at ~100%.
   const hourMarkers: { leftPct: number; label: string }[] = [];
   if (sessions.length > 0) {
     const firstStart = new Date(sessions[0].start);
-    const firstHour = firstStart.getHours();
+    const startHour = firstStart.getHours();
     const now = new Date();
     const spanMs = now.getTime() - firstStart.getTime();
 
     if (spanMs > 0) {
-      for (let h = firstHour + 1; h <= now.getHours(); h++) {
+      // Start hour label at left edge
+      hourMarkers.push({ leftPct: 0, label: `${startHour}:${String(firstStart.getMinutes()).padStart(2, "0")}` });
+
+      // Full hour boundaries in between
+      for (let h = startHour + 1; h <= now.getHours(); h++) {
         const hourDate = new Date(firstStart);
         hourDate.setHours(h, 0, 0, 0);
         const offsetMs = hourDate.getTime() - firstStart.getTime();
         const leftPct = (offsetMs / spanMs) * 100;
-        if (leftPct >= 0 && leftPct <= 100) {
-          hourMarkers.push({ leftPct, label: `${h}` });
+        if (leftPct > 2 && leftPct < 95) {
+          hourMarkers.push({ leftPct, label: `${h}:00` });
         }
       }
+
+      // Current time label at right edge
+      const nowLabel = `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`;
+      hourMarkers.push({ leftPct: 97, label: nowLabel });
     }
   }
 

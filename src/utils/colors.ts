@@ -14,8 +14,11 @@ export const THRESHOLD_YELLOW = 0.60;
 /** Progress ratio at or above which the bar turns red. */
 export const THRESHOLD_RED = 0.85;
 
-/** Neutral color for sitting below warning threshold — matches colors.rs NEUTRAL. */
-export const NEUTRAL = "#2c2920";
+/** Neutral color for sitting below warning threshold — matches colors.rs NEUTRAL.
+ * Must be visible on black overlay background (#000) and dark popup backgrounds.
+ * Previous #2c2920 was near-invisible on black — raised to #5a5548.
+ */
+export const NEUTRAL = "#5a5548";
 
 /** Sitting session progress colors — matches colors.rs exactly. */
 export const SITTING_YELLOW = "#ffc107";
@@ -44,7 +47,7 @@ export function stateColor(state: string, limitRatio = 0): string {
  * Returns the sitting progress bar color for a given ratio (0.0-1.0).
  *
  * Thresholds (same as Rust `color_for_progress`):
- * - < 60%: neutral (#2c2920)
+ * - < 60%: neutral (#5a5548)
  * - 60-85%: yellow (#ffc107)
  * - >= 85%: red (#f44336)
  */

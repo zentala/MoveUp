@@ -16,7 +16,6 @@ import type { SettingsTabIndex } from "./settings/SettingsTabBar";
 import CalibrationSection from "./settings/CalibrationSection";
 import NotificationsSection from "./settings/NotificationsSection";
 import ProfileSelector from "./settings/ProfileSelector";
-import WidgetPickerSection from "./settings/WidgetPickerSection";
 import TimelineSkinSection from "./settings/TimelineSkinSection";
 import DebugSection from "./settings/DebugSection";
 import TelemetrySection from "./settings/TelemetrySection";
@@ -123,7 +122,6 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
 
         {activeTab === 3 && (
           <>
-            <WidgetPickerSection />
             <TimelineSkinSection />
             <div className="settings-panel__section">
               <h3 className="settings-panel__section-title">Startup</h3>
