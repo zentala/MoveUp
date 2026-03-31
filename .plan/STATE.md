@@ -1,5 +1,5 @@
 ---
-updated: 2026-03-30T23:30:00Z
+updated: 2026-03-31T12:00:00Z
 active_epic: E000
 active_epic_path: .plan/epics/E000-maintenance
 current_wave: n/a
@@ -14,9 +14,9 @@ current_wave: n/a
 - Current: `v0.3.0`
 
 ## Test Totals
-- Rust: 403 tests
-- TypeScript: 197 tests
-- Total: 600
+- Rust: 418 tests
+- TypeScript: 170 tests
+- Total: 588
 
 ## Recent: Communication Architecture (2026-03-30)
 
@@ -57,9 +57,19 @@ Major refactor completed in E000-maintenance:
 - 10 new tests (round-trip, serde, daily-reset interaction)
 - 1 commit, 8 files changed (2 new + 6 modified)
 
+## Recent: Unified Work Cycle (2026-03-31)
+
+- **Screen break nudge**: toast when standing + computer_time > 60 min
+- **Activity status**: "Active" / "Idle Xm Ys" in StateIndicator
+- **Configurable**: `max_continuous_computer_secs` (60 min), `computer_break_reset_secs` (5 min)
+- **ADR 011**: unified sit-stand-walk cycle (no separate screen timer)
+- **Research reports**: screen time + eye health, sit-stand-walk cycle
+- **KPI label**: "Changes" → "Posture" (counts desk moves + away returns)
+- 16 commits, 54 files changed, +651/-104 lines (source only)
+
 ## Next Steps
-1. Dogfood persistence + timeline skins + notification anti-spam in daily use
-2. Consider persisting CommunicationPolicy escalation cooldown state
-3. Extract generic `usePersistedSetting` hook (DRY)
+1. Dogfood unified work cycle with real sensor data
+2. Split position_changes into desk_changes + posture_changes (P3)
+3. Write screen time article for landing page (P2)
 4. E010 human tasks (photos, video, GIF)
 5. Deploy landing page + waitlist endpoint

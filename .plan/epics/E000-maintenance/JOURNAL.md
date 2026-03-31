@@ -1,5 +1,34 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-31 — Unified Work Cycle + Activity Status
+
+- **Goal**: Add screen break awareness (computer time tracking) and activity status to UI
+- **Done**:
+  - Screen break nudge toast when standing + computer_time > 60 min (configurable in ergonomic profile)
+  - Activity status "Active" / "Idle Xm Ys" in StateIndicator (toggle in Settings)
+  - Sitting limit toast changed to "stand up or step away from the screen"
+  - Configurable `computer_break_reset_secs` (was hardcoded 300s)
+  - `idle_secs`, `away_bout_secs` exposed to frontend
+  - 2 research reports (screen time + sit-stand-walk cycle), ADR 011
+  - Article backlog item for screen time content
+  - Commits: da21cda..66e6304 (16 commits, worktree-based subagent development)
+- **Decisions**:
+  - Unified cycle (ADR 011) — no separate screen timer, one flow: sit→stand→walk away
+  - Screen nudge only when Standing (Sitting has own escalation) — avoids channel conflict
+  - `position_changes` counts both desk moves and away returns (= posture changes, not just desk changes)
+  - `enable_computer_time_tracking` toggle removed (profile-level control is sufficient)
+- **Findings this session**:
+  - `position_changes` had confusing semantics (counted away resets but tooltip said "sitting↔standing") — clarified as "posture changes"
+  - `communication_policy.rs` hit 276 lines — extracted `maybe_apply_screen_nudge()` → 244 lines
+  - `show_activity_status` was not persisted to Rust AppConfig — fixed
+  - Standing at desk ≠ screen break (research confirmed: Cornell, CCOHS, CVS studies)
+- **Improvements logged**: 0 (all found issues fixed inline)
+- **Next**:
+  - Dogfood unified cycle with real sensor data
+  - Split position_changes into desk_changes + posture_changes (backlog P3)
+  - Write screen time article for landing page (backlog P2)
+  - Consider 20-20-20 micro-break visual cue (future)
+
 ## Session 2026-03-30 — Timeline Skin System
 
 - **Goal**: Fix timeline readability (all segments were indistinguishable brown-gray)
