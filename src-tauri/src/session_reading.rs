@@ -188,9 +188,11 @@ impl SessionManager {
             }
             DeskState::Away | DeskState::Walking => {
                 self.state.away_bout_secs += 1;
-                // After 5 continuous minutes of Away: reset continuous computer timer
-                // and count as a position change (fires exactly once at 300s).
-                if self.state.away_bout_secs == self.state.computer_break_reset_secs {
+                // After configured away duration: reset continuous computer timer
+                // and count as a posture change (user left the computer).
+                if self.state.away_bout_secs >= self.state.computer_break_reset_secs
+                    && self.state.continuous_computer_secs > 0
+                {
                     self.state.continuous_computer_secs = 0;
                     self.state.position_changes += 1;
                 }

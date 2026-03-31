@@ -68,12 +68,17 @@ mod tests {
     }
 
     #[test]
-    fn nudge_resets_on_position_change() {
+    fn nudge_resets_when_computer_time_drops_below_threshold() {
         let mut policy = test_policy();
-        policy.evaluate(&standing_input(65)); // fires nudge
-        policy.on_position_changed();
-        let s2 = policy.evaluate(&standing_input(65));
-        assert!(s2.notify.is_some(), "should fire again after position change");
+        let s1 = policy.evaluate(&standing_input(65)); // fires nudge
+        assert!(s1.notify.is_some());
+
+        // Computer time drops below threshold (user took a break and returned)
+        let _ = policy.evaluate(&standing_input(30));
+
+        // Computer time exceeds again
+        let s3 = policy.evaluate(&standing_input(65));
+        assert!(s3.notify.is_some(), "should fire again after computer time dropped and rose");
     }
 
     #[test]
@@ -103,6 +108,29 @@ mod tests {
             }
             _ => panic!("expected Toast variant"),
         }
+    }
+
+    #[test]
+    fn nudge_does_not_fire_with_empty_messages() {
+        let mut ergo = ErgonomicProfile::default();
+        ergo.limits.max_continuous_computer_secs = 60;
+        let mut comm = CommunicationProfile::default();
+        comm.screen_break_nudge.enabled = true;
+        comm.screen_break_nudge.messages = vec![];
+        let mut policy = CommunicationPolicy::new(comm, ergo);
+        let signals = policy.evaluate(&standing_input(65));
+        assert!(signals.notify.is_none(), "empty message pool should not fire");
+    }
+
+    #[test]
+    fn nudge_not_reset_by_position_change_alone() {
+        let mut policy = test_policy();
+        let s1 = policy.evaluate(&standing_input(65)); // fires nudge
+        assert!(s1.notify.is_some());
+        policy.on_position_changed();
+        // Computer time still high — flag should NOT reset via position change
+        let s2 = policy.evaluate(&standing_input(65));
+        assert!(s2.notify.is_none(), "position change alone should NOT reset nudge flag");
     }
 
     #[test]

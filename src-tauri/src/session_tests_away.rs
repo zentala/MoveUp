@@ -80,10 +80,11 @@ mod tests {
     // ─── 5-Min Triggers ────────────────────────────────────────────────────
 
     #[test]
-    fn five_min_away_triggers_position_change() {
+    fn five_min_away_counts_as_position_change() {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Away;
         m.state.position_changes = 0;
+        m.state.continuous_computer_secs = 4500;
         m.state.last_accumulate_ts = None;
 
         for i in 0..300 {
@@ -94,7 +95,7 @@ mod tests {
         }
 
         assert_eq!(m.state.away_bout_secs, 300);
-        assert_eq!(m.state.position_changes, 1, "5 min away = 1 position change");
+        assert_eq!(m.state.position_changes, 1, "away reset IS a posture change");
     }
 
     #[test]
@@ -197,7 +198,7 @@ mod tests {
         );
         assert_eq!(
             m.state.position_changes, 1,
-            "position change should fire at configurable threshold"
+            "away reset IS a posture change"
         );
     }
 

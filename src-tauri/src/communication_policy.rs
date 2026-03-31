@@ -118,6 +118,11 @@ impl CommunicationPolicy {
             None => self.make_baseline(input),
         };
 
+        // Reset nudge flag when computer time drops below threshold (user took a break).
+        if input.continuous_computer_secs < self.ergo_profile.limits.max_continuous_computer_secs as i64 {
+            self.screen_break_nudge_fired = false;
+        }
+
         // Screen break nudge: when standing within limits but computer time exceeded.
         // Only nudges when Standing (Sitting has its own escalation) and no existing notification.
         if input.state == DeskState::Standing
@@ -126,6 +131,7 @@ impl CommunicationPolicy {
             && self.ergo_profile.limits.max_continuous_computer_secs > 0
             && input.continuous_computer_secs >= self.ergo_profile.limits.max_continuous_computer_secs as i64
             && self.comm_profile.screen_break_nudge.enabled
+            && !self.comm_profile.screen_break_nudge.messages.is_empty()
         {
             if let Some(msg) = crate::screen_break_nudge::pick_nudge_message(
                 &self.comm_profile.screen_break_nudge.messages,
@@ -160,7 +166,6 @@ impl CommunicationPolicy {
         self.last_notify_step = None;
         self.last_notify_time = None;
         self.notify_count = 0;
-        self.screen_break_nudge_fired = false;
     }
 
     /// Clear the disconnect-notified flag when the sensor reconnects.

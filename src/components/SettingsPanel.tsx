@@ -130,15 +130,7 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
               <AutostartToggle appName="Desk" />
             </div>
             <div className="settings-panel__section">
-              <h3 className="settings-panel__section-title">Experimental</h3>
-              <label className="settings-panel__toggle">
-                <input
-                  type="checkbox"
-                  checked={settings.enable_computer_time_tracking}
-                  onChange={(e) => setSettings({ ...settings, enable_computer_time_tracking: e.target.checked })}
-                />
-                Screen time tracking & break nudges
-              </label>
+              <h3 className="settings-panel__section-title">Display</h3>
               <label className="settings-panel__toggle">
                 <input
                   type="checkbox"

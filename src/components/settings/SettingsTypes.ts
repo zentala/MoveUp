@@ -17,8 +17,6 @@ export interface DeskSettings {
   notify_praise_halfway: boolean;
   /** Timeline color skin: "semantic" | "amber" | "clinical". */
   timeline_skin: string;
-  /** Enable computer time tracking and screen break nudges. */
-  enable_computer_time_tracking: boolean;
   /** Show Active/Idle status in StateIndicator. */
   show_activity_status: boolean;
   /** Whether anonymous telemetry is enabled. Default: false (opt-in). */
@@ -36,7 +34,6 @@ export const DEFAULT_SETTINGS: DeskSettings = {
   notify_daily_posture_balance: true,
   notify_praise_halfway: false,
   timeline_skin: 'semantic',
-  enable_computer_time_tracking: true,
   show_activity_status: true,
   telemetry_enabled: false,
   telemetry_device_id: '',

@@ -41,7 +41,6 @@ vi.mock("@tauri-apps/api/core", () => ({
         notify_inactivity: true,
         notify_daily_posture_balance: true,
         notify_praise_halfway: true,
-        enable_computer_time_tracking: true,
         show_activity_status: true,
       },
       get_today_summary: {

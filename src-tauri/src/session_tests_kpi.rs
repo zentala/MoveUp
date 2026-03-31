@@ -124,26 +124,28 @@ mod tests {
         assert_eq!(mgr.state.away_bout_secs, 60);
     }
 
-    // ─── position_changes from 5min Away ────────────────────────────────────
+    // ─── Away DOES count as position change ──────────────────────────────────
 
     #[test]
     fn position_changes_incremented_on_5min_away() {
         let mut mgr = SessionManager::new();
+        mgr.state.continuous_computer_secs = 4500;
         let initial = mgr.state.position_changes;
         mgr.state.state = DeskState::Away;
         let now = chrono::Utc::now();
         tick_seconds(&mut mgr, now, 305);
-        assert_eq!(mgr.state.position_changes, initial + 1);
+        assert_eq!(mgr.state.position_changes, initial + 1, "away reset IS a posture change");
     }
 
     #[test]
-    fn position_changes_not_incremented_twice_for_10min_away() {
+    fn position_changes_incremented_for_10min_away() {
         let mut mgr = SessionManager::new();
+        mgr.state.continuous_computer_secs = 4500;
         let initial = mgr.state.position_changes;
         mgr.state.state = DeskState::Away;
         let now = chrono::Utc::now();
         tick_seconds(&mut mgr, now, 605);
-        assert_eq!(mgr.state.position_changes, initial + 1);
+        assert_eq!(mgr.state.position_changes, initial + 1, "away reset IS a posture change");
     }
 
     // ─── first_reading_at ───────────────────────────────────────────────────
