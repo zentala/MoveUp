@@ -678,3 +678,17 @@ Beyond the alert escalation system, these one-shot notifications fire:
 | Standing target reached | Standing reaches 100% of standing target | "Standing target reached!" | "Great break! You stood for the full target duration." |
 
 Source: `serial_periodic.rs:36-141`, `session_breaks.rs:98-157`
+
+---
+
+## 10. Computer Time (Unified Cycle)
+
+Standing phase: when `continuous_computer_secs >= max_continuous_computer_secs`:
+- One toast: random nudge from `screen_break_nudge.messages` pool
+- No tray/overlay change (reserved for sitting/standing limits)
+- Fires once per computer session (resets on 5+ min Away)
+
+Activity status in StateIndicator:
+- idle < 30s → "Active" (subtle gray)
+- idle >= 30s → "Idle Xm Ys" (yellow text)
+- Away state → no desk height shown

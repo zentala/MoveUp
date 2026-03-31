@@ -48,12 +48,14 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 - **PostureBalance notification**: only fires when `sitting_seconds_total >= 6h` AND `sitting_seconds > standing_seconds * 2`. Prevents false "sitting most of today" after short sessions.
 - Debounce state changes: require 5s stable reading
 - **Session State Persistence**: notification flags, credit-reduced `sitting_seconds`, and `daily_score` are persisted to `tauri-plugin-store` (key: `persisted_session_state`). Survives app restarts within the same day. Date-guarded: stale data from a previous day is discarded on load. Cleared on daily reset. Save points: every state transition, alert fire, periodic notification, and shutdown.
+- **Computer time tracking** (ADR 011): `continuous_computer_secs` tracks total time at computer (Sitting + Standing). After `computer_break_reset_secs` (default 5 min) of Away, resets to 0. When standing and computer time exceeds `max_continuous_computer_secs` (default 60 min), one gentle toast nudge fires encouraging a screen break. Configurable in ergonomic profile. Toggle: Settings → More → "Screen time tracking".
 
 ## UI Components
 1. **System tray** — `↕ 72 cm` tooltip + color dot (green/yellow/red by progress)
 2. **Floating window** — current height, today's totals, session history
 3. **Top-of-screen progress bar** — green→red over 40min session (overlay_renderer.rs)
 4. **Alert popup** — progressive escalation when limit reached (alert_manager.rs, planned)
+5. **Activity status** — "Active" / "Idle Xm Ys" in StateIndicator, shown when keyboard/mouse idle ≥30s. Toggle: Settings → More → "Show activity status".
 
 ## Communication Architecture & Profiles
 
@@ -170,6 +172,7 @@ If tests fail, the build is halted. Commit is NOT blocked (tests don't run on pr
 - `src-tauri/src/serial.rs` — serial reader, auto-detect
 - `src-tauri/src/session.rs` — session state machine
 - `src-tauri/src/activity.rs` — keyboard/mouse idle detection
+- `src-tauri/src/screen_break_nudge.rs` — random nudge message picker for screen breaks
 - `src-tauri/src/db.rs` — SQLite persistence
 - `src/App.tsx` — floating window UI
 - `src/components/ProgressBar.tsx` — top-of-screen overlay
@@ -242,6 +245,7 @@ Do NOT hardcode prices in markdown — they may change or be A/B tested.
 | [005](.arch/ADR/005-open-core-software-model.md) | Open core — app open source, cloud/AI closed |
 | [006](.arch/ADR/006-self-declaration-ce-not-notified-body.md) | CE self-declaration (not notified body) |
 | [007](.arch/ADR/007-plexi-mount-dev-kit-enclosure.md) | Plexi/PCB carrier mount for dev kit |
+| [011](.arch/ADR/011-unified-sit-stand-walk-cycle.md) | Unified sit-stand-walk cycle (no separate screen timer) |
 
 ### Hardware Design
 
