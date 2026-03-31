@@ -30,11 +30,11 @@ else            { $env:OVERLAY_DATA = "live" }
 # --- Process guard ---
 $existing = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
 if ($existing) {
-    $pid = $existing.Id
+    $existingPid = $existing.Id
     Write-Host ""
     Write-Host "========================================"
     Write-Host "  Previous instance detected!"
-    Write-Host "  $ProcessName.exe is running (PID: $pid)"
+    Write-Host "  $ProcessName.exe is running (PID: $existingPid)"
     Write-Host "========================================"
     Write-Host ""
 
@@ -74,7 +74,7 @@ if ($existing) {
         }
 
         Write-Host ""
-        Write-Host "  Killing $ProcessName.exe (PID: $pid)..."
+        Write-Host "  Killing $ProcessName.exe (PID: $existingPid)..."
         Stop-Process -Name $ProcessName -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 1
         Write-Host "  Killed. Starting new build."

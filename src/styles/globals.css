@@ -36,8 +36,8 @@
   --beam-glow: rgba(217, 119, 6, 0.20);
   --beam-dim:  rgba(217, 119, 6, 0.08);
 
-  /* Semantic signals — synced with src-tauri/src/colors.rs */
-  --signal-neutral: #2c2920;
+  /* Semantic signals — synced with src-tauri/src/colors.rs & utils/colors.ts */
+  --signal-neutral: #5a5548;
   --signal-warn:  #ffc107;
   --signal-alert: #f44336;
   --signal-away:  #808080;

@@ -1,9 +1,8 @@
 /**
  * App.tsx — root component for the Desk ergonomics tracker.
  *
- * Uses a pluggable widget system: core provides data via useWidgetData,
- * the active widget handles presentation. ScreenProgressBar (overlay)
- * stays outside the widget system as a separate concern.
+ * Core provides data via useWidgetData, OneBarWidget handles presentation.
+ * Overlay progress bar is a separate native WinAPI window (not React).
  */
 import { useState, useEffect, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
