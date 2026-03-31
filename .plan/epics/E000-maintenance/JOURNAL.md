@@ -1,5 +1,23 @@
 # E000 Maintenance — Journal
 
+## Session 2026-03-31 (B) — Timeline debug, overlay fix, seeding fix
+
+- **Goal**: Debug timeline hour markers, fix overlay visibility, clean up widget system
+- **Done**:
+  - Timeline hour markers fixed — midnight crossing bug (`startHour > now.getHours()` loop never ran). Extracted `computeHourMarkers()` to `@/utils/timeline.ts` (efe5ba2)
+  - DB seeding filter — `load_today_totals()` now accepts `after` timestamp to exclude pre-daily-reset sessions. Reset timestamp persisted to store (c1d286f)
+  - Overlay NEUTRAL color raised from `#2C2920` to `#5A5548` — visible on black background (committed in prior widget cleanup 38bd754)
+  - Widget cleanup (ZenTimeline, Placeholder, WidgetPicker) — already committed by prior agent (38bd754), confirmed files deleted
+  - Impro fixes: tauri-dev.ps1 $pid conflict, CSS signal-neutral sync, App.tsx doc (d05ad7e)
+- **Decisions**: Single widget (OneBar) — no need for widget picker/registry. ZenTimeline had no unique value.
+- **Findings this session**: 4
+  - NEUTRAL color near-invisible on black overlay background
+  - Timeline hour loop broken across midnight
+  - DB seeding ignores daily reset (loads pre-reset data)
+  - HourlyBreakTracker not persisted across restarts
+- **Improvements logged**: 9 (all implemented via impro)
+- **Next**: Verify seeding fix after next daily reset. Break tracker persistence (BACKLOG). Test coverage for timeline edge cases.
+
 ## Session 2026-03-31 — Unified Work Cycle + Activity Status
 
 - **Goal**: Add screen break awareness (computer time tracking) and activity status to UI
