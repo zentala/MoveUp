@@ -1,0 +1,19 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: desk
+  description: Ergonomics tracker for motorized sit/stand desk. Tauri tray app, VL53L1X laser sensor, session tracking with break credit. Standalone product; Wellsy extends it.
+  annotations:
+    github.com/project-slug: zentala/zntl-tray
+  tags:
+    - tauri
+    - rust
+    - typescript
+    - react
+    - ergonomics
+    - tray-app
+    - sister-of-wellsy
+spec:
+  type: tool
+  lifecycle: production
+  owner: zentala
