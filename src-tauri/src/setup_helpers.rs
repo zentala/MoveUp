@@ -7,8 +7,10 @@ use std::time::Instant;
 
 use log::{error, info, warn};
 use tauri::{AppHandle, Listener, Manager};
-use tauri_plugin_autostart::ManagerExt;
 use window_vibrancy::apply_acrylic;
+
+#[cfg(not(debug_assertions))]
+use tauri_plugin_autostart::ManagerExt;
 
 use crate::commands::AppState;
 use crate::ws_broadcaster::{self, DisplayEvent};
@@ -35,7 +37,7 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
         event: event_logger.clone(),
     });
 
-    ensure_autostart(app.handle());
+    ensure_autostart(app.handle(), &event_logger);
     crate::tray::setup_tray(app.handle())?;
     crate::tray_controller::setup(app.handle());
     crate::tray_signal_exec::start_blink_thread(app.handle().clone());
@@ -82,14 +84,66 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
 /// Minimum interval between device-missing/lost notifications (5 minutes).
 const DEVICE_NOTIFICATION_COOLDOWN_SECS: u64 = 300;
 
-/// Enables autostart on first run so the build exe launches on login.
-pub fn ensure_autostart(app: &AppHandle) {
+/// Enables autostart for release builds only, self-heals stale registry paths,
+/// and always emits an AUTOSTART line to `events.log` for visibility.
+///
+/// In debug builds the function is a no-op — dev executables must never
+/// be registered as a system startup entry.
+#[cfg(debug_assertions)]
+pub fn ensure_autostart(
+    _app: &AppHandle,
+    event_logger: &Arc<crate::event_logger::EventLogger>,
+) {
+    info!("autostart: skipped (debug build)");
+    event_logger.log("AUTOSTART skipped reason=debug_build");
+}
+
+/// Enables autostart for release builds only, self-heals stale registry paths,
+/// and always emits an AUTOSTART line to `events.log` for visibility.
+#[cfg(not(debug_assertions))]
+pub fn ensure_autostart(
+    app: &AppHandle,
+    event_logger: &Arc<crate::event_logger::EventLogger>,
+) {
     let autostart = app.autolaunch();
-    if !autostart.is_enabled().unwrap_or(false) {
+    let current_exe = std::env::current_exe().unwrap_or_default();
+    let current_path = current_exe.display().to_string();
+
+    let is_enabled = autostart.is_enabled().unwrap_or(false);
+    let registered_path = read_autostart_registry_path();
+
+    // [B] Self-heal: if enabled but registered path differs, re-register
+    let needs_reregister = is_enabled
+        && registered_path
+            .as_ref()
+            .map_or(true, |p| !paths_equal(p, &current_path));
+
+    if needs_reregister {
+        warn!(
+            "autostart: stale path detected, re-registering. old={:?} new={}",
+            registered_path, current_path
+        );
+        event_logger.log(&format!(
+            "AUTOSTART stale_path old={:?} new={}",
+            registered_path, current_path
+        ));
+        let _ = autostart.disable();
+    }
+
+    if !is_enabled || needs_reregister {
         match autostart.enable() {
-            Ok(()) => info!("autostart: enabled for {}", std::env::current_exe().unwrap_or_default().display()),
-            Err(e) => warn!("autostart: failed to enable: {}", e),
+            Ok(()) => {
+                info!("autostart: enabled for {}", current_path);
+                event_logger.log(&format!("AUTOSTART enabled path={}", current_path));
+            }
+            Err(e) => {
+                warn!("autostart: failed to enable: {}", e);
+                event_logger.log(&format!("AUTOSTART error msg={}", e));
+            }
         }
+    } else {
+        // [C] Always log current status for visibility
+        event_logger.log(&format!("AUTOSTART verified path={}", current_path));
     }
 }
 
@@ -244,5 +298,68 @@ pub fn flush_session_on_shutdown(app: &AppHandle) {
             state_label, completed.duration_secs
         ),
         Err(e) => error!("Graceful shutdown: failed to save session: {}", e),
+    }
+}
+
+// ── Autostart helpers (release-only, placed after all pub fns) ───────────────
+
+/// Reads the registered autostart exe path from the Windows Run registry key.
+///
+/// Returns `None` when the value is absent or on read error.
+#[cfg(all(not(debug_assertions), target_os = "windows"))]
+fn read_autostart_registry_path() -> Option<String> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    hkcu.open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Run")
+        .ok()?
+        .get_value("SmartDesk")
+        .ok()
+}
+
+/// Non-Windows stub — always returns `None`.
+#[cfg(all(not(debug_assertions), not(target_os = "windows")))]
+fn read_autostart_registry_path() -> Option<String> {
+    None
+}
+
+/// Compares two exe paths case-insensitively, normalising slashes and stripping quotes.
+#[cfg(not(debug_assertions))]
+fn paths_equal(a: &str, b: &str) -> bool {
+    let normalize = |s: &str| s.trim_matches('"').replace('/', "\\").to_lowercase();
+    normalize(a) == normalize(b)
+}
+
+#[cfg(test)]
+mod tests {
+    /// `paths_equal` is release-only; import it conditionally so tests still compile in debug.
+    #[cfg(not(debug_assertions))]
+    use super::paths_equal;
+
+    /// Fallback for debug builds: define a local copy so tests can run.
+    #[cfg(debug_assertions)]
+    fn paths_equal(a: &str, b: &str) -> bool {
+        let normalize = |s: &str| s.trim_matches('"').replace('/', "\\").to_lowercase();
+        normalize(a) == normalize(b)
+    }
+
+    #[test]
+    fn paths_equal_case_insensitive() {
+        assert!(paths_equal(r"c:\Foo\bar.exe", r"C:\foo\bar.exe"));
+    }
+
+    #[test]
+    fn paths_equal_trims_quotes() {
+        assert!(paths_equal(r#""C:\bar.exe""#, r"C:\bar.exe"));
+    }
+
+    #[test]
+    fn paths_equal_normalizes_slashes() {
+        assert!(paths_equal(r"C:/foo/bar.exe", r"C:\foo\bar.exe"));
+    }
+
+    #[test]
+    fn paths_equal_rejects_different_paths() {
+        assert!(!paths_equal(r"C:\a.exe", r"C:\b.exe"));
     }
 }
