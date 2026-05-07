@@ -14,6 +14,13 @@
 - **Decisions:** unified all 4 issues + the precommit gap into single epic E011 instead of E000-maintenance scatter. User confirmed.
 - **Next:** commit T03, create worktrees for T01/T02, dispatch parallel.
 
+## Session 2026-05-07 03:55 — handoff
+
+- **Outcome:** epic scaffolded, T03 done (`95305b7`), hot fix applied (registry + release build)
+- **Decision:** stop here for the night — wave 1 dispatch deferred to next session
+- **Handoff:** [`../../handoffs/HANDOFF-2026-05-07-e011-autostart.md`](../../handoffs/HANDOFF-2026-05-07-e011-autostart.md)
+- **Next:** worktrees for T01+T02, parallel agents, then T04, T05
+
 ## Findings
 
 (append `## Finding YYYY-MM-DD HH:MM — <slug>` entries during work)

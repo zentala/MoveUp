@@ -1,14 +1,24 @@
 ---
-updated: 2026-03-31T13:30:00Z
-active_epic: E000
-active_epic_path: .plan/epics/E000-maintenance
-current_wave: n/a
+updated: 2026-05-07T03:55:00Z
+active_epic: E011
+active_epic_path: .plan/epics/E011-2026-05-07-autostart-hardening
+current_wave: 1 (not yet dispatched)
 ---
 
 ## Status
+- **E011 (autostart hardening)** — active, scaffolded, T03 done. Wave 1 (T01+T02) and Wave 2-3 pending. See [PLAN.md](./epics/E011-2026-05-07-autostart-hardening/PLAN.md).
 - E000 (maintenance) — open (permanent)
 - E001–E009 — partially done (see ORCHESTRATOR.md per epic)
 - E010 (Marketing Launch) — 19/22 tasks DONE (3 human tasks remain)
+
+## E011 progress
+- ✅ T03 — fix WidgetProps test (commit `95305b7`)
+- ✅ Epic scaffold (commit `bfddf63`)
+- ✅ Hot fix outside epic: registry rewritten to release path, fresh `desk.exe` built
+- ⏳ T01 — autostart self-heal + dev guard + events log
+- ⏳ T02 — EventLogger investigation + reliability
+- ⏳ T04 — precommit tsc gate (depends T03 ✅)
+- ⏳ T05 — `--minimized` autostart (depends T01)
 
 ## Version
 - Current: `v0.3.0`
