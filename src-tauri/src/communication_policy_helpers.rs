@@ -40,6 +40,7 @@ pub(crate) fn parse_overlay_signal(s: &str, progress: f32) -> OverlaySignal {
 /// Parse a popup signal name into a [`PopupSignal`].
 pub(crate) fn parse_popup_signal(s: &str) -> PopupSignal {
     match s {
+        "neutral" | "none" | "" => PopupSignal::Neutral,
         "yellow" => PopupSignal::Yellow,
         "red" => PopupSignal::Red,
         "gray" => PopupSignal::Gray,
@@ -145,4 +146,29 @@ pub(crate) fn disconnected_signals(
         notify,
     };
     (signals, fired)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::communication_types::PopupSignal;
+
+    #[test]
+    fn parse_popup_signal_neutral_variants() {
+        assert!(matches!(parse_popup_signal("neutral"), PopupSignal::Neutral));
+        assert!(matches!(parse_popup_signal("none"), PopupSignal::Neutral));
+        assert!(matches!(parse_popup_signal(""), PopupSignal::Neutral));
+    }
+
+    #[test]
+    fn parse_popup_signal_known_variants() {
+        assert!(matches!(parse_popup_signal("yellow"), PopupSignal::Yellow));
+        assert!(matches!(parse_popup_signal("red"), PopupSignal::Red));
+        assert!(matches!(parse_popup_signal("gray"), PopupSignal::Gray));
+    }
+
+    #[test]
+    fn parse_popup_signal_unknown_defaults_to_neutral() {
+        assert!(matches!(parse_popup_signal("bogus"), PopupSignal::Neutral));
+    }
 }
