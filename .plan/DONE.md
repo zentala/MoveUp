@@ -107,3 +107,11 @@
 - [x] [E009-T05 — Responsive display](epics/E009-2026-03-24-remote-display/tasks/E009-T05-responsive-display.md) — E009, 2026-03-25
 - [x] [E009-T06 — Connection overlay](epics/E009-2026-03-24-remote-display/tasks/E009-T06-reconnect-ui.md) — E009, 2026-03-25
 - [x] [E009-T07 — E2E tests + docs](epics/E009-2026-03-24-remote-display/tasks/E009-T07-e2e-test.md) — E009, 2026-03-25
+
+## E011 — Autostart Hardening (2026-05-07)
+- **[E011-T01](epics/E011-2026-05-07-autostart-hardening/tasks/E011-T01-autostart-self-heal.md)** — Autostart self-heal + dev guard + events log. winreg reads registry path, re-registers if stale; #[cfg(debug_assertions)] skips in dev builds; all paths emit AUTOSTART … to events.log. Commits: 2c95911.
+- **[E011-T02](epics/E011-2026-05-07-autostart-hardening/tasks/E011-T02-event-logger-fix.md)** — EventLogger write reliability. Root cause: 
+ew() never created ase_dir. Fix: eager create_dir_all + panic on fail, log::error! with full context, 1-retry. 3 integration tests added. Commits: c159b04.
+- **[E011-T03](epics/E011-2026-05-07-autostart-hardening/tasks/E011-T03-commit-test-fix.md)** — OneBarTimeline.test.tsx missing WidgetProps fields. Commits: 95305b7.
+- **[E011-T04](epics/E011-2026-05-07-autostart-hardening/tasks/E011-T04-precommit-tsc-gate.md)** — Precommit tsc gate for apps/desk. Blocks commits with TS type errors. Commits: 2dcf49c.
+- **[E011-T05](epics/E011-2026-05-07-autostart-hardening/tasks/E011-T05-minimized-startup.md)** — Minimized autostart launch. --minimized arg via autostart plugin; popup hidden on autostart, single-instance show() preserved. Commits: bd7df6.

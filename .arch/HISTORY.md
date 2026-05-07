@@ -1,5 +1,14 @@
 # History — Desk App
 
+## 2026-05-07 — E011: Autostart Hardening (v0.4.0)
+- Autostart self-heal: reads registry via `winreg`, re-registers if path differs from `current_exe()`
+- Dev guard: `#[cfg(debug_assertions)]` skips autostart registration in debug builds
+- EventLogger reliability: `create_dir_all` on init, `log::error!` with full context, 1-retry on write fail
+- Precommit gate: `tsc --noEmit` for `apps/desk/` added to `.husky/pre-commit`
+- Minimized autostart: `--minimized` arg passed via autostart plugin; `position_main_window()` hides popup when arg present
+- Root cause of events.log not written: `EventLogger::new()` never created `base_dir` — fixed with eager `create_dir_all` + panic on fail
+- Tests: 427 Rust lib + 3 integration (was 420)
+
 ## 2026-03-15 — E001: App Foundation
 - Built core: SessionManager, rusqlite DB, config persistence, daily reset, settings panel
 - Decisions: rusqlite over tauri-plugin-sql (Rust owns DB), ReadingResult struct
