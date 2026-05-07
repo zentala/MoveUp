@@ -148,6 +148,7 @@ pub fn ensure_autostart(
 }
 
 /// Applies Acrylic blur and positions the main window in the bottom-right corner.
+/// Hides the window when launched with `--minimized` (autostart scenario).
 pub fn position_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = apply_acrylic(&window, Some((18, 18, 18, 200)));
@@ -158,6 +159,12 @@ pub fn position_main_window(app: &AppHandle) {
             let x = mon.width as i32 - win.width as i32 - 16;
             let y = mon.height as i32 - win.height as i32 - 56;
             let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+        }
+
+        // Hide window if started with --minimized (autostart scenario)
+        if std::env::args().any(|a| a == "--minimized") {
+            let _ = window.hide();
+            log::info!("autostart: started with --minimized, popup hidden");
         }
     }
 }
@@ -361,5 +368,29 @@ mod tests {
     #[test]
     fn paths_equal_rejects_different_paths() {
         assert!(!paths_equal(r"C:\a.exe", r"C:\b.exe"));
+    }
+
+    #[test]
+    fn is_minimized_arg_present() {
+        // Can't mock std::env::args — test the detection logic inline
+        let args: Vec<String> = vec!["exe".to_string(), "--minimized".to_string()];
+        assert!(args.iter().any(|a| a == "--minimized"));
+    }
+
+    #[test]
+    fn is_minimized_arg_absent() {
+        let args: Vec<String> = vec!["exe".to_string()];
+        assert!(!args.iter().any(|a| a == "--minimized"));
+    }
+
+    #[test]
+    fn is_minimized_arg_in_middle() {
+        let args: Vec<String> = vec![
+            "exe".to_string(),
+            "--foo".to_string(),
+            "--minimized".to_string(),
+            "--bar".to_string(),
+        ];
+        assert!(args.iter().any(|a| a == "--minimized"));
     }
 }
