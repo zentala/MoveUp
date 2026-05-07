@@ -29,6 +29,8 @@ function baseProps(overrides: Partial<WidgetProps> = {}): WidgetProps {
     todayStandingSecs: 0,
     todaySittingSecs: 600,
     todayScore: 0,
+    idleSecs: 0,
+    continuousComputerSecs: 0,
     metrics: [],
     error: null,
     onOpenSettings: vi.fn(),
