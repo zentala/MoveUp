@@ -3,7 +3,7 @@
 //! Pure string → enum conversions and stateless signal builders extracted from
 //! the main policy module to keep file sizes under 250 lines.
 
-use crate::communication_profile::{BaselineConfig, CommunicationProfile, MessageConfig};
+use crate::communication_profile::{BaselineConfig, ChannelConfig, CommunicationProfile, MessageConfig};
 use crate::communication_types::{NotifySignal, OverlaySignal, PopupSignal, Signals, TraySignal};
 use crate::session_types::DeskState;
 
@@ -25,7 +25,7 @@ pub(crate) fn parse_tray_signal(s: &str) -> TraySignal {
 /// Parse an overlay signal name into an [`OverlaySignal`] with the given progress.
 pub(crate) fn parse_overlay_signal(s: &str, progress: f32) -> OverlaySignal {
     match s {
-        "hidden" | "" => OverlaySignal::Hidden,
+        "hidden" | "none" | "" => OverlaySignal::Hidden,
         "neutral" => OverlaySignal::Neutral { progress },
         "yellow" => OverlaySignal::Yellow { progress },
         "red" => OverlaySignal::Red { progress },
@@ -61,12 +61,12 @@ pub(crate) fn make_notify_signal(notify_type: &str, message: &str) -> NotifySign
 
 // ── Stateless signal builders ─────────────────────────────────────────────────
 
-/// Build the inactive-state signals (Away or Walking).
-pub(crate) fn inactive_signals() -> Signals {
+/// Build the inactive-state signals (Away or Walking) from profile config.
+pub(crate) fn inactive_signals(inactive: &ChannelConfig) -> Signals {
     Signals {
-        tray: TraySignal::None,
-        overlay: OverlaySignal::Hidden,
-        popup: PopupSignal::Neutral,
+        tray: parse_tray_signal(&inactive.tray),
+        overlay: parse_overlay_signal(&inactive.overlay, 0.0),
+        popup: parse_popup_signal(&inactive.popup_header),
         notify: None,
     }
 }
@@ -84,16 +84,21 @@ pub(crate) fn baseline_signals(
             let bl = &baseline.sitting;
             Signals {
                 tray: parse_tray_signal(&bl.tray),
-                overlay: OverlaySignal::Neutral { progress: 0.0 },
+                overlay: parse_overlay_signal(&bl.overlay, 0.0),
                 popup: parse_popup_signal(&bl.popup),
                 notify: None,
             }
         }
         DeskState::Standing => {
             let bl = &baseline.standing;
+            // "progress" needs lap/flash params that parse_overlay_signal can't carry
+            let overlay = match bl.overlay.as_str() {
+                "progress" => OverlaySignal::Progress { progress: lap_progress, lap, flash: lap_flash },
+                other => parse_overlay_signal(other, lap_progress),
+            };
             Signals {
                 tray: parse_tray_signal(&bl.tray),
-                overlay: OverlaySignal::Progress { progress: lap_progress, lap, flash: lap_flash },
+                overlay,
                 popup: parse_popup_signal(&bl.popup),
                 notify: None,
             }
@@ -112,11 +117,7 @@ pub(crate) fn message_for_state(
     match (state, notify_type) {
         (DeskState::Sitting, "toast") => msgs.sitting_limit_toast.clone(),
         (DeskState::Sitting, "popup") => {
-            if is_firm {
-                "You really need to stand up now.".to_string()
-            } else {
-                msgs.sitting_overdue_popup.clone()
-            }
+            if is_firm { msgs.sitting_firm_popup.clone() } else { msgs.sitting_overdue_popup.clone() }
         }
         (DeskState::Standing, "toast") => msgs.standing_limit_toast.clone(),
         (DeskState::Standing, "popup") => msgs.standing_overdue_popup.clone(),
@@ -151,7 +152,37 @@ pub(crate) fn disconnected_signals(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::communication_types::PopupSignal;
+    use crate::communication_types::{OverlaySignal, PopupSignal, TraySignal};
+
+    #[test]
+    fn parse_tray_signal_known_variants() {
+        assert!(matches!(parse_tray_signal("none"), TraySignal::None));
+        assert!(matches!(parse_tray_signal(""), TraySignal::None));
+        assert!(matches!(parse_tray_signal("yellow"), TraySignal::Yellow));
+        assert!(matches!(parse_tray_signal("red"), TraySignal::Red));
+    }
+
+    #[test]
+    fn parse_tray_signal_unknown_is_blink() {
+        assert!(matches!(parse_tray_signal("blink_red"), TraySignal::Blink(_)));
+        assert!(matches!(parse_tray_signal("blink_gray"), TraySignal::Blink(_)));
+    }
+
+    #[test]
+    fn parse_overlay_signal_known_variants() {
+        assert!(matches!(parse_overlay_signal("hidden", 0.0), OverlaySignal::Hidden));
+        assert!(matches!(parse_overlay_signal("none", 0.0), OverlaySignal::Hidden));
+        assert!(matches!(parse_overlay_signal("", 0.0), OverlaySignal::Hidden));
+        assert!(matches!(parse_overlay_signal("neutral", 0.5), OverlaySignal::Neutral { .. }));
+        assert!(matches!(parse_overlay_signal("yellow", 0.5), OverlaySignal::Yellow { .. }));
+        assert!(matches!(parse_overlay_signal("red", 0.5), OverlaySignal::Red { .. }));
+        assert!(matches!(parse_overlay_signal("pulse_red", 0.5), OverlaySignal::PulseRed { .. }));
+    }
+
+    #[test]
+    fn parse_overlay_signal_unknown_defaults_to_neutral() {
+        assert!(matches!(parse_overlay_signal("bogus", 0.5), OverlaySignal::Neutral { .. }));
+    }
 
     #[test]
     fn parse_popup_signal_neutral_variants() {

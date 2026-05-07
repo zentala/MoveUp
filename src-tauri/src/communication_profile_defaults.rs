@@ -162,6 +162,7 @@ pub(super) fn default_messages() -> MessageConfig {
     MessageConfig {
         sitting_limit_toast: "Time to stand! You've been sitting for too long.".to_string(),
         sitting_overdue_popup: "Still sitting? Stand up and move around.".to_string(),
+        sitting_firm_popup: "You really need to stand up now.".to_string(),
         standing_limit_toast: "Great standing session! Consider sitting down now.".to_string(),
         standing_overdue_popup: "You've been standing a long time. Take a seat.".to_string(),
         sensor_disconnected: "Sensor disconnected — desk position unknown.".to_string(),

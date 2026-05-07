@@ -60,7 +60,7 @@ impl CommunicationPolicy {
         }
 
         if matches!(input.state, DeskState::Away | DeskState::Walking) {
-            return helpers::inactive_signals();
+            return helpers::inactive_signals(&self.comm_profile.inactive);
         }
 
         // Check snooze — if still active, return baseline only

@@ -118,6 +118,7 @@
   "messages": {
     "sitting_limit_toast": "Time for a change — stand up or step away from the screen",
     "sitting_overdue_popup": "You've been sitting for {minutes} minutes. Stand up!",
+    "sitting_firm_popup": "You really need to stand up now.",
     "standing_limit_toast": "Maybe sit down for a bit",
     "standing_overdue_popup": "You've been standing for {minutes} minutes.",
     "sensor_disconnected": "Desk sensor not connected",

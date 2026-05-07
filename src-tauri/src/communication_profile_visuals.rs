@@ -100,6 +100,9 @@ impl OverlayPattern {
 pub struct MessageConfig {
     pub sitting_limit_toast: String,
     pub sitting_overdue_popup: String,
+    /// Firm message shown in popup after repeated dismisses (is_firm = true).
+    #[serde(default = "MessageConfig::default_sitting_firm_popup")]
+    pub sitting_firm_popup: String,
     pub standing_limit_toast: String,
     pub standing_overdue_popup: String,
     pub sensor_disconnected: String,
@@ -107,6 +110,12 @@ pub struct MessageConfig {
     pub neutral_popup_messages: Vec<String>,
     /// Pool of positive reinforcement messages (randomly selected).
     pub positive_popup_messages: Vec<String>,
+}
+
+impl MessageConfig {
+    fn default_sitting_firm_popup() -> String {
+        "You really need to stand up now.".to_string()
+    }
 }
 
 impl Default for MessageConfig {
