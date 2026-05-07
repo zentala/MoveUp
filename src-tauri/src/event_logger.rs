@@ -6,6 +6,7 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use chrono::Local;
 
@@ -18,11 +19,25 @@ pub struct EventLogger {
 
 impl EventLogger {
     /// Creates a new logger writing to `base_dir` (e.g. `{app_data}/logs`).
+    ///
+    /// Panics if `base_dir` cannot be created — event logging is critical
+    /// infrastructure and silent failure masks data-loss bugs.
     pub fn new(base_dir: PathBuf) -> Self {
+        std::fs::create_dir_all(&base_dir).unwrap_or_else(|e| {
+            panic!(
+                "event_logger: cannot create base log dir {:?}: {} (kind={:?})",
+                base_dir,
+                e,
+                e.kind()
+            )
+        });
         Self { base_dir }
     }
 
     /// Appends a single event line to today's `events.log`.
+    ///
+    /// On write failure, retries once after 100 ms. Errors are logged at
+    /// `error!` level with the full path and error kind for debuggability.
     pub fn log(&self, event: &str) {
         let now = Local::now();
         let date_str = now.format("%Y-%m-%d").to_string();
@@ -31,27 +46,50 @@ impl EventLogger {
         let day_dir = match ensure_day_dir(&self.base_dir, &date_str) {
             Ok(d) => d,
             Err(e) => {
-                log::warn!("event log: cannot create day dir: {}", e);
+                log::error!(
+                    "event_logger: cannot create day dir {:?}/{}: {} (kind={:?})",
+                    self.base_dir,
+                    date_str,
+                    e,
+                    e.kind()
+                );
                 return;
             }
         };
 
         let path = day_dir.join("events.log");
-        let file = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(&path);
+        let line = format!("{} {}\n", time_str, event);
 
-        match file {
-            Ok(mut f) => {
-                if let Err(e) = writeln!(f, "{} {}", time_str, event) {
-                    log::warn!("event log: write failed: {}", e);
-                }
-            }
-            Err(e) => {
-                log::warn!("event log: open failed: {}", e);
+        if self.try_write(&path, &line).is_err() {
+            std::thread::sleep(Duration::from_millis(100));
+            if let Err(e) = self.try_write(&path, &line) {
+                log::error!(
+                    "event_logger: write failed after retry at {:?}: {} (kind={:?})",
+                    path,
+                    e,
+                    e.kind()
+                );
             }
         }
+    }
+
+    /// Opens `path` in append+create mode and writes `line`.
+    fn try_write(&self, path: &std::path::Path, line: &str) -> std::io::Result<()> {
+        let mut f = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(path)
+            .map_err(|e| {
+                log::error!(
+                    "event_logger: open failed at {:?}: {} (kind={:?})",
+                    path,
+                    e,
+                    e.kind()
+                );
+                e
+            })?;
+        f.write_all(line.as_bytes())?;
+        Ok(())
     }
 }
 
@@ -70,7 +108,8 @@ mod tests {
         logger.log("RESET daily");
 
         let today = Local::now().format("%Y-%m-%d").to_string();
-        let content = std::fs::read_to_string(tmp.path().join(&today).join("events.log")).unwrap();
+        let content =
+            std::fs::read_to_string(tmp.path().join(&today).join("events.log")).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines.len(), 3);
     }
@@ -94,7 +133,8 @@ mod tests {
         logger.log("DEVICE connected COM3");
 
         let today = Local::now().format("%Y-%m-%d").to_string();
-        let content = std::fs::read_to_string(tmp.path().join(&today).join("events.log")).unwrap();
+        let content =
+            std::fs::read_to_string(tmp.path().join(&today).join("events.log")).unwrap();
         let line = content.lines().next().unwrap();
         // Format: HH:MM:SS TYPE details
         assert!(line.contains("DEVICE connected COM3"));
@@ -104,9 +144,11 @@ mod tests {
     }
 
     #[test]
-    fn event_log_io_error_no_panic() {
-        let logger = EventLogger::new(PathBuf::from("/nonexistent/path/that/should/fail"));
-        logger.log("START v0.1.0");
-        // Should not panic — just warns.
+    fn new_creates_base_dir() {
+        let tmp = TempDir::new().unwrap();
+        let nested = tmp.path().join("a").join("b").join("logs");
+        assert!(!nested.exists(), "dir should not exist yet");
+        let _logger = EventLogger::new(nested.clone());
+        assert!(nested.exists(), "EventLogger::new must create base_dir");
     }
 }
