@@ -4,14 +4,14 @@
 
 ## Wave 1 — independent (parallel)
 
-- [ ] **E011-T01** — Autostart self-heal + dev guard + log to events
+- [x] **E011-T01** — Autostart self-heal + dev guard + log to events
   - Branch: `feat/E011-T01-autostart-self-heal`
   - Worktree: `.claude/worktrees/E011-T01-autostart-self-heal`
   - Touches: `apps/desk/src-tauri/src/setup_helpers.rs`, `Cargo.toml`, new `setup_helpers_tests.rs`
   - Depends on: nothing
   - Spec: [tasks/E011-T01-autostart-self-heal.md](./tasks/E011-T01-autostart-self-heal.md)
 
-- [ ] **E011-T02** — EventLogger investigation + write reliability
+- [x] **E011-T02** — EventLogger investigation + write reliability
   - Branch: `feat/E011-T02-event-logger-fix`
   - Worktree: `.claude/worktrees/E011-T02-event-logger-fix`
   - Touches: `apps/desk/src-tauri/src/event_logger.rs`, new investigation file, new integration test
@@ -26,7 +26,7 @@
 
 ## Wave 2 — depends on T03 merged
 
-- [ ] **E011-T04** — Precommit gate: tsc --noEmit on desk app
+- [x] **E011-T04** — Precommit gate: tsc --noEmit on desk app
   - Branch: `feat/E011-T04-precommit-tsc-gate`
   - Worktree: `.claude/worktrees/E011-T04-precommit-tsc-gate`
   - Touches: `.husky/pre-commit`, `apps/desk/package.json`
@@ -35,7 +35,7 @@
 
 ## Wave 3 — depends on T01 merged
 
-- [ ] **E011-T05** — Autostart `--minimized` + popup hidden on autostart
+- [x] **E011-T05** — Autostart `--minimized` + popup hidden on autostart
   - Branch: `feat/E011-T05-minimized-startup`
   - Worktree: `.claude/worktrees/E011-T05-minimized-startup`
   - Touches: `apps/desk/src-tauri/src/lib.rs`, `apps/desk/src-tauri/src/setup_helpers.rs`
@@ -44,7 +44,7 @@
 
 ## Final integration
 
-- [ ] All worktrees merged to `main` (or `feat/E011`)
+- [x] All worktrees merged to `main`
 - [ ] `pnpm tauri:build` succeeds
 - [ ] Manual end-to-end smoke per PLAN.md acceptance criteria
 - [ ] Bump version to `0.4.0` per `.claude/rules/versioning.md` (new epic = MAJOR bump)
