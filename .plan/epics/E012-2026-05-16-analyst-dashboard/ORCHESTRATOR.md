@@ -2,11 +2,11 @@
 
 ## Wave 1 — Backend queries + mockup (parallel, 3 worktrees)
 
-- [ ] **E012-T01** Backend: snapshot/event range query commands
+- [x] **E012-T01** Backend: snapshot/event range query commands
   Branch: `feat/E012-T01-range-queries`
-- [ ] **E012-T02** Backend: data catalog metadata command
+- [x] **E012-T02** Backend: data catalog metadata command
   Branch: `feat/E012-T02-catalog-meta`
-- [ ] **E012-T03** Frontend mockup `/mockup/analyst` with fake data
+- [x] **E012-T03** Frontend mockup `/mockup/analyst` with fake data
   Branch: `feat/E012-T03-mockup`
 
 **Gate before Wave 2:**
@@ -15,16 +15,16 @@
 
 ## Wave 2 — Real window + Catalog wiring (parallel, 2 worktrees)
 
-- [ ] **E012-T04** Analyst window registration (Tauri config + tray menu item)
+- [x] **E012-T04** Analyst window registration (Tauri config + tray menu item)
   Branch: `feat/E012-T04-window`
   Depends on: T01, T02 (no UI lock yet — wires commands)
-- [ ] **E012-T05** Catalog tab live wiring (replaces fake data with `get_data_catalog()`)
+- [x] **E012-T05** Catalog tab live wiring (replaces fake data with `get_data_catalog()`)
   Branch: `feat/E012-T05-catalog-live`
   Depends on: T02, T03 (mockup approved)
 
 ## Wave 3 — Explorer + release polish (1 worktree)
 
-- [ ] **E012-T06** Explorer tab live + tests + UX-FLOW + PROJECT.xml + version 0.5.0
+- [x] **E012-T06** Explorer tab live + tests + UX-FLOW + PROJECT.xml + version 0.5.0
   Branch: `feat/E012-T06-explorer-release`
   Depends on: T01, T03, T04, T05
 

@@ -1,5 +1,13 @@
 # History — Desk App
 
+## 2026-05-16 — E012: Analyst Dashboard (v0.5.0)
+- Separate Tauri window (1280x800) + tray "Open Analyst" entry exposing two tabs over the last 7 days
+- **Catalog tab**: live `get_data_catalog()` Rust command describing 8 data sources (sensor, sqlite_sessions, snapshots, events_log, profiles_*, store, remote_ws) with fields, retention, sample rows
+- **Explorer tab**: live range queries (`get_snapshots_range`, `get_events_range`, `get_sessions_range`), 5 SVG charts: DeskHeightTimeline (downsampled to 1000 points), StateGantt, DailyScoreTrajectory, BreakCreditHistogram, KpiTrend
+- Architecture: 4 new Tauri commands; `commands_analyst.rs`, `commands_catalog{,_sources,_tests}.rs`; React `analyst/` module with hooks-and-fixtures seam (mockup `/#/mockup/analyst` for iteration; live `/#/analyst`)
+- Tests: Rust 434 → 457 (+23); TS 168 → 194 (+26)
+- Deviations parked in epic IMPROVEMENTS.md: apps/tray typecheck blocking commits; StateGantt sessions wiring; break_credit persistence; KPI daily rollup; visual smoke pending
+
 ## 2026-05-07 — E011: Autostart Hardening (v0.4.0)
 - Autostart self-heal: reads registry via `winreg`, re-registers if path differs from `current_exe()`
 - Dev guard: `#[cfg(debug_assertions)]` skips autostart registration in debug builds
