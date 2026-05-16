@@ -12,6 +12,8 @@ mod ergonomic_profile;
 mod profile_loader;
 mod profile_reload;
 mod commands;
+mod commands_analyst;
+#[cfg(test)] mod commands_analyst_tests;
 mod commands_backup;
 mod commands_config;
 mod commands_profiles;
@@ -170,6 +172,9 @@ pub fn run() {
                     commands_profiles::switch_ergonomic_profile,
                     commands_profiles::open_profile_in_editor,
                     commands_profiles::duplicate_profile,
+                    commands_analyst::get_snapshots_range,
+                    commands_analyst::get_events_range,
+                    commands_analyst::get_sessions_range,
                 ]
             }
             #[cfg(not(any(test, debug_assertions)))]
@@ -200,6 +205,9 @@ pub fn run() {
                     commands_profiles::switch_ergonomic_profile,
                     commands_profiles::open_profile_in_editor,
                     commands_profiles::duplicate_profile,
+                    commands_analyst::get_snapshots_range,
+                    commands_analyst::get_events_range,
+                    commands_analyst::get_sessions_range,
                 ]
             }
         })
