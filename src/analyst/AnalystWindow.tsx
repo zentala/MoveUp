@@ -6,7 +6,6 @@
  */
 import { useState } from "react";
 import type {
-  CatalogSource,
   DailyKpi,
   SessionRow,
   SnapshotRow,
@@ -15,9 +14,11 @@ import { CatalogTab } from "./CatalogTab";
 import { ExplorerTab } from "./ExplorerTab";
 import type { DateRange } from "./DateRangePicker";
 import { chartColors } from "./charts/chart-utils";
+import type { DataCatalog } from "./types/catalog";
 
 export interface AnalystWindowProps {
-  sources: CatalogSource[];
+  /** Optional explicit catalog (mockup). When omitted, CatalogTab fetches live. */
+  catalog?: DataCatalog;
   snapshots: SnapshotRow[];
   sessions: SessionRow[];
   kpis: DailyKpi[];
@@ -38,7 +39,7 @@ const tabButton = (active: boolean): React.CSSProperties => ({
 });
 
 export function AnalystWindow({
-  sources,
+  catalog,
   snapshots,
   sessions,
   kpis,
@@ -88,7 +89,7 @@ export function AnalystWindow({
         </button>
       </nav>
       {tab === "catalog" ? (
-        <CatalogTab sources={sources} />
+        <CatalogTab data={catalog} />
       ) : (
         <ExplorerTab
           snapshots={snapshots}

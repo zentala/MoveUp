@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AnalystWindow } from "./AnalystWindow";
+import type { DataCatalog } from "./types/catalog";
 import {
   analystCatalogFixture,
   analystSnapshotsFixture,
@@ -9,10 +10,24 @@ import {
   analystDefaultRange,
 } from "@/test/analyst-fixtures";
 
+const testCatalog: DataCatalog = {
+  generated_at: "2026-05-16T00:00:00Z",
+  sources: analystCatalogFixture.map((s) => ({
+    id: s.id,
+    name: s.name,
+    kind: s.kind,
+    location: s.location,
+    retention: s.retention,
+    fields: s.fields.map((f) => ({ name: f.name, type: f.type, description: "" })),
+    sample_row: null,
+    description: "",
+  })),
+};
+
 function renderWindow() {
   return render(
     <AnalystWindow
-      sources={analystCatalogFixture}
+      catalog={testCatalog}
       snapshots={analystSnapshotsFixture}
       sessions={analystSessionsFixture}
       kpis={analystDailyKpisFixture}

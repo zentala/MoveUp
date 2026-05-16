@@ -1,27 +1,21 @@
 /**
  * CatalogTab.tsx — Sortable + filterable table of data sources.
+ *
+ * Data source: either an explicit `data` prop (mockup/test) or the
+ * `useDataCatalog()` hook (live Tauri invoke). When no prop is passed,
+ * the component fetches the catalog on mount.
  */
 import { useMemo, useState } from "react";
-import type { CatalogSource } from "@/test/analyst-fixtures";
 import { chartColors } from "./charts/chart-utils";
+import { useDataCatalog } from "./hooks/useDataCatalog";
+import type { DataCatalog, DataSource } from "./types/catalog";
 
 export interface CatalogTabProps {
-  sources: CatalogSource[];
+  /** Optional explicit catalog (mockup / test). When omitted, the hook fetches live. */
+  data?: DataCatalog;
 }
 
-type SortKey = "name" | "kind" | "rowCount" | "bytes";
-
-function formatBytes(b: number): string {
-  if (b === 0) return "—";
-  if (b < 1024) return `${b} B`;
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
-  return `${(b / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function formatRows(n: number): string {
-  if (n === 0) return "stream";
-  return n.toLocaleString();
-}
+type SortKey = "name" | "kind" | "fields";
 
 const thStyle: React.CSSProperties = {
   textAlign: "left",
@@ -42,7 +36,44 @@ const tdStyle: React.CSSProperties = {
   verticalAlign: "top",
 };
 
-export function CatalogTab({ sources }: CatalogTabProps) {
+export function CatalogTab({ data }: CatalogTabProps) {
+  // Skip the fetch when an explicit `data` prop is provided (mockup mode).
+  const fetched = useDataCatalog(data !== undefined);
+  const state: ReturnType<typeof useDataCatalog> = data
+    ? { status: "ready", data }
+    : fetched;
+
+  if (state.status === "loading") {
+    return (
+      <div data-testid="catalog-tab-loading" style={{ color: chartColors.subtext, fontSize: 12 }}>
+        Loading catalog…
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div
+        data-testid="catalog-tab-error"
+        style={{
+          color: "#f44336",
+          fontSize: 12,
+          border: "1px solid #2a2a3a",
+          padding: 12,
+          borderRadius: 4,
+        }}
+      >
+        Failed to load catalog: {state.error}
+      </div>
+    );
+  }
+  return <CatalogTable sources={state.data.sources} />;
+}
+
+interface CatalogTableProps {
+  sources: DataSource[];
+}
+
+function CatalogTable({ sources }: CatalogTableProps) {
   const [filter, setFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -53,16 +84,14 @@ export function CatalogTab({ sources }: CatalogTabProps) {
       ? sources.filter(
           (s) =>
             s.name.toLowerCase().includes(q) ||
-            s.kind.includes(q) ||
+            s.kind.toLowerCase().includes(q) ||
             s.location.toLowerCase().includes(q),
         )
       : [...sources];
     arr.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
       let cmp = 0;
-      if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
-      else cmp = String(av).localeCompare(String(bv));
+      if (sortKey === "fields") cmp = a.fields.length - b.fields.length;
+      else cmp = String(a[sortKey]).localeCompare(String(b[sortKey]));
       return sortDir === "asc" ? cmp : -cmp;
     });
     return arr;
@@ -96,7 +125,9 @@ export function CatalogTab({ sources }: CatalogTabProps) {
           }}
         />
       </div>
-      <table style={{ width: "100%", borderCollapse: "collapse", color: chartColors.text }}>
+      <table
+        style={{ width: "100%", borderCollapse: "collapse", color: chartColors.text }}
+      >
         <thead>
           <tr>
             <th style={thStyle} onClick={() => toggleSort("name")}>
@@ -106,26 +137,36 @@ export function CatalogTab({ sources }: CatalogTabProps) {
               Kind {sortKey === "kind" ? (sortDir === "asc" ? "▲" : "▼") : ""}
             </th>
             <th style={thStyle}>Location</th>
-            <th style={thStyle} onClick={() => toggleSort("rowCount")}>
-              Rows {sortKey === "rowCount" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-            </th>
-            <th style={thStyle} onClick={() => toggleSort("bytes")}>
-              Size {sortKey === "bytes" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-            </th>
             <th style={thStyle}>Retention</th>
-            <th style={thStyle}>Fields</th>
+            <th style={thStyle} onClick={() => toggleSort("fields")}>
+              Fields {sortKey === "fields" ? (sortDir === "asc" ? "▲" : "▼") : ""}
+            </th>
           </tr>
         </thead>
         <tbody>
           {filtered.map((s) => (
             <tr key={s.id}>
-              <td style={{ ...tdStyle, fontWeight: 600 }}>{s.name}</td>
+              <td style={{ ...tdStyle, fontWeight: 600 }}>
+                {s.name}
+                {s.description ? (
+                  <div
+                    style={{
+                      fontWeight: 400,
+                      fontSize: 11,
+                      color: chartColors.subtext,
+                      marginTop: 2,
+                    }}
+                  >
+                    {s.description}
+                  </div>
+                ) : null}
+              </td>
               <td style={tdStyle}>{s.kind}</td>
-              <td style={{ ...tdStyle, fontFamily: "monospace", color: chartColors.subtext }}>
+              <td
+                style={{ ...tdStyle, fontFamily: "monospace", color: chartColors.subtext }}
+              >
                 {s.location}
               </td>
-              <td style={tdStyle}>{formatRows(s.rowCount)}</td>
-              <td style={tdStyle}>{formatBytes(s.bytes)}</td>
               <td style={tdStyle}>{s.retention}</td>
               <td style={tdStyle}>
                 <details>
