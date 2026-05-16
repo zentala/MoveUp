@@ -1,5 +1,11 @@
 # Backlog — Desk App
 
+## Planned Epics
+
+- [ ] **[E012 — Analyst Dashboard](epics/E012-2026-05-16-analyst-dashboard/PLAN.md)** — separate Tauri window with Data Catalog (8 sources, schema + samples) and Explorer (5 charts over last 7 days). Mockup-first per ux-design-flow rule. Research: [reports/2026-05-16-data-sources.md](epics/E012-2026-05-16-analyst-dashboard/reports/2026-05-16-data-sources.md). Version bump to 0.5.0 in epic setup.
+
+---
+
 ## Bugs — Fix Now
 
 - [x] **CRITICAL: Seeding ignores daily reset** — fixed in commit `c1d286f`: `load_today_totals()` now filters by `daily_reset_after` timestamp persisted to tauri-plugin-store. Sessions started before the last daily reset are excluded from DB seeding.
