@@ -13,6 +13,7 @@ mod profile_loader;
 mod profile_reload;
 mod commands;
 mod commands_backup;
+mod commands_catalog;
 mod commands_config;
 mod commands_profiles;
 mod commands_share;
@@ -170,6 +171,7 @@ pub fn run() {
                     commands_profiles::switch_ergonomic_profile,
                     commands_profiles::open_profile_in_editor,
                     commands_profiles::duplicate_profile,
+                    commands_catalog::get_data_catalog,
                 ]
             }
             #[cfg(not(any(test, debug_assertions)))]
@@ -200,6 +202,7 @@ pub fn run() {
                     commands_profiles::switch_ergonomic_profile,
                     commands_profiles::open_profile_in_editor,
                     commands_profiles::duplicate_profile,
+                    commands_catalog::get_data_catalog,
                 ]
             }
         })
