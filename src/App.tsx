@@ -22,8 +22,17 @@ if (!isTauri) {
 }
 
 const MockupGallery = lazy(() => import("@/pages/MockupGallery"));
+const AnalystMockup = lazy(() => import("@/pages/AnalystMockup"));
 
 export default function App() {
+  // DEV: /#/mockup/analyst shows the Analyst dashboard mockup
+  if (import.meta.env.DEV && window.location.hash === "#/mockup/analyst") {
+    return (
+      <Suspense fallback={<div style={{ color: "#ccc", padding: 20 }}>Loading analyst...</div>}>
+        <AnalystMockup />
+      </Suspense>
+    );
+  }
   // DEV: /#/mockup shows the mockup gallery
   if (import.meta.env.DEV && window.location.hash === "#/mockup") {
     return (
