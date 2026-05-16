@@ -30,6 +30,19 @@
         "alwaysOnTop": true,
         "center": true,
         "visible": false
+      },
+      {
+        "label": "analyst",
+        "title": "Smart Desk — Analyst",
+        "url": "index.html#/mockup/analyst",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "resizable": true,
+        "decorations": true,
+        "center": true,
+        "visible": false
       }
     ],
     "security": {

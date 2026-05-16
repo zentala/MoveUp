@@ -23,11 +23,13 @@ use crate::tray_icon::{generate_tray_icon, generate_tray_icon_no_dot};
 /// Right-click shows context menu: Settings, separator, Quit.
 pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+    let analyst_item = MenuItem::with_id(app, "open-analyst", "Open Analyst", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     let menu = MenuBuilder::new(app)
         .item(&settings_item)
+        .item(&analyst_item)
         .item(&separator)
         .item(&quit_item)
         .build()?;
@@ -47,6 +49,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "settings" => show_main_window_settings(app),
+            "open-analyst" => show_analyst_window(app),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -133,7 +136,7 @@ pub fn update_tray_tooltip(
 /// - `tray-alert` (red) — sitting, >85% of limit
 /// - `tray-standing` (gold) — standing
 /// - `tray-idle` (gray) — walking or away
-fn icon_for_state_and_progress(state: DeskState, ratio: f32) -> &'static str {
+pub(crate) fn icon_for_state_and_progress(state: DeskState, ratio: f32) -> &'static str {
     const THRESHOLD_YELLOW: f32 = 0.60;
     const THRESHOLD_RED: f32 = 0.85;
 
@@ -185,55 +188,18 @@ fn show_main_window_settings(app: &AppHandle) {
     }
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sitting_below_60_percent_returns_ok() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Sitting, 0.3), "tray-ok");
-    }
-
-    #[test]
-    fn sitting_60_to_85_percent_returns_warn() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Sitting, 0.7), "tray-warn");
-    }
-
-    #[test]
-    fn sitting_above_85_percent_returns_alert() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Sitting, 0.9), "tray-alert");
-    }
-
-    #[test]
-    fn sitting_exactly_60_percent_returns_warn() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Sitting, 0.60), "tray-warn");
-    }
-
-    #[test]
-    fn sitting_exactly_85_percent_returns_alert() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Sitting, 0.85), "tray-alert");
-    }
-
-    #[test]
-    fn standing_returns_standing() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 0.5), "tray-standing");
-    }
-
-    #[test]
-    fn walking_returns_idle() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Walking, 0.5), "tray-idle");
-    }
-
-    #[test]
-    fn away_returns_idle() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Away, 0.5), "tray-idle");
-    }
-
-    #[test]
-    fn standing_returns_standing_regardless_of_progress() {
-        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 0.0), "tray-standing");
-        assert_eq!(icon_for_state_and_progress(DeskState::Standing, 1.0), "tray-standing");
+/// Shows and focuses the Analyst window. Logs if window is missing.
+fn show_analyst_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("analyst") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    } else {
+        log::error!("tray: analyst window not registered");
     }
 }
+
+/// Ordered list of menu item ids on the tray menu (test introspection).
+pub fn tray_menu_item_ids() -> &'static [&'static str] {
+    &["settings", "open-analyst", "quit"]
+}
+

@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "default",
   "description": "Default capabilities for the Desk app",
-  "windows": ["main", "overlay"],
+  "windows": ["main", "overlay", "welcome", "analyst"],
   "permissions": [
     "core:default",
     "core:window:default",

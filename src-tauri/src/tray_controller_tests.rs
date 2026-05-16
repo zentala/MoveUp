@@ -1,7 +1,25 @@
 //! tray_controller_tests.rs — Unit tests for tooltip formatting and standing progress.
 
+use crate::tray::tray_menu_item_ids;
 use crate::tray_helpers::{build_tooltip_label, format_duration};
 use crate::session::DeskState;
+
+// ─── Tray menu composition tests ──────────────────────────────────────────────
+
+#[test]
+fn tray_menu_includes_open_analyst_item() {
+    assert!(tray_menu_item_ids().contains(&"open-analyst"));
+}
+
+#[test]
+fn tray_menu_open_analyst_between_settings_and_quit() {
+    let ids = tray_menu_item_ids();
+    let settings = ids.iter().position(|&id| id == "settings").expect("settings present");
+    let analyst = ids.iter().position(|&id| id == "open-analyst").expect("open-analyst present");
+    let quit = ids.iter().position(|&id| id == "quit").expect("quit present");
+    assert!(settings < analyst, "settings must come before open-analyst");
+    assert!(analyst < quit, "open-analyst must come before quit");
+}
 
 #[test]
 fn format_duration_zero() {

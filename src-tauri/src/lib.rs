@@ -90,6 +90,7 @@ mod session_persistence;
 #[cfg(test)] mod session_tests_persistence;
 #[cfg(test)] mod session_tests_break_tracker;
 mod tray;
+#[cfg(test)] mod tray_tests;
 mod tray_blink;
 mod tray_icon;
 mod tray_controller;
