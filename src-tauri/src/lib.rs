@@ -15,6 +15,9 @@ mod commands;
 mod commands_analyst;
 #[cfg(test)] mod commands_analyst_tests;
 mod commands_backup;
+mod commands_catalog;
+mod commands_catalog_sources;
+#[cfg(test)] mod commands_catalog_tests;
 mod commands_config;
 mod commands_profiles;
 mod commands_share;
@@ -175,6 +178,7 @@ pub fn run() {
                     commands_analyst::get_snapshots_range,
                     commands_analyst::get_events_range,
                     commands_analyst::get_sessions_range,
+                    commands_catalog::get_data_catalog,
                 ]
             }
             #[cfg(not(any(test, debug_assertions)))]
@@ -208,6 +212,7 @@ pub fn run() {
                     commands_analyst::get_snapshots_range,
                     commands_analyst::get_events_range,
                     commands_analyst::get_sessions_range,
+                    commands_catalog::get_data_catalog,
                 ]
             }
         })
