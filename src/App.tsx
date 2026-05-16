@@ -23,8 +23,17 @@ if (!isTauri) {
 
 const MockupGallery = lazy(() => import("@/pages/MockupGallery"));
 const AnalystMockup = lazy(() => import("@/pages/AnalystMockup"));
+const AnalystLive = lazy(() => import("@/pages/AnalystLive"));
 
 export default function App() {
+  // PROD/DEV: /#/analyst — live Analyst window backed by Tauri commands
+  if (window.location.hash === "#/analyst") {
+    return (
+      <Suspense fallback={<div style={{ color: "#ccc", padding: 20 }}>Loading analyst...</div>}>
+        <AnalystLive />
+      </Suspense>
+    );
+  }
   // DEV: /#/mockup/analyst shows the Analyst dashboard mockup
   if (import.meta.env.DEV && window.location.hash === "#/mockup/analyst") {
     return (

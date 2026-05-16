@@ -19,9 +19,12 @@ import type { DataCatalog } from "./types/catalog";
 export interface AnalystWindowProps {
   /** Optional explicit catalog (mockup). When omitted, CatalogTab fetches live. */
   catalog?: DataCatalog;
-  snapshots: SnapshotRow[];
-  sessions: SessionRow[];
-  kpis: DailyKpi[];
+  /** Optional fixture override — when omitted, ExplorerTab fetches live. */
+  snapshots?: SnapshotRow[];
+  /** Optional fixture override — when omitted, ExplorerTab fetches live. */
+  sessions?: SessionRow[];
+  /** Optional fixture override — when omitted, ExplorerTab derives from snapshots. */
+  kpis?: DailyKpi[];
   defaultRange: DateRange;
 }
 
@@ -98,6 +101,7 @@ export function AnalystWindow({
           range={range}
           onRangeChange={setRange}
         />
+
       )}
     </div>
   );

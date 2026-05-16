@@ -106,6 +106,9 @@
       <file name="overlay_standing.rs">Standing bar render logic</file>
       <file name="alert_popup.rs">AlertPopup — show/dismiss lifecycle</file>
       <file name="alert_popup_window.rs">WinAPI popup window thread</file>
+      <file name="commands_analyst.rs">Analyst IPC: get_snapshots_range, get_events_range, get_sessions_range — read range-scoped history from disk + SQLite</file>
+      <file name="commands_catalog.rs">Analyst IPC: get_data_catalog — static metadata of every data source the app writes</file>
+      <file name="commands_catalog_sources.rs">Helper builders for individual catalog sources (snapshots, events, sessions, store, signals)</file>
     </layer>
 
     <layer name="profiles" path="src-tauri/profiles/">
@@ -168,6 +171,39 @@
       <dir name="utils/">
         <file name="format.ts">formatDuration, formatDurationShort</file>
       </dir>
+
+      <dir name="analyst/" purpose="Analyst window: data catalog + chart explorer (E012)">
+        <file name="AnalystWindow.tsx">Tabbed shell: Catalog + Explorer; injects fixtures in mockup mode, falls through to live hooks otherwise</file>
+        <file name="CatalogTab.tsx">Sortable + filterable table over get_data_catalog</file>
+        <file name="ExplorerTab.tsx">5-chart grid wired to useSnapshotsRange / useSessionsRange / useEventsRange</file>
+        <file name="DateRangePicker.tsx">Two native date inputs for from/to range</file>
+        <file name="explorer-derivations.ts">Pure helpers: downsampleSnapshots, deriveDailyKpis</file>
+        <dir name="hooks/">
+          <file name="useDataCatalog.ts">Fetch static data source catalog from Rust</file>
+          <file name="useRangeQuery.ts">Generic debounced range invoke hook</file>
+          <file name="useSnapshotsRange.ts">Snapshot history (camelCase coerced)</file>
+          <file name="useSessionsRange.ts">Session history (camelCase coerced)</file>
+          <file name="useEventsRange.ts">Event log history (camelCase coerced)</file>
+        </dir>
+        <dir name="charts/">
+          <file name="ChartCard.tsx">Card chrome shared by all charts</file>
+          <file name="DeskHeightTimeline.tsx">SVG area chart of desk height over time</file>
+          <file name="StateGantt.tsx">Per-day horizontal Gantt of Sitting/Standing/Walking/Away</file>
+          <file name="DailyScoreTrajectory.tsx">One line per day, hourly score buckets</file>
+          <file name="BreakCreditHistogram.tsx">Bar chart: none/partial/full break credits</file>
+          <file name="KpiTrend.tsx">Small multiples: standing %, changes, longest session, score</file>
+          <file name="chart-utils.ts">Margins, scales, color palette</file>
+        </dir>
+        <dir name="types/">
+          <file name="catalog.ts">DataCatalog / DataSource wire types</file>
+        </dir>
+      </dir>
+
+      <dir name="pages/">
+        <file name="AnalystLive.tsx">/#/analyst — live Analyst window (no fixture override)</file>
+        <file name="AnalystMockup.tsx">DEV /#/mockup/analyst — Analyst window backed by fixtures</file>
+        <file name="MockupGallery.tsx">DEV /#/mockup — list of all dev mockup routes</file>
+      </dir>
     </layer>
 
     <layer name="ipc-events">
@@ -195,6 +231,16 @@
       <command name="switch_ergonomic_profile">Switch active ergonomic profile by ID</command>
       <command name="open_profile_in_editor">Open profile JSON file in system default editor</command>
       <command name="duplicate_profile">Duplicate an existing profile with a new name</command>
+      <command name="get_data_catalog">Analyst: static metadata for every data source (E012-T02)</command>
+      <command name="get_snapshots_range">Analyst: flattened minute snapshots between two YYYY-MM-DD dates (E012-T01)</command>
+      <command name="get_events_range">Analyst: parsed events.log rows between two YYYY-MM-DD dates (E012-T01)</command>
+      <command name="get_sessions_range">Analyst: completed session rows between two YYYY-MM-DD dates (E012-T01)</command>
+    </layer>
+
+    <layer name="windows">
+      <window name="main" url="index.html">Floating widget — tray-driven, hidden by default</window>
+      <window name="welcome" url="welcome.html">First-launch onboarding</window>
+      <window name="analyst" url="index.html#/analyst" size="1280x800">Analyst dashboard — Data Catalog and Explorer tabs (E012)</window>
     </layer>
 
   </architecture>

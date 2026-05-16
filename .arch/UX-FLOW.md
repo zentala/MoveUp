@@ -692,3 +692,61 @@ Activity status in StateIndicator:
 - idle < 30s → "Active" (subtle gray)
 - idle >= 30s → "Idle Xm Ys" (yellow text)
 - Away state → no desk height shown
+
+---
+
+## 11. Analyst Window
+
+A standalone Tauri window dedicated to inspecting and exploring everything the
+app writes to disk: minute snapshots, the events log, completed sessions, the
+config store, and live signals. Opens via tray menu → **Open Analyst**.
+
+URL: `index.html#/analyst` (the tray launches the labelled `analyst` window
+defined in `tauri.conf.json`). DEV-only mockup with fixtures lives at
+`index.html#/mockup/analyst`.
+
+### Tabs
+
+#### Catalog
+Sortable, filterable table over the static data-source catalog returned by
+`get_data_catalog`. Each row describes one source: name, kind
+(`sqlite | file | json | store | serial | signal | events`), on-disk location,
+retention rule, and the schema of one record. Click a row's *fields* details
+to inspect column names and types. Use the filter box to narrow by name,
+kind, or location.
+
+The Catalog answers "what data does this app actually keep, and where does it
+live on my machine?" — the entry point for anyone wanting to debug, back up,
+or analyse history outside the app.
+
+#### Explorer
+A 5-chart grid driven by a single date-range picker (defaults to the last
+seven days). Every range change debounces by 250 ms before re-querying the
+backend, so dragging the date input does not spam the disk.
+
+| Chart | Source | What it shows |
+|-------|--------|---------------|
+| Desk height timeline | `get_snapshots_range` (snapshots) | Sensor reading over the full range. Downsampled to ~1000 buckets when more than 1000 points fall in range — the curve stays smooth even for a full week of minute samples. Higher = standing. |
+| State Gantt by day | `get_snapshots_range` (snapshots) | One row per day, coloured by state across the 24-hour axis. Quick visual of when the user was sitting (burgundy), standing (green), walking (blue), or away (gray). |
+| Daily score trajectory | `get_snapshots_range` (snapshots) | One line per day, max posture score by hour. Reveals consistency: bumpy lines = chaotic days, smooth = stable rhythm. |
+| Break credit histogram | `get_sessions_range` (sessions) | Bar chart of the three break-credit buckets defined by ADR 008 — none (<60 s, no credit), partial (60-120 s), full (≥120 s). |
+| KPI trends (7 days) | derived from snapshots (last value per day) | Small multiples for Standing %, Position changes, Longest session, and Daily score. Most recent day on the right. |
+
+Colours follow the canonical Color Dictionary (section 6): burgundy = sitting,
+green = standing, blue = walking, gray = away, gold = score. The legend on
+the Gantt is the source of truth.
+
+### When to open
+- After a long session: compare today's Gantt against yesterday's.
+- Suspecting a logging bug: jump to Catalog → click the file path of the
+  affected source.
+- Tuning ergonomic or communication profiles: watch the KPI trend over the
+  week before/after a profile switch.
+- Verifying daily score logic: trajectory chart shows hour-by-hour buildup.
+
+### Performance notes
+- Range queries are debounced 250 ms.
+- The height timeline downsamples to ~1000 average-per-bucket points; the
+  full input list is never rendered as SVG path commands.
+- Chart inputs are memoised on `(from, to, data.length)` so identical data
+  does not re-trigger React renders.
