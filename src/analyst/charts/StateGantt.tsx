@@ -52,6 +52,7 @@ export function StateGantt({ data, width = 720, height = 264 }: StateGanttProps)
     <ChartCard
       title="State Gantt by day"
       subtitle="One row per day. Color shows state across 24 hours."
+      help="One horizontal row per local day in the range. Each segment is a snapshot bucket coloured by detected state (Sitting / Standing / Walking / Away). Useful for spotting daily rhythm and away gaps."
     >
       <svg width={width} height={height} role="img" aria-label="State Gantt by day">
         <g transform={`translate(${m.left},${m.top})`}>

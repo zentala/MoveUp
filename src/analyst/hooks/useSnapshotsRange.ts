@@ -56,6 +56,11 @@ export function useSnapshotsRange(
   });
   return useMemo<RangeQueryState<SnapshotRow>>(() => {
     if (raw.status !== "ready") return raw;
-    return { status: "ready", data: raw.data.map(coerce), refetch: raw.refetch };
+    return {
+      status: "ready",
+      data: raw.data.map(coerce),
+      refetch: raw.refetch,
+      lastRefreshed: raw.lastRefreshed,
+    };
   }, [raw]);
 }

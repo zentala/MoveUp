@@ -65,7 +65,11 @@ function Sparkline({
 
 export function KpiTrend({ data, width = 360 }: KpiTrendProps) {
   return (
-    <ChartCard title="KPI trends (7 days)" subtitle="Daily totals — most recent on the right.">
+    <ChartCard
+      title="KPI trends (7 days)"
+      subtitle="Daily totals — most recent on the right."
+      help="Big number = today (last day in range). Sparkline = one point per day. Standing% = standing seconds / (sitting + standing). Changes = sit↔stand transitions today. Longest session = max contiguous standing run. Score = posture score per active ergonomic profile."
+    >
       <div
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
         data-testid="kpi-trend-grid"

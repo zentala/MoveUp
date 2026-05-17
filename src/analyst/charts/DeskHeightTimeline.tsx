@@ -54,12 +54,19 @@ export function DeskHeightTimeline({ data, width = 720, height = 220 }: DeskHeig
     <ChartCard
       title="Desk height timeline"
       subtitle="Sensor reading every 5 minutes (cm). Higher = standing."
+      help="Y axis = desk height in cm derived from the ToF sensor (raw mm − desk thickness). Long flat low spans = sitting sessions; spikes upward = standing intervals. Data downsampled to ~1000 points for 7-day ranges."
     >
       <svg width={width} height={height} role="img" aria-label="Desk height timeline">
         <g transform={`translate(${m.left},${m.top})`}>
           {yTicks.map((t) => (
             <g key={t} transform={`translate(0,${y(t)})`}>
-              <line x1={0} x2={innerW} stroke={chartColors.gridline} strokeWidth={1} />
+              <line
+                x1={0}
+                x2={innerW}
+                stroke={chartColors.gridline}
+                strokeWidth={1}
+                strokeDasharray="3 4"
+              />
               <text x={-6} y={4} textAnchor="end" fontSize={10} fill={chartColors.axisText}>
                 {t}
               </text>

@@ -12,6 +12,8 @@ import { invoke } from "@tauri-apps/api/core";
 interface BaseFields {
   /** Re-trigger the invoke. Skips the debounce — fires immediately. */
   refetch: () => void;
+  /** Wall-clock time of the most recent `ready` result. `null` until first success. */
+  lastRefreshed: number | null;
 }
 
 type RawRangeState<T> =
@@ -42,6 +44,7 @@ export function useRangeQuery<T>(args: UseRangeQueryArgs): RangeQueryState<T> {
     status: "loading",
     data: null,
   });
+  const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
 
   const refetch = useCallback(() => setNonce((n) => n + 1), []);
 
@@ -55,6 +58,7 @@ export function useRangeQuery<T>(args: UseRangeQueryArgs): RangeQueryState<T> {
         .then((data) => {
           if (cancelled) return;
           setState({ status: "ready", data });
+          setLastRefreshed(Date.now());
         })
         .catch((err: unknown) => {
           if (cancelled) return;
@@ -68,5 +72,5 @@ export function useRangeQuery<T>(args: UseRangeQueryArgs): RangeQueryState<T> {
     };
   }, [command, from, to, debounceMs, skip, nonce]);
 
-  return { ...state, refetch } as RangeQueryState<T>;
+  return { ...state, refetch, lastRefreshed } as RangeQueryState<T>;
 }

@@ -41,6 +41,7 @@ export function BreakCreditHistogram({
     <ChartCard
       title="Break credit histogram"
       subtitle="Standing-break duration buckets across all sessions."
+      help="Counts sessions by how much sit-time their following break cancelled. None: <60s break (no credit). Partial: 60–120s. Full: ≥120s (full proportional credit per ADR 008). Synthesised from durations until break_credit is persisted (see backlog)."
     >
       <svg width={width} height={height} role="img" aria-label="Break credit histogram">
         <g transform={`translate(${m.left},${m.top})`}>

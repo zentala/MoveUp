@@ -6,14 +6,22 @@
  * passed explicitly so CatalogTab skips its `useDataCatalog()` fetch.
  */
 import { AnalystWindow } from "@/analyst/AnalystWindow";
+import { defaultRange } from "@/analyst/DateRangePicker";
 import type { DataCatalog } from "@/analyst/types/catalog";
 import {
   analystCatalogFixture,
-  analystSnapshotsFixture,
-  analystSessionsFixture,
-  analystDailyKpisFixture,
-  analystDefaultRange,
+  buildSnapshots,
+  buildSessions,
+  buildDailyKpis,
 } from "@/test/analyst-fixtures";
+
+// Recompute fixtures relative to TODAY at module init so the mockup stays
+// useful indefinitely (the test exports stay anchored to a fixed date).
+const NOW = new Date();
+const mockupSnapshots = buildSnapshots(NOW);
+const mockupSessions = buildSessions(NOW);
+const mockupKpis = buildDailyKpis(NOW);
+const mockupRange = defaultRange(NOW);
 
 /**
  * Adapt the fixture (`CatalogSource[]`) to the live `DataCatalog` shape so
@@ -61,10 +69,10 @@ export default function AnalystMockup() {
       </div>
       <AnalystWindow
         catalog={mockupCatalog}
-        snapshots={analystSnapshotsFixture}
-        sessions={analystSessionsFixture}
-        kpis={analystDailyKpisFixture}
-        defaultRange={analystDefaultRange}
+        snapshots={mockupSnapshots}
+        sessions={mockupSessions}
+        kpis={mockupKpis}
+        defaultRange={mockupRange}
       />
     </>
   );

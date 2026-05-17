@@ -194,9 +194,21 @@ function CatalogTable({ sources }: CatalogTableProps) {
                   </summary>
                   <ul style={{ margin: "6px 0 0 16px", padding: 0, fontSize: 11 }}>
                     {s.fields.map((f) => (
-                      <li key={f.name}>
+                      <li key={f.name} style={{ marginBottom: 3 }}>
                         <code style={{ color: chartColors.primary }}>{f.name}</code>{" "}
                         <span style={{ color: chartColors.subtext }}>{f.type}</span>
+                        {f.description ? (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: chartColors.subtext,
+                              marginLeft: 0,
+                              opacity: 0.85,
+                            }}
+                          >
+                            {f.description}
+                          </div>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

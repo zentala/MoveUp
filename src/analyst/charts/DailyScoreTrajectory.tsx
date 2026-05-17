@@ -49,6 +49,7 @@ export function DailyScoreTrajectory({
     <ChartCard
       title="Daily score trajectory"
       subtitle="Posture score by hour of day. One line per day."
+      help="Y = max posture score reached in each hour bucket; X = local hour-of-day. One line per day in the range — opacity grows with recency. Score is computed per the active ergonomic profile (see ADR 008)."
     >
       <svg width={width} height={height} role="img" aria-label="Daily score trajectory">
         <g transform={`translate(${m.left},${m.top})`}>
@@ -57,7 +58,12 @@ export function DailyScoreTrajectory({
             const yy = innerH * (1 - p);
             return (
               <g key={p} transform={`translate(0,${yy})`}>
-                <line x1={0} x2={innerW} stroke={chartColors.gridline} />
+                <line
+                  x1={0}
+                  x2={innerW}
+                  stroke={chartColors.gridline}
+                  strokeDasharray="3 4"
+                />
                 <text x={-6} y={4} fontSize={10} textAnchor="end" fill={chartColors.axisText}>
                   {Math.round(p * maxScore)}
                 </text>

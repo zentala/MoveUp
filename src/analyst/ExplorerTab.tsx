@@ -38,6 +38,16 @@ const DOWNSAMPLE_THRESHOLD = 1000;
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+/** Render an epoch millis as HH:MM:SS local. Returns `null` on null/0 input. */
+function formatRefreshedAt(epoch: number | null): string | null {
+  if (!epoch) return null;
+  const d = new Date(epoch);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
+
 /** Render a YYYY-MM-DD pair as `May 10–17` or `May 28–Jun 3`. */
 function formatRangeLabel(from: string, to: string): string {
   const fParts = from.split("-").map(Number);
@@ -95,6 +105,10 @@ export function ExplorerTab({
           : null);
 
   const rangeLabel = formatRangeLabel(range.from, range.to);
+  const refreshedAt =
+    isLive && snapsQuery.status === "ready"
+      ? formatRefreshedAt(snapsQuery.lastRefreshed)
+      : null;
 
   const handleRefresh = () => {
     if (!isLive) return;
@@ -122,7 +136,7 @@ export function ExplorerTab({
               ? `Failed: ${error}`
               : loading
                 ? "Loading…"
-                : `${snapshots.length} snapshots · ${sessions.length} sessions · ${rangeLabel}`}
+                : `${snapshots.length} snapshots · ${sessions.length} sessions · ${rangeLabel}${refreshedAt ? ` · refreshed ${refreshedAt}` : ""}`}
           </div>
           {isLive ? (
             <button

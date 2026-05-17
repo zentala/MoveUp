@@ -4,7 +4,7 @@
  * Renders header + tab triggers + active tab content. Pure mockup —
  * fixtures are injected via props; no Tauri invokes.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   DailyKpi,
   SessionRow,
@@ -30,6 +30,32 @@ export interface AnalystWindowProps {
 
 type TabId = "catalog" | "explorer";
 
+const RANGE_STORAGE_KEY = "desk:analyst:range";
+
+function loadStoredRange(): DateRange | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(RANGE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<DateRange>;
+    if (typeof parsed.from === "string" && typeof parsed.to === "string") {
+      return { from: parsed.from, to: parsed.to };
+    }
+  } catch {
+    /* ignored — corrupt entry, fall through to default */
+  }
+  return null;
+}
+
+function saveStoredRange(range: DateRange): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(RANGE_STORAGE_KEY, JSON.stringify(range));
+  } catch {
+    /* quota or privacy-mode — non-fatal */
+  }
+}
+
 const tabButton = (active: boolean): React.CSSProperties => ({
   background: "transparent",
   border: "none",
@@ -49,7 +75,13 @@ export function AnalystWindow({
   defaultRange,
 }: AnalystWindowProps) {
   const [tab, setTab] = useState<TabId>("explorer");
-  const [range, setRange] = useState<DateRange>(defaultRange);
+  const [range, setRange] = useState<DateRange>(
+    () => loadStoredRange() ?? defaultRange,
+  );
+
+  useEffect(() => {
+    saveStoredRange(range);
+  }, [range]);
 
   return (
     <div
