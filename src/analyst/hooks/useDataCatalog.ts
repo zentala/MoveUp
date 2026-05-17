@@ -3,35 +3,44 @@
  * from the Rust backend via `invoke('get_data_catalog')`.
  *
  * The catalog is static metadata, so we fetch it once per mount.
- * Surfaces a discriminated state: loading → ready | error. Never throws.
+ * Surfaces a discriminated state: loading → ready | error, plus a
+ * `refetch` function the error UI can wire to a retry button.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { DataCatalog } from "../types/catalog";
 
-export type DataCatalogState =
+interface BaseFields {
+  /** Re-trigger the fetch. No-op while `skip` is true. */
+  refetch: () => void;
+}
+
+type RawCatalogState =
   | { status: "loading"; data: null }
   | { status: "ready"; data: DataCatalog }
   | { status: "error"; data: null; error: string };
 
+export type DataCatalogState = RawCatalogState & BaseFields;
+
 /**
  * Fetches the data catalog from the backend.
- *
- * Fetches once on mount. Returns `loading` until the invoke resolves,
- * then `ready` with the payload, or `error` with a message on failure.
  *
  * @param skip - When `true`, skips the fetch entirely and stays in `loading`.
  *   Used by `CatalogTab` when an explicit `data` prop is provided (mockup mode).
  */
 export function useDataCatalog(skip = false): DataCatalogState {
-  const [state, setState] = useState<DataCatalogState>({
+  const [nonce, setNonce] = useState(0);
+  const [state, setState] = useState<RawCatalogState>({
     status: "loading",
     data: null,
   });
 
+  const refetch = useCallback(() => setNonce((n) => n + 1), []);
+
   useEffect(() => {
     if (skip) return;
     let cancelled = false;
+    setState({ status: "loading", data: null });
     invoke<DataCatalog>("get_data_catalog")
       .then((data) => {
         if (cancelled) return;
@@ -45,7 +54,7 @@ export function useDataCatalog(skip = false): DataCatalogState {
     return () => {
       cancelled = true;
     };
-  }, [skip]);
+  }, [skip, nonce]);
 
-  return state;
+  return { ...state, refetch } as DataCatalogState;
 }

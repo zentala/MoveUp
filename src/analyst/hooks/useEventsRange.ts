@@ -45,6 +45,6 @@ export function useEventsRange(
   });
   return useMemo<RangeQueryState<EventRow>>(() => {
     if (raw.status !== "ready") return raw;
-    return { status: "ready", data: raw.data.map(coerce) };
+    return { status: "ready", data: raw.data.map(coerce), refetch: raw.refetch };
   }, [raw]);
 }

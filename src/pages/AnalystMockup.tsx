@@ -38,14 +38,34 @@ const mockupCatalog: DataCatalog = {
   })),
 };
 
+const bannerStyle: React.CSSProperties = {
+  position: "sticky",
+  top: 0,
+  zIndex: 10,
+  background: "#3b2a1a",
+  color: "#ffb74d",
+  borderBottom: "1px solid #5a3a1a",
+  padding: "6px 16px",
+  fontSize: 11,
+  fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+  letterSpacing: 0.4,
+  textTransform: "uppercase",
+  fontWeight: 600,
+};
+
 export default function AnalystMockup() {
   return (
-    <AnalystWindow
-      catalog={mockupCatalog}
-      snapshots={analystSnapshotsFixture}
-      sessions={analystSessionsFixture}
-      kpis={analystDailyKpisFixture}
-      defaultRange={analystDefaultRange}
-    />
+    <>
+      <div style={bannerStyle} data-testid="mockup-banner">
+        Demo data · /#/mockup/analyst · No Tauri runtime, fixtures only
+      </div>
+      <AnalystWindow
+        catalog={mockupCatalog}
+        snapshots={analystSnapshotsFixture}
+        sessions={analystSessionsFixture}
+        kpis={analystDailyKpisFixture}
+        defaultRange={analystDefaultRange}
+      />
+    </>
   );
 }

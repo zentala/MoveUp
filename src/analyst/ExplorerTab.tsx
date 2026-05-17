@@ -36,6 +36,19 @@ export interface ExplorerTabProps {
 
 const DOWNSAMPLE_THRESHOLD = 1000;
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Render a YYYY-MM-DD pair as `May 10–17` or `May 28–Jun 3`. */
+function formatRangeLabel(from: string, to: string): string {
+  const fParts = from.split("-").map(Number);
+  const tParts = to.split("-").map(Number);
+  if (fParts.length !== 3 || tParts.length !== 3) return `${from} → ${to}`;
+  const fm = MONTHS[fParts[1] - 1] ?? "?";
+  const tm = MONTHS[tParts[1] - 1] ?? "?";
+  if (fm === tm) return `${fm} ${fParts[2]}–${tParts[2]}`;
+  return `${fm} ${fParts[2]}–${tm} ${tParts[2]}`;
+}
+
 export function ExplorerTab({
   range,
   onRangeChange,
@@ -81,6 +94,15 @@ export function ExplorerTab({
           ? eventsQuery.error
           : null);
 
+  const rangeLabel = formatRangeLabel(range.from, range.to);
+
+  const handleRefresh = () => {
+    if (!isLive) return;
+    snapsQuery.refetch();
+    sessionsQuery.refetch();
+    eventsQuery.refetch();
+  };
+
   return (
     <div data-testid="explorer-tab">
       <div
@@ -89,15 +111,39 @@ export function ExplorerTab({
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: 16,
+          gap: 12,
+          flexWrap: "wrap",
         }}
       >
         <DateRangePicker value={range} onChange={onRangeChange} />
-        <div style={{ fontSize: 11, color: chartColors.subtext }}>
-          {error
-            ? `Failed: ${error}`
-            : loading
-              ? "Loading…"
-              : `${snapshots.length} snapshots · ${sessions.length} sessions`}
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <div style={{ fontSize: 11, color: chartColors.subtext }}>
+            {error
+              ? `Failed: ${error}`
+              : loading
+                ? "Loading…"
+                : `${snapshots.length} snapshots · ${sessions.length} sessions · ${rangeLabel}`}
+          </div>
+          {isLive ? (
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={loading}
+              title="Re-fetch the current range from the backend"
+              style={{
+                background: "transparent",
+                border: `1px solid ${chartColors.gridline}`,
+                color: loading ? chartColors.gridline : chartColors.subtext,
+                padding: "4px 10px",
+                borderRadius: 4,
+                fontSize: 11,
+                cursor: loading ? "default" : "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Refresh
+            </button>
+          ) : null}
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>

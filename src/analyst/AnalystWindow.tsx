@@ -54,7 +54,6 @@ export function AnalystWindow({
   return (
     <div
       style={{
-        minWidth: 1280,
         minHeight: "100vh",
         background: chartColors.background,
         color: chartColors.text,

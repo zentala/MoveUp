@@ -39,8 +39,8 @@ const tdStyle: React.CSSProperties = {
 export function CatalogTab({ data }: CatalogTabProps) {
   // Skip the fetch when an explicit `data` prop is provided (mockup mode).
   const fetched = useDataCatalog(data !== undefined);
-  const state: ReturnType<typeof useDataCatalog> = data
-    ? { status: "ready", data }
+  const state = data
+    ? ({ status: "ready", data, refetch: fetched.refetch } as const)
     : fetched;
 
   if (state.status === "loading") {
@@ -60,9 +60,28 @@ export function CatalogTab({ data }: CatalogTabProps) {
           border: "1px solid #2a2a3a",
           padding: 12,
           borderRadius: 4,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
         }}
       >
-        Failed to load catalog: {state.error}
+        <span style={{ flex: 1 }}>Failed to load catalog: {state.error}</span>
+        <button
+          type="button"
+          onClick={state.refetch}
+          style={{
+            background: "transparent",
+            border: "1px solid #f44336",
+            color: "#f44336",
+            padding: "4px 12px",
+            borderRadius: 4,
+            fontSize: 11,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          Retry
+        </button>
       </div>
     );
   }

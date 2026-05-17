@@ -3,15 +3,23 @@
  *
  * Calls `invoke(command, { from, to })` whenever the range changes, with a
  * configurable debounce. Surfaces a discriminated state: loading → ready | error.
+ * Plus a `refetch` thunk a parent can wire to a "Refresh" button.
  * Never throws. Used by the analyst Explorer hooks to pull range-scoped history.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
-export type RangeQueryState<T> =
+interface BaseFields {
+  /** Re-trigger the invoke. Skips the debounce — fires immediately. */
+  refetch: () => void;
+}
+
+type RawRangeState<T> =
   | { status: "loading"; data: null }
   | { status: "ready"; data: T[] }
   | { status: "error"; data: null; error: string };
+
+export type RangeQueryState<T> = RawRangeState<T> & BaseFields;
 
 export interface UseRangeQueryArgs {
   command: string;
@@ -25,19 +33,23 @@ export interface UseRangeQueryArgs {
 /**
  * Generic range-scoped invoke hook. Debounces range changes by `debounceMs`
  * (default 250 ms) to avoid spamming the backend while the user types into a
- * date input.
+ * date input. Manual refetch via the returned thunk skips the debounce.
  */
 export function useRangeQuery<T>(args: UseRangeQueryArgs): RangeQueryState<T> {
   const { command, from, to, debounceMs = 250, skip = false } = args;
-  const [state, setState] = useState<RangeQueryState<T>>({
+  const [nonce, setNonce] = useState(0);
+  const [state, setState] = useState<RawRangeState<T>>({
     status: "loading",
     data: null,
   });
+
+  const refetch = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
     if (skip) return;
     let cancelled = false;
     setState({ status: "loading", data: null });
+    const debounce = nonce > 0 ? 0 : debounceMs;
     const handle = setTimeout(() => {
       invoke<T[]>(command, { from, to })
         .then((data) => {
@@ -49,12 +61,12 @@ export function useRangeQuery<T>(args: UseRangeQueryArgs): RangeQueryState<T> {
           const message = err instanceof Error ? err.message : String(err);
           setState({ status: "error", data: null, error: message });
         });
-    }, debounceMs);
+    }, debounce);
     return () => {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [command, from, to, debounceMs, skip]);
+  }, [command, from, to, debounceMs, skip, nonce]);
 
-  return state;
+  return { ...state, refetch } as RangeQueryState<T>;
 }

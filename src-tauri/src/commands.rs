@@ -115,9 +115,17 @@ pub fn list_ports() -> Vec<PortInfo> {
 }
 
 /// Triggers the auto-detection scan.
+///
+/// Loggers may not yet be managed if the frontend races setup completion;
+/// in that case we no-op and the user can retry once setup finishes (or
+/// setup_helpers's own `scan_and_connect` call will have already started a
+/// scan thread with the loggers it had in scope).
 #[tauri::command]
 pub fn start_auto_connect(app: tauri::AppHandle, state: State<'_, AppState>) {
-    let loggers: tauri::State<'_, crate::Loggers> = app.state();
+    let Some(loggers) = app.try_state::<crate::Loggers>() else {
+        log::warn!("start_auto_connect: Loggers state not yet managed; scan skipped");
+        return;
+    };
     let sl = loggers.snapshot.clone();
     let el = loggers.event.clone();
     scan_and_connect(

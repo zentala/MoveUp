@@ -4,6 +4,7 @@
  * Shows standing%, position changes, longest session, daily score.
  */
 import type { DailyKpi } from "@/test/analyst-fixtures";
+import { formatDurationShort } from "@/utils/format";
 import { ChartCard } from "./ChartCard";
 import { chartColors, scaleLinear } from "./chart-utils";
 
@@ -25,8 +26,8 @@ const KPIS: KpiSpec[] = [
   {
     key: "longestSessionSecs",
     label: "Longest session",
-    unit: "min",
-    format: (v) => `${Math.round(v / 60)}m`,
+    unit: "",
+    format: (v) => formatDurationShort(v),
   },
   { key: "score", label: "Score", unit: "pts", format: (v) => `${v}` },
 ];

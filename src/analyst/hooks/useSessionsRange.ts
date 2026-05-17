@@ -26,6 +26,6 @@ export function useSessionsRange(
   });
   return useMemo<RangeQueryState<SessionRow>>(() => {
     if (raw.status !== "ready") return raw;
-    return { status: "ready", data: raw.data.map(coerceSessionRow) };
+    return { status: "ready", data: raw.data.map(coerceSessionRow), refetch: raw.refetch };
   }, [raw]);
 }
