@@ -36,10 +36,14 @@ function groupByDay(rows: SnapshotRow[]): Map<string, SnapshotRow[]> {
   return map;
 }
 
-export function StateGantt({ data, width = 720, height = 240 }: StateGanttProps) {
+const LEGEND_BAND = 24;
+
+export function StateGantt({ data, width = 720, height = 264 }: StateGanttProps) {
   const m = DEFAULT_MARGIN;
   const innerW = width - m.left - m.right;
-  const innerH = height - m.top - m.bottom;
+  // Reserve a fixed legend band below the regular bottom margin so labels
+  // never collide with the hour axis or get clipped at the SVG edge.
+  const innerH = height - m.top - m.bottom - LEGEND_BAND;
 
   const days = Array.from(groupByDay(data).entries()).sort(([a], [b]) => a.localeCompare(b));
   const rowH = days.length > 0 ? innerH / days.length : innerH;
@@ -89,10 +93,13 @@ export function StateGantt({ data, width = 720, height = 240 }: StateGanttProps)
             </g>
           ))}
         </g>
-        {/* Legend */}
-        <g transform={`translate(${m.left},${height - 4})`} data-testid="legend">
+        {/* Legend — sits in the dedicated band below the hour axis. */}
+        <g
+          transform={`translate(${m.left},${height - LEGEND_BAND + 4})`}
+          data-testid="legend"
+        >
           {(["Sitting", "Standing", "Walking", "Away"] as DeskState[]).map((s, i) => (
-            <g key={s} transform={`translate(${i * 78},-4)`}>
+            <g key={s} transform={`translate(${i * 78},0)`}>
               <rect width={10} height={10} fill={STATE_COLOR[s]} />
               <text x={14} y={9} fontSize={10} fill={chartColors.axisText}>
                 {s}
