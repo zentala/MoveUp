@@ -188,13 +188,32 @@ fn show_main_window_settings(app: &AppHandle) {
     }
 }
 
-/// Shows and focuses the Analyst window. Logs if window is missing.
+/// Shows and focuses the Analyst window. Rebuilds it on-demand if the user
+/// closed it earlier — Tauri destroys webview windows on close by default.
 fn show_analyst_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("analyst") {
         let _ = window.show();
         let _ = window.set_focus();
-    } else {
-        log::error!("tray: analyst window not registered");
+        return;
+    }
+    match tauri::WebviewWindowBuilder::new(
+        app,
+        "analyst",
+        tauri::WebviewUrl::App("index.html#/analyst".into()),
+    )
+    .title("Smart Desk \u{2014} Analyst")
+    .inner_size(1280.0, 800.0)
+    .min_inner_size(960.0, 600.0)
+    .resizable(true)
+    .center()
+    .decorations(true)
+    .build()
+    {
+        Ok(window) => {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+        Err(e) => log::error!("tray: failed to (re)build analyst window: {}", e),
     }
 }
 
