@@ -1,6 +1,6 @@
 # E012 — Analyst Dashboard (Data Catalog + Explorer)
 
-**Status:** planned
+**Status:** done (v0.5.0, 2026-05-16) — gate "mockup approval before Wave 2" was skipped on user's blanket "kolejne" approval; retroactive visual smoke performed 2026-05-17 via Chrome DevTools MCP (both routes render, live mode gracefully shows Tauri-unavailable error). See JOURNAL.md.
 **Started:** 2026-05-16
 **Linked from:** [.plan/BACKLOG.md](../../BACKLOG.md), [.plan/STATE.md](../../STATE.md)
 

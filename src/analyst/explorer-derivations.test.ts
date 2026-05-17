@@ -2,7 +2,12 @@
  * explorer-derivations.test.ts — Unit tests for derivation helpers.
  */
 import { describe, it, expect } from "vitest";
-import { downsampleSnapshots, deriveDailyKpis } from "./explorer-derivations";
+import {
+  coerceSessionRow,
+  deriveBreakCredit,
+  deriveDailyKpis,
+  downsampleSnapshots,
+} from "./explorer-derivations";
 import type { SnapshotRow } from "@/test/analyst-fixtures";
 
 function snap(ts: string, h: number, sit = 0, stand = 0, score = 0): SnapshotRow {
@@ -31,6 +36,44 @@ describe("downsampleSnapshots", () => {
     const out = downsampleSnapshots(rows, 1000);
     expect(out.length).toBeLessThanOrEqual(1000);
     expect(out.length).toBeGreaterThan(500);
+  });
+});
+
+describe("deriveBreakCredit", () => {
+  it("maps duration thresholds to the ADR-008 enum", () => {
+    expect(deriveBreakCredit(0)).toBe("none");
+    expect(deriveBreakCredit(59)).toBe("none");
+    expect(deriveBreakCredit(60)).toBe("partial");
+    expect(deriveBreakCredit(119)).toBe("partial");
+    expect(deriveBreakCredit(120)).toBe("full");
+    expect(deriveBreakCredit(3600)).toBe("full");
+  });
+});
+
+describe("coerceSessionRow", () => {
+  it("normalises wire shape and derives breakCredit", () => {
+    const row = coerceSessionRow(
+      { start: "2026-05-16T09:00:00Z", end: null, state: "STANDING", duration_secs: 180 },
+      7,
+    );
+    expect(row.id).toBe(7);
+    expect(row.state).toBe("Standing");
+    expect(row.durationSecs).toBe(180);
+    expect(row.standingSecs).toBe(180);
+    expect(row.sittingSecs).toBe(0);
+    expect(row.breakCredit).toBe("full");
+    expect(row.dateLocal).toBe("2026-05-16");
+    expect(row.endedAt).toBe("2026-05-16T09:00:00Z");
+  });
+
+  it("treats unknown state as Sitting and short durations as none", () => {
+    const row = coerceSessionRow(
+      { start: "2026-05-16T09:00:00Z", end: "2026-05-16T09:00:30Z", state: "???", duration_secs: 30 },
+      0,
+    );
+    expect(row.state).toBe("Sitting");
+    expect(row.sittingSecs).toBe(30);
+    expect(row.breakCredit).toBe("none");
   });
 });
 

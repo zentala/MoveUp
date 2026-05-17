@@ -56,6 +56,7 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 3. **Top-of-screen progress bar** — green→red over 40min session (overlay_renderer.rs)
 4. **Alert popup** — progressive escalation when limit reached (alert_manager.rs, planned)
 5. **Activity status** — "Active" / "Idle Xm Ys" in StateIndicator, shown when keyboard/mouse idle ≥30s. Toggle: Settings → More → "Show activity status".
+6. **Analyst window** — separate 1280×800 Tauri window opened from tray ("Open Analyst"). Two tabs: Catalog (all data sources the app produces) and Explorer (5 charts over last 7 days). Route `/#/analyst` live, `/#/mockup/analyst` with fake fixtures. See [ADR 012](.arch/ADR/012-analyst-dashboard-separate-window.md) for the window-vs-route-vs-browser decision.
 
 ## Communication Architecture & Profiles
 
@@ -165,10 +166,20 @@ Tests **must pass** before every build:
 
 If tests fail, the build is halted. Commit is NOT blocked (tests don't run on pre-commit), only builds.
 
+## Conventions
+
+### Test file location
+- **Rust:** sibling test file `<module>_tests.rs` (registered as `#[cfg(test)] mod <module>_tests;` in `lib.rs`). Examples: `commands_analyst.rs` ↔ `commands_analyst_tests.rs`, `commands_catalog.rs` ↔ `commands_catalog_tests.rs`. Reason: keeps each `.rs` file under the 250-line cap and makes tests trivially `cargo test --lib -- <module>` runnable.
+- **TS:** co-located `<module>.test.ts(x)` next to source. Run via `pnpm test:unit`.
+
+### React hook locations
+- Cross-cutting hooks (used by multiple features): `apps/desk/src/hooks/`.
+- Feature-scoped hooks: `apps/desk/src/<feature>/hooks/`. Example: analyst-only `useDataCatalog`, `useRangeQuery`, `useSnapshotsRange` live in `src/analyst/hooks/`. Don't promote until a second feature consumes them.
+
 ## Key Files
 
 ### Application Code
-- `firmware/` — Arduino sketch for XIAO ESP32-C3 (in `C:/code/desk-seduino/`)
+- `firmware/` — Arduino sketch for XIAO ESP32-C3
 - `src-tauri/src/serial.rs` — serial reader, auto-detect
 - `src-tauri/src/session.rs` — session state machine
 - `src-tauri/src/activity.rs` — keyboard/mouse idle detection

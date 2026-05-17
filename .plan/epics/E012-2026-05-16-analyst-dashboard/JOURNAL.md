@@ -43,6 +43,20 @@
   - T04's analyst window initially pointed at `/#/mockup/analyst`; T06 flipped to `/#/analyst`.
 - **Next**: tag v0.5.0, push, triage IMPROVEMENTS.md with zentala, update DONE.md + ARCH HISTORY.md, cleanup worktrees.
 
+## Session 2026-05-17 03:00 — impro polish pass
+
+- **Goal**: address the 10-item /impro review without reopening the epic.
+- **Done**:
+  - Visual smoke via Chrome DevTools MCP — mockup `/#/mockup/analyst` renders 5 charts + 504/29 fake data; live `/#/analyst` gracefully shows "Failed: Cannot read properties of undefined (reading 'invoke')" + empty charts when not running under Tauri. Both routes resolve; no JS errors beyond expected Tauri-absent path.
+  - `apps/tray` typecheck **passes on main** — T06's `--no-verify` was a stale-node_modules transient in the worktree, not a real regression. IMPROVEMENTS item dropped retroactively.
+  - ADR 012 created: "Analyst Dashboard as Separate Tauri Window" — captures the route-vs-window-vs-browser decision.
+  - Refactor: `useSessionsRange` now I/O-only. `deriveBreakCredit` + `coerceSessionRow` (with `WireSessionRow` type) live in `explorer-derivations.ts`. +3 unit tests (197 total, was 194).
+  - `apps/desk/CLAUDE.md` updated: UI Components #6 (Analyst window), new Conventions section (test file naming + React hook directory rules).
+  - PLAN.md status flipped to done with explicit note that the Wave-2 mockup-approval gate was skipped on user's blanket approval.
+- **Findings this session**: none (visual smoke clean).
+- **Skipped intentionally**: `useDataCatalog` `skip` param — on review the smell is overblown; conditional hooks aren't possible in React, so `skip` is the right pattern. Not a real defect.
+- **Next**: tag push, IMPROVEMENTS.md cleanup (4 items dropped/closed), session close.
+
 ## Findings (live, append immediately)
 
-_(none yet)_
+_(none yet — visual smoke 2026-05-17 03:00 passed cleanly.)_
