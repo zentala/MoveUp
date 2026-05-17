@@ -20,8 +20,12 @@ mod commands_catalog_sources;
 #[cfg(test)] mod commands_catalog_tests;
 mod commands_config;
 mod commands_profiles;
+mod commands_health;
 mod commands_share;
 mod commands_welcome;
+mod google_fit;
+mod google_fit_models;
+mod google_fit_service;
 mod config;
 mod db;
 mod db_backup;
@@ -105,6 +109,7 @@ use communication_profile::CommunicationProfile;
 use ergonomic_profile::ErgonomicProfile;
 use commands::AppState;
 use event_logger::EventLogger;
+use google_fit_service::{GoogleFitService, GoogleFitState};
 use overlay_renderer::OverlayRenderer;
 use serial::ConnectionState;
 use session::SessionManager;
@@ -122,6 +127,12 @@ pub(crate) struct Loggers {
 /// Application entry point called from main.rs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Best-effort load of .env.local for Google Fit credentials.
+    // Absence is not an error — the GoogleFitService treats missing vars
+    // as "not configured".
+    let _ = dotenv::from_filename(".env.local");
+    let _ = dotenv::dotenv();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -145,6 +156,7 @@ pub fn run() {
             today_cache: Arc::new(Mutex::new(crate::db::TodaySummary::default())),
         })
         .manage(BlinkState::new())
+        .manage::<GoogleFitState>(std::sync::Arc::new(GoogleFitService::from_env()))
         .invoke_handler({
             #[cfg(any(test, debug_assertions))]
             {
@@ -180,6 +192,8 @@ pub fn run() {
                     commands_analyst::get_events_range,
                     commands_analyst::get_sessions_range,
                     commands_catalog::get_data_catalog,
+                    commands_health::get_steps_today,
+                    commands_health::refresh_steps_now,
                 ]
             }
             #[cfg(not(any(test, debug_assertions)))]
@@ -214,6 +228,8 @@ pub fn run() {
                     commands_analyst::get_events_range,
                     commands_analyst::get_sessions_range,
                     commands_catalog::get_data_catalog,
+                    commands_health::get_steps_today,
+                    commands_health::refresh_steps_now,
                 ]
             }
         })
