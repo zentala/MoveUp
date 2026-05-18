@@ -43,9 +43,9 @@ impl Credentials {
     /// of the three required variables is missing — callers should treat
     /// this as "Google Fit not configured" rather than an error.
     pub fn from_env() -> Option<Self> {
-        let client_id = std::env::var("GOOGLE_FIT_CLIENT_ID").ok()?;
-        let client_secret = std::env::var("GOOGLE_FIT_CLIENT_SECRET").ok()?;
-        let refresh_token = std::env::var("GOOGLE_FIT_REFRESH_TOKEN").ok()?;
+        let client_id = std::env::var("GOOGLE_CLIENT_ID").ok()?;
+        let client_secret = std::env::var("GOOGLE_CLIENT_SECRET").ok()?;
+        let refresh_token = std::env::var("GOOGLE_REFRESH_TOKEN").ok()?;
         if client_id.is_empty() || client_secret.is_empty() || refresh_token.is_empty() {
             return None;
         }
@@ -147,20 +147,20 @@ mod tests {
         // SAFETY: tests run sequentially within a single process — this still
         // races against parallel tests; if flakiness appears, gate behind
         // a serial_test mutex.
-        std::env::remove_var("GOOGLE_FIT_CLIENT_ID");
-        std::env::remove_var("GOOGLE_FIT_CLIENT_SECRET");
-        std::env::remove_var("GOOGLE_FIT_REFRESH_TOKEN");
+        std::env::remove_var("GOOGLE_CLIENT_ID");
+        std::env::remove_var("GOOGLE_CLIENT_SECRET");
+        std::env::remove_var("GOOGLE_REFRESH_TOKEN");
         assert!(Credentials::from_env().is_none());
     }
 
     #[test]
     fn credentials_from_env_rejects_empty_values() {
-        std::env::set_var("GOOGLE_FIT_CLIENT_ID", "");
-        std::env::set_var("GOOGLE_FIT_CLIENT_SECRET", "x");
-        std::env::set_var("GOOGLE_FIT_REFRESH_TOKEN", "y");
+        std::env::set_var("GOOGLE_CLIENT_ID", "");
+        std::env::set_var("GOOGLE_CLIENT_SECRET", "x");
+        std::env::set_var("GOOGLE_REFRESH_TOKEN", "y");
         assert!(Credentials::from_env().is_none());
-        std::env::remove_var("GOOGLE_FIT_CLIENT_ID");
-        std::env::remove_var("GOOGLE_FIT_CLIENT_SECRET");
-        std::env::remove_var("GOOGLE_FIT_REFRESH_TOKEN");
+        std::env::remove_var("GOOGLE_CLIENT_ID");
+        std::env::remove_var("GOOGLE_CLIENT_SECRET");
+        std::env::remove_var("GOOGLE_REFRESH_TOKEN");
     }
 }

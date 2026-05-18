@@ -84,9 +84,9 @@ mod tests {
 
     #[tokio::test]
     async fn unconfigured_service_returns_none_snapshot() {
-        std::env::remove_var("GOOGLE_FIT_CLIENT_ID");
-        std::env::remove_var("GOOGLE_FIT_CLIENT_SECRET");
-        std::env::remove_var("GOOGLE_FIT_REFRESH_TOKEN");
+        std::env::remove_var("GOOGLE_CLIENT_ID");
+        std::env::remove_var("GOOGLE_CLIENT_SECRET");
+        std::env::remove_var("GOOGLE_REFRESH_TOKEN");
         let svc = GoogleFitService::from_env();
         assert!(!svc.is_configured());
         assert!(svc.snapshot().await.is_none());
@@ -94,9 +94,9 @@ mod tests {
 
     #[tokio::test]
     async fn unconfigured_refresh_returns_not_configured_error() {
-        std::env::remove_var("GOOGLE_FIT_CLIENT_ID");
-        std::env::remove_var("GOOGLE_FIT_CLIENT_SECRET");
-        std::env::remove_var("GOOGLE_FIT_REFRESH_TOKEN");
+        std::env::remove_var("GOOGLE_CLIENT_ID");
+        std::env::remove_var("GOOGLE_CLIENT_SECRET");
+        std::env::remove_var("GOOGLE_REFRESH_TOKEN");
         let svc = GoogleFitService::from_env();
         let err = svc.refresh().await.unwrap_err();
         assert!(err.contains("not configured"));

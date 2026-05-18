@@ -16,6 +16,7 @@ import { useTimelineSkin, skinClassName } from "@/hooks/useTimelineSkin";
 import { OneBarTimeline } from "./one-bar/OneBarTimeline";
 import { OneBarTimer } from "./one-bar/OneBarTimer";
 import { KpiStrip } from "./one-bar/KpiStrip";
+import { StepsWidget } from "@/components/StepsWidget";
 import { ShareStats } from "@/components/ShareStats";
 import "./one-bar/one-bar.css";
 
@@ -65,7 +66,10 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
     >
       <OneBarHeader {...props} onOpenShare={() => setShowShare(true)} />
       <OneBarTimer {...props} />
-      <KpiStrip metrics={props.metrics} />
+      <div className="one-bar__kpi-row">
+        <KpiStrip metrics={props.metrics} />
+        <StepsWidget />
+      </div>
       <OneBarTimeline {...props} />
 
       {showShare && (

@@ -274,3 +274,45 @@ See [`.arch/hardware/HARDWARE-OPTIONS.md`](.arch/hardware/HARDWARE-OPTIONS.md) f
 - New or removed features / IPC events
 - New or removed test files or layers
 - Dependency changes (Cargo.toml / package.json)
+
+## Google Fit Integration
+
+Walking-steps integration uses Google OAuth2 with the
+`https://www.googleapis.com/auth/fitness.activity.read` scope.
+
+### Required `.env` keys (in `apps/desk/.env`)
+
+```
+GOOGLE_CLIENT_ID=...        # from Google Cloud Console
+GOOGLE_CLIENT_SECRET=...    # from Google Cloud Console
+GOOGLE_REFRESH_TOKEN=...    # obtained via the auth helper script below
+```
+
+When any of these is missing, the StepsWidget renders a "connect google fit"
+hint and the backend service no-ops (no errors).
+
+### Obtaining `GOOGLE_REFRESH_TOKEN` — run when needed
+
+Whenever the refresh token is revoked, missing, or you switch Google
+accounts, regenerate it with:
+
+```
+node apps/desk/scripts/google-fit-auth.cjs
+```
+
+Prerequisites (one-time):
+1. In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials),
+   open your OAuth Client and add **`http://localhost:8765/callback`** to
+   *Authorized redirect URIs*.
+2. Enable the *Fitness API* in the same project.
+
+The script opens your browser, walks through Google's consent screen,
+and prints `GOOGLE_REFRESH_TOKEN=...` to the terminal. Paste that line
+into `apps/desk/.env` and restart `pnpm tauri:dev`.
+
+### Source map
+- `src-tauri/src/google_fit.rs` — OAuth + Fitness API client
+- `src-tauri/src/google_fit_models.rs` — wire types
+- `src-tauri/src/google_fit_service.rs` — cache + refresh service
+- `src-tauri/src/commands_health.rs` — `get_steps_today`, `refresh_steps_now`
+- `src/components/StepsWidget.tsx` — KPI-style badge in `OneBarWidget`
