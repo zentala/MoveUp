@@ -11,15 +11,17 @@ import type {
   SessionRow,
   SnapshotRow,
 } from "@/test/analyst-fixtures";
-import { DateRangePicker, type DateRange } from "./DateRangePicker";
+import type { DateRange } from "./DateRangePicker";
+import { DateNavigator } from "./charts/DateNavigator";
+import { TimelineDetail } from "./charts/TimelineDetail";
 import { DeskHeightTimeline } from "./charts/DeskHeightTimeline";
-import { StateGantt } from "./charts/StateGantt";
 import { DailyScoreTrajectory } from "./charts/DailyScoreTrajectory";
 import { BreakCreditHistogram } from "./charts/BreakCreditHistogram";
 import { KpiTrend } from "./charts/KpiTrend";
 import { useSnapshotsRange } from "./hooks/useSnapshotsRange";
 import { useSessionsRange } from "./hooks/useSessionsRange";
 import { useEventsRange } from "./hooks/useEventsRange";
+import { useTimelineNav } from "./hooks/useTimelineNav";
 import { chartColors } from "./charts/chart-utils";
 import { downsampleSnapshots, deriveDailyKpis } from "./explorer-derivations";
 
@@ -117,53 +119,65 @@ export function ExplorerTab({
     eventsQuery.refetch();
   };
 
+  const nav = useTimelineNav({ rangeFrom: range.from, rangeTo: range.to });
+
   return (
     <div data-testid="explorer-tab">
+      <DateNavigator
+        range={range}
+        onRangeChange={onRangeChange}
+        selectedDay={nav.selectedDay}
+        onSelectDay={nav.goTo}
+        snapshots={snapshots}
+      />
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 16,
+          margin: "12px 0 12px",
           gap: 12,
           flexWrap: "wrap",
         }}
       >
-        <DateRangePicker value={range} onChange={onRangeChange} />
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div style={{ fontSize: 11, color: chartColors.subtext }}>
-            {error
-              ? `Failed: ${error}`
-              : loading
-                ? "Loading…"
-                : `${snapshots.length} snapshots · ${sessions.length} sessions · ${rangeLabel}${refreshedAt ? ` · refreshed ${refreshedAt}` : ""}`}
-          </div>
-          {isLive ? (
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={loading}
-              title="Re-fetch the current range from the backend"
-              style={{
-                background: "transparent",
-                border: `1px solid ${chartColors.gridline}`,
-                color: loading ? chartColors.gridline : chartColors.subtext,
-                padding: "4px 10px",
-                borderRadius: 4,
-                fontSize: 11,
-                cursor: loading ? "default" : "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              Refresh
-            </button>
-          ) : null}
+        <div style={{ fontSize: 11, color: chartColors.subtext }}>
+          {error
+            ? `Failed: ${error}`
+            : loading
+              ? "Loading…"
+              : `${snapshots.length} snapshots · ${sessions.length} sessions · ${rangeLabel}${refreshedAt ? ` · refreshed ${refreshedAt}` : ""}`}
         </div>
+        {isLive ? (
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={loading}
+            title="Re-fetch the current range from the backend"
+            style={{
+              background: "transparent",
+              border: `1px solid ${chartColors.gridline}`,
+              color: loading ? chartColors.gridline : chartColors.subtext,
+              padding: "4px 10px",
+              borderRadius: 4,
+              fontSize: 11,
+              cursor: loading ? "default" : "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Refresh
+          </button>
+        ) : null}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+      <TimelineDetail
+        range={range}
+        selectedDay={nav.selectedDay}
+        snapshots={snapshots}
+        onPrev={nav.prev}
+        onNext={nav.next}
+      />
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginTop: 16 }}>
         <DeskHeightTimeline data={heightSnaps} />
         <BreakCreditHistogram data={sessions} />
-        <StateGantt data={snapshots} />
         <KpiTrend data={kpis} />
         <div style={{ gridColumn: "span 2" }}>
           <DailyScoreTrajectory data={snapshots} />
