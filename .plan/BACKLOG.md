@@ -176,6 +176,7 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 - **Success notifications + gamification** — streak tracking, milestone celebrations (T019)
 - **Phone-as-hub** — old phone + BLE sensor, works without desktop app
 - **Smartwatch integration** — proximity detection, walking state, HRV
+- **Sleep API integration for Analyst timeline** — current "Away" overnight is honest but uninformed; pull from Google Fit / Health Connect / Apple Health / smartwatch to overlay actual sleep window on the Daily Timeline Strip. Replaces the cut "sleep band" heuristic (E012-T07 brainstorm 2026-05-18).
 - Data export to CSV
 - Height threshold calibration via UI
 - App icon design: desk silhouette SVG → PNG/ICO assets

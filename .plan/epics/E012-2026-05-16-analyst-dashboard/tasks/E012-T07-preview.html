@@ -1,0 +1,1872 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>E012-T07 — Daily Timeline Strip preview</title>
+<style>
+  :root {
+    --bg: #0a0a12;
+    --panel: #11111c;
+    --panel-2: #161624;
+    --border: #2a2a3a;
+    --text: #e6e6ef;
+    --subtext: #8a8aa0;
+    --primary: #4ea1ff;
+    --sit: #6a4cff;
+    --stand: #2ecc71;
+    --walk: #f59e0b;
+    --away: #444452;
+    --warn: #f59e0b;
+    --alert: #ef4444;
+    --gridline: #1f1f2c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+    padding: 32px;
+  }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  h2 { margin: 28px 0 8px; font-size: 17px; color: var(--text); }
+  h3 { margin: 18px 0 6px; font-size: 14px; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.6px; }
+  p, li { color: #c8c8d8; }
+  small { color: var(--subtext); }
+  code { background: #1a1a26; padding: 1px 6px; border-radius: 3px; font-size: 12px; color: #c8c8d8; }
+  .meta { color: var(--subtext); font-size: 12px; margin-bottom: 24px; }
+
+  .container { max-width: 1180px; margin: 0 auto; }
+
+  /* mockup */
+  .timeline-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px 10px;
+    margin: 16px 0 24px;
+  }
+  .timeline-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .day-nav {
+    display: flex; align-items: center; gap: 12px;
+    font-weight: 600; font-size: 15px;
+  }
+  .day-nav button {
+    background: transparent; color: var(--text); border: 1px solid var(--border);
+    width: 26px; height: 26px; border-radius: 4px; cursor: pointer; font-size: 13px;
+  }
+  .day-nav .date-trigger {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 4px;
+    background: var(--panel-2); border: 1px solid var(--border); cursor: pointer;
+  }
+  .late-flag {
+    font-size: 11px; color: var(--alert);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .late-flag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--alert); }
+
+  .strip {
+    position: relative;
+    height: 84px;
+    display: grid;
+    grid-template-columns: 12% 1fr 12%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--panel-2);
+  }
+  .strip .seg-yesterday, .strip .seg-tomorrow { background: rgba(255,255,255,0.015); opacity: 0.5; }
+  .strip .seg-today { background: rgba(255,255,255,0.03); }
+  .strip .divider { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.08); }
+  .strip .divider.left { left: 12%; }
+  .strip .divider.right { left: 88%; }
+
+  /* render fake state segments using gradients */
+  .seg-yesterday .state {
+    height: 60%;
+    margin: 12px 0;
+    background: linear-gradient(
+      to right,
+      var(--away) 0%, var(--away) 30%,
+      var(--sit) 30%, var(--sit) 60%,
+      var(--stand) 60%, var(--stand) 85%,
+      var(--sit) 85%, var(--sit) 100%
+    );
+  }
+  .seg-today .state {
+    height: 60%;
+    margin: 12px 0;
+    background: linear-gradient(
+      to right,
+      var(--away) 0%, var(--away) 25%,
+      var(--sit) 25%, var(--sit) 38%,
+      var(--stand) 38%, var(--stand) 47%,
+      var(--sit) 47%, var(--sit) 56%,
+      var(--walk) 56%, var(--walk) 60%,
+      var(--stand) 60%, var(--stand) 72%,
+      var(--sit) 72%, var(--sit) 88%,
+      var(--away) 88%, var(--away) 100%
+    );
+    position: relative;
+  }
+  .seg-tomorrow .state {
+    height: 60%;
+    margin: 12px 0;
+    background: linear-gradient(
+      to right,
+      var(--away) 0%, var(--away) 70%,
+      var(--sit) 70%, var(--sit) 100%
+    );
+  }
+  .now-indicator {
+    position: absolute;
+    top: -4px; bottom: -4px;
+    left: 62%;
+    width: 2px;
+    background: var(--primary);
+  }
+  .now-indicator::before {
+    content: "";
+    position: absolute; top: -3px; left: -3px;
+    width: 8px; height: 8px; border-radius: 50%; background: var(--primary);
+  }
+  .now-indicator::after {
+    content: "now";
+    position: absolute; bottom: -16px; left: 8px;
+    color: var(--primary); font-size: 10px;
+  }
+  .sleep-band {
+    position: absolute;
+    top: 12px; bottom: 12px;
+    left: 12%;
+    width: 8%;
+    background: rgba(70, 60, 120, 0.25);
+    pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    color: #6a6a90; font-size: 11px;
+  }
+
+  .hour-axis {
+    display: grid;
+    grid-template-columns: 12% 1fr 12%;
+    margin-top: 6px;
+    color: var(--subtext);
+    font-size: 10px;
+    font-feature-settings: "tnum";
+  }
+  .hour-axis > div { display: flex; justify-content: space-between; padding: 0 2px; }
+  .hour-axis .lbl-edge { opacity: 0.55; }
+
+  .legend {
+    display: flex; gap: 16px; margin-top: 14px; align-items: center;
+    color: var(--subtext); font-size: 11px;
+  }
+  .legend .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .chip span:first-child {
+    width: 12px; height: 12px; border-radius: 2px; display: inline-block;
+  }
+
+  .help {
+    margin-top: 8px;
+    color: var(--subtext);
+    font-size: 12px;
+    background: var(--panel-2);
+    border-left: 3px solid var(--primary);
+    padding: 8px 12px;
+    border-radius: 4px;
+  }
+
+  /* layout: current vs proposed */
+  .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    margin: 12px 0 24px;
+  }
+  .compare .box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+  }
+  .compare h4 { margin: 0 0 8px; font-size: 13px; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.5px; }
+  .grid-fake { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
+  .fake-tile { background: var(--panel-2); border: 1px dashed var(--border); border-radius: 4px; height: 56px;
+    display: flex; align-items: center; justify-content: center; color: var(--subtext); font-size: 11px; }
+  .fake-tile.tall { height: 90px; }
+  .fake-tile.full { grid-column: 1 / -1; }
+  .fake-tile.hero { background: rgba(78,161,255,0.08); border-color: rgba(78,161,255,0.4); color: var(--primary); }
+
+  /* questions */
+  .questions { display: grid; gap: 16px; margin-top: 12px; }
+  .qbox {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .qbox .q-title { font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .qbox .q-context { color: var(--subtext); font-size: 12px; margin-bottom: 8px; }
+  .qbox .options { display: flex; flex-wrap: wrap; gap: 8px; }
+  .qbox .opt {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px;
+    padding: 6px 10px; font-size: 12px; cursor: default;
+  }
+  .qbox .opt.recommended { border-color: var(--primary); color: var(--primary); }
+
+  /* misc */
+  ul.ideas { padding-left: 20px; }
+  ul.ideas li { margin-bottom: 6px; }
+  .ac { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px 18px; }
+  .ac li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<style>
+  .jumpbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,18,0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 0;
+    margin: -32px -32px 24px;
+    padding-left: 32px; padding-right: 32px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px;
+  }
+  .jumpbar .lbl {
+    color: var(--subtext);
+    text-transform: uppercase; letter-spacing: 0.12em;
+    font-size: 10px;
+    margin-right: 8px;
+  }
+  .jumpbar a {
+    text-decoration: none;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 120ms ease-out;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .jumpbar a:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  .jumpbar a.accent {
+    background: var(--primary);
+    color: #0a0a12;
+    border-color: var(--primary);
+  }
+  .jumpbar a.accent:hover { color: #fff; background: #6ab2ff; }
+</style>
+
+<div class="container">
+
+<div class="jumpbar">
+  <span class="lbl">Jump to</span>
+  <a href="#top">① Before (initial)</a>
+  <a href="#finalpass" style="margin-left: 4px;">↓</a>
+  <a href="#after">② After brainstorm (raw)</a>
+  <a href="#finalpass">↓</a>
+  <a href="#finalpass" class="accent">③ Frontend-design (polished)</a>
+</div>
+
+<a id="top"></a>
+<h1>E012-T07 — Daily Timeline Strip</h1>
+<div class="meta">Redesign of <code>StateGantt</code> → full-width hero chart at top of Explorer. Draft preview · review &amp; brainstorm.</div>
+
+<h2>1. Visual mockup of proposed component</h2>
+<div class="timeline-card">
+  <div class="timeline-head">
+    <div class="day-nav">
+      <button title="Previous day">◀</button>
+      <span class="date-trigger">Tue · May 17, 2026 ▾</span>
+      <button title="Next day">▶</button>
+    </div>
+    <span class="late-flag">after midnight session detected</span>
+  </div>
+
+  <div class="strip">
+    <div class="seg-yesterday"><div class="state"></div></div>
+    <div class="seg-today"><div class="state"></div><div class="now-indicator"></div></div>
+    <div class="seg-tomorrow"><div class="state"></div></div>
+    <div class="sleep-band">☾ sleep</div>
+    <div class="divider left"></div>
+    <div class="divider right"></div>
+  </div>
+
+  <div class="hour-axis">
+    <div><span class="lbl-edge">18</span><span class="lbl-edge">22</span></div>
+    <div><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+    <div><span class="lbl-edge">00</span><span class="lbl-edge">06</span></div>
+  </div>
+
+  <div class="legend">
+    <span class="chip"><span style="background:var(--sit)"></span>Sitting</span>
+    <span class="chip"><span style="background:var(--stand)"></span>Standing</span>
+    <span class="chip"><span style="background:var(--walk)"></span>Walking</span>
+    <span class="chip"><span style="background:var(--away)"></span>Away</span>
+    <span style="margin-left:auto;">drag to scroll · ←/→ jump days · hover for tooltip</span>
+  </div>
+
+  <div class="help">
+    Center band = full 24h of selected day. Side bands (≈12% each) show last ~6h of
+    yesterday and first ~6h of tomorrow at 50% opacity — context for late nights and
+    early mornings. Vertical blue marker is "now" (only visible when selected = today).
+    Purple shaded slot = auto-detected sleep window (Away ≥4h between 22:00–08:00).
+  </div>
+</div>
+
+<h2>2. How it changes the dashboard layout</h2>
+<div class="compare">
+  <div class="box">
+    <h4>Current (today)</h4>
+    <div class="grid-fake">
+      <div class="fake-tile tall">State Gantt</div>
+      <div class="fake-tile tall">Desk Height</div>
+      <div class="fake-tile">KPI trends</div>
+      <div class="fake-tile">Break credit</div>
+      <div class="fake-tile full">Daily Score Trajectory</div>
+    </div>
+  </div>
+  <div class="box">
+    <h4>Proposed</h4>
+    <div class="grid-fake" style="grid-template-columns: 1fr 1fr 1fr;">
+      <div class="fake-tile hero full">Daily Timeline Strip (hero, full width)</div>
+      <div class="fake-tile">KPI trends</div>
+      <div class="fake-tile">Break credit</div>
+      <div class="fake-tile">Desk Height</div>
+      <div class="fake-tile full">Daily Score Trajectory</div>
+    </div>
+  </div>
+</div>
+
+<h2>3. Behaviour &amp; interactions</h2>
+<ul class="ideas">
+  <li><b>Navigation:</b> <code>◀ ▶</code> jump 1 day · click date → date picker · <code>←</code> / <code>→</code> arrow keys · home/end = range bounds.</li>
+  <li><b>Scroll:</b> horizontal wheel/touchpad drag through days. Snap to hour on release.</li>
+  <li><b>Now indicator:</b> blue vertical line + dot, refreshed every 60s (only when selected day = today).</li>
+  <li><b>Sleep band:</b> auto-detected ≥4h continuous Away between 22:00–08:00, rendered as soft purple block with moon glyph.</li>
+  <li><b>Late-night flag:</b> red dot in header when last session ends after 00:00.</li>
+  <li><b>Hover tooltip:</b> timestamp · state · duration of contiguous segment · score.</li>
+  <li><b>Click segment:</b> cross-filters the sessions table below (selects that session row).</li>
+  <li><b>Click hour bar:</b> shows tooltip "14:23 — Standing for 12 min".</li>
+  <li><b>Sleep band on no data:</b> shows "?" indicator when retention doesn't cover the night.</li>
+</ul>
+
+<h2>4. Open questions — review these visually</h2>
+
+<div class="questions">
+
+  <div class="qbox">
+    <div class="q-title">Q1. Width of side previews (yesterday / tomorrow)</div>
+    <div class="q-context">How much context do you want from neighbouring days? Trade-off: more sides = less hero space.</div>
+    <div class="options">
+      <span class="opt">8% each (compact, only ~4h glance)</span>
+      <span class="opt recommended">12% each (≈6h, recommended)</span>
+      <span class="opt">15% each (≈8h, generous)</span>
+      <span class="opt">20% each (≈10h, almost equal weight)</span>
+    </div>
+  </div>
+
+  <div class="qbox">
+    <div class="q-title">Q2. Snap target when scrolling stops</div>
+    <div class="q-context">Where should the strip land when you release scroll? Affects how "discrete" the feel is.</div>
+    <div class="options">
+      <span class="opt">No snap (free scroll, smooth)</span>
+      <span class="opt recommended">Snap to hour (subtle, predictable)</span>
+      <span class="opt">Snap to day (strong, almost flipboard)</span>
+    </div>
+  </div>
+
+  <div class="qbox">
+    <div class="q-title">Q3. Color encoding intensity</div>
+    <div class="q-context">Full-width strip will be visually dominant — 4 colours may shout.</div>
+    <div class="options">
+      <span class="opt recommended">Keep 4 colours (Sit / Stand / Walk / Away) — full info</span>
+      <span class="opt">Reduce to 2 (Active / Away) — calmer, less info</span>
+      <span class="opt">3 colours (group Walking into Standing)</span>
+    </div>
+  </div>
+
+  <div class="qbox">
+    <div class="q-title">Q4. Sleep band on unknown / missing data</div>
+    <div class="q-context">If retention doesn't cover 22:00–08:00, what to show?</div>
+    <div class="options">
+      <span class="opt">Hide it (silent)</span>
+      <span class="opt recommended">Show with "?" glyph + hover "no data for this window"</span>
+      <span class="opt">Show diagonal-hatch pattern as "uncertain"</span>
+    </div>
+  </div>
+
+  <div class="qbox">
+    <div class="q-title">Q5. Day / Week toggle — scope of this task or follow-up?</div>
+    <div class="q-context">Should we ship a Week-view mode in the same task, or land Day first and iterate?</div>
+    <div class="options">
+      <span class="opt recommended">Day only this task; Week as follow-up (E012-T08)</span>
+      <span class="opt">Day + Week toggle together</span>
+      <span class="opt">Skip Week entirely — range picker handles multi-day already</span>
+    </div>
+  </div>
+
+  <div class="qbox">
+    <div class="q-title">Q6. (bonus) Where does Now indicator live across midnight?</div>
+    <div class="q-context">If you're viewing today and it's 00:30, "now" is on the left edge — confusing?</div>
+    <div class="options">
+      <span class="opt">Stays at real position (left edge after midnight)</span>
+      <span class="opt recommended">Auto-advance "selected day" at midnight so now is always central</span>
+      <span class="opt">Show ghost marker at 24:00 on previous day + real one</span>
+    </div>
+  </div>
+
+</div>
+
+<h2>5. Acceptance criteria (draft)</h2>
+<ul class="ac">
+  <li>Component spans full container width.</li>
+  <li>Renders 1 hero day + ≈6h preview on each side (configurable via Q1).</li>
+  <li>Header <code>◀</code> / <code>▶</code> change day; keyboard <code>← →</code> works on focus.</li>
+  <li>Now indicator visible when selected = today; auto-refreshes every 60s.</li>
+  <li>Every segment has tooltip (timestamp · state · duration).</li>
+  <li>Sits as the first box in <code>ExplorerTab</code>, above the KPI grid.</li>
+  <li>≥80% test coverage on new component.</li>
+  <li>File ≤250 lines; split into <code>DailyTimelineStrip.tsx</code> +
+      <code>TimelineDayBand.tsx</code> + <code>TimelineHourAxis.tsx</code> if needed.</li>
+</ul>
+
+<p style="margin-top: 32px; color: var(--subtext); font-size: 12px;">
+  This is a static preview HTML. The real component will be implemented in React/SVG
+  under <code>apps/desk/src/analyst/charts/DailyTimelineStrip.tsx</code>.
+</p>
+
+<hr style="margin: 48px 0; border: 0; border-top: 1px dashed var(--border);" />
+
+<div style="background: rgba(78, 161, 255, 0.08); border-left: 4px solid var(--primary); padding: 14px 18px; border-radius: 4px; margin: 0 0 24px;">
+  <div style="font-weight: 600; font-size: 15px; color: var(--primary); margin-bottom: 4px;">
+    ⇣ After brainstorm — revised design (Hybrid Alt-B)
+  </div>
+  <div style="font-size: 12px; color: var(--subtext);">
+    Locked 2026-05-18. Changes: context strip added · proportional 36h scale (no fisheye) ·
+    no auto-flip at midnight · no sleep band · neutral late-night label · range picker independent.
+  </div>
+</div>
+
+<h2 style="margin-top: 0;">A. Revised visual mockup</h2>
+
+<style>
+  /* context strip (14 days mini overview) */
+  .ctx-strip-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 18px 10px;
+    margin: 16px 0 16px;
+  }
+  .ctx-strip-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .ctx-strip-head .label { font-size: 11px; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.5px; }
+  .ctx-strip-head .hint { font-size: 11px; color: var(--subtext); }
+  .ctx-strip {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 8px;
+    row-gap: 3px;
+    grid-auto-rows: 14px;
+  }
+  .ctx-date-label {
+    font-size: 10px;
+    color: var(--subtext);
+    line-height: 14px;
+    text-align: right;
+    font-feature-settings: "tnum";
+  }
+  .ctx-date-label.active { color: var(--primary); font-weight: 600; }
+  .ctx-day-row {
+    display: flex; cursor: pointer; border-radius: 2px;
+    position: relative;
+    transition: transform 0.1s;
+  }
+  .ctx-day-row:hover { transform: translateX(2px); }
+  .ctx-day-row.active { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .ctx-day-row span { display: block; height: 100%; }
+  .ctx-axis {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    font-size: 9px;
+    color: var(--subtext);
+    margin-top: 4px;
+    font-feature-settings: "tnum";
+  }
+  .ctx-axis span:nth-child(2),
+  .ctx-axis span:nth-child(3),
+  .ctx-axis span:nth-child(4) { text-align: center; }
+  .ctx-axis span:last-child { text-align: right; }
+  /* proportional 36h strip */
+  .strip36-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px 10px;
+    margin: 28px 0 24px;
+  }
+  .strip36-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .strip36-late {
+    font-size: 11px; color: var(--subtext);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .strip36-late svg { opacity: 0.7; }
+  .strip36 {
+    position: relative;
+    height: 80px;
+    display: grid;
+    /* proportional: 6h / 24h / 6h => 6 : 24 : 6 = 16.67% / 66.67% / 16.67% */
+    grid-template-columns: 16.67% 66.67% 16.67%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--panel-2);
+  }
+  .strip36 .yesterday, .strip36 .tomorrow {
+    position: relative;
+    background: rgba(255,255,255,0.015);
+    opacity: 0.5;
+  }
+  .strip36 .today {
+    position: relative;
+    background: rgba(255,255,255,0.03);
+  }
+  .strip36 .day-divider {
+    position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.12);
+    z-index: 2;
+  }
+  .strip36 .day-divider.d1 { left: 16.67%; }
+  .strip36 .day-divider.d2 { left: 83.33%; }
+  .strip36 .day-label {
+    position: absolute; top: 4px; left: 6px;
+    font-size: 9px; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.4px;
+    pointer-events: none;
+  }
+
+  /* state band rendered with explicit pixel-equivalent ratios (per minute) */
+  .state-band {
+    position: absolute;
+    left: 0; right: 0;
+    top: 22px; bottom: 18px;
+    background: linear-gradient(
+      to right,
+      var(--away) 0%, var(--away) 100%
+    );
+  }
+  /* yesterday band: 18h-24h, dominated by stand+sit+away. 6h total. */
+  .yesterday .state-band {
+    background: linear-gradient(to right,
+      var(--sit)   0%, var(--sit)   33%,
+      var(--stand) 33%, var(--stand) 50%,
+      var(--sit)   50%, var(--sit)   75%,
+      var(--away)  75%, var(--away)  100%);
+  }
+  /* today band: 24h, realistic day of work. */
+  .today .state-band {
+    background: linear-gradient(to right,
+      var(--away)  0%,    var(--away)  29%,   /* 0-7 sleep */
+      var(--sit)   29%,   var(--sit)   33%,   /* 7-8 wake */
+      var(--away)  33%,   var(--away)  37.5%, /* 8-9 breakfast */
+      var(--sit)   37.5%, var(--sit)   46%,   /* 9-11 work sit */
+      var(--stand) 46%,   var(--stand) 50%,   /* 11-12 stand */
+      var(--away)  50%,   var(--away)  54%,   /* 12-13 lunch */
+      var(--sit)   54%,   var(--sit)   63%,   /* 13-15 work */
+      var(--walk)  63%,   var(--walk)  65%,   /* 15-15:30 walk */
+      var(--stand) 65%,   var(--stand) 71%,   /* 15:30-17 stand */
+      var(--sit)   71%,   var(--sit)   75%,   /* 17-18 wind-down */
+      var(--away)  75%,   var(--away)  79%,   /* 18-19 dinner */
+      var(--sit)   79%,   var(--sit)   83.5%, /* 19-20 evening */
+      var(--away)  83.5%, var(--away)  100%   /* 20-24 off */
+    );
+  }
+  /* tomorrow band: 0-6, mostly away (sleep + waking up). */
+  .tomorrow .state-band {
+    background: linear-gradient(to right,
+      var(--away) 0%, var(--away) 100%);
+  }
+
+  /* now indicator at "real" position, e.g. 14:30 today */
+  .strip36 .now {
+    position: absolute;
+    top: -6px; bottom: -6px;
+    /* 36h total, current "now" = yesterday 18h + today 14.5h = 32.5/36 = ... no.
+       Actually total strip = yesterday 6h + today 24h = up to today 24:00.
+       If now=14:30 today: from left, that's 6h (yesterday) + 14.5h (today) = 20.5 / 36 = 56.94%. */
+    left: 56.94%;
+    width: 2px;
+    background: var(--primary);
+    z-index: 3;
+  }
+  .strip36 .now::before {
+    content: ""; position: absolute; top: -3px; left: -3px;
+    width: 8px; height: 8px; border-radius: 50%; background: var(--primary);
+  }
+  .strip36 .now::after {
+    content: "now · 14:30";
+    position: absolute; bottom: -16px; left: 6px;
+    font-size: 10px; color: var(--primary); white-space: nowrap;
+  }
+
+  /* proportional hour axis */
+  .strip36-axis {
+    display: grid;
+    grid-template-columns: 16.67% 66.67% 16.67%;
+    margin-top: 6px;
+    color: var(--subtext);
+    font-size: 10px;
+    font-feature-settings: "tnum";
+  }
+  .strip36-axis > div { position: relative; height: 14px; }
+  .strip36-axis span {
+    position: absolute; top: 0;
+    transform: translateX(-50%);
+  }
+  .strip36-axis .edge span { opacity: 0.55; }
+
+  /* legend reuse */
+  .legend2 {
+    display: flex; gap: 14px; margin-top: 18px; align-items: center;
+    color: var(--subtext); font-size: 11px;
+    flex-wrap: wrap;
+  }
+  .legend2 .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .legend2 .chip span:first-child {
+    width: 12px; height: 12px; border-radius: 2px; display: inline-block;
+  }
+
+  /* compare panel */
+  .ab-compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0;
+  }
+  .ab-compare .col {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 14px;
+  }
+  .ab-compare h4 {
+    margin: 0 0 12px; font-size: 12px; color: var(--subtext);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .ab-compare ul { padding-left: 18px; margin: 0; font-size: 13px; color: #c8c8d8; line-height: 1.6; }
+
+  /* mini layout proposal */
+  .layout-proposal {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    padding: 14px; margin: 12px 0 24px;
+  }
+  .layout-proposal .row {
+    display: grid; gap: 8px; margin-bottom: 8px;
+  }
+  .layout-proposal .tile {
+    background: var(--panel-2); border: 1px dashed var(--border); border-radius: 4px;
+    padding: 14px; color: var(--subtext); font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .layout-proposal .tile.hero {
+    background: rgba(78,161,255,0.10); border-color: rgba(78,161,255,0.4); color: var(--primary);
+    font-weight: 600; padding: 22px;
+  }
+  .layout-proposal .row.cols3 { grid-template-columns: 1fr 1fr 1fr; }
+</style>
+
+<style>
+  .navigator-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px 14px;
+    margin: 0 0 24px;
+  }
+  .nav-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; gap: 16px; flex-wrap: wrap;
+  }
+  .nav-head .range-display {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .nav-head .range-display .arrow { color: var(--subtext); }
+  .nav-head .range-input {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 4px 10px;
+    color: var(--text); font-family: inherit; font-size: 12px;
+    cursor: pointer;
+  }
+  .nav-head .preset {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 4px; padding: 4px 8px;
+    color: var(--subtext); font-size: 11px; cursor: pointer;
+  }
+  .nav-head .preset.active { color: var(--primary); border-color: var(--primary); }
+
+  /* Grouped mini bar chart — 4 separate bars per day */
+  .nav-grouped-row {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 10px;
+    margin-top: 4px;
+    align-items: stretch;
+  }
+  .nav-yaxis {
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    font-size: 9px; color: var(--subtext);
+    padding-bottom: 28px;
+    font-feature-settings: "tnum";
+    height: 140px;
+    text-align: right;
+    padding-right: 2px;
+  }
+  .nav-yaxis span { line-height: 1; }
+  .nav-cols-grouped {
+    display: grid;
+    grid-template-columns: repeat(14, 1fr);
+    gap: 4px;
+    height: 140px;
+    position: relative;
+  }
+  /* gridlines */
+  .nav-cols-grouped::before,
+  .nav-cols-grouped::after {
+    content: ""; position: absolute; left: 0; right: 0;
+    border-top: 1px dashed var(--gridline);
+    pointer-events: none;
+  }
+  .nav-cols-grouped::before { top: 33%; }
+  .nav-cols-grouped::after  { top: 66%; }
+
+  .nav-col-grouped {
+    display: flex; flex-direction: column;
+    cursor: pointer;
+    position: relative;
+    border-radius: 4px;
+    padding: 2px;
+    transition: background 0.1s;
+  }
+  .nav-col-grouped:hover { background: rgba(255,255,255,0.03); }
+  .nav-col-grouped.active {
+    background: rgba(78,161,255,0.10);
+    outline: 1px solid var(--primary);
+  }
+
+  .nav-col-bars {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    gap: 2px;
+    padding-bottom: 4px;
+    height: 112px;
+  }
+  .nav-col-bars .mb {
+    flex: 1;
+    border-radius: 1px 1px 0 0;
+    min-height: 1px;
+    transition: opacity 0.1s;
+  }
+  .nav-col-grouped:hover .mb { opacity: 0.85; }
+
+  .nav-col-meta {
+    text-align: center;
+    line-height: 1.2;
+    padding-top: 2px;
+    border-top: 1px solid var(--gridline);
+  }
+  .nav-col-meta .day-name {
+    font-size: 9px; color: var(--subtext);
+    font-feature-settings: "tnum";
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .nav-col-meta .day-num {
+    font-size: 11px; color: var(--text); font-weight: 600;
+    font-feature-settings: "tnum";
+  }
+  .nav-col-grouped.active .day-num { color: var(--primary); }
+  .nav-col-grouped.active .day-name { color: var(--primary); }
+  .nav-col-grouped.weekend .day-name,
+  .nav-col-grouped.weekend .day-num { color: #6a6a78; }
+  .nav-col-grouped.today::after {
+    content: "today"; position: absolute; top: -14px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px; color: var(--primary);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  .nav-helprow {
+    margin-top: 10px;
+    font-size: 11px; color: var(--subtext);
+    display: flex; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap;
+  }
+</style>
+
+<!-- DATE NAVIGATOR — merged range picker + per-day context -->
+<div class="navigator-card">
+  <div class="nav-head">
+    <div class="range-display">
+      <strong style="color: var(--text); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--subtext);">Range</strong>
+      <span class="range-input">May 04</span>
+      <span class="arrow">→</span>
+      <span class="range-input">May 17</span>
+    </div>
+    <div style="display: flex; gap: 4px;">
+      <button class="preset">7d</button>
+      <button class="preset active">14d</button>
+      <button class="preset">30d</button>
+      <button class="preset">custom</button>
+    </div>
+  </div>
+
+  <!-- Grouped mini bar charts above each day tab -->
+  <div class="nav-grouped-row">
+    <div class="nav-yaxis">
+      <span>8h</span>
+      <span>4h</span>
+      <span>0</span>
+    </div>
+    <div class="nav-cols-grouped">
+
+      <!-- Mon 04 — sit 3.6h, stand 3.8h, walk 0.5h, away 10h -->
+      <div class="nav-col-grouped" title="Mon May 04">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:45%"></div>
+          <div class="mb" style="background:var(--stand);height:48%"></div>
+          <div class="mb" style="background:var(--walk);height:6%"></div>
+          <div class="mb" style="background:var(--away);height:100%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Mon</div><div class="day-num">04</div></div>
+      </div>
+
+      <div class="nav-col-grouped" title="Tue May 05">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:43%"></div>
+          <div class="mb" style="background:var(--stand);height:54%"></div>
+          <div class="mb" style="background:var(--walk);height:4%"></div>
+          <div class="mb" style="background:var(--away);height:100%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Tue</div><div class="day-num">05</div></div>
+      </div>
+
+      <div class="nav-col-grouped" title="Wed May 06">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:40%"></div>
+          <div class="mb" style="background:var(--stand);height:66%"></div>
+          <div class="mb" style="background:var(--walk);height:9%"></div>
+          <div class="mb" style="background:var(--away);height:96%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Wed</div><div class="day-num">06</div></div>
+      </div>
+
+      <div class="nav-col-grouped" title="Thu May 07">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:48%"></div>
+          <div class="mb" style="background:var(--stand);height:42%"></div>
+          <div class="mb" style="background:var(--walk);height:6%"></div>
+          <div class="mb" style="background:var(--away);height:100%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Thu</div><div class="day-num">07</div></div>
+      </div>
+
+      <div class="nav-col-grouped" title="Fri May 08">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:42%"></div>
+          <div class="mb" style="background:var(--stand);height:48%"></div>
+          <div class="mb" style="background:var(--walk);height:5%"></div>
+          <div class="mb" style="background:var(--away);height:100%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Fri</div><div class="day-num">08</div></div>
+      </div>
+
+      <div class="nav-col-grouped weekend" title="Sat May 09 — weekend">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:22%"></div>
+          <div class="mb" style="background:var(--stand);height:18%"></div>
+          <div class="mb" style="background:var(--walk);height:12%"></div>
+          <div class="mb" style="background:var(--away);height:100%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Sat</div><div class="day-num">09</div></div>
+      </div>
+
+      <div class="nav-col-grouped weekend" title="Sun May 10 — weekend">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:18%"></div>
+          <div class="mb" style="background:var(--stand);height:12%"></div>
+          <div class="mb" style="background:var(--walk);height:14%"></div>
+          <div class="mb" style="background:var(--away);height:100%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Sun</div><div class="day-num">10</div></div>
+      </div>
+
+      <div class="nav-col-grouped" title="Mon May 11">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:45%"></div>
+          <div class="mb" style="background:var(--stand);height:54%"></div>
+          <div class="mb" style="background:var(--walk);height:6%"></div>
+          <div class="mb" style="background:var(--away);height:100%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Mon</div><div class="day-num">11</div></div>
+      </div>
+
+      <div class="nav-col-grouped" title="Tue May 12">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:50%"></div>
+          <div class="mb" style="background:var(--stand);height:54%"></div>
+          <div class="mb" style="background:var(--walk);height:5%"></div>
+          <div class="mb" style="background:var(--away);height:92%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Tue</div><div class="day-num">12</div></div>
+      </div>
+
+      <div class="nav-col-grouped" title="Wed May 13">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:44%"></div>
+          <div class="mb" style="background:var(--stand);height:60%"></div>
+          <div class="mb" style="background:var(--walk);height:8%"></div>
+          <div class="mb" style="background:var(--away);height:96%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Wed</div><div class="day-num">13</div></div>
+      </div>
+
+      <div class="nav-col-grouped" title="Thu May 14">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:45%"></div>
+          <div class="mb" style="background:var(--stand);height:48%"></div>
+          <div class="mb" style="background:var(--walk);height:5%"></div>
+          <div class="mb" style="background:var(--away);height:100%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Thu</div><div class="day-num">14</div></div>
+      </div>
+
+      <div class="nav-col-grouped" title="Fri May 15">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:42%"></div>
+          <div class="mb" style="background:var(--stand);height:42%"></div>
+          <div class="mb" style="background:var(--walk);height:4%"></div>
+          <div class="mb" style="background:var(--away);height:100%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Fri</div><div class="day-num">15</div></div>
+      </div>
+
+      <div class="nav-col-grouped" title="Mon May 16">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:46%"></div>
+          <div class="mb" style="background:var(--stand);height:51%"></div>
+          <div class="mb" style="background:var(--walk);height:6%"></div>
+          <div class="mb" style="background:var(--away);height:100%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Mon</div><div class="day-num">16</div></div>
+      </div>
+
+      <!-- Tue 17 — today, selected. Partial day so far. -->
+      <div class="nav-col-grouped active today" title="Tue May 17 — selected (today)">
+        <div class="nav-col-bars">
+          <div class="mb" style="background:var(--sit);height:35%"></div>
+          <div class="mb" style="background:var(--stand);height:29%"></div>
+          <div class="mb" style="background:var(--walk);height:5%"></div>
+          <div class="mb" style="background:var(--away);height:80%"></div>
+        </div>
+        <div class="nav-col-meta"><div class="day-name">Tue</div><div class="day-num">17</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="nav-helprow">
+    <span>each day = 4 mini bars (Sit · Stand · Walk · Away) · click any day tab to scroll the timeline below to that day · today marked above the column</span>
+    <span style="display: inline-flex; gap: 14px;">
+      <span class="chip" style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;background:var(--sit);display:inline-block;border-radius:2px;"></span>Sit</span>
+      <span class="chip" style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;background:var(--stand);display:inline-block;border-radius:2px;"></span>Stand</span>
+      <span class="chip" style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;background:var(--walk);display:inline-block;border-radius:2px;"></span>Walk</span>
+      <span class="chip" style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;background:var(--away);display:inline-block;border-radius:2px;"></span>Away</span>
+    </span>
+  </div>
+</div>
+
+<!-- OLD context strip — superseded by Date Navigator above, hidden -->
+<div class="ctx-strip-card" style="display:none;">
+  <div class="ctx-strip-head">
+    <span class="label">Context · last 14 days</span>
+    <span class="hint">click any day to focus · drag to brush a range</span>
+  </div>
+  <div class="ctx-strip">
+    <!-- Each row = 1 day. Bar = 24h horizontally, colored per hour by dominant state. -->
+    <!-- Mon May 04 -->
+    <div class="ctx-date-label">May 04</div>
+    <div class="ctx-day-row" title="Mon May 04 — click to focus">
+      <span style="background:var(--away);width:29%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--sit);width:4%"></span><span style="background:var(--away);width:13%"></span>
+    </div>
+    <!-- Tue May 05 -->
+    <div class="ctx-date-label">May 05</div>
+    <div class="ctx-day-row" title="Tue May 05">
+      <span style="background:var(--away);width:33%"></span><span style="background:var(--sit);width:12%"></span><span style="background:var(--stand);width:4%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--stand);width:12%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--away);width:11%"></span>
+    </div>
+    <!-- Wed May 06 -->
+    <div class="ctx-date-label">May 06</div>
+    <div class="ctx-day-row" title="Wed May 06">
+      <span style="background:var(--away);width:25%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--stand);width:13%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--walk);width:4%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--sit);width:4%"></span><span style="background:var(--away);width:13%"></span>
+    </div>
+    <!-- Thu May 07 -->
+    <div class="ctx-date-label">May 07</div>
+    <div class="ctx-day-row" title="Thu May 07">
+      <span style="background:var(--away);width:29%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--stand);width:13%"></span><span style="background:var(--away);width:17%"></span>
+    </div>
+    <!-- Fri May 08 -->
+    <div class="ctx-date-label">May 08</div>
+    <div class="ctx-day-row" title="Fri May 08">
+      <span style="background:var(--away);width:33%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--stand);width:4%"></span><span style="background:var(--sit);width:4%"></span><span style="background:var(--away);width:18%"></span>
+    </div>
+    <!-- Sat May 09 (weekend - more Away) -->
+    <div class="ctx-date-label">May 09</div>
+    <div class="ctx-day-row" title="Sat May 09 — weekend">
+      <span style="background:var(--away);width:42%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--away);width:8%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--walk);width:4%"></span><span style="background:var(--away);width:25%"></span>
+    </div>
+    <!-- Sun May 10 -->
+    <div class="ctx-date-label">May 10</div>
+    <div class="ctx-day-row" title="Sun May 10 — weekend">
+      <span style="background:var(--away);width:50%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--away);width:8%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--away);width:26%"></span>
+    </div>
+    <!-- Mon May 11 -->
+    <div class="ctx-date-label">May 11</div>
+    <div class="ctx-day-row" title="Mon May 11">
+      <span style="background:var(--away);width:29%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--away);width:17%"></span>
+    </div>
+    <!-- Tue May 12 -->
+    <div class="ctx-date-label">May 12</div>
+    <div class="ctx-day-row" title="Tue May 12 — late evening">
+      <span style="background:var(--away);width:29%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--away);width:9%"></span>
+    </div>
+    <!-- Wed May 13 -->
+    <div class="ctx-date-label">May 13</div>
+    <div class="ctx-day-row" title="Wed May 13">
+      <span style="background:var(--away);width:25%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--stand);width:13%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--stand);width:4%"></span><span style="background:var(--away);width:20%"></span>
+    </div>
+    <!-- Thu May 14 -->
+    <div class="ctx-date-label">May 14</div>
+    <div class="ctx-day-row" title="Thu May 14">
+      <span style="background:var(--away);width:29%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--stand);width:4%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--away);width:16%"></span>
+    </div>
+    <!-- Fri May 15 -->
+    <div class="ctx-date-label">May 15</div>
+    <div class="ctx-day-row" title="Fri May 15">
+      <span style="background:var(--away);width:33%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--stand);width:4%"></span><span style="background:var(--away);width:22%"></span>
+    </div>
+    <!-- Mon May 16 -->
+    <div class="ctx-date-label">May 16</div>
+    <div class="ctx-day-row" title="Mon May 16">
+      <span style="background:var(--away);width:33%"></span><span style="background:var(--sit);width:8%"></span><span style="background:var(--stand);width:8%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:13%"></span><span style="background:var(--stand);width:4%"></span><span style="background:var(--away);width:17%"></span>
+    </div>
+    <!-- Tue May 17 (TODAY - active) -->
+    <div class="ctx-date-label active">May 17</div>
+    <div class="ctx-day-row active" title="Tue May 17 — selected (today)">
+      <span style="background:var(--away);width:29%"></span><span style="background:var(--sit);width:4%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:9%"></span><span style="background:var(--stand);width:4%"></span><span style="background:var(--away);width:4%"></span><span style="background:var(--sit);width:9%"></span><span style="background:var(--walk);width:2%"></span><span style="background:var(--stand);width:6%"></span><span style="background:var(--sit);width:4%"></span><span style="background:rgba(255,255,255,0.04);width:25%" title="future"></span>
+    </div>
+
+    <div class="ctx-axis">
+      <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+    </div>
+  </div>
+</div>
+
+<!-- Detail strip — 36h proportional -->
+<div class="strip36-card">
+  <div class="strip36-head">
+    <div class="day-nav">
+      <button title="Previous day">◀</button>
+      <span class="date-trigger">Tue · May 17, 2026 ▾</span>
+      <button title="Next day">▶</button>
+    </div>
+    <span class="strip36-late">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+      Last session ended 01:42
+    </span>
+  </div>
+
+  <div class="strip36">
+    <div class="yesterday">
+      <span class="day-label">Mon · 18–24</span>
+      <div class="state-band"></div>
+    </div>
+    <div class="today">
+      <span class="day-label">Tue · 00–24 (selected)</span>
+      <div class="state-band"></div>
+      <div class="now"></div>
+    </div>
+    <div class="tomorrow">
+      <span class="day-label">Wed · 00–06</span>
+      <div class="state-band"></div>
+    </div>
+    <div class="day-divider d1"></div>
+    <div class="day-divider d2"></div>
+  </div>
+
+  <!-- proportional hour axis: yesterday 18,20,22,24 | today 00,04,08,12,16,20,24 | tomorrow 02,04,06 -->
+  <div class="strip36-axis">
+    <div class="edge">
+      <span style="left: 0%">18</span>
+      <span style="left: 33%">20</span>
+      <span style="left: 67%">22</span>
+      <span style="left: 100%">24</span>
+    </div>
+    <div>
+      <span style="left: 0%">00</span>
+      <span style="left: 16.6%">04</span>
+      <span style="left: 33.3%">08</span>
+      <span style="left: 50%">12</span>
+      <span style="left: 66.7%">16</span>
+      <span style="left: 83.3%">20</span>
+      <span style="left: 100%">24</span>
+    </div>
+    <div class="edge">
+      <span style="left: 0%">00</span>
+      <span style="left: 33%">02</span>
+      <span style="left: 67%">04</span>
+      <span style="left: 100%">06</span>
+    </div>
+  </div>
+
+  <div class="legend2">
+    <span class="chip"><span style="background:var(--sit)"></span>Sitting</span>
+    <span class="chip"><span style="background:var(--stand)"></span>Standing</span>
+    <span class="chip"><span style="background:var(--walk)"></span>Walking</span>
+    <span class="chip"><span style="background:var(--away)"></span>Away</span>
+    <span style="margin-left: auto;">total strip = 36 h · 1 min = ~3.3 px (uniform scale)</span>
+  </div>
+
+  <div class="help" style="margin-top: 14px;">
+    <strong>One continuous timeline.</strong> Conceptually a single horizontal scroll
+    that spans the whole range — clicking a day tab above triggers a
+    <strong>smooth-scroll animation</strong> through intermediate days until that day is
+    centered. Pixel scale is uniform (1 minute = same width everywhere), so the
+    "speed" of the scroll feels proportional to how many days you jumped.
+    Now indicator stays at the real position. At 02:00 the date label auto-advances
+    to the new day (only when user hasn't navigated manually). No sleep band —
+    "Away" stays honest; future: integrate sleep API (see backlog).
+  </div>
+</div>
+
+<h2>B. Side-by-side diff vs. first proposal</h2>
+<div class="ab-compare">
+  <div class="col">
+    <h4>Before (initial proposal)</h4>
+    <ul>
+      <li>Single hero strip only</li>
+      <li>Side previews 12% width = 6 h ⇒ 2× time distortion (fisheye)</li>
+      <li>Auto-flip <code>selectedDay</code> at 00:00 (UI jumps)</li>
+      <li>"Sleep" auto-band (Away ≥4h, 22:00–08:00) — false positives</li>
+      <li>Red dot "after midnight detected" — judgmental wording</li>
+      <li>Replaces <code>StateGantt</code> → loses multi-day pattern view</li>
+      <li>Range picker conflict unresolved</li>
+      <li>Click-segment cross-filter in scope</li>
+    </ul>
+  </div>
+  <div class="col" style="border-color: rgba(78,161,255,0.4);">
+    <h4 style="color: var(--primary);">After (locked, 2 components)</h4>
+    <ul>
+      <li><strong>Two components</strong>: <code>DateNavigator</code> (range + per-day list) + <code>TimelineDetail</code> (36 h hero)</li>
+      <li><strong>Date Navigator merges</strong> range picker + day list — one card, one mental model</li>
+      <li>Per-day rows show <strong>% proportions</strong> (Sit/Stand/Walk/Away) — readable at glance</li>
+      <li>Stand hours + standing% as numerical totals on the right of each row</li>
+      <li>Weekend rows dimmed; today highlighted; future hours hatched</li>
+      <li><strong>Proportional 36 h</strong> detail scale; honest side previews</li>
+      <li>No midnight jump · label auto-flips at 02:00 if no manual nav</li>
+      <li>No sleep band; honest "Away" + backlog item for sleep API</li>
+      <li>Cross-filter deferred (no sessions table yet)</li>
+    </ul>
+  </div>
+</div>
+
+<h2>C. New ExplorerTab layout</h2>
+<div class="layout-proposal">
+  <div class="row">
+    <div class="tile" style="padding: 12px;">DateNavigator · range + 14 day rows (% proportions) · ~280 px tall</div>
+  </div>
+  <div class="row">
+    <div class="tile hero">TimelineDetail · 36 h proportional hero strip · ~220 px</div>
+  </div>
+  <div class="row cols3">
+    <div class="tile">KpiTrend</div>
+    <div class="tile">BreakCreditHistogram</div>
+    <div class="tile">DeskHeightTimeline</div>
+  </div>
+  <div class="row">
+    <div class="tile">DailyScoreTrajectory · full width</div>
+  </div>
+</div>
+
+<p style="margin-top: 24px; color: var(--subtext); font-size: 12px;">
+  Next: <code>frontend-design</code> skill pass for final visual polish (typography, spacing,
+  hover affordances, micro-interactions) — <em>only if you approve this revised layout first</em>.
+</p>
+
+<hr style="margin: 64px 0 36px; border: 0; border-top: 1px dashed var(--border);" />
+
+<!-- Polished pass — distinct font stack -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  .fp {
+    --fp-bg: #0a0b0f;
+    --fp-panel: #0f1116;
+    --fp-panel-2: #14171e;
+    --fp-line: #1e222c;
+    --fp-line-soft: #16191f;
+    --fp-text: #eeefe9;
+    --fp-mute: #7a7d88;
+    --fp-mute-2: #4f525c;
+    --fp-accent: #4ea1ff;
+    --fp-sit: #7a64ff;
+    --fp-stand: #3ed889;
+    --fp-walk: #f4a738;
+    --fp-away: #3a3d47;
+    background: var(--fp-bg);
+    border: 1px solid var(--fp-line);
+    border-radius: 10px;
+    padding: 32px 36px 28px;
+    margin: 24px 0;
+    color: var(--fp-text);
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-feature-settings: "ss01" 1;
+  }
+  .fp * { box-sizing: border-box; }
+
+  .fp-eyebrow {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 14px;
+  }
+  .fp-eyebrow .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--fp-stand);
+    box-shadow: 0 0 12px var(--fp-stand);
+  }
+  .fp-eyebrow .label {
+    font: 500 10px/1 'JetBrains Mono', monospace;
+    letter-spacing: 0.20em; text-transform: uppercase;
+    color: var(--fp-mute);
+  }
+  .fp-eyebrow .ts {
+    font: 400 10px/1 'JetBrains Mono', monospace;
+    color: var(--fp-mute-2); margin-left: auto;
+    letter-spacing: 0.08em;
+  }
+  .fp-headline {
+    font: italic 400 26px/1.2 'Instrument Serif', serif;
+    color: var(--fp-text);
+    letter-spacing: -0.015em;
+    max-width: 620px;
+    margin: 0 0 8px;
+  }
+  .fp-headline .em { color: var(--fp-accent); font-style: italic; }
+
+  /* === DATE NAVIGATOR === */
+  .fp-nav {
+    border-top: 1px solid var(--fp-line);
+    padding-top: 26px;
+    margin-top: 22px;
+  }
+  .fp-nav-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 38px;
+    gap: 16px; flex-wrap: wrap;
+  }
+  .fp-nav-head .lhs {
+    display: flex; align-items: baseline; gap: 16px;
+  }
+  .fp-nav-head h3 {
+    margin: 0;
+    font: italic 400 22px/1 'Instrument Serif', serif;
+    letter-spacing: -0.01em;
+    color: var(--fp-text);
+  }
+  .fp-nav-head .range {
+    font: 400 12px/1 'JetBrains Mono', monospace;
+    color: var(--fp-mute);
+    letter-spacing: 0.04em;
+  }
+  .fp-nav-head .range b {
+    color: var(--fp-text); font-weight: 500;
+    border-bottom: 1px dotted var(--fp-mute-2);
+    padding-bottom: 2px;
+    cursor: pointer;
+    transition: border-color 120ms ease-out;
+  }
+  .fp-nav-head .range b:hover { border-bottom-color: var(--fp-accent); }
+  .fp-nav-head .range .sep { margin: 0 10px; color: var(--fp-mute-2); }
+  .fp-presets {
+    display: inline-flex; gap: 0;
+    border: 1px solid var(--fp-line);
+    border-radius: 6px;
+    padding: 2px;
+    background: var(--fp-panel-2);
+  }
+  .fp-preset {
+    background: transparent; border: 0;
+    padding: 5px 12px;
+    font: 500 11px/1 'DM Sans', sans-serif;
+    color: var(--fp-mute); cursor: pointer;
+    border-radius: 4px;
+    transition: all 120ms ease-out;
+    letter-spacing: 0.02em;
+  }
+  .fp-preset:hover { color: var(--fp-text); }
+  .fp-preset:focus-visible {
+    outline: 2px solid var(--fp-accent);
+    outline-offset: 2px;
+  }
+  .fp-preset.on { background: var(--fp-text); color: var(--fp-bg); }
+
+  .fp-grid {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 16px;
+  }
+  .fp-yaxis {
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding-bottom: 38px;
+    height: 160px;
+    text-align: right;
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    color: var(--fp-mute-2); letter-spacing: 0.08em;
+  }
+  .fp-yaxis span::before {
+    content: ""; display: inline-block;
+    width: 6px; height: 1px; background: var(--fp-line);
+    vertical-align: 2px; margin-right: 4px;
+  }
+
+  .fp-cols {
+    display: grid;
+    grid-template-columns: repeat(14, 1fr);
+    gap: 5px;
+    height: 160px;
+    position: relative;
+  }
+  .fp-cols::before, .fp-cols::after {
+    content: ""; position: absolute; left: 0; right: 0;
+    border-top: 1px dashed var(--fp-line-soft);
+    pointer-events: none;
+  }
+  .fp-cols::before { top: 33.3%; }
+  .fp-cols::after { top: 66.6%; }
+
+  .fp-col {
+    display: flex; flex-direction: column;
+    cursor: pointer;
+    position: relative;
+    border-radius: 6px;
+    padding: 4px 4px 0;
+    transition: background 140ms ease-out;
+  }
+  .fp-col:hover { background: rgba(255,255,255,0.025); }
+  .fp-col:focus-visible {
+    outline: 2px solid var(--fp-accent);
+    outline-offset: 2px;
+  }
+  .fp-col .bars {
+    flex: 1;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 2px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--fp-line);
+    height: 120px;
+  }
+  .fp-col .bar {
+    flex: 1;
+    min-height: 2px;
+    border-radius: 1px 1px 0 0;
+    transition: filter 140ms ease-out;
+  }
+  .fp-col:hover .bar { filter: brightness(1.18); }
+  .fp-col .meta {
+    padding-top: 8px;
+    text-align: center;
+  }
+  .fp-col .dow {
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    color: var(--fp-mute);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .fp-col .dom {
+    font: 500 14px/1.1 'DM Sans', sans-serif;
+    color: var(--fp-text);
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .fp-col.we .dow, .fp-col.we .dom { color: var(--fp-mute-2); }
+
+  .fp-col.active { background: rgba(78,161,255,0.05); }
+  .fp-col.active .bars {
+    border-bottom-color: var(--fp-accent);
+    border-bottom-width: 2px;
+    padding-bottom: 5px;
+  }
+  .fp-col.active .dow, .fp-col.active .dom { color: var(--fp-accent); }
+  /* connecting rail down to timeline */
+  .fp-col.active::after {
+    content: ""; position: absolute;
+    bottom: -26px; left: 50%; transform: translateX(-50%);
+    width: 1px; height: 26px;
+    background: linear-gradient(to bottom, var(--fp-accent), transparent);
+  }
+  .fp-today-stamp {
+    position: absolute;
+    top: -22px; left: 50%; transform: translateX(-50%);
+    font: italic 400 14px/1 'Instrument Serif', serif;
+    color: var(--fp-accent);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .fp-today-stamp::after {
+    content: ""; display: block;
+    width: 30px; height: 1px;
+    background: var(--fp-accent);
+    margin: 4px auto 0; opacity: 0.55;
+  }
+
+  .fp-legend {
+    display: flex; align-items: center; gap: 18px;
+    margin-top: 24px;
+    padding-top: 14px;
+    border-top: 1px solid var(--fp-line);
+    font: 400 11px/1 'DM Sans', sans-serif;
+    color: var(--fp-mute);
+  }
+  .fp-legend .chip { display: inline-flex; align-items: center; gap: 7px; }
+  .fp-legend .chip i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+  .fp-legend .hint {
+    margin-left: auto;
+    font: italic 400 12px/1.4 'Instrument Serif', serif;
+    color: var(--fp-mute);
+  }
+
+  /* === TIMELINE DETAIL === */
+  .fp-tl {
+    margin-top: 44px;
+    border-top: 1px solid var(--fp-line);
+    padding-top: 28px;
+  }
+  .fp-tl-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    margin-bottom: 22px;
+    gap: 16px; flex-wrap: wrap;
+  }
+  .fp-tl-head .title { display: flex; align-items: baseline; gap: 16px; }
+  .fp-tl-head .dow {
+    font: italic 400 34px/1 'Instrument Serif', serif;
+    color: var(--fp-text);
+    letter-spacing: -0.015em;
+  }
+  .fp-tl-head .date {
+    font: 500 13px/1 'JetBrains Mono', monospace;
+    color: var(--fp-mute);
+    letter-spacing: 0.06em;
+  }
+  .fp-tl-head .date .year { color: var(--fp-mute-2); }
+  .fp-tl-head .meta-row {
+    display: flex; align-items: center; gap: 18px;
+    font: 400 11px/1 'DM Sans', sans-serif;
+    color: var(--fp-mute);
+  }
+  .fp-tl-head .meta-row .item {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .fp-tl-head .meta-row .item b {
+    color: var(--fp-text); font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+  .fp-tl-head .nav-btns { display: inline-flex; gap: 4px; }
+  .fp-tl-head .nav-btns button {
+    width: 28px; height: 28px;
+    background: transparent;
+    border: 1px solid var(--fp-line);
+    border-radius: 4px;
+    color: var(--fp-mute);
+    cursor: pointer;
+    transition: all 120ms ease-out;
+    font: 500 16px/1 'DM Sans', sans-serif;
+  }
+  .fp-tl-head .nav-btns button:hover {
+    color: var(--fp-text); border-color: var(--fp-mute);
+  }
+  .fp-tl-head .nav-btns button:focus-visible {
+    outline: 2px solid var(--fp-accent);
+    outline-offset: 2px;
+  }
+
+  .fp-strip {
+    position: relative;
+    height: 96px;
+    display: grid;
+    grid-template-columns: 16.67% 66.67% 16.67%;
+    border-top: 1px solid var(--fp-line);
+    border-bottom: 1px solid var(--fp-line);
+    background: linear-gradient(180deg, rgba(255,255,255,0.012), transparent);
+  }
+  .fp-strip-section { position: relative; padding: 20px 0 22px; }
+  .fp-strip-section.side { opacity: 0.45; }
+  .fp-strip-section.center { background: rgba(255,255,255,0.018); }
+  .fp-strip-section .side-label {
+    position: absolute;
+    top: 8px; left: 10px;
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    color: var(--fp-mute);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .fp-strip-section.center .side-label { color: var(--fp-text); }
+  .fp-state-band {
+    position: absolute;
+    left: 0; right: 0;
+    top: 34px; bottom: 28px;
+    border-radius: 1px;
+  }
+  .yest .fp-state-band {
+    background: linear-gradient(to right,
+      var(--fp-sit) 0%, var(--fp-sit) 33%,
+      var(--fp-stand) 33%, var(--fp-stand) 50%,
+      var(--fp-sit) 50%, var(--fp-sit) 75%,
+      var(--fp-away) 75%, var(--fp-away) 100%);
+  }
+  .today-band .fp-state-band {
+    background: linear-gradient(to right,
+      var(--fp-away) 0%, var(--fp-away) 29%,
+      var(--fp-sit) 29%, var(--fp-sit) 33%,
+      var(--fp-away) 33%, var(--fp-away) 37.5%,
+      var(--fp-sit) 37.5%, var(--fp-sit) 46%,
+      var(--fp-stand) 46%, var(--fp-stand) 50%,
+      var(--fp-away) 50%, var(--fp-away) 54%,
+      var(--fp-sit) 54%, var(--fp-sit) 63%,
+      var(--fp-walk) 63%, var(--fp-walk) 65%,
+      var(--fp-stand) 65%, var(--fp-stand) 71%,
+      var(--fp-sit) 71%, var(--fp-sit) 75%,
+      var(--fp-away) 75%, var(--fp-away) 79%,
+      var(--fp-sit) 79%, var(--fp-sit) 83.5%,
+      var(--fp-away) 83.5%, var(--fp-away) 100%);
+  }
+  .tmrw .fp-state-band { background: var(--fp-away); }
+
+  .fp-day-divider {
+    position: absolute; top: -8px; bottom: -8px;
+    width: 1px;
+    background: var(--fp-line);
+    z-index: 2;
+  }
+  .fp-day-divider.d1 { left: 16.67%; }
+  .fp-day-divider.d2 { left: 83.33%; }
+
+  /* Now indicator — refined pill */
+  .fp-now {
+    position: absolute;
+    top: -14px; bottom: -14px;
+    left: 56.94%;
+    width: 1px;
+    background: var(--fp-accent);
+    z-index: 3;
+    box-shadow: 0 0 14px rgba(78,161,255,0.45);
+  }
+  .fp-now-pill {
+    position: absolute;
+    top: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--fp-accent);
+    color: var(--fp-bg);
+    padding: 3px 8px;
+    border-radius: 3px;
+    font: 600 9px/1 'JetBrains Mono', monospace;
+    letter-spacing: 0.10em;
+    white-space: nowrap;
+  }
+  .fp-now-pill::after {
+    content: "";
+    position: absolute;
+    bottom: -3px; left: 50%; transform: translateX(-50%) rotate(45deg);
+    width: 6px; height: 6px;
+    background: var(--fp-accent);
+  }
+
+  .fp-tl-axis {
+    display: grid;
+    grid-template-columns: 16.67% 66.67% 16.67%;
+    margin-top: 10px;
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    color: var(--fp-mute-2);
+    letter-spacing: 0.08em;
+  }
+  .fp-tl-axis > div { position: relative; height: 12px; }
+  .fp-tl-axis span { position: absolute; top: 0; transform: translateX(-50%); }
+  .fp-tl-axis .side span { opacity: 0.55; }
+
+  .fp-help {
+    margin-top: 22px;
+    padding: 16px 20px;
+    background: var(--fp-panel-2);
+    border-left: 2px solid var(--fp-accent);
+    border-radius: 0 4px 4px 0;
+    font: italic 400 13px/1.6 'Instrument Serif', serif;
+    color: var(--fp-mute);
+  }
+  .fp-help b {
+    font-style: normal;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--fp-text);
+    font-weight: 500;
+  }
+
+  /* States: loading / empty / error */
+  .fp-states {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 36px;
+    padding-top: 26px;
+    border-top: 1px solid var(--fp-line);
+  }
+  .fp-state-card {
+    border: 1px solid var(--fp-line);
+    border-radius: 6px;
+    padding: 20px;
+    background: var(--fp-panel);
+  }
+  .fp-state-card .label {
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--fp-mute-2);
+    margin-bottom: 16px;
+  }
+  @keyframes fp-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.85; }
+  }
+  .skel-line {
+    height: 6px;
+    background: var(--fp-line);
+    border-radius: 1px;
+    margin-bottom: 6px;
+    animation: fp-pulse 1.6s ease-in-out infinite;
+  }
+  .skel-line.med { width: 75%; animation-delay: 80ms; }
+  .skel-line.short { width: 45%; animation-delay: 160ms; }
+  .skel-bars {
+    display: flex; align-items: end; gap: 4px;
+    height: 44px; margin-top: 14px;
+  }
+  .skel-bars div {
+    flex: 1; background: var(--fp-line);
+    border-radius: 1px;
+    animation: fp-pulse 1.6s ease-in-out infinite;
+  }
+  .skel-bars div:nth-child(2) { animation-delay: 80ms; }
+  .skel-bars div:nth-child(3) { animation-delay: 160ms; }
+  .skel-bars div:nth-child(4) { animation-delay: 240ms; }
+
+  .fp-empty-quote {
+    font: italic 400 19px/1.4 'Instrument Serif', serif;
+    color: var(--fp-text);
+    margin: 8px 0 8px;
+  }
+  .fp-empty-sub {
+    font: 400 11px/1.5 'DM Sans', sans-serif;
+    color: var(--fp-mute);
+  }
+  .fp-error-msg {
+    font: 500 13px/1.4 'DM Sans', sans-serif;
+    color: var(--fp-text);
+    margin: 8px 0 8px;
+  }
+  .fp-error-sub {
+    font: italic 400 12px/1.45 'Instrument Serif', serif;
+    color: var(--fp-mute);
+    margin-bottom: 12px;
+  }
+  .fp-error-sub code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-style: normal;
+    color: var(--fp-mute);
+  }
+  .fp-error-btn {
+    background: transparent;
+    border: 1px solid var(--fp-mute-2);
+    color: var(--fp-text);
+    padding: 6px 14px;
+    border-radius: 3px;
+    font: 500 11px/1 'DM Sans', sans-serif;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: border-color 120ms ease-out;
+  }
+  .fp-error-btn:hover { border-color: var(--fp-text); }
+
+  .fp-sig {
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px dotted var(--fp-line);
+    display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+    font: 400 10px/1 'JetBrains Mono', monospace;
+    color: var(--fp-mute-2);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .fp-sig em {
+    font: italic 400 12px/1 'Instrument Serif', serif;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--fp-mute);
+  }
+</style>
+
+<h2 id="finalpass">D. Frontend-design final pass</h2>
+
+<div class="fp">
+  <div class="fp-eyebrow">
+    <span class="dot"></span>
+    <span class="label">PROOF · v3 · POLISHED</span>
+    <span class="ts">17.05.2026 · 21:47</span>
+  </div>
+  <p class="fp-headline">A long horizontal record of <span class="em">days at the desk</span>, navigated by tabs above and read as a single continuous timeline below.</p>
+
+  <!-- Date Navigator -->
+  <div class="fp-nav">
+    <div class="fp-nav-head">
+      <div class="lhs">
+        <h3>Date navigator</h3>
+        <span class="range"><b>May 04</b><span class="sep">→</span><b>May 17</b></span>
+      </div>
+      <div class="fp-presets">
+        <button class="fp-preset">7d</button>
+        <button class="fp-preset on">14d</button>
+        <button class="fp-preset">30d</button>
+        <button class="fp-preset">custom</button>
+      </div>
+    </div>
+
+    <div class="fp-grid">
+      <div class="fp-yaxis"><span>8h</span><span>4h</span><span>0h</span></div>
+      <div class="fp-cols">
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:45%"></div><div class="bar" style="background:var(--fp-stand);height:48%"></div><div class="bar" style="background:var(--fp-walk);height:6%"></div><div class="bar" style="background:var(--fp-away);height:100%"></div></div><div class="meta"><div class="dow">Mon</div><div class="dom">04</div></div></div>
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:43%"></div><div class="bar" style="background:var(--fp-stand);height:54%"></div><div class="bar" style="background:var(--fp-walk);height:4%"></div><div class="bar" style="background:var(--fp-away);height:100%"></div></div><div class="meta"><div class="dow">Tue</div><div class="dom">05</div></div></div>
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:40%"></div><div class="bar" style="background:var(--fp-stand);height:66%"></div><div class="bar" style="background:var(--fp-walk);height:9%"></div><div class="bar" style="background:var(--fp-away);height:96%"></div></div><div class="meta"><div class="dow">Wed</div><div class="dom">06</div></div></div>
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:48%"></div><div class="bar" style="background:var(--fp-stand);height:42%"></div><div class="bar" style="background:var(--fp-walk);height:6%"></div><div class="bar" style="background:var(--fp-away);height:100%"></div></div><div class="meta"><div class="dow">Thu</div><div class="dom">07</div></div></div>
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:42%"></div><div class="bar" style="background:var(--fp-stand);height:48%"></div><div class="bar" style="background:var(--fp-walk);height:5%"></div><div class="bar" style="background:var(--fp-away);height:100%"></div></div><div class="meta"><div class="dow">Fri</div><div class="dom">08</div></div></div>
+        <div class="fp-col we" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:22%"></div><div class="bar" style="background:var(--fp-stand);height:18%"></div><div class="bar" style="background:var(--fp-walk);height:12%"></div><div class="bar" style="background:var(--fp-away);height:100%"></div></div><div class="meta"><div class="dow">Sat</div><div class="dom">09</div></div></div>
+        <div class="fp-col we" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:18%"></div><div class="bar" style="background:var(--fp-stand);height:12%"></div><div class="bar" style="background:var(--fp-walk);height:14%"></div><div class="bar" style="background:var(--fp-away);height:100%"></div></div><div class="meta"><div class="dow">Sun</div><div class="dom">10</div></div></div>
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:45%"></div><div class="bar" style="background:var(--fp-stand);height:54%"></div><div class="bar" style="background:var(--fp-walk);height:6%"></div><div class="bar" style="background:var(--fp-away);height:100%"></div></div><div class="meta"><div class="dow">Mon</div><div class="dom">11</div></div></div>
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:50%"></div><div class="bar" style="background:var(--fp-stand);height:54%"></div><div class="bar" style="background:var(--fp-walk);height:5%"></div><div class="bar" style="background:var(--fp-away);height:92%"></div></div><div class="meta"><div class="dow">Tue</div><div class="dom">12</div></div></div>
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:44%"></div><div class="bar" style="background:var(--fp-stand);height:60%"></div><div class="bar" style="background:var(--fp-walk);height:8%"></div><div class="bar" style="background:var(--fp-away);height:96%"></div></div><div class="meta"><div class="dow">Wed</div><div class="dom">13</div></div></div>
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:45%"></div><div class="bar" style="background:var(--fp-stand);height:48%"></div><div class="bar" style="background:var(--fp-walk);height:5%"></div><div class="bar" style="background:var(--fp-away);height:100%"></div></div><div class="meta"><div class="dow">Thu</div><div class="dom">14</div></div></div>
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:42%"></div><div class="bar" style="background:var(--fp-stand);height:42%"></div><div class="bar" style="background:var(--fp-walk);height:4%"></div><div class="bar" style="background:var(--fp-away);height:100%"></div></div><div class="meta"><div class="dow">Fri</div><div class="dom">15</div></div></div>
+        <div class="fp-col" tabindex="0"><div class="bars"><div class="bar" style="background:var(--fp-sit);height:46%"></div><div class="bar" style="background:var(--fp-stand);height:51%"></div><div class="bar" style="background:var(--fp-walk);height:6%"></div><div class="bar" style="background:var(--fp-away);height:100%"></div></div><div class="meta"><div class="dow">Mon</div><div class="dom">16</div></div></div>
+        <div class="fp-col active" tabindex="0">
+          <span class="fp-today-stamp">today</span>
+          <div class="bars"><div class="bar" style="background:var(--fp-sit);height:35%"></div><div class="bar" style="background:var(--fp-stand);height:29%"></div><div class="bar" style="background:var(--fp-walk);height:5%"></div><div class="bar" style="background:var(--fp-away);height:80%"></div></div>
+          <div class="meta"><div class="dow">Tue</div><div class="dom">17</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fp-legend">
+      <span class="chip"><i style="background:var(--fp-sit)"></i>Sit</span>
+      <span class="chip"><i style="background:var(--fp-stand)"></i>Stand</span>
+      <span class="chip"><i style="background:var(--fp-walk)"></i>Walk</span>
+      <span class="chip"><i style="background:var(--fp-away)"></i>Away</span>
+      <span class="hint">— click a day to scroll the timeline below.</span>
+    </div>
+  </div>
+
+  <!-- Timeline Detail -->
+  <div class="fp-tl">
+    <div class="fp-tl-head">
+      <div class="title">
+        <span class="dow">Tuesday</span>
+        <span class="date">17.MAY <span class="year">·2026</span></span>
+      </div>
+      <div class="meta-row">
+        <span class="item">Last session ended <b>01:42</b></span>
+        <span class="item">Current <b style="color:var(--fp-stand)">Standing</b></span>
+        <span class="nav-btns">
+          <button title="Previous day">‹</button>
+          <button title="Next day">›</button>
+        </span>
+      </div>
+    </div>
+
+    <div class="fp-strip">
+      <div class="fp-strip-section side yest">
+        <span class="side-label">MON · 18–24</span>
+        <div class="fp-state-band"></div>
+      </div>
+      <div class="fp-strip-section center today-band">
+        <span class="side-label">TUE · 00–24</span>
+        <div class="fp-state-band"></div>
+        <div class="fp-now"><div class="fp-now-pill">NOW · 14:30</div></div>
+      </div>
+      <div class="fp-strip-section side tmrw">
+        <span class="side-label">WED · 00–06</span>
+        <div class="fp-state-band"></div>
+      </div>
+      <div class="fp-day-divider d1"></div>
+      <div class="fp-day-divider d2"></div>
+    </div>
+
+    <div class="fp-tl-axis">
+      <div class="side"><span style="left:0%">18</span><span style="left:50%">21</span><span style="left:100%">24</span></div>
+      <div><span style="left:0%">00</span><span style="left:16.6%">04</span><span style="left:33.3%">08</span><span style="left:50%">12</span><span style="left:66.7%">16</span><span style="left:83.3%">20</span><span style="left:100%">24</span></div>
+      <div class="side"><span style="left:0%">00</span><span style="left:50%">03</span><span style="left:100%">06</span></div>
+    </div>
+
+    <div class="fp-help">
+      <b>One continuous strip.</b> Picking a different tab above sets a target — the timeline eases into position, days you pass through visible for a heartbeat. Pixel-per-minute is uniform across the whole record. Side previews fade so the focused day quietly becomes the loudest thing on the page.
+    </div>
+  </div>
+
+  <!-- Empty / Loading / Error states -->
+  <div class="fp-states">
+    <div class="fp-state-card">
+      <div class="label">— Loading</div>
+      <div class="skel-line"></div>
+      <div class="skel-line med"></div>
+      <div class="skel-line short"></div>
+      <div class="skel-bars">
+        <div style="height:60%"></div><div style="height:45%"></div><div style="height:80%"></div><div style="height:55%"></div><div style="height:35%"></div><div style="height:70%"></div>
+      </div>
+    </div>
+    <div class="fp-state-card">
+      <div class="label">— Empty range</div>
+      <div class="fp-empty-quote">No days recorded yet.</div>
+      <div class="fp-empty-sub">Connect the sensor and the first day will appear here.</div>
+    </div>
+    <div class="fp-state-card">
+      <div class="label">— Could not load</div>
+      <div class="fp-error-msg">Snapshot fetch failed.</div>
+      <div class="fp-error-sub">Logs at <code>%APPDATA%\io.zntl.desk\logs</code>.</div>
+      <button class="fp-error-btn">Retry</button>
+    </div>
+  </div>
+
+  <div class="fp-sig">
+    <span>E012-T07 · TIMELINE</span>
+    <em>polished pass · for review</em>
+    <span>v3 / 14d / dark</span>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
