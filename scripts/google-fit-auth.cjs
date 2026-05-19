@@ -44,9 +44,11 @@ function loadEnv(envPath) {
 function openBrowser(url) {
   let cmd, args;
   if (process.platform === "win32") {
-    // cmd's `start` builtin needs a quoted-empty title first.
-    cmd = "cmd.exe";
-    args = ["/c", "start", "", url];
+    // rundll32 sidesteps cmd.exe — needed because `cmd /c start` mangles
+    // URLs containing `&` (interprets them as command separators) even
+    // when passed via spawn's argv array.
+    cmd = "rundll32";
+    args = ["url.dll,FileProtocolHandler", url];
   } else if (process.platform === "darwin") {
     cmd = "open";
     args = [url];
