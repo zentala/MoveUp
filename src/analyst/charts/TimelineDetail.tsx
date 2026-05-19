@@ -20,6 +20,7 @@ import {
   buildTimelineScale,
   dayCenterPx,
   easeInOut,
+  inferSnapshotInterval,
   msToPx,
   scrollDurationMs,
   type TimelineScale,
@@ -70,13 +71,22 @@ function buildSegments(
   scale: TimelineScale,
 ): RenderedSegment[] {
   if (snapshots.length === 0) return [];
+  // Each snapshot represents observed state from its timestamp until the next
+  // snapshot (or until median interval after if it's the last row). This
+  // produces a continuous strip even when fixtures sample sparsely.
+  const intervalMs = inferSnapshotInterval(snapshots) * 1000;
   const out: RenderedSegment[] = [];
-  const minPx = 1;
-  for (const row of snapshots) {
+  for (let i = 0; i < snapshots.length; i++) {
+    const row = snapshots[i];
     const t = new Date(row.ts).getTime();
-    if (t < scale.startMs || t > scale.endMs) continue;
-    const x = msToPx(t, scale);
-    const w = Math.max(minPx, scale.pxPerMinute);
+    const tNext =
+      i + 1 < snapshots.length ? new Date(snapshots[i + 1].ts).getTime() : t + intervalMs;
+    // Clip to scale range.
+    const startMs = Math.max(t, scale.startMs);
+    const endMs = Math.min(tNext, scale.endMs);
+    if (endMs <= startMs) continue;
+    const x = msToPx(startMs, scale);
+    const w = Math.max(1, msToPx(endMs, scale) - x);
     out.push({ x, w, fill: STATE_FILL[row.state] ?? chartColors.away });
   }
   return out;

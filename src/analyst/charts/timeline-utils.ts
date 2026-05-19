@@ -50,15 +50,31 @@ function addToTotals(t: DayStateTotals, state: DeskState, secs: number): void {
   t.total += secs;
 }
 
+/** Median seconds between consecutive snapshots, capped to [60s, 1h]. */
+export function inferSnapshotInterval(rows: SnapshotRow[]): number {
+  if (rows.length < 2) return MINUTE_SECS;
+  const gaps: number[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const dt =
+      (new Date(rows[i].ts).getTime() - new Date(rows[i - 1].ts).getTime()) / 1000;
+    if (dt > 0 && dt < 3600) gaps.push(dt);
+  }
+  if (gaps.length === 0) return MINUTE_SECS;
+  gaps.sort((a, b) => a - b);
+  const median = gaps[Math.floor(gaps.length / 2)];
+  return Math.max(MINUTE_SECS, Math.min(3600, median));
+}
+
 /**
- * Aggregate snapshots into per-day state totals. Each snapshot is assumed
- * to represent one minute of data (60s); adjust `secsPerSnapshot` if your
- * fixture downsamples differently.
+ * Aggregate snapshots into per-day state totals. Each snapshot is treated as
+ * occupying `secsPerSnapshot` seconds; if omitted, the interval is inferred
+ * from the median gap between consecutive rows.
  */
 export function aggregateDayTotals(
   rows: SnapshotRow[],
-  secsPerSnapshot: number = MINUTE_SECS,
+  secsPerSnapshot?: number,
 ): DayTotalsMap {
+  const interval = secsPerSnapshot ?? inferSnapshotInterval(rows);
   const map: DayTotalsMap = new Map();
   for (const r of rows) {
     const date = r.ts.slice(0, 10);
@@ -67,7 +83,7 @@ export function aggregateDayTotals(
       bucket = emptyTotals(date);
       map.set(date, bucket);
     }
-    addToTotals(bucket, r.state, secsPerSnapshot);
+    addToTotals(bucket, r.state, interval);
   }
   return map;
 }
