@@ -66,10 +66,9 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
     >
       <OneBarHeader {...props} onOpenShare={() => setShowShare(true)} />
       <OneBarTimer {...props} />
-      <div className="one-bar__kpi-row">
-        <KpiStrip metrics={props.metrics} />
+      <KpiStrip metrics={props.metrics}>
         <StepsWidget />
-      </div>
+      </KpiStrip>
       <OneBarTimeline {...props} />
 
       {showShare && (

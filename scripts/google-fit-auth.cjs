@@ -94,6 +94,20 @@ async function exchangeCode(clientId, clientSecret, code) {
   return resp.json();
 }
 
+/**
+ * Escape user-controlled text before inserting into the HTML response.
+ * Threat model is "I'm clicking my own consent" — XSS impact is near zero,
+ * but the `err` param comes off the URL and reflecting it raw is sloppy.
+ */
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function waitForCode() {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
@@ -108,7 +122,7 @@ function waitForCode() {
         res
           .writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
           .end(
-            `<h1>OAuth error</h1><pre>${err}</pre><p>Close this tab and re-run the script.</p>`,
+            `<h1>OAuth error</h1><pre>${escapeHtml(err)}</pre><p>Close this tab and re-run the script.</p>`,
           );
         server.close();
         reject(new Error(`oauth error: ${err}`));

@@ -291,6 +291,19 @@ GOOGLE_REFRESH_TOKEN=...    # obtained via the auth helper script below
 When any of these is missing, the StepsWidget renders a "connect google fit"
 hint and the backend service no-ops (no errors).
 
+### Optional — pin a specific steps data source
+
+```
+GOOGLE_FIT_STEPS_SOURCE=derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas
+```
+
+By default the backend auto-discovers step sources via
+`users/me/dataSources?dataTypeName=com.google.step_count.delta` and picks
+the highest-priority one (`merge_step_deltas` > `estimated_steps` > other
+derived > raw). Set this env var to skip discovery and pin a specific
+source — useful when the account has data only in a non-default source
+(e.g. Samsung Health sensors, Mi Band raw streams).
+
 ### Obtaining `GOOGLE_REFRESH_TOKEN` — run when needed
 
 Whenever the refresh token is revoked, missing, or you switch Google
@@ -311,8 +324,10 @@ and prints `GOOGLE_REFRESH_TOKEN=...` to the terminal. Paste that line
 into `apps/desk/.env` and restart `pnpm tauri:dev`.
 
 ### Source map
-- `src-tauri/src/google_fit.rs` — OAuth + Fitness API client
-- `src-tauri/src/google_fit_models.rs` — wire types
-- `src-tauri/src/google_fit_service.rs` — cache + refresh service
-- `src-tauri/src/commands_health.rs` — `get_steps_today`, `refresh_steps_now`
-- `src/components/StepsWidget.tsx` — KPI-style badge in `OneBarWidget`
+- `src-tauri/src/google_fit.rs` — OAuth + Fitness API client (endpoints injectable for tests)
+- `src-tauri/src/google_fit_models.rs` — wire types + `StepsView` with `error_kind`
+- `src-tauri/src/google_fit_service.rs` — cache, dedup, DST-correct day window
+- `src-tauri/src/google_fit_http_tests.rs` — wiremock-backed integration tests
+- `src-tauri/src/commands_google_fit.rs` — `get_steps_today`, `refresh_steps_now` (both return `StepsView`)
+- `src/components/StepsWidget.tsx` — KPI-style badge in `OneBarWidget`, with reconnect CTA + stale detection + exponential backoff
+- `.arch/ADR/012-google-fit-integration.md` — decision record

@@ -277,18 +277,16 @@
   letter-spacing: 0.06em;
 }
 
-/* Steps widget — sits next to KpiStrip in the KPI row. */
-.one-bar__kpi-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
+/* Steps widget — slotted INTO KpiStrip so it participates in the same
+   flex-wrap flow as the other KPI badges (no separate row). */
 .steps-widget {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.steps-widget--stale .kpi-strip__value {
+  opacity: 0.5;
 }
 
 .steps-widget--unconfigured .kpi-strip__value {

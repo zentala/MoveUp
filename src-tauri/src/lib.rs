@@ -20,10 +20,11 @@ mod commands_catalog_sources;
 #[cfg(test)] mod commands_catalog_tests;
 mod commands_config;
 mod commands_profiles;
-mod commands_health;
+mod commands_google_fit;
 mod commands_share;
 mod commands_welcome;
 mod google_fit;
+#[cfg(test)] mod google_fit_http_tests;
 mod google_fit_models;
 mod google_fit_service;
 mod config;
@@ -192,8 +193,8 @@ pub fn run() {
                     commands_analyst::get_events_range,
                     commands_analyst::get_sessions_range,
                     commands_catalog::get_data_catalog,
-                    commands_health::get_steps_today,
-                    commands_health::refresh_steps_now,
+                    commands_google_fit::get_steps_today,
+                    commands_google_fit::refresh_steps_now,
                 ]
             }
             #[cfg(not(any(test, debug_assertions)))]
@@ -228,8 +229,8 @@ pub fn run() {
                     commands_analyst::get_events_range,
                     commands_analyst::get_sessions_range,
                     commands_catalog::get_data_catalog,
-                    commands_health::get_steps_today,
-                    commands_health::refresh_steps_now,
+                    commands_google_fit::get_steps_today,
+                    commands_google_fit::refresh_steps_now,
                 ]
             }
         })

@@ -43,6 +43,7 @@ winreg = "0.52"
 proptest = "1.4"
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3"
+wiremock = "0.6"
 
 [[bench]]
 name = "session_state_machine"
