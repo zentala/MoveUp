@@ -1,5 +1,13 @@
 # History — Desk App
 
+## 2026-05-18 — E000: Google Fit walking-steps integration
+
+- Surfaced today's step count in the OneBar popup via a new KPI badge — Google Fit REST API + OAuth2 offline access. Opt-in by `.env` credentials; absence yields a calm "connect google fit" UI.
+- Architecture: 4 Rust modules in `src-tauri/src/` (`google_fit.rs` client, `google_fit_models.rs` wire types incl. `ErrorKind`, `google_fit_service.rs` cache with broadcast-based dedup + DST-correct local-day window, `commands_google_fit.rs` IPC). React `StepsWidget` slotted into `KpiStrip` via new `children` prop. Zero-deps Node OAuth helper script.
+- Key choices (rationale in [ADR-012](./ADR/012-google-fit-integration.md)): REST API over Health Connect (no cloud read), per-call token refresh (no cache), compact KPI badge UI (no new layout surface), env-var-driven config, auto-discovery of step source with override + 1h failure-cache, classified errors (`auth_revoked` → reconnect CTA, `transient` → exponential backoff), `useExponentialPoll` extracted as reusable hook.
+- Tests: Rust 457 → 495 (+38 — wiremock-backed HTTP integration, host-independent DST via `chrono-tz`, service-layer dedup); TS 194 → 207 (+13 — widget states, hook math).
+- Deprecation risk acknowledged: Google has signaled Fit API retirement in favor of Health Connect. Integration is encapsulated behind `GoogleFitClient` + `StepsView` contract — backend swap is local to ~3 files. Mitigation tracked in ADR-012 Consequences.
+
 ## 2026-05-16 — E012: Analyst Dashboard (v0.5.0)
 - Separate Tauri window (1280x800) + tray "Open Analyst" entry exposing two tabs over the last 7 days
 - **Catalog tab**: live `get_data_catalog()` Rust command describing 8 data sources (sensor, sqlite_sessions, snapshots, events_log, profiles_*, store, remote_ws) with fields, retention, sample rows

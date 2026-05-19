@@ -44,6 +44,7 @@ proptest = "1.4"
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3"
 wiremock = "0.6"
+chrono-tz = "0.10"
 
 [[bench]]
 name = "session_state_machine"

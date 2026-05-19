@@ -25,20 +25,25 @@ async fn client_for(server: &MockServer) -> GoogleFitClient {
     GoogleFitClient::with_endpoints(fake_creds(), Endpoints::at_base(&server.uri()))
 }
 
+/// Mount a successful /token mock that returns a fake access token.
+/// Reduces 7-line setup repeated across most HTTP tests.
+async fn mount_token_ok(server: &MockServer, access_token: &str) {
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": access_token,
+            "expires_in": 3600,
+            "token_type": "Bearer"
+        })))
+        .mount(server)
+        .await;
+}
+
 #[tokio::test]
 async fn fetch_steps_happy_path_sums_aggregate() {
     let server = MockServer::start().await;
 
-    Mock::given(method("POST"))
-        .and(path("/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "access_token": "fake-access",
-            "expires_in": 3600,
-            "token_type": "Bearer"
-        })))
-        .expect(1)
-        .mount(&server)
-        .await;
+    mount_token_ok(&server, "fake-access").await;
 
     Mock::given(method("POST"))
         .and(path("/aggregate"))
@@ -90,15 +95,7 @@ async fn token_refresh_invalid_grant_classified_as_auth_revoked() {
 async fn aggregate_401_classified_as_auth_revoked() {
     let server = MockServer::start().await;
 
-    Mock::given(method("POST"))
-        .and(path("/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "access_token": "fake-access",
-            "expires_in": 3600,
-            "token_type": "Bearer"
-        })))
-        .mount(&server)
-        .await;
+    mount_token_ok(&server, "fake-access").await;
 
     Mock::given(method("POST"))
         .and(path("/aggregate"))
@@ -118,15 +115,7 @@ async fn aggregate_401_classified_as_auth_revoked() {
 async fn aggregate_5xx_classified_as_transient() {
     let server = MockServer::start().await;
 
-    Mock::given(method("POST"))
-        .and(path("/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "access_token": "fake-access",
-            "expires_in": 3600,
-            "token_type": "Bearer"
-        })))
-        .mount(&server)
-        .await;
+    mount_token_ok(&server, "fake-access").await;
 
     Mock::given(method("POST"))
         .and(path("/aggregate"))
@@ -147,15 +136,7 @@ async fn aggregate_5xx_classified_as_transient() {
 async fn list_step_sources_returns_data_stream_ids() {
     let server = MockServer::start().await;
 
-    Mock::given(method("POST"))
-        .and(path("/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "access_token": "fake-access",
-            "expires_in": 3600,
-            "token_type": "Bearer"
-        })))
-        .mount(&server)
-        .await;
+    mount_token_ok(&server, "fake-access").await;
 
     Mock::given(method("GET"))
         .and(path("/dataSources"))
@@ -179,15 +160,7 @@ async fn list_step_sources_returns_data_stream_ids() {
 async fn aggregate_malformed_json_classified_as_transient() {
     let server = MockServer::start().await;
 
-    Mock::given(method("POST"))
-        .and(path("/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "access_token": "fake-access",
-            "expires_in": 3600,
-            "token_type": "Bearer"
-        })))
-        .mount(&server)
-        .await;
+    mount_token_ok(&server, "fake-access").await;
 
     Mock::given(method("POST"))
         .and(path("/aggregate"))

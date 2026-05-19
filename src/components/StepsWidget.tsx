@@ -24,6 +24,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type FC } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useExponentialPoll } from "@/hooks/useExponentialPoll";
 
 const INITIAL_KICK_DELAY_MS = 500;
 const SUCCESS_INTERVAL_MS = 5 * 60 * 1000;
@@ -53,19 +54,10 @@ interface StepsView {
   error_message?: string;
 }
 
-/** Schedule the next refresh: 5min on success, exponential on error. */
-function nextDelayMs(consecutiveFailures: number): number {
-  if (consecutiveFailures === 0) return SUCCESS_INTERVAL_MS;
-  const idx = Math.min(consecutiveFailures - 1, BACKOFF_LADDER_MS.length - 1);
-  return BACKOFF_LADDER_MS[idx];
-}
-
 export const StepsWidget: FC = () => {
   const [view, setView] = useState<StepsView | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const inflightRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const failuresRef = useRef(0);
 
   const loadCached = useCallback(async () => {
     try {
@@ -105,38 +97,21 @@ export const StepsWidget: FC = () => {
     }
   }, []);
 
-  // Single self-rearming timer (no setInterval — interval can't change
-  // delay between fires; we need that for exponential backoff).
+  // Warm the cached view once on mount; the poll hook drives all
+  // subsequent refreshes.
   useEffect(() => {
-    let cancelled = false;
-
     void loadCached();
+  }, [loadCached]);
 
-    const scheduleNext = (delay: number) => {
-      if (cancelled) return;
-      timerRef.current = setTimeout(async () => {
-        const v = await refresh();
-        if (cancelled) return;
-        if (v && v.configured && v.error_kind === "auth_revoked") {
-          // No point retrying — user must reconnect.
-          return;
-        }
-        if (v && (!v.configured || !v.error_kind)) {
-          failuresRef.current = 0;
-        } else if (v && v.error_kind === "transient") {
-          failuresRef.current += 1;
-        }
-        scheduleNext(nextDelayMs(failuresRef.current));
-      }, delay);
-    };
-
-    scheduleNext(INITIAL_KICK_DELAY_MS);
-
-    return () => {
-      cancelled = true;
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [loadCached, refresh]);
+  // Exponential-backoff polling delegated to the shared hook.
+  useExponentialPoll<StepsView | null>(refresh, {
+    initialDelayMs: INITIAL_KICK_DELAY_MS,
+    successIntervalMs: SUCCESS_INTERVAL_MS,
+    backoffLadderMs: BACKOFF_LADDER_MS,
+    isFailure: (v) => v?.error_kind === "transient",
+    // Halt on auth_revoked — retrying without re-consent is pointless.
+    isTerminal: (v) => v?.error_kind === "auth_revoked",
+  });
 
   // ─── Render branches ────────────────────────────────────────────────
 

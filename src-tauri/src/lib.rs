@@ -27,6 +27,7 @@ mod google_fit;
 #[cfg(test)] mod google_fit_http_tests;
 mod google_fit_models;
 mod google_fit_service;
+#[cfg(test)] mod google_fit_service_tests;
 mod config;
 mod db;
 mod db_backup;

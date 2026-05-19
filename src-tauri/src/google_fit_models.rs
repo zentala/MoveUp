@@ -5,8 +5,23 @@
 //! 2. **Fit API wire types** — the minimal subset of the aggregate response.
 //! 3. **Public snapshot + view types** — cached values exposed to the UI.
 
-use crate::google_fit::ErrorKind;
 use serde::{Deserialize, Serialize};
+
+/// Classification of API failures the frontend cares about.
+///
+/// Lives here (with the other wire types) rather than in `google_fit.rs`
+/// because it is serialized as part of `StepsView` — and keeping it next
+/// to the type it embeds avoids the otherwise circular `google_fit.rs`
+/// ↔ `google_fit_models.rs` import.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorKind {
+    /// Token revoked, expired beyond recovery, or scope missing. User
+    /// must re-run the OAuth helper script.
+    AuthRevoked,
+    /// Network failure, rate limit, server 5xx, parse error — retryable.
+    Transient,
+}
 
 /// Response body of `POST https://oauth2.googleapis.com/token`.
 ///

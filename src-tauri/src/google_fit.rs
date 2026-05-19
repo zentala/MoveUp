@@ -21,8 +21,8 @@
 //! `log::warn!` so they show up in stderr/log files but the user-facing
 //! string stays sanitized.
 
+pub use crate::google_fit_models::ErrorKind;
 use crate::google_fit_models::{AggregateResponse, OAuthTokenResponse};
-use serde::Serialize;
 use serde_json::json;
 
 /// Default production endpoints. Overridable in tests via `Endpoints::custom`.
@@ -54,6 +54,7 @@ impl Default for Endpoints {
 impl Endpoints {
     /// Build endpoints rooted at a single base URL — useful when pointing
     /// all calls at a wiremock server in tests.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn at_base(base: &str) -> Self {
         Self {
             token: format!("{base}/token"),
@@ -63,20 +64,39 @@ impl Endpoints {
     }
 }
 /// Fallback used when env override is unset and discovery returns nothing.
-const DEFAULT_STEPS_DATA_SOURCE: &str =
+pub const DEFAULT_STEPS_DATA_SOURCE: &str =
     "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps";
 /// One full day in milliseconds — bucket size for the aggregate request.
 const DAY_MS: i64 = 86_400_000;
 
-/// Classification of API failures the frontend cares about.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ErrorKind {
-    /// Token revoked, expired beyond recovery, or scope missing. User must
-    /// re-run the OAuth helper script and paste a fresh refresh token.
-    AuthRevoked,
-    /// Network failure, rate limit, server 5xx, parse error — retryable.
-    Transient,
+/// OAuth 2.0 error response body (RFC 6749 §5.2 shape).
+#[derive(serde::Deserialize)]
+struct OAuthErrorBody {
+    #[serde(default)]
+    error: String,
+}
+
+/// Decide whether a non-2xx HTTP response represents an "auth revoked"
+/// condition the user must act on, vs a transient failure to retry.
+///
+/// Auth-revoked sources of truth:
+///   1. HTTP 401 — bearer token rejected.
+///   2. JSON body `{"error":"invalid_grant", ...}` per RFC 6749 §5.2.
+///      Google returns this with HTTP 400 on revoked refresh tokens,
+///      which is why we cannot rely on status alone.
+///
+/// Substring matching on the raw body is brittle (whitespace, casing,
+/// alternative wrappers); JSON parse is the documented contract.
+fn classify_response(status: reqwest::StatusCode, body: &str) -> ErrorKind {
+    if status.as_u16() == 401 {
+        return ErrorKind::AuthRevoked;
+    }
+    if let Ok(parsed) = serde_json::from_str::<OAuthErrorBody>(body) {
+        if parsed.error == "invalid_grant" {
+            return ErrorKind::AuthRevoked;
+        }
+    }
+    ErrorKind::Transient
 }
 
 /// Sanitized client-error type with classification.
@@ -189,18 +209,16 @@ impl GoogleFitClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            // Google returns `{"error":"invalid_grant", ...}` on revoked /
-            // expired refresh tokens. 401 anywhere in the token flow means
-            // the same — user must re-consent.
-            if body.contains("invalid_grant") || status.as_u16() == 401 {
-                log::warn!("google_fit: refresh token revoked (status {status}, body: {body})");
-                return Err(FitError::auth_revoked("google fit: refresh token revoked"));
-            }
-            log::warn!("google_fit: token http {status}, body: {body}");
-            return Err(FitError::transient(format!(
-                "google fit: token http {}",
-                status.as_u16()
-            )));
+            return Err(match classify_response(status, &body) {
+                ErrorKind::AuthRevoked => {
+                    log::warn!("google_fit: refresh token revoked (status {status}, body: {body})");
+                    FitError::auth_revoked("google fit: refresh token revoked")
+                }
+                ErrorKind::Transient => {
+                    log::warn!("google_fit: token http {status}, body: {body}");
+                    FitError::transient(format!("google fit: token http {}", status.as_u16()))
+                }
+            });
         }
         let body: OAuthTokenResponse = resp.json().await.map_err(|e| {
             log::warn!("google_fit: token parse: {e:?}");
@@ -227,13 +245,14 @@ impl GoogleFitClient {
             })?;
         let status = resp.status();
         if !status.is_success() {
-            if status.as_u16() == 401 {
-                return Err(FitError::auth_revoked("google fit: auth revoked"));
-            }
-            return Err(FitError::transient(format!(
-                "google fit: dataSources http {}",
-                status.as_u16()
-            )));
+            let body = resp.text().await.unwrap_or_default();
+            return Err(match classify_response(status, &body) {
+                ErrorKind::AuthRevoked => FitError::auth_revoked("google fit: auth revoked"),
+                ErrorKind::Transient => FitError::transient(format!(
+                    "google fit: dataSources http {}",
+                    status.as_u16()
+                )),
+            });
         }
         #[derive(serde::Deserialize)]
         struct DataSourcesResponse {
@@ -311,15 +330,15 @@ impl GoogleFitClient {
             })?;
         let status = resp.status();
         if !status.is_success() {
-            if status.as_u16() == 401 {
-                return Err(FitError::auth_revoked("google fit: auth revoked"));
-            }
             let body = resp.text().await.unwrap_or_default();
             log::warn!("google_fit: aggregate http {status}, body: {body}");
-            return Err(FitError::transient(format!(
-                "google fit: aggregate http {}",
-                status.as_u16()
-            )));
+            return Err(match classify_response(status, &body) {
+                ErrorKind::AuthRevoked => FitError::auth_revoked("google fit: auth revoked"),
+                ErrorKind::Transient => FitError::transient(format!(
+                    "google fit: aggregate http {}",
+                    status.as_u16()
+                )),
+            });
         }
         let parsed: AggregateResponse = resp.json().await.map_err(|e| {
             log::warn!("google_fit: aggregate parse: {e:?}");
@@ -327,11 +346,6 @@ impl GoogleFitClient {
         })?;
         Ok(parsed.total_steps())
     }
-}
-
-/// Default fallback exposed for the service layer.
-pub fn default_steps_source() -> &'static str {
-    DEFAULT_STEPS_DATA_SOURCE
 }
 
 #[cfg(test)]
@@ -395,6 +409,39 @@ mod tests {
     #[test]
     fn rank_step_sources_none_when_empty() {
         assert!(GoogleFitClient::rank_step_sources(&[]).is_none());
+    }
+
+    #[test]
+    fn classify_response_treats_401_as_auth_revoked() {
+        let status = reqwest::StatusCode::UNAUTHORIZED;
+        assert_eq!(classify_response(status, ""), ErrorKind::AuthRevoked);
+        // Even with empty / non-JSON body, 401 alone qualifies.
+        assert_eq!(classify_response(status, "garbage"), ErrorKind::AuthRevoked);
+    }
+
+    #[test]
+    fn classify_response_treats_invalid_grant_json_as_auth_revoked() {
+        // RFC 6749 §5.2 shape — Google returns this with HTTP 400 on revoked
+        // refresh tokens.
+        let status = reqwest::StatusCode::BAD_REQUEST;
+        let body = r#"{"error":"invalid_grant","error_description":"Token has been expired or revoked."}"#;
+        assert_eq!(classify_response(status, body), ErrorKind::AuthRevoked);
+    }
+
+    #[test]
+    fn classify_response_treats_other_5xx_as_transient() {
+        let status = reqwest::StatusCode::SERVICE_UNAVAILABLE;
+        assert_eq!(classify_response(status, "upstream timeout"), ErrorKind::Transient);
+    }
+
+    #[test]
+    fn classify_response_does_not_match_invalid_grant_substring_in_garbage() {
+        // The old substring-based check would have false-positived on a
+        // body that merely contained the word "invalid_grant" in prose.
+        // The JSON-shape check rejects it.
+        let status = reqwest::StatusCode::BAD_REQUEST;
+        let body = "We saw invalid_grant somewhere in this prose, but it is not JSON.";
+        assert_eq!(classify_response(status, body), ErrorKind::Transient);
     }
 
     #[test]
