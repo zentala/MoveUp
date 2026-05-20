@@ -10,13 +10,21 @@ use crate::session_types::DeskState;
 // ── Signal parsers ────────────────────────────────────────────────────────────
 
 /// Parse a tray signal name into a [`TraySignal`].
+///
+/// `blink_*` names are valid blink-pattern references resolved later by
+/// `execute_tray_blink`; they are not "unrecognized". Anything else falls
+/// through to the warn branch — but only logged at debug level to avoid
+/// drowning the event log at the policy's tick rate (the warning used to
+/// fire >10Hz on `blink_red`, which triggered a downstream Arc/Rc UB
+/// during heavy log churn).
 pub(crate) fn parse_tray_signal(s: &str) -> TraySignal {
     match s {
         "none" | "" => TraySignal::None,
         "yellow" => TraySignal::Yellow,
         "red" => TraySignal::Red,
+        other if other.starts_with("blink_") => TraySignal::Blink(other.to_string()),
         other => {
-            log::warn!("Unrecognized tray signal '{}' in profile — treating as blink pattern", other);
+            log::debug!("Unrecognized tray signal '{}' — treating as blink pattern", other);
             TraySignal::Blink(other.to_string())
         }
     }
