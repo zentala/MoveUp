@@ -5,9 +5,17 @@
  * Current session has a glowing right edge. Hover shows tooltip with details.
  */
 import { type FC, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import type { SessionEntry, WidgetProps } from "@/types";
 import { formatDurationShort } from "@/utils/format";
 import { computeHourMarkers } from "@/utils/timeline";
+
+/** Open the full Analyst window — the "magnified" version of this strip. */
+function openAnalyst(): void {
+  void invoke("open_analyst_window").catch((err) =>
+    console.warn("open_analyst_window failed:", err),
+  );
+}
 
 /** CSS modifier class for a session block based on state. */
 function blockModifier(state: string): string {
@@ -57,7 +65,21 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
 
   if (sessions.length === 0 && liveSecs === 0) {
     return (
-      <div className="one-bar__timeline" data-testid="one-bar-timeline">
+      <div
+        className="one-bar__timeline"
+        data-testid="one-bar-timeline"
+        onClick={openAnalyst}
+        role="button"
+        tabIndex={0}
+        title="Click to open Analyst — full timeline view"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openAnalyst();
+          }
+        }}
+        style={{ cursor: "pointer" }}
+      >
         <div className="one-bar__timeline-empty">No sessions yet</div>
       </div>
     );

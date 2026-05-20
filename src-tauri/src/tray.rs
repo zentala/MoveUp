@@ -188,6 +188,14 @@ fn show_main_window_settings(app: &AppHandle) {
     }
 }
 
+/// IPC command — opens the Analyst window from the frontend. Used by the
+/// popup's timeline widget so a click "expands" the small timeline into the
+/// full Analyst dashboard.
+#[tauri::command]
+pub fn open_analyst_window(app: AppHandle) {
+    show_analyst_window(&app);
+}
+
 /// Shows and focuses the Analyst window. Rebuilds it on-demand if the user
 /// closed it earlier — Tauri destroys webview windows on close by default.
 fn show_analyst_window(app: &AppHandle) {

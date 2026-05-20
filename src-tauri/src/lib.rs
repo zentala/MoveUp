@@ -118,23 +118,16 @@ use session::SessionManager;
 use snapshot_logger::SnapshotLogger;
 use tray_signal_exec::BlinkState;
 use tauri::Manager;
-/// App version constant, used by loggers.
 pub(crate) const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
-/// Holds file-based loggers, managed as separate Tauri state.
 pub(crate) struct Loggers {
     pub snapshot: Arc<SnapshotLogger>,
     pub event: Arc<EventLogger>,
 }
-
-/// Application entry point called from main.rs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Best-effort load of .env.local for Google Fit credentials.
-    // Absence is not an error — the GoogleFitService treats missing vars
-    // as "not configured".
+    // Best-effort load of Google Fit credentials; absence treated as "not configured".
     let _ = dotenv::from_filename(".env.local");
     let _ = dotenv::dotenv();
-
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -196,6 +189,7 @@ pub fn run() {
                     commands_catalog::get_data_catalog,
                     commands_google_fit::get_steps_today,
                     commands_google_fit::refresh_steps_now,
+                    tray::open_analyst_window,
                 ]
             }
             #[cfg(not(any(test, debug_assertions)))]
@@ -232,6 +226,7 @@ pub fn run() {
                     commands_catalog::get_data_catalog,
                     commands_google_fit::get_steps_today,
                     commands_google_fit::refresh_steps_now,
+                    tray::open_analyst_window,
                 ]
             }
         })
