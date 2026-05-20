@@ -1,0 +1,35 @@
+/**
+ * timeline-scrollbar.css — Dark slim scrollbar for TimelineDetail's
+ * horizontal scroller. Tauri webview is Chromium so we rely on
+ * ::-webkit-scrollbar pseudo-elements; the Firefox fallback (scrollbar-width
+ * / scrollbar-color) is included for completeness even though the app
+ * doesn't run in Firefox.
+ */
+
+.timeline-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a3a transparent;
+}
+
+.timeline-scroller::-webkit-scrollbar {
+  height: 8px;
+  background: transparent;
+}
+
+.timeline-scroller::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 0 4px;
+}
+
+.timeline-scroller::-webkit-scrollbar-thumb {
+  background: #2a2a3a;
+  border-radius: 4px;
+}
+
+.timeline-scroller::-webkit-scrollbar-thumb:hover {
+  background: #3a3a4a;
+}
+
+.timeline-scroller::-webkit-scrollbar-corner {
+  background: transparent;
+}

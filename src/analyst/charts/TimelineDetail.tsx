@@ -17,13 +17,23 @@ import type { SnapshotRow } from "@/test/analyst-fixtures";
 import { chartColors } from "./chart-utils";
 import { TimelineDetailHeader } from "./TimelineDetailHeader";
 import {
+  DayDividerLayer,
+  HourTickLayer,
+  NowIndicator,
+} from "./TimelineDetailLayers";
+import {
   buildTimelineScale,
   dayCenterPx,
   easeInOut,
   msToPx,
   scrollDurationMs,
 } from "./timeline-utils";
-import { buildSegments, dayBoundaries } from "./timeline-segments";
+import {
+  buildSegments,
+  dayBoundaries,
+  enumerateHourTicks,
+} from "./timeline-segments";
+import "./timeline-scrollbar.css";
 
 const SIDE_PAD_HOURS = 6;
 const STRIP_HEIGHT = 96;
@@ -97,6 +107,7 @@ export function TimelineDetail({
   );
   const segments = useMemo(() => buildSegments(snapshots, scale), [snapshots, scale]);
   const dayDividers = useMemo(() => dayBoundaries(scale), [scale]);
+  const hourTicks = useMemo(() => enumerateHourTicks(scale), [scale]);
 
   // Tick state so the now-indicator updates every minute when nowMs is not
   // injected for tests. When nowMs is provided, we use it directly and skip
@@ -154,6 +165,7 @@ export function TimelineDetail({
       <div
         ref={scrollerRef}
         data-testid="timeline-scroller"
+        className="timeline-scroller"
         style={{
           overflowX: "auto",
           border: `1px solid ${chartColors.gridline}`,
@@ -180,47 +192,9 @@ export function TimelineDetail({
               fillOpacity={0.92}
             />
           ))}
-          {dayDividers.map((t) => {
-            const x = msToPx(t, scale);
-            return (
-              <g key={t}>
-                <line
-                  x1={x}
-                  x2={x}
-                  y1={6}
-                  y2={STRIP_HEIGHT - 6}
-                  stroke={chartColors.gridline}
-                  strokeWidth={1}
-                />
-                <text x={x + 4} y={14} fontSize={9} fill={chartColors.subtext}>
-                  {new Date(t).toISOString().slice(5, 10)}
-                </text>
-              </g>
-            );
-          })}
-          {nowPx !== null ? (
-            <g>
-              <line
-                x1={nowPx}
-                x2={nowPx}
-                y1={0}
-                y2={STRIP_HEIGHT}
-                stroke={chartColors.primary}
-                strokeWidth={1.5}
-              />
-              <rect x={nowPx - 18} y={STRIP_HEIGHT - 14} width={36} height={12} fill={chartColors.primary} />
-              <text
-                x={nowPx}
-                y={STRIP_HEIGHT - 5}
-                fontSize={9}
-                fill={chartColors.card}
-                textAnchor="middle"
-                fontWeight={600}
-              >
-                NOW
-              </text>
-            </g>
-          ) : null}
+          <HourTickLayer ticks={hourTicks} scale={scale} stripHeight={STRIP_HEIGHT} />
+          <DayDividerLayer dividers={dayDividers} scale={scale} stripHeight={STRIP_HEIGHT} />
+          {nowPx !== null ? <NowIndicator x={nowPx} stripHeight={STRIP_HEIGHT} /> : null}
         </svg>
       </div>
     </div>

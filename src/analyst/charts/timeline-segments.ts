@@ -66,3 +66,53 @@ export function dayBoundaries(scale: TimelineScale): number[] {
   }
   return out;
 }
+
+/**
+ * One hour tick (00:00 boundaries are skipped — they belong to day-dividers).
+ */
+export interface HourTick {
+  ms: number;
+  hour: number; // 0..23
+  /** True if this tick deserves a text label (vs. just a hash mark). */
+  isLabel: boolean;
+}
+
+/**
+ * Adaptive hour ticks across the visible scale.
+ *
+ * Density depends on `pxPerMinute` so that ticks stay readable from zoomed-in
+ * 7-day views (lots of px per hour) down to 30-day views (few px per hour):
+ *
+ * | px/hour    | tick step | label step |
+ * |------------|-----------|------------|
+ * | >= 40      | 1h        | 2h         |
+ * | 20..40     | 2h        | 6h         |
+ * | 10..20     | 6h        | 12h        |
+ * | < 10       | 12h       | 12h        |
+ *
+ * 00:00 is always omitted (already drawn as a day-divider).
+ */
+export function enumerateHourTicks(scale: TimelineScale): HourTick[] {
+  const pxPerHour = scale.pxPerMinute * 60;
+  let tickStep = 12;
+  let labelStep = 12;
+  if (pxPerHour >= 40) {
+    tickStep = 1;
+    labelStep = 2;
+  } else if (pxPerHour >= 20) {
+    tickStep = 2;
+    labelStep = 6;
+  } else if (pxPerHour >= 10) {
+    tickStep = 6;
+    labelStep = 12;
+  }
+  const out: HourTick[] = [];
+  for (const dayStart of dayBoundaries(scale)) {
+    for (let h = tickStep; h < 24; h += tickStep) {
+      const ms = dayStart + h * 3_600_000;
+      if (ms < scale.startMs || ms > scale.endMs) continue;
+      out.push({ ms, hour: h, isLabel: h % labelStep === 0 });
+    }
+  }
+  return out;
+}
