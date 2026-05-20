@@ -29,3 +29,18 @@ Open quality/UX/DevEx/architecture TODOs that outlive any single epic. Triaged a
 - **Problem**: During E012 bootstrap, `Cargo.lock` was left at the previous version while `package.json` / `tauri.conf.json` / `Cargo.toml` all moved. Caught at first task merge (would have blocked auto-merge). Required a separate `chore(desk): sync Cargo.lock for 0.5.0` commit (`349d7e4`).
 - **Proposed fix**: Add `Cargo.lock` line to the bump checklist in `.claude/rules/versioning.md` (project-management rule, technically `apps/desk/.claude/rules/versioning.md`). One-line edit.
 - **Triggered by**: E012 (commit `349d7e4`).
+
+### [ ] useTimelineNav.isLive may report stale value between minute boundaries
+- **Problem:** `isLive` is computed each render against `nowMs()`, but no
+  re-render is scheduled between the minute-interval ticks unless selectedDay
+  or manualSince changes. After a manual nav, the "Live" indicator stays
+  false until React re-renders for another reason, even if cooldown has
+  already expired.
+- **Proposed fix:** Add a `setTick` state bumped from the interval, but
+  carefully — initial attempt during E012-T07 impro pass caused vitest
+  worker crashes on Node 25 (Worker exited unexpectedly during teardown,
+  likely real `window.setInterval` not cleaned cleanly under fake timers).
+  Investigate alternative: a `useSyncExternalStore` against a global
+  tick source, or a side-effect-free `useEffect(() => setN(n+1), [now])`.
+- **Triggered by:** 2026-05-20 impro? review of E012-T07 (commit `af4cce0`
+  reverted the naive setTick attempt).
