@@ -56,7 +56,7 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 3. **Top-of-screen progress bar** — green→red over 40min session (overlay_renderer.rs)
 4. **Alert popup** — progressive escalation when limit reached (alert_manager.rs, planned)
 5. **Activity status** — "Active" / "Idle Xm Ys" in StateIndicator, shown when keyboard/mouse idle ≥30s. Toggle: Settings → More → "Show activity status".
-6. **Analyst window** — separate 1280×800 Tauri window opened from tray ("Open Analyst"). Two tabs: Catalog (all data sources the app produces) and Explorer (5 charts over last 7 days). Route `/#/analyst` live, `/#/mockup/analyst` with fake fixtures. See [ADR 012](.arch/ADR/012-analyst-dashboard-separate-window.md) for the window-vs-route-vs-browser decision.
+6. **Analyst window** — separate 1280×800 Tauri window opened from tray ("Open Analyst"). Two tabs: Catalog (all data sources the app produces) and Explorer. Explorer leads with `DateNavigator` (range + 14 day tabs with grouped mini bars) and a hero `TimelineDetail` (one continuous proportional strip with smooth-scroll between days), followed by KpiTrend / BreakCreditHistogram / DeskHeightTimeline and the full-width DailyScoreTrajectory. Default range 14 days. Route `/#/analyst` live, `/#/mockup/analyst` with fake fixtures. See [ADR 012](.arch/ADR/012-analyst-dashboard-separate-window.md) for window-vs-route, [ADR 013](.arch/ADR/013-date-navigator-merge.md) for the DateNavigator merge.
 
 ## Communication Architecture & Profiles
 

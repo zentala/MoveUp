@@ -10,7 +10,7 @@
  *      consumer can show "live" vs "browsing history" status.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { localIsoDate } from "../charts/timeline-utils";
+import { localIsoDate, shiftDay } from "../charts/timeline-utils";
 
 export interface UseTimelineNavOptions {
   rangeFrom: string;
@@ -51,14 +51,6 @@ function clampDate(d: string, from: string, to: string): string {
   return d;
 }
 
-const isoDate = localIsoDate;
-
-function shiftDay(date: string, by: number): string {
-  const d = new Date(`${date}T00:00:00`);
-  d.setDate(d.getDate() + by);
-  return isoDate(d);
-}
-
 /**
  * What "today" should be in live mode, given the flip-hour rule. Before
  * `flipHour` (e.g. 02:00) we still consider yesterday's date "today" so the
@@ -69,7 +61,7 @@ export function liveSelectedDay(now: Date, flipHour: number): string {
   if (out.getHours() < flipHour) {
     out.setDate(out.getDate() - 1);
   }
-  return isoDate(out);
+  return localIsoDate(out);
 }
 
 export function useTimelineNav(opts: UseTimelineNavOptions): TimelineNav {

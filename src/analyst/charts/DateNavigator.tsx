@@ -12,7 +12,11 @@
 import { useMemo } from "react";
 import type { SnapshotRow } from "@/test/analyst-fixtures";
 import { chartColors } from "./chart-utils";
-import { DateNavigatorColumn, STATE_COLOR } from "./DateNavigatorColumn";
+import {
+  DateNavigatorColumn,
+  STATE_COLOR,
+  Y_AXIS_MIN_CAP_SECS,
+} from "./DateNavigatorColumn";
 import { DateNavigatorHeader, type DateNavRange } from "./DateNavigatorHeader";
 import { aggregateDayTotals, enumerateDays } from "./timeline-utils";
 
@@ -49,6 +53,22 @@ export function DateNavigator({
 }: DateNavigatorProps) {
   const days = useMemo(() => enumerateDays(range.from, range.to), [range.from, range.to]);
   const totalsMap = useMemo(() => aggregateDayTotals(snapshots), [snapshots]);
+  /**
+   * Auto-scale Y axis: cap = max seconds seen across all states/days, floored
+   * at 8h so the chart stays comparable on quiet days. Rounded up to a clean
+   * hour for the label.
+   */
+  const yAxisCapSecs = useMemo(() => {
+    let max = Y_AXIS_MIN_CAP_SECS;
+    for (const day of days) {
+      const t = totalsMap.get(day);
+      if (!t) continue;
+      max = Math.max(max, t.sit, t.stand, t.walk, t.away);
+    }
+    return Math.ceil(max / 3600) * 3600;
+  }, [days, totalsMap]);
+  const yLabelTop = `${Math.round(yAxisCapSecs / 3600)}h`;
+  const yLabelMid = `${Math.round(yAxisCapSecs / 7200)}h`;
 
   return (
     <div
@@ -77,8 +97,8 @@ export function DateNavigator({
             letterSpacing: "0.08em",
           }}
         >
-          <span>8h</span>
-          <span>4h</span>
+          <span>{yLabelTop}</span>
+          <span>{yLabelMid}</span>
           <span>0h</span>
         </div>
         <div
@@ -107,6 +127,7 @@ export function DateNavigator({
               }
               active={d === selectedDay}
               isToday={d === today}
+              yAxisCapSecs={yAxisCapSecs}
               onClick={() => onSelectDay(d)}
             />
           ))}

@@ -10,9 +10,12 @@ import {
   dayOfMonthLabel,
   easeInOut,
   enumerateDays,
+  inferSnapshotInterval,
   isWeekend,
+  localIsoDate,
   msToPx,
   scrollDurationMs,
+  shiftDay,
   shortDayName,
 } from "./timeline-utils";
 
@@ -124,5 +127,55 @@ describe("scrollDurationMs", () => {
   });
   it("ignores sign", () => {
     expect(scrollDurationMs(-500)).toBe(scrollDurationMs(500));
+  });
+});
+
+describe("inferSnapshotInterval", () => {
+  it("returns 60s default for empty / single row", () => {
+    expect(inferSnapshotInterval([])).toBe(60);
+    expect(inferSnapshotInterval([snap("2026-05-17T08:00:00Z", "Sitting")])).toBe(60);
+  });
+  it("detects 20-min regular spacing", () => {
+    const rows: SnapshotRow[] = [];
+    const start = new Date("2026-05-17T08:00:00Z").getTime();
+    for (let i = 0; i < 10; i++) {
+      rows.push(snap(new Date(start + i * 20 * 60_000).toISOString(), "Sitting"));
+    }
+    expect(inferSnapshotInterval(rows)).toBe(1200);
+  });
+  it("uses median to ignore outliers", () => {
+    const rows = [
+      snap("2026-05-17T08:00:00Z", "Sitting"),
+      snap("2026-05-17T08:05:00Z", "Sitting"), // 5m
+      snap("2026-05-17T08:10:00Z", "Sitting"), // 5m
+      snap("2026-05-17T08:15:00Z", "Sitting"), // 5m
+      // 30m gap counted (still <1h cap)
+      snap("2026-05-17T08:45:00Z", "Sitting"),
+    ];
+    expect(inferSnapshotInterval(rows)).toBe(300);
+  });
+  it("caps at 1h and floors at 60s", () => {
+    const tooBig = [
+      snap("2026-05-17T08:00:00Z", "Sitting"),
+      snap("2026-05-17T12:00:00Z", "Sitting"), // 4h gap filtered (≥3600 ignored)
+    ];
+    expect(inferSnapshotInterval(tooBig)).toBe(60); // no gaps in range → fallback
+    const tooSmall = [
+      snap("2026-05-17T08:00:00Z", "Sitting"),
+      snap("2026-05-17T08:00:30Z", "Sitting"),
+    ];
+    expect(inferSnapshotInterval(tooSmall)).toBe(60); // clamped up
+  });
+});
+
+describe("shiftDay / localIsoDate", () => {
+  it("shifts by positive and negative offsets", () => {
+    expect(shiftDay("2026-05-17", 1)).toBe("2026-05-18");
+    expect(shiftDay("2026-05-17", -1)).toBe("2026-05-16");
+    expect(shiftDay("2026-05-01", -1)).toBe("2026-04-30");
+  });
+  it("localIsoDate formats local components", () => {
+    const d = new Date(2026, 4, 17); // May (0-indexed)
+    expect(localIsoDate(d)).toBe("2026-05-17");
   });
 });

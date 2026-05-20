@@ -12,7 +12,7 @@ import {
   type DayStateTotals,
 } from "./timeline-utils";
 
-const Y_AXIS_CAP_SECS = 8 * 3600;
+export const Y_AXIS_MIN_CAP_SECS = 8 * 3600;
 
 const STATE_COLOR = {
   sit: chartColors.sitting,
@@ -26,11 +26,13 @@ export interface DateNavigatorColumnProps {
   totals: DayStateTotals;
   active: boolean;
   isToday: boolean;
+  /** Y-axis cap in seconds (parent computes max across days). */
+  yAxisCapSecs?: number;
   onClick: () => void;
 }
 
-function barHeight(secs: number): string {
-  return `${Math.min(100, (secs / Y_AXIS_CAP_SECS) * 100)}%`;
+function barHeight(secs: number, cap: number): string {
+  return `${Math.min(100, (secs / cap) * 100)}%`;
 }
 
 function bar(color: string, height: string): React.CSSProperties {
@@ -48,9 +50,11 @@ export function DateNavigatorColumn({
   totals,
   active,
   isToday,
+  yAxisCapSecs = Y_AXIS_MIN_CAP_SECS,
   onClick,
 }: DateNavigatorColumnProps) {
   const we = isWeekend(date);
+  const cap = yAxisCapSecs;
   const labelColor = active
     ? chartColors.primary
     : we
@@ -109,10 +113,10 @@ export function DateNavigatorColumn({
           height: 110,
         }}
       >
-        <div style={bar(STATE_COLOR.sit, barHeight(totals.sit))} />
-        <div style={bar(STATE_COLOR.stand, barHeight(totals.stand))} />
-        <div style={bar(STATE_COLOR.walk, barHeight(totals.walk))} />
-        <div style={bar(STATE_COLOR.away, barHeight(totals.away))} />
+        <div style={bar(STATE_COLOR.sit, barHeight(totals.sit, cap))} />
+        <div style={bar(STATE_COLOR.stand, barHeight(totals.stand, cap))} />
+        <div style={bar(STATE_COLOR.walk, barHeight(totals.walk, cap))} />
+        <div style={bar(STATE_COLOR.away, barHeight(totals.away, cap))} />
       </div>
       <div style={{ paddingTop: 6, textAlign: "center" }}>
         <div

@@ -5,7 +5,7 @@
  * buttons (7d / 14d / 30d) that snap the range relative to `today`.
  */
 import { chartColors } from "./chart-utils";
-import { localIsoDate } from "./timeline-utils";
+import { shiftDay } from "./timeline-utils";
 
 export interface DateNavRange {
   from: string;
@@ -24,16 +24,15 @@ const PRESETS = [
   { id: "30d", label: "30d", days: 30 },
 ] as const;
 
-function shiftDateBy(date: string, days: number): string {
-  const d = new Date(`${date}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return localIsoDate(d);
-}
-
 function rangeDays(from: string, to: string): number {
   const a = new Date(`${from}T00:00:00`).getTime();
   const b = new Date(`${to}T00:00:00`).getTime();
   return Math.round((b - a) / 86_400_000) + 1;
+}
+
+/** Ensure from ≤ to by swapping if necessary. */
+function normaliseRange(r: DateNavRange): DateNavRange {
+  return r.from <= r.to ? r : { from: r.to, to: r.from };
 }
 
 const dateInputStyle: React.CSSProperties = {
@@ -79,7 +78,7 @@ export function DateNavigatorHeader({
           type="date"
           value={range.from}
           data-testid="range-from"
-          onChange={(e) => onRangeChange({ ...range, from: e.target.value })}
+          onChange={(e) => onRangeChange(normaliseRange({ ...range, from: e.target.value }))}
           style={dateInputStyle}
         />
         <span style={{ color: chartColors.subtext }}>→</span>
@@ -87,7 +86,7 @@ export function DateNavigatorHeader({
           type="date"
           value={range.to}
           data-testid="range-to"
-          onChange={(e) => onRangeChange({ ...range, to: e.target.value })}
+          onChange={(e) => onRangeChange(normaliseRange({ ...range, to: e.target.value }))}
           style={dateInputStyle}
         />
       </div>
@@ -110,7 +109,7 @@ export function DateNavigatorHeader({
               data-testid={`preset-${p.id}`}
               onClick={() =>
                 onRangeChange({
-                  from: shiftDateBy(today, -(p.days - 1)),
+                  from: shiftDay(today, -(p.days - 1)),
                   to: today,
                 })
               }

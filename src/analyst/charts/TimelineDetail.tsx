@@ -12,7 +12,7 @@
  *   - "Now" indicator (blue line + label) at real time when in range.
  *   - Hour ticks every 4h beneath the strip.
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SnapshotRow } from "@/test/analyst-fixtures";
 import { chartColors } from "./chart-utils";
 import { TimelineDetailHeader } from "./TimelineDetailHeader";
@@ -20,24 +20,16 @@ import {
   buildTimelineScale,
   dayCenterPx,
   easeInOut,
-  inferSnapshotInterval,
   msToPx,
   scrollDurationMs,
-  type TimelineScale,
 } from "./timeline-utils";
+import { buildSegments, dayBoundaries } from "./timeline-segments";
 
 const SIDE_PAD_HOURS = 6;
 const STRIP_HEIGHT = 96;
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 const PX_PER_MIN_TARGET = 1.4;
-
-const STATE_FILL: Record<string, string> = {
-  Sitting: chartColors.sitting,
-  Standing: chartColors.standing,
-  Walking: chartColors.walking,
-  Away: chartColors.away,
-};
 
 export interface TimelineDetailProps {
   range: { from: string; to: string };
@@ -60,45 +52,6 @@ function rangeWidthPx(rangeFrom: string, rangeTo: string): number {
   return Math.max(720, minutes * PX_PER_MIN_TARGET);
 }
 
-interface RenderedSegment {
-  x: number;
-  w: number;
-  fill: string;
-}
-
-function buildSegments(
-  snapshots: SnapshotRow[],
-  scale: TimelineScale,
-): RenderedSegment[] {
-  if (snapshots.length === 0) return [];
-  // Each snapshot represents observed state from its timestamp until the next
-  // snapshot (or until median interval after if it's the last row). This
-  // produces a continuous strip even when fixtures sample sparsely.
-  const intervalMs = inferSnapshotInterval(snapshots) * 1000;
-  const out: RenderedSegment[] = [];
-  for (let i = 0; i < snapshots.length; i++) {
-    const row = snapshots[i];
-    const t = new Date(row.ts).getTime();
-    const tNext =
-      i + 1 < snapshots.length ? new Date(snapshots[i + 1].ts).getTime() : t + intervalMs;
-    // Clip to scale range.
-    const startMs = Math.max(t, scale.startMs);
-    const endMs = Math.min(tNext, scale.endMs);
-    if (endMs <= startMs) continue;
-    const x = msToPx(startMs, scale);
-    const w = Math.max(1, msToPx(endMs, scale) - x);
-    out.push({ x, w, fill: STATE_FILL[row.state] ?? chartColors.away });
-  }
-  return out;
-}
-
-function* dayBoundaries(scale: TimelineScale): Generator<number> {
-  const startDay = new Date(scale.startMs);
-  startDay.setHours(0, 0, 0, 0);
-  for (let t = startDay.getTime(); t <= scale.endMs; t += DAY_MS) {
-    if (t >= scale.startMs) yield t;
-  }
-}
 
 function animateScroll(
   el: HTMLElement,
@@ -143,12 +96,26 @@ export function TimelineDetail({
     [range.from, range.to, widthPx],
   );
   const segments = useMemo(() => buildSegments(snapshots, scale), [snapshots, scale]);
-  const dayDividers = useMemo(() => Array.from(dayBoundaries(scale)), [scale]);
+  const dayDividers = useMemo(() => dayBoundaries(scale), [scale]);
+
+  // Tick state so the now-indicator updates every minute when nowMs is not
+  // injected for tests. When nowMs is provided, we use it directly and skip
+  // the interval entirely.
+  const [nowTick, setNowTick] = useState<number>(() => nowMs ?? Date.now());
+  useEffect(() => {
+    if (nowMs !== undefined) {
+      setNowTick(nowMs);
+      return;
+    }
+    const id = window.setInterval(() => setNowTick(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, [nowMs]);
 
   const nowPx = useMemo(() => {
-    const t = nowMs ?? Date.now();
-    return t >= scale.startMs && t <= scale.endMs ? msToPx(t, scale) : null;
-  }, [scale, nowMs]);
+    return nowTick >= scale.startMs && nowTick <= scale.endMs
+      ? msToPx(nowTick, scale)
+      : null;
+  }, [scale, nowTick]);
 
   // Smooth-scroll to selected day's centre whenever selectedDay changes.
   useEffect(() => {
@@ -164,8 +131,25 @@ export function TimelineDetail({
     };
   }, [selectedDay, scale]);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      onPrev();
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      onNext();
+    }
+  };
+
   return (
-    <div data-testid="timeline-detail">
+    <div
+      data-testid="timeline-detail"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      role="region"
+      aria-label={`Daily timeline for ${selectedDay}`}
+      style={{ outline: "none" }}
+    >
       <TimelineDetailHeader selectedDay={selectedDay} onPrev={onPrev} onNext={onNext} />
       <div
         ref={scrollerRef}

@@ -96,6 +96,13 @@ export function localIsoDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Shift a YYYY-MM-DD by N days (positive or negative), returning local ISO. */
+export function shiftDay(date: string, by: number): string {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() + by);
+  return localIsoDate(d);
+}
+
 /** List every YYYY-MM-DD in [from, to] inclusive, in ascending order. */
 export function enumerateDays(from: string, to: string): string[] {
   const start = new Date(`${from}T00:00:00`);
