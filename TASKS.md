@@ -5,6 +5,21 @@
 ## Active Work
 See [`.plan/STATE.md`](.plan/STATE.md) for current status.
 
+## Open Tasks (planned)
+
+| Task | Topic |
+|------|-------|
+| [E012-T09](.plan/epics/E012-2026-05-16-analyst-dashboard/tasks/E012-T09-analyst-layout-flip.md) | Analyst layout flip — date header on top, day-nav on bottom |
+| [E012-T10](.plan/epics/E012-2026-05-16-analyst-dashboard/tasks/E012-T10-recharts-donut-kpis.md) | Recharts donut KPIs with numeric centre |
+| [E012-T11](.plan/epics/E012-2026-05-16-analyst-dashboard/tasks/E012-T11-selected-day-pulse.md) | Pulse highlight on KPI cards when selectedDay changes |
+
+## Open Spikes (research)
+
+| Spike | Topic |
+|-------|-------|
+| [2026-05-21 time-viz libs](.plan/reports/2026-05-21-time-viz-libraries-spike.md) | Evaluate Recharts / ECharts / Visx / vis-timeline / crossfilter / Temporal for the long-term timeline + KPI stack |
+| [2026-05-21 timeline visual upgrades](.plan/reports/2026-05-21-timeline-visual-upgrades-spike.md) | HTML demo gallery — 5-8 visual treatments of current SVG strip |
+
 ## Epics
 | Epic | Period | Topic | Status |
 |------|--------|-------|--------|

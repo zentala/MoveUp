@@ -114,6 +114,16 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 
 ---
 
+## Visualization & Charts
+
+- **[E012-T09 — Analyst layout flip](epics/E012-2026-05-16-analyst-dashboard/tasks/E012-T09-analyst-layout-flip.md)** — top-centred date header, bottom day-navigator. Sticky bottom nav.
+- **[E012-T10 — Recharts donut KPIs](epics/E012-2026-05-16-analyst-dashboard/tasks/E012-T10-recharts-donut-kpis.md)** — replace KpiTrend + BreakCreditHistogram bars with donut/gauge cards. Numeric centres. New ADR 014.
+- **[E012-T11 — Pulse on selectedDay change](epics/E012-2026-05-16-analyst-dashboard/tasks/E012-T11-selected-day-pulse.md)** — CSS-only highlight animation on KPI cards when day changes.
+- **[Spike — time-viz library evaluation](reports/2026-05-21-time-viz-libraries-spike.md)** — research charting + timeline + time-data libs (Recharts / ECharts / Visx / vis-timeline / crossfilter / Temporal / etc.). Output: recommendation matrix + migration cost for replacing custom SVG timeline.
+- **[Spike — timeline visual upgrades](reports/2026-05-21-timeline-visual-upgrades-spike.md)** — HTML demo gallery with 5-8 visual treatments of our SVG strip (gradients, cardiogram, stream graph, mini-multiples, typographic header, hover cursor, heatmap calendar). User picks 1-2 to productise.
+
+---
+
 ## Timeline Full Window — Expandable History View
 
 - Click on timeline in popup → opens a dedicated window with full-day/multi-day timeline
