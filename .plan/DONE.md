@@ -1,5 +1,9 @@
 # Completed Tasks
 
+## 2026-05-18
+
+- **Google Fit walking-steps integration** — Backend (4 Rust modules: client, service with broadcast-based dedup + DST-correct day window, models with classified ErrorKind, IPC commands), React `StepsWidget` slotted into `KpiStrip` via new `children` slot, zero-deps Node OAuth helper script (rundll32 browser open). Auto-discovery of step data source with `GOOGLE_FIT_STEPS_SOURCE` env override and 1h failure-cache. Error classification (`auth_revoked` → reconnect CTA, `transient` → exponential backoff 1m → 30m cap). Wiremock-tested HTTP path; chrono-tz host-independent DST tests. 38 Rust tests + 207 frontend tests. ADR-012 documents alternatives + Health Connect migration risk. Commits: `8702964` `ad59494` `a8560dd` plus polish-pass-2.
+
 ## E000 — Maintenance
 - [x] [E000-T049 — Pre-dev process guard](epics/E000-maintenance/tasks/E000-T049-pre-dev-process-guard.md) — E000, 2026-03-23
 

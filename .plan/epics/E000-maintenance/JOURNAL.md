@@ -1,5 +1,28 @@
 # E000 Maintenance — Journal
 
+## Session 2026-05-18 — Google Fit walking-steps integration
+
+- **Goal**: Surface today's step count from Google Fit in the OneBar popup as a new KPI badge. End-to-end with real OAuth, real API, real UI.
+- **Done**:
+  - Backend (4 Rust files): `google_fit.rs` (OAuth refresh + Fit API client), `google_fit_models.rs` (wire types), `google_fit_service.rs` (cache + dedup), `commands_google_fit.rs` (IPC).
+  - Frontend: `StepsWidget.tsx` mounted inside `KpiStrip` via new `children` slot.
+  - Helper: `apps/desk/scripts/google-fit-auth.cjs` — zero-deps Node OAuth consent flow (rundll32 to open browser, localhost:8765 callback, prints `GOOGLE_REFRESH_TOKEN`).
+  - Docs: ADR-012, PROJECT.xml `<feature name="google-fit-steps">`, CLAUDE.md § Google Fit.
+  - Tests: 38 Rust (was 9 → +14 polish round 1 → +15 polish round 2), 207 frontend (was 204).
+  - Commits: `8702964` initial, `ad59494` rundll32 fix, `a8560dd` polish pass 1 (17 /impro items), `<next>` polish pass 2 (13 /impro items).
+- **Decisions** (full rationale in ADR-012):
+  - Google Fit REST API over Health Connect (no cloud read on Android-only API)
+  - Per-call OAuth refresh, no token cache (cheap, ~50ms overhead)
+  - Compact KPI badge inside existing `KpiStrip` (no new layout surface; participates in flex-wrap)
+  - Opt-in via env vars; absence is a calm "connect google fit" UI, never an error
+  - Classified errors: `auth_revoked` → reconnect CTA, `transient` → exponential backoff (1m → 30m cap)
+  - Auto-discover steps data source with env override `GOOGLE_FIT_STEPS_SOURCE` escape hatch; failure-cache TTL 1h to prevent retry storm
+  - In-flight refresh dedup via `tokio::broadcast` (one HTTP call per refresh cycle even with concurrent callers)
+  - DST-correct day window via `chrono::Days::new(1)` + next-local-midnight (NOT `+24h`)
+  - HTTP path tested with `wiremock` against real client; DST tested with `chrono-tz` Europe/Warsaw to be host-TZ-independent
+  - `useExponentialPoll` extracted as a reusable hook
+- **Findings this session**: Google Fit returns 0 steps for this user despite valid OAuth — account has historical Samsung Note 3 sensors but no current device pushing to Fit. Real refresh_token works; data sources discovered but stale. Account-side data issue, not code.
+
 ## Session 2026-03-31 (C) — Bug fixes: seeding + break tracker persistence
 
 - **Goal**: Fix two BACKLOG bugs (seeding ignores daily reset, hourly_break_tracker not persisted)

@@ -53,6 +53,11 @@
     <feature name="notifications">
       <description>Native desktop notifications with trigger_test_notification command, configurable backend</description>
     </feature>
+    <feature name="google-fit-steps">
+      <description>Opt-in walking-steps badge in OneBarWidget — fetches today's step count from Google Fit REST API. OAuth2 offline access with one-time consent (helper script: apps/desk/scripts/google-fit-auth.cjs). Configured via GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN in apps/desk/.env (gitignored). Optional GOOGLE_FIT_STEPS_SOURCE overrides auto-discovered data source. See ADR 012.</description>
+      <commands>get_steps_today, refresh_steps_now</commands>
+      <error-model>Backend classifies failures as auth_revoked (invalid_grant / 401 → re-run OAuth helper) or transient (network / 5xx / parse → exponential backoff)</error-model>
+    </feature>
   </functionality>
 
   <architecture>
@@ -107,6 +112,11 @@
       <file name="alert_popup.rs">AlertPopup — show/dismiss lifecycle</file>
       <file name="alert_popup_window.rs">WinAPI popup window thread</file>
       <file name="commands_analyst.rs">Analyst IPC: get_snapshots_range, get_events_range, get_sessions_range — read range-scoped history from disk + SQLite</file>
+      <file name="commands_google_fit.rs">Google Fit IPC: get_steps_today, refresh_steps_now — both return symmetric StepsView with error_kind classification</file>
+      <file name="google_fit.rs">Low-level Fit REST client — OAuth refresh, list_step_sources, fetch_steps. Endpoints injectable for wiremock tests. Error classification: AuthRevoked vs Transient</file>
+      <file name="google_fit_models.rs">Wire types (OAuthTokenResponse, AggregateResponse) + UI types (StepsSnapshot, StepsView with optional error_kind)</file>
+      <file name="google_fit_service.rs">Caching wrapper — single-call dedup via tokio broadcast, env override / discovery / fallback source resolution, DST-correct local-day window with injected clock</file>
+      <file name="google_fit_http_tests.rs">6 wiremock-backed integration tests covering happy path + auth_revoked + 5xx + malformed JSON</file>
       <file name="commands_catalog.rs">Analyst IPC: get_data_catalog — static metadata of every data source the app writes</file>
       <file name="commands_catalog_sources.rs">Helper builders for individual catalog sources (snapshots, events, sessions, store, signals)</file>
     </layer>

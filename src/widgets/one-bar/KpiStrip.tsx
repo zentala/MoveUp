@@ -4,11 +4,17 @@
  * Renders each MetricSnapshot as a compact badge with label, value, and
  * color-coded level indicator. Shows nothing when metrics array is empty.
  */
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import type { MetricSnapshot, MetricLevel } from "@/types";
 
 interface KpiStripProps {
   metrics: MetricSnapshot[];
+  /**
+   * Extra badge(s) rendered after the metric list and sharing the same
+   * flex-wrap flow. Used to slot in non-metric KPIs (e.g. StepsWidget)
+   * so they wrap together with the rest instead of below them.
+   */
+  children?: ReactNode;
 }
 
 const levelColor: Record<MetricLevel, string> = {
@@ -51,8 +57,8 @@ const KpiBadge: FC<{ metric: MetricSnapshot }> = ({ metric }) => (
 );
 
 /** Horizontal strip of KPI metrics displayed above the timeline. */
-export const KpiStrip: FC<KpiStripProps> = ({ metrics }) => {
-  if (metrics.length === 0) return null;
+export const KpiStrip: FC<KpiStripProps> = ({ metrics, children }) => {
+  if (metrics.length === 0 && !children) return null;
 
   return (
     <div className="kpi-strip" data-testid="kpi-strip">
@@ -60,6 +66,7 @@ export const KpiStrip: FC<KpiStripProps> = ({ metrics }) => {
       {metrics.map((m) => (
         <KpiBadge key={m.id} metric={m} />
       ))}
+      {children}
     </div>
   );
 };

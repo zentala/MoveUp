@@ -276,3 +276,46 @@
   color: var(--signal-ok);
   letter-spacing: 0.06em;
 }
+
+/* Steps widget — slotted INTO KpiStrip so it participates in the same
+   flex-wrap flow as the other KPI badges (no separate row). */
+.steps-widget {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.steps-widget--stale .kpi-strip__value {
+  opacity: 0.5;
+}
+
+.steps-widget--unconfigured .kpi-strip__value {
+  color: var(--ink-tertiary);
+  font-weight: 500;
+  text-transform: lowercase;
+}
+
+.steps-widget__refresh {
+  background: none;
+  border: none;
+  color: var(--ink-tertiary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.steps-widget__refresh:hover:not(:disabled) {
+  color: var(--ink-primary);
+}
+
+.steps-widget__refresh:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.steps-widget__error-dot {
+  color: var(--signal-alert);
+  font-size: 14px;
+  line-height: 1;
+}
