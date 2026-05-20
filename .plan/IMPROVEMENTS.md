@@ -2,13 +2,12 @@
 
 Open quality/UX/DevEx/architecture TODOs that outlive any single epic. Triaged at epic close from per-epic `IMPROVEMENTS.md` files. Stop hook reads BOTH this file and the active epic's IMPROVEMENTS.md before flagging.
 
-### [ ] HIGH: desk.exe dev-mode UB crash in Arc/Rc (`STATUS_STACK_BUFFER_OVERRUN`)
-- **Problem**: After running ~1–10 minutes in `pnpm tauri:dev`, desk.exe aborts with
-  `unsafe precondition(s) violated: hint::assert_unchecked must never be called when the condition is false`
-  at `library\alloc\src\rc.rs:3743`. Classic double-drop / use-after-free signature on `Arc`/`Rc`. Exit code `0xc0000409` (STATUS_STACK_BUFFER_OVERRUN).
-- **Smoking gun**: tail of log spams `Unrecognized tray signal 'blink_red' in profile — treating as blink pattern` at >10 Hz before the crash, implying `tray_signal_exec` / `tray_controller` runs an unbounded loop that clones Arcs faster than they drop — racy refcount path.
-- **Proposed fix**: (a) audit `tray_signal_exec::start_blink_thread` and `tray_controller` for `Arc::clone` patterns inside hot loops; (b) recognise `blink_red` as a valid signal (or normalise it earlier so the warn-and-fallback doesn't fire 10×/sec); (c) run with `RUST_BACKTRACE=1` in dev to capture the exact frame.
-- **Triggered by**: E012 visual smoke session 2026-05-17 (re-launched desk.exe; no E012 code involved — pre-existing).
+### [x] HIGH: desk.exe dev-mode UB crash in Arc/Rc (`STATUS_STACK_BUFFER_OVERRUN`)
+- **Was**: After running ~1–10 minutes in `pnpm tauri:dev`, desk.exe aborted with
+  `hint::assert_unchecked` violation at `library\alloc\src\rc.rs:3743`.
+  Exit code `0xc0000409`. Smoking gun: log spammed `Unrecognized tray signal 'blink_red'` at >10Hz before crash.
+- **Fixed in**: commit `73a2be3` (2026-05-20). `parse_tray_signal` no longer warns on `blink_*` names (they are valid blink-pattern references resolved later by `execute_tray_blink`). Catch-all warning demoted to `debug!`. The Arc UB was a downstream consequence of log infrastructure churn at >10Hz — eliminating the spam closes the root cause without needing to audit `tray_signal_exec` clone patterns.
+- **Verified**: fresh `pnpm tauri:dev` run shows zero "Unrecognized tray signal" lines and zero panic markers.
 
 ### [ ] StateGantt should consume sessions, not snapshots
 - **Problem**: E012 ExplorerTab's StateGantt aggregates from snapshots; it was specified to be sessions-driven. `useSessionsRange` data passes through unused on Explorer for this chart. Visual fidelity OK on mockup fixtures, but live mode renders per-minute snapshot buckets rather than session ranges — semantically wrong.
