@@ -1,10 +1,11 @@
 ---
 id: E009-T05
 epic: E009
-status: done
+status: completed
 created: 2026-03-24
 branch: feat/E009-T05-responsive-display
 depends_on: [E009-T04]
+title: Responsive Layout for Phone Display
 ---
 # E009-T05: Responsive Layout for Phone Display
 

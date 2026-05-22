@@ -1,8 +1,9 @@
 ---
 id: E002-T09
 epic: E002
-status: open
+status: pending
 original_id: T-OVR-009
+title: Choose production render mode
 ---
 # E002-T09: Choose production render mode
 

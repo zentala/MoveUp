@@ -1,10 +1,11 @@
 ---
 id: E011-T03
 epic: E011
-status: done
+status: completed
 created: 2026-05-07
 completed: 2026-05-07
 branch: main
+title: E011-T03 — Commit pending OneBarTimeline.test.tsx fix
 ---
 
 # E011-T03 — Commit pending OneBarTimeline.test.tsx fix

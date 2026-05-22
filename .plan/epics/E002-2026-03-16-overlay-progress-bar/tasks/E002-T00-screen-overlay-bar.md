@@ -1,8 +1,9 @@
 ---
 id: E002-T00
 epic: E002
-status: done
+status: completed
 original_id: 0001-screen-overlay-progress-bar
+title: TASK 0001: Screen Overlay Progress Bar
 ---
 # TASK 0001: Screen Overlay Progress Bar
 

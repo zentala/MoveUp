@@ -1,9 +1,10 @@
 ---
 id: E012-T11
 epic: E012
-status: planned
+status: pending
 created: 2026-05-21
 branch: feat/E012-T11-selected-day-pulse
+title: Pulse highlight on KPI panels when selectedDay changes
 ---
 
 # E012-T11: Pulse highlight on KPI panels when selectedDay changes

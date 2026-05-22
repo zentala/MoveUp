@@ -1,8 +1,9 @@
 ---
 id: E003-T06
 epic: E003
-status: done
+status: completed
 original_id: T006
+title: Performance Optimization Guidelines
 ---
 # T006: Performance Optimization Guidelines
 

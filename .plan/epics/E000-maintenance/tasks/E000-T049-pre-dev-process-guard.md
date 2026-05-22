@@ -1,9 +1,10 @@
 ---
 id: E000-T049
 epic: E000
-status: done
+status: completed
 created: 2026-03-23
 completed: 2026-03-23
+title: Pre-dev process guard
 ---
 # E000-T049: Pre-dev process guard
 

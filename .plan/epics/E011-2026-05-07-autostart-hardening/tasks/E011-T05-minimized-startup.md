@@ -1,11 +1,12 @@
 ---
 id: E011-T05
 epic: E011
-status: open
+status: pending
 created: 2026-05-07
 branch: feat/E011-T05-minimized-startup
 worktree: .claude/worktrees/E011-T05-minimized-startup
 depends_on: E011-T01
+title: E011-T05 — Autostart `--minimized` + popup hidden on autostart
 ---
 
 # E011-T05 — Autostart `--minimized` + popup hidden on autostart

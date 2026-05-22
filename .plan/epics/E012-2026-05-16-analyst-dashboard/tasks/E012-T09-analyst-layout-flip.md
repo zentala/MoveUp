@@ -1,9 +1,10 @@
 ---
 id: E012-T09
 epic: E012
-status: planned
+status: pending
 created: 2026-05-21
 branch: feat/E012-T09-analyst-layout-flip
+title: Analyst layout flip — date header on top, day-nav on bottom
 ---
 
 # E012-T09: Analyst layout flip — date header on top, day-nav on bottom

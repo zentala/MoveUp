@@ -1,9 +1,10 @@
 ---
 id: E012-T02
 epic: E012
-status: planned
+status: pending
 created: 2026-05-16
 branch: feat/E012-T02-catalog-meta
+title: E012-T02 — Backend: data catalog metadata command
 ---
 
 # E012-T02 — Backend: data catalog metadata command

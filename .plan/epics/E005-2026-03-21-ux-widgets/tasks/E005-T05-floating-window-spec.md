@@ -1,10 +1,11 @@
 ---
 id: E005-T05
 epic: E005
-status: done
+status: completed
 created: 2026-03-21
 completed: 2026-03-21
 original_id: T029
+title: T029 — Floating Window: Spec, Expected Behavior & Tests
 ---
 # T029 — Floating Window: Spec, Expected Behavior & Tests
 

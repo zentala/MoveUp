@@ -1,10 +1,11 @@
 ---
 id: E005-T08
 epic: E005
-status: done
+status: completed
 created: 2026-03-21
 completed: 2026-03-22
 original_id: T025
+title: T025 — Welcome / onboarding popup on first launch
 ---
 # T025 — Welcome / onboarding popup on first launch
 

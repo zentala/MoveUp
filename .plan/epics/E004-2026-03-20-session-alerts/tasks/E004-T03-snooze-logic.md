@@ -1,10 +1,11 @@
 ---
 id: E004-T03
 epic: E004
-status: done
+status: completed
 created: 2026-03-20
 completed: 2026-03-20
 original_id: T015
+title: Snooze with deescalating frequency + tone shift
 ---
 # E004-T03: Snooze with deescalating frequency + tone shift
 

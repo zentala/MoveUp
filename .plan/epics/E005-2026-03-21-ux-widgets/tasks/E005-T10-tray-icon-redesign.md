@@ -1,10 +1,11 @@
 ---
 id: E005-T10
 epic: E005
-status: done
+status: completed
 created: 2026-03-21
 completed: 2026-03-22
 original_id: T016
+title: T016 — Tray icon redesign: white base + colored dot
 ---
 # T016 — Tray icon redesign: white base + colored dot
 

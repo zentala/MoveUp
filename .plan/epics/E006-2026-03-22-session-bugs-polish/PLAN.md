@@ -1,7 +1,6 @@
 ---
-id: E006
 created: 2026-03-22
-status: done
+status: completed
 title: Session Bugs & Polish
 ---
 # E006 — Session Bugs & Polish

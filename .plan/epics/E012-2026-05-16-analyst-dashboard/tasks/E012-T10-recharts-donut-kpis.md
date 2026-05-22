@@ -1,9 +1,10 @@
 ---
 id: E012-T10
 epic: E012
-status: planned
+status: pending
 created: 2026-05-21
 branch: feat/E012-T10-recharts-donut-kpis
+title: Recharts donut KPIs with numeric center
 ---
 
 # E012-T10: Recharts donut KPIs with numeric center

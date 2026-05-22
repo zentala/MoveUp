@@ -1,6 +1,7 @@
 ---
 epic: E006
 updated: 2026-03-24
+title: E006 Orchestrator — Session Bugs & Polish
 ---
 # E006 Orchestrator — Session Bugs & Polish
 

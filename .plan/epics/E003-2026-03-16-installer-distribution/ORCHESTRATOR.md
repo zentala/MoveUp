@@ -1,7 +1,8 @@
 ---
 epic: E003
 created: 2026-03-16
-status: done
+status: completed
+title: E003 Orchestrator — Installer & Distribution
 ---
 # E003 Orchestrator — Installer & Distribution
 

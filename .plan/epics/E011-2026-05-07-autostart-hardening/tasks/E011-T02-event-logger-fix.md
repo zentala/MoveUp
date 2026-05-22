@@ -1,10 +1,11 @@
 ---
 id: E011-T02
 epic: E011
-status: open
+status: pending
 created: 2026-05-07
 branch: feat/E011-T02-event-logger-fix
 worktree: .claude/worktrees/E011-T02-event-logger-fix
+title: E011-T02 — EventLogger investigation + write reliability
 ---
 
 # E011-T02 — EventLogger investigation + write reliability

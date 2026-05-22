@@ -1,9 +1,10 @@
 ---
 id: E012-T06
 epic: E012
-status: planned
+status: pending
 created: 2026-05-16
 branch: feat/E012-T06-explorer-release
+title: E012-T06 — Explorer tab live + tests + UX-FLOW + PROJECT.xml + version bump 0.5.0
 ---
 
 # E012-T06 — Explorer tab live + tests + UX-FLOW + PROJECT.xml + version bump 0.5.0

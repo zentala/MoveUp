@@ -1,8 +1,9 @@
 ---
 id: E001-T03
 epic: E001
-status: done
+status: completed
 original_id: 0001-settings-panel
+title: T001 — Settings Panel UI
 ---
 # T001 — Settings Panel UI
 

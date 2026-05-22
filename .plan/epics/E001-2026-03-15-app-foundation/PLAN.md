@@ -1,7 +1,6 @@
 ---
-id: E001
 created: 2026-03-15
-status: done
+status: completed
 title: App Foundation
 ---
 # E001 — App Foundation

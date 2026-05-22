@@ -1,10 +1,11 @@
 ---
 id: E006-T16
 epic: E006
-status: done
+status: completed
 created: 2026-03-23
 completed: 2026-03-23
 original_id: T044
+title: Minute-by-minute snapshot logging + event log
 ---
 # T044: Minute-by-minute snapshot logging + event log
 

@@ -1,9 +1,10 @@
 ---
 id: E012-T04
 epic: E012
-status: planned
+status: pending
 created: 2026-05-16
 branch: feat/E012-T04-window
+title: E012-T04 — Analyst window registration + tray menu entry
 ---
 
 # E012-T04 — Analyst window registration + tray menu entry

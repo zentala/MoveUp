@@ -1,7 +1,6 @@
 ---
-id: E005
 created: 2026-03-21
-status: done
+status: completed
 title: UX Communication + Widget System
 ---
 # E005 — UX Communication + Widget System

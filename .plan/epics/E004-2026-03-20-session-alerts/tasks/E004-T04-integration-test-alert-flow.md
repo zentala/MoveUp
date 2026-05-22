@@ -1,9 +1,10 @@
 ---
 id: E004-T04
 epic: E004
-status: open
+status: pending
 created: 2026-03-20
 original_id: T020
+title: T020 — Integration Test: Full Alert Flow (sit → alert → dismiss → snooze → re-alert)
 ---
 # T020 — Integration Test: Full Alert Flow (sit → alert → dismiss → snooze → re-alert)
 

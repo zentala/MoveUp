@@ -1,8 +1,9 @@
 ---
 id: E001-T04
 epic: E001
-status: done
+status: completed
 original_id: "0003"
+title: T003 — Notification Preference Toggles (3 types)
 ---
 # T003 — Notification Preference Toggles (3 types)
 

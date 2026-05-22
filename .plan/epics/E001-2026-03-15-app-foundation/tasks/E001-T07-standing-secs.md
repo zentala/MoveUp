@@ -1,8 +1,9 @@
 ---
 id: E001-T07
 epic: E001
-status: done
+status: completed
 original_id: "0006"
+title: T006 — Fix `standing_secs` in TodaySummary (remove placeholder 0)
 ---
 # T006 — Fix `standing_secs` in TodaySummary (remove placeholder 0)
 

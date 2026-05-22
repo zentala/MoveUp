@@ -1,8 +1,9 @@
 ---
 id: E002-T11
 epic: E002
-status: open
+status: pending
 original_id: T-OVR-011
+title: Verify debug overlay info in popup
 ---
 # E002-T11: Verify debug overlay info in popup
 

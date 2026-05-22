@@ -1,10 +1,11 @@
 ---
 id: E009-T04
 epic: E009
-status: done
+status: completed
 created: 2026-03-24
 branch: feat/E009-T04-use-remote-desk
 depends_on: [E009-T03]
+title: useRemoteDesk() React Hook
 ---
 # E009-T04: useRemoteDesk() React Hook
 

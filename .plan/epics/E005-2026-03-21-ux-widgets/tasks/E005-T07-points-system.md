@@ -1,10 +1,11 @@
 ---
 id: E005-T07
 epic: E005
-status: done
+status: completed
 created: 2026-03-21
 completed: 2026-03-22
 original_id: T028
+title: T028 — Points system (in-memory, daily score)
 ---
 # T028 — Points system (in-memory, daily score)
 

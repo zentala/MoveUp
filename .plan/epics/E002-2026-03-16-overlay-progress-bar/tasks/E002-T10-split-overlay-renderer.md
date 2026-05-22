@@ -1,8 +1,9 @@
 ---
 id: E002-T10
 epic: E002
-status: done
+status: completed
 original_id: T-OVR-010
+title: Split overlay_renderer.rs (1132 lines -> 5 files)
 ---
 # E002-T10: Split overlay_renderer.rs (1132 lines -> 5 files)
 

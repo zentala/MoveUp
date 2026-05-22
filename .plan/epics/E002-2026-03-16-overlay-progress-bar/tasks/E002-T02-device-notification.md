@@ -1,8 +1,9 @@
 ---
 id: E002-T02
 epic: E002
-status: done
+status: completed
 original_id: T-OVR-002
+title: Device disconnected notification
 ---
 # E002-T02: Device disconnected notification
 

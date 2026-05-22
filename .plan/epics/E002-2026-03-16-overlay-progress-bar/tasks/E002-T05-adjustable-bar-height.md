@@ -1,8 +1,9 @@
 ---
 id: E002-T05
 epic: E002
-status: done
+status: completed
 original_id: T-OVR-005
+title: Adjustable bar height
 ---
 # E002-T05: Adjustable bar height
 

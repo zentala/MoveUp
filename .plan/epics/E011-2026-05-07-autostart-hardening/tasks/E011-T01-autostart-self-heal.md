@@ -1,10 +1,11 @@
 ---
 id: E011-T01
 epic: E011
-status: open
+status: pending
 created: 2026-05-07
 branch: feat/E011-T01-autostart-self-heal
 worktree: .claude/worktrees/E011-T01-autostart-self-heal
+title: E011-T01 — Autostart self-heal + dev guard + log to events
 ---
 
 # E011-T01 — Autostart self-heal + dev guard + log to events

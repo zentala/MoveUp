@@ -1,9 +1,10 @@
 ---
 id: E012-T03
 epic: E012
-status: planned
+status: pending
 created: 2026-05-16
 branch: feat/E012-T03-mockup
+title: E012-T03 — Frontend mockup: `/mockup/analyst` with fake data
 ---
 
 # E012-T03 — Frontend mockup: `/mockup/analyst` with fake data

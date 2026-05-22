@@ -1,9 +1,10 @@
 ---
 id: E012-T05
 epic: E012
-status: planned
+status: pending
 created: 2026-05-16
 branch: feat/E012-T05-catalog-live
+title: E012-T05 — Catalog tab live wiring
 ---
 
 # E012-T05 — Catalog tab live wiring

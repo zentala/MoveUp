@@ -1,8 +1,9 @@
 ---
 id: E002-T01
 epic: E002
-status: done
+status: completed
 original_id: T-OVR-001
+title: Dev mode — always-visible progress bar
 ---
 # E002-T01: Dev mode — always-visible progress bar
 

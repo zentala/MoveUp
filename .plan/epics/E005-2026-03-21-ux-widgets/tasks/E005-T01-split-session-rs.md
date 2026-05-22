@@ -1,10 +1,11 @@
 ---
 id: E005-T01
 epic: E005
-status: done
+status: completed
 created: 2026-03-21
 completed: 2026-03-21
 original_id: T027
+title: T027 — Split session.rs (P0 sprint blocker)
 ---
 # T027 — Split session.rs (P0 sprint blocker)
 

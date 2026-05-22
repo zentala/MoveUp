@@ -1,11 +1,12 @@
 ---
 id: E011-T04
 epic: E011
-status: open
+status: pending
 created: 2026-05-07
 branch: feat/E011-T04-precommit-tsc-gate
 worktree: .claude/worktrees/E011-T04-precommit-tsc-gate
 depends_on: E011-T03
+title: E011-T04 — Precommit gate: tsc --noEmit on desk app
 ---
 
 # E011-T04 — Precommit gate: tsc --noEmit on desk app

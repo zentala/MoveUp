@@ -1,10 +1,11 @@
 ---
 id: E006-T17
 epic: E006
-status: done
+status: completed
 notes: Absorbed into E007 (NotificationService epic)
 created: 2026-03-23
 original_id: T045
+title: Popup Timer UX Redesign
 ---
 # T045: Popup Timer UX Redesign
 

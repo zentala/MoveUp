@@ -1,11 +1,12 @@
 ---
 id: E009-T03
 epic: E009
-status: done
+status: completed
 completed: 2026-03-25
 created: 2026-03-24
 branch: feat/E009-T03-http-server
 depends_on: [E009-T02]
+title: Embedded HTTP + WebSocket Server (axum)
 ---
 # E009-T03: Embedded HTTP + WebSocket Server (axum)
 

@@ -1,10 +1,11 @@
 ---
 id: E006-T09
 epic: E006
-status: done
+status: completed
 created: 2026-03-22
 completed: 2026-03-23
 original_id: T035
+title: T035 — Settings panel: tabbed layout instead of scrolling
 ---
 # T035 — Settings panel: tabbed layout instead of scrolling
 

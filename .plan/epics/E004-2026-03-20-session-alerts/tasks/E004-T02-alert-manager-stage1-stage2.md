@@ -1,10 +1,11 @@
 ---
 id: E004-T02
 epic: E004
-status: done
+status: completed
 created: 2026-03-20
 completed: 2026-03-20
 original_id: T013+T014
+title: AlertManager + Stage1 (bar pulse) + Stage2 (popup)
 ---
 # E004-T02: AlertManager + Stage1 (bar pulse) + Stage2 (popup)
 

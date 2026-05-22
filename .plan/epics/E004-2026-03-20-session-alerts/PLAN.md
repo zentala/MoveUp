@@ -1,7 +1,6 @@
 ---
-id: E004
 created: 2026-03-20
-status: done
+status: completed
 title: Session Alerts & Snooze
 ---
 # E004 — Session Alerts & Snooze

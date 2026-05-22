@@ -1,5 +1,4 @@
 ---
-id: E007
 created: 2026-03-23
 status: reviewed
 title: Timer UX + KPI Dashboard + MetricEngine Platform

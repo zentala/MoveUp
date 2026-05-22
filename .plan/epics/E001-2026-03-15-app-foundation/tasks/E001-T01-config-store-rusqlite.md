@@ -1,8 +1,9 @@
 ---
 id: E001-T01
 epic: E001
-status: done
+status: completed
 original_id: "0002"
+title: T002 — Config Store: Persist Settings + Calibration (Rust Owns Truth)
 ---
 # T002 — Config Store: Persist Settings + Calibration (Rust Owns Truth)
 

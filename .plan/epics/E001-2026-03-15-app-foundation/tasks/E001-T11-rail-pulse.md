@@ -1,9 +1,10 @@
 ---
 id: E001-T11
 epic: E001
-status: done
+status: completed
 completed: 2026-03-21
 original_id: "0011"
+title: T011 — Height Rail Pulse Animation on Sit->Stand Transition
 ---
 # T011 — Height Rail Pulse Animation on Sit->Stand Transition
 

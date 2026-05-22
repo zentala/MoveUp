@@ -5,6 +5,7 @@ status: in-progress
 created: 2026-05-17
 decisions_locked: 2026-05-18
 branch: feat/E012-T07-timeline-strip
+title: Redesign State Gantt → Daily Timeline Strip
 ---
 
 ## Brainstorm output (2026-05-18)

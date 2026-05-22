@@ -1,8 +1,9 @@
 ---
 id: E002-T08
 epic: E002
-status: done
+status: completed
 original_id: T-OVR-008
+title: DataSource refactor
 ---
 # E002-T08: DataSource refactor
 

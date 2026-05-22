@@ -1,8 +1,9 @@
 ---
 id: E001-T06
 epic: E001
-status: done
+status: completed
 original_id: "0005"
+title: T005 — Track `position_changes` Counter in SessionState
 ---
 # T005 — Track `position_changes` Counter in SessionState
 

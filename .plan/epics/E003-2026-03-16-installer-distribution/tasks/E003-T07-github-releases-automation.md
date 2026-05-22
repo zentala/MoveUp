@@ -1,8 +1,9 @@
 ---
 id: E003-T07
 epic: E003
-status: open
+status: pending
 original_id: T007
+title: GitHub Releases CI/CD Automation
 ---
 # T007: GitHub Releases CI/CD Automation
 

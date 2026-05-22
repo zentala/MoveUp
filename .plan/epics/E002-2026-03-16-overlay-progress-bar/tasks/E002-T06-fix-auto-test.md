@@ -1,8 +1,9 @@
 ---
 id: E002-T06
 epic: E002
-status: done
+status: completed
 original_id: T-OVR-006
+title: Fix auto-test.sh
 ---
 # E002-T06: Fix auto-test.sh
 

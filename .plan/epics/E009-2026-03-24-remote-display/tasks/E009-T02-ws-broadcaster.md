@@ -1,10 +1,11 @@
 ---
 id: E009-T02
 epic: E009
-status: done
+status: completed
 completed: 2026-03-25
 created: 2026-03-24
 branch: feat/E009-T02-ws-broadcaster
+title: WebSocket Broadcaster Module
 ---
 # E009-T02: WebSocket Broadcaster Module
 

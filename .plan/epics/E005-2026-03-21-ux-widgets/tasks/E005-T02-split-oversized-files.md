@@ -1,10 +1,11 @@
 ---
 id: E005-T02
 epic: E005
-status: done
+status: completed
 created: 2026-03-21
 completed: 2026-03-21
 original_id: T027b
+title: T027b — Split oversized Rust files + add limit_used_secs
 ---
 # T027b — Split oversized Rust files + add limit_used_secs
 

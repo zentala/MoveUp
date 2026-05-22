@@ -1,7 +1,6 @@
 ---
-id: E003
 created: 2026-03-16
-status: done
+status: completed
 title: Installer & Distribution
 ---
 # Installer & Distribution Plan — zntlDesk

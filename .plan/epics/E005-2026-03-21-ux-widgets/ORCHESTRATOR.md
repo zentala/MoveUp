@@ -1,6 +1,7 @@
 ---
 epic: E005
 updated: 2026-03-24
+title: E005 Orchestrator — UX Communication + Widget System
 ---
 # E005 Orchestrator — UX Communication + Widget System
 

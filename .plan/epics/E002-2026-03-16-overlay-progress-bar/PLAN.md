@@ -1,7 +1,6 @@
 ---
-id: E002
 created: 2026-03-16
-status: done
+status: completed
 title: Overlay Progress Bar
 ---
 # E002 — Overlay Progress Bar

@@ -1,8 +1,9 @@
 ---
 id: E001-T08
 epic: E001
-status: done
+status: completed
 original_id: 0001-test-framework
+title: Task 0001 — Test Framework Implementation
 ---
 # Task 0001 — Test Framework Implementation
 

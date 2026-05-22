@@ -1,8 +1,9 @@
 ---
 id: E003-T04
 epic: E003
-status: done
+status: completed
 original_id: T004
+title: User Documentation
 ---
 # T004: User Documentation
 

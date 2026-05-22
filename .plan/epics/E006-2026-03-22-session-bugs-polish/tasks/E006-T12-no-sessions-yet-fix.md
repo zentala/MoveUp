@@ -1,10 +1,11 @@
 ---
 id: E006-T12
 epic: E006
-status: done
+status: completed
 created: 2026-03-23
 completed: 2026-03-23
 original_id: T040
+title: T040 — "No sessions yet" despite working: field name mismatch fix
 ---
 # T040 — "No sessions yet" despite working: field name mismatch fix
 

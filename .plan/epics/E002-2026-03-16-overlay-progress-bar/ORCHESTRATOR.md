@@ -1,7 +1,8 @@
 ---
 epic: E002
 created: 2026-03-16
-status: done
+status: completed
+title: E002 Orchestrator — Overlay Progress Bar
 ---
 # E002 Orchestrator — Overlay Progress Bar
 

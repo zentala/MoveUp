@@ -1,7 +1,8 @@
 ---
 epic: E001
 created: 2026-03-15
-status: done
+status: completed
+title: E001 Orchestrator — App Foundation
 ---
 # E001 Orchestrator — App Foundation
 

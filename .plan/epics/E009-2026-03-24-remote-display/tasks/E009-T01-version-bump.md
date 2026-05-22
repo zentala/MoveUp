@@ -1,10 +1,11 @@
 ---
 id: E009-T01
 epic: E009
-status: done
+status: completed
 completed: 2026-03-25
 created: 2026-03-24
 branch: feat/E009-T01-version-bump
+title: Bump version to 0.3.0
 ---
 # E009-T01: Bump version to 0.3.0
 

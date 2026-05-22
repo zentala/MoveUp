@@ -1,10 +1,11 @@
 ---
 id: E006-T06
 epic: E006
-status: done
+status: completed
 created: 2026-03-22
 completed: 2026-03-22
 original_id: T034
+title: T034 — Visual layout polish (manual review required)
 ---
 # T034 — Visual layout polish (manual review required)
 

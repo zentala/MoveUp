@@ -1,8 +1,9 @@
 ---
 id: E002-T12
 epic: E002
-status: done
+status: completed
 original_id: T-OVR-012
+title: Precommit hook for file line count
 ---
 # E002-T12: Precommit hook for file line count
 

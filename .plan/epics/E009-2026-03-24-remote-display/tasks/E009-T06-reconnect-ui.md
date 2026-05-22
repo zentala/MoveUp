@@ -1,11 +1,12 @@
 ---
 id: E009-T06
 epic: E009
-status: done
+status: completed
 completed: 2026-03-25
 created: 2026-03-24
 branch: feat/E009-T06-reconnect-ui
 depends_on: [E009-T04, E009-T05]
+title: Connection Status & Reconnect UI
 ---
 # E009-T06: Connection Status & Reconnect UI
 

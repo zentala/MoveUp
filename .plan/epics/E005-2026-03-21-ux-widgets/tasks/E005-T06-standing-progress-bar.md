@@ -1,10 +1,11 @@
 ---
 id: E005-T06
 epic: E005
-status: done
+status: completed
 created: 2026-03-21
 completed: 2026-03-22
 original_id: T022
+title: T022 — Standing Progress Bar (gold, 0->standing_target_mins)
 ---
 # T022 — Standing Progress Bar (gold, 0->standing_target_mins)
 

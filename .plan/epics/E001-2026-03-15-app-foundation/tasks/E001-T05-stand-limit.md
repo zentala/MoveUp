@@ -1,8 +1,9 @@
 ---
 id: E001-T05
 epic: E001
-status: done
+status: completed
 original_id: "0004"
+title: T004 — Stand Reminder: Configurable "Sit Down After X Min" Limit
 ---
 # T004 — Stand Reminder: Configurable "Sit Down After X Min" Limit
 

@@ -1,11 +1,12 @@
 ---
 id: E009-T07
 epic: E009
-status: done
+status: completed
 completed: 2026-03-25
 created: 2026-03-24
 branch: feat/E009-T07-e2e-test
 depends_on: [E009-T06]
+title: End-to-End Testing & Documentation
 ---
 # E009-T07: End-to-End Testing & Documentation
 

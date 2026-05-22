@@ -1,8 +1,9 @@
 ---
 id: E003-T05
 epic: E003
-status: done
+status: completed
 original_id: T005
+title: Update CLAUDE.md
 ---
 # T005: Update CLAUDE.md
 

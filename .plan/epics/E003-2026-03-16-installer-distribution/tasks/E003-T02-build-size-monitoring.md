@@ -1,8 +1,9 @@
 ---
 id: E003-T02
 epic: E003
-status: done
+status: completed
 original_id: T002
+title: Build Size Monitoring Script
 ---
 # T002: Build Size Monitoring Script
 

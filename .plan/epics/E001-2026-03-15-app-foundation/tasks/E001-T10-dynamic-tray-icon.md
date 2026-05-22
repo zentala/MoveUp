@@ -3,6 +3,7 @@ id: E001-T10
 epic: E001
 status: cancelled
 original_id: "0010"
+title: T010 — Dynamic Tray Icon by Session State
 ---
 # T010 — Dynamic Tray Icon by Session State
 

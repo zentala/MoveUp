@@ -1,8 +1,9 @@
 ---
 id: E003-T01
 epic: E003
-status: done
+status: completed
 original_id: T001
+title: Configure Windows Installer (NSIS, MSI, Signing Scaffold)
 ---
 # T001: Configure Windows Installer (NSIS, MSI, Signing Scaffold)
 

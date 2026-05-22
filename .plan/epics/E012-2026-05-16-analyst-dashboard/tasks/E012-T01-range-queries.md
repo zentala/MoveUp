@@ -1,9 +1,10 @@
 ---
 id: E012-T01
 epic: E012
-status: planned
+status: pending
 created: 2026-05-16
 branch: feat/E012-T01-range-queries
+title: E012-T01 — Backend: snapshot / event / session range query commands
 ---
 
 # E012-T01 — Backend: snapshot / event / session range query commands

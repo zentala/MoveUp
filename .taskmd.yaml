@@ -1,0 +1,9 @@
+dir: .plan/epics
+
+ignore:
+  - reports
+  - investigations
+  - vision
+  - handoffs
+  - impro
+  - adr

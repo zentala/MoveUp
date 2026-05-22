@@ -1,8 +1,9 @@
 ---
 id: E003-T03
 epic: E003
-status: done
+status: completed
 original_id: T003
+title: Memory Profiling Test
 ---
 # T003: Memory Profiling Test
 

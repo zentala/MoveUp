@@ -1,8 +1,9 @@
 ---
 id: E002-T03
 epic: E002
-status: done
+status: completed
 original_id: T-OVR-003
+title: Compare OPAQUE vs LAYERED render modes
 ---
 # E002-T03: Compare OPAQUE vs LAYERED render modes
 

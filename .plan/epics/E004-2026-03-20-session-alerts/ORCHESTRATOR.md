@@ -1,6 +1,7 @@
 ---
 epic: E004
 updated: 2026-03-24
+title: E004 Orchestrator — Session Alerts & Snooze
 ---
 # E004 Orchestrator — Session Alerts & Snooze
 

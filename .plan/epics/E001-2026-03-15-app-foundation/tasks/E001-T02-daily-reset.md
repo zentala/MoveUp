@@ -1,8 +1,9 @@
 ---
 id: E001-T02
 epic: E001
-status: done
+status: completed
 original_id: "0009"
+title: T009 — Daily Reset Logic
 ---
 # T009 — Daily Reset Logic
 
