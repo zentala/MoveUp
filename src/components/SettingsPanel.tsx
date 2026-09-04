@@ -19,7 +19,7 @@ import ProfileSelector from "./settings/ProfileSelector";
 import TimelineSkinSection from "./settings/TimelineSkinSection";
 import DebugSection from "./settings/DebugSection";
 import TelemetrySection from "./settings/TelemetrySection";
-import { AutostartToggle } from "@zntl/shared-ui";
+import { AutostartToggle } from "./AutostartToggle";
 
 export type { SettingsPanelProps, DeskSettings } from "./settings/SettingsTypes";
 
@@ -125,7 +125,7 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
             <TimelineSkinSection />
             <div className="settings-panel__section">
               <h3 className="settings-panel__section-title">Startup</h3>
-              <AutostartToggle appName="Desk" />
+              <AutostartToggle appName="MoveUp" />
             </div>
             <div className="settings-panel__section">
               <h3 className="settings-panel__section-title">Display</h3>

@@ -1,10 +1,10 @@
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
-  name: desk
-  description: Ergonomics tracker for motorized sit/stand desk. Tauri tray app, VL53L1X laser sensor, session tracking with break credit. Standalone product; Wellsy extends it.
+  name: moveup
+  description: MoveUp ergonomics tracker for motorized sit/stand desk. Tauri tray app, VL53L1X laser sensor, session tracking with break credit.
   annotations:
-    github.com/project-slug: zentala/zntl-tray
+    github.com/project-slug: zentala/MoveUp
   tags:
     - tauri
     - rust
