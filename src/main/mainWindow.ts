@@ -13,7 +13,7 @@ export function createMainWindow(): BrowserWindow {
     height: 600,
     icon: getIcon(isDarkMode),
     webPreferences: {
-      preload: path.join(__dirname, '../renderer/preload.ts')
+      preload: path.join(__dirname, 'preload.js')
     }
   });
 

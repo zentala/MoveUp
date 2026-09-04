@@ -6,7 +6,7 @@ import store from './store';
 const App = () => {
   useEffect(() => {
     window.api.receive('update-icon', (color: string) => {
-      const iconElement = document.getElementById('icon');
+      const iconElement = document.getElementById('icon') as HTMLImageElement | null;
       if (iconElement) {
         iconElement.src = `icon-${color}.png`;
       }

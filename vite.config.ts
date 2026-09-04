@@ -1,33 +1,38 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import electron from 'vite-plugin-electron';
+import path from 'node:path';
+
+const projectRoot = process.cwd();
 
 export default defineConfig({
+  root: 'src/renderer',
   plugins: [
     react(),
     electron([
       {
-        entry: 'src/main/app.ts',
+        entry: path.resolve(projectRoot, 'src/main/app.ts'),
         vite: {
           build: {
-            outDir: 'dist/main',
+            outDir: path.resolve(projectRoot, 'dist-electron'),
           },
         },
       },
       {
-        entry: 'src/renderer/preload.ts',
+        entry: path.resolve(projectRoot, 'src/renderer/preload.ts'),
         onstart: (options) => {
           options.reload();
         },
         vite: {
           build: {
-            outDir: 'dist/preload',
+            outDir: path.resolve(projectRoot, 'dist-electron'),
           },
         },
       },
     ]),
   ],
   build: {
-    outDir: 'dist',
+    outDir: path.resolve(projectRoot, 'dist/renderer'),
+    emptyOutDir: false,
   },
 });

@@ -1,0 +1,18 @@
+version: 1
+name: moveup
+description: MoveUp desktop app and its Vite development supervisor
+
+services:
+  - name: dev
+    description: Vite dev server supervising the Electron desktop app
+    cwd: .
+    # This machine uses nvm4w rather than fnm; an absolute node executable is
+    # required because PM3 starts Windows processes with shell:false.
+    cmd: [C:/nvm4w/nodejs/node.exe, node_modules/vite/bin/vite.js, --host, 127.0.0.1, --port, "5293"]
+    port: 5293
+    domain: moveup.internal
+    health: { type: http, port: 5293 }
+    autorestart: true
+    env:
+      NODE_ENV: development
+      MOVEUP_PM3: "true"
