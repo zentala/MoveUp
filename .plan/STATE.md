@@ -1,11 +1,15 @@
 ---
-updated: 2026-05-07T03:55:00Z
+updated: 2026-08-28T00:00:00Z
 active_epic: E011
 active_epic_path: .plan/epics/E011-2026-05-07-autostart-hardening
+planning_epic: E013
+planning_epic_path: .plan/epics/E013-2026-08-28-signed-tauri-pm3-deployment
 current_wave: 1 (not yet dispatched)
 ---
 
 ## Status
+- **E013 (signed Tauri release and PM3 deployment)** — planning; extends the
+  deferred E003-T07 release-automation task. No implementation task is active.
 - **E011 (autostart hardening)** — active, scaffolded, T03 done. Wave 1 (T01+T02) and Wave 2-3 pending. See [PLAN.md](./epics/E011-2026-05-07-autostart-hardening/PLAN.md).
 - E000 (maintenance) — open (permanent)
 - E001–E009 — partially done (see ORCHESTRATOR.md per epic)
