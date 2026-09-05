@@ -2,6 +2,7 @@
 
 ## Planned Epics
 
+- [ ] **[E014 — Supervised release rollback](epics/E014-2026-09-05-supervised-release-rollback/PLAN.md)** — keep several installed builds with a `last-known-good` marker so a bad release can be rolled back, and let PM3 fill the gap when nothing holds the app. Waves 1-2 are unblocked; waves 3-4 wait on two PM3 backlog items (`int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md`, section "2026-09-05 — Nadzór z powrotem do poprzedniego builda").
 - [ ] **[E013 — Signed Tauri release and PM3 deployment](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md)** — build signed Windows release, deploy the installed SmartDesk executable under PM3, and expose the remote display at `moveup.internal`. Prepare implementation tasks and execute in a new session.
 - [ ] **[E012 — Analyst Dashboard](epics/E012-2026-05-16-analyst-dashboard/PLAN.md)** — separate Tauri window with Data Catalog (8 sources, schema + samples) and Explorer (5 charts over last 7 days). Mockup-first per ux-design-flow rule. Research: [reports/2026-05-16-data-sources.md](epics/E012-2026-05-16-analyst-dashboard/reports/2026-05-16-data-sources.md). Version bump to 0.5.0 in epic setup.
 
@@ -34,16 +35,19 @@
 - [x] **Release build was blocked twice** — npm/Cargo Tauri version mismatch (commit `86b2f4d`)
   and a parallel-test env race in [src-tauri/src/google_fit.rs:375](../src-tauri/src/google_fit.rs)
   (commit `9559dea`). (Importance Medium, 3 points)
-- [ ] **Decide the supervision model for the installed app** — the Windows `Run` key covers
-  login start only. It does not restart the app after a crash, and it does not arbitrate
-  between the dev build and the installed build, which share the identifier `io.zntl.desk`
-  and therefore collide through `tauri-plugin-single-instance`
-  ([src-tauri/src/lib.rs:136](../src-tauri/src/lib.rs)). A PM3 watchdog is already planned as
-  Wave 4 of [E013](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md); this entry
-  records the extra requirement Wave 4 must satisfy: dev instance wins, installed instance
-  fills the gap, periodic re-check when neither runs. Recommendation: keep the `Run` key as
-  the login path and let PM3 own only crash recovery, rather than making PM3 launch the GUI
-  process at login too. (Importance Medium, 5 points)
+- [x] **Decide the supervision model for the installed app** — decided 2026-09-05.
+  The Windows `Run` key stays as the login path, because it starts the app even when
+  the PM3 daemon is down and needs no infrastructure. PM3 does not replace it; PM3
+  owns only gap-filling and rollback. Supervision splits in two: PM3 gets the generic
+  loop (60-second poll, act only after two consecutive misses, stand down when another
+  process holds the `io.zntl.desk` singleton, demote to an older candidate), MoveUp
+  gets the app-specific half (a store of several builds, the `last-known-good` marker,
+  the definition of a healthy build, retention). Written up as
+  [E014](epics/E014-2026-09-05-supervised-release-rollback/PLAN.md). **MoveUp is waiting
+  on two PM3 items** filed in `int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md` under
+  "2026-09-05 — Nadzór z powrotem do poprzedniego builda": candidate lists with demotion
+  (8 points) and singleton stand-down (5 points). E014 tasks T05, T06 and T07 cannot
+  start until those land. (Importance Medium, 5 points)
 
 ## UX Issues — High Priority
 
