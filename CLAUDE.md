@@ -38,6 +38,22 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 - **Sensor**: Grove VL53L1X v2 — mounted **under the desk, pointing down to the floor**
 - **Height formula**: `desk_height = sensor_reading_mm - desk_thickness_mm`
 - **Auto-detection**: firmware sends `DEVICE: zntl-desk-sensor v1` on connect
+- **USB identity**: `VID_303A&PID_1001`, serial `64:E8:33:84:05:BC`. Enumerates as a
+  composite device: `MI_00` → `usbser` → COM3, `MI_02` → WinUSB (JTAG/serial debug).
+- **[CRITICAL] Cable sensitivity — most USB-C cables do NOT work with this board.**
+  The XIAO ESP32-C3 uses *native* USB (no CH340/CP2102 bridge), so it is far pickier
+  than a classic Arduino. Three overlapping causes, all observed 2026-09-06:
+  1. Charge-only cables (VBUS+GND, no D+/D-) — board lights up, host sees nothing,
+     and Windows enumerates **zero** COM ports.
+  2. C-to-C links depend on the board's 5.1k CC resistors; flipping the plug 180°
+     or using an A-to-C cable often fixes a link that refuses to come up.
+  3. Voltage drop on thin (28 AWG) or long cables — the ESP32-C3 plus VL53L1X
+     browns out mid-enumeration, producing a `DEVICE connected` / `DEVICE lost`
+     loop within the same second, audible as repeated Windows plug/unplug chimes.
+  Diagnosis order when the app reports no sensor: check for a COM port at all
+  (`HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`; empty = cable or power, not software),
+  then check `events.log` for connect/lost churn. Prefer a short (<=1 m) A-to-C
+  cable straight into the motherboard, bypassing USB hubs.
 
 ## User States
 - `SITTING` — desk low, user at keyboard
