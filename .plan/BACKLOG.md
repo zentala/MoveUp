@@ -17,6 +17,34 @@
 
 ---
 
+## Autostart — findings 2026-09-05
+
+- [x] **Autostart dead since the registry cleanup** — the earlier entry "3 conflicting
+  autostart registry entries — removed `zntlDesk`, `Smart Desk`, `SmartDesk` from HKCU Run"
+  deleted all three and re-registered none. Nothing could restore them: `ensure_autostart`
+  is a deliberate no-op in debug builds ([src-tauri/src/setup_helpers.rs:92](../src-tauri/src/setup_helpers.rs)),
+  and no release build existed on this machine. Fixed 2026-09-05 by building and installing
+  release 0.5.0; `HKCU\...\Run\MoveUp` now points at
+  `%LOCALAPPDATA%\MoveUp\desk.exe --minimized`. (Importance High, 3 points)
+- [x] **Self-heal read the wrong registry key** — `read_autostart_registry_path` hardcoded
+  `SmartDesk` while the plugin registers under `productName` (`MoveUp`), so the E011-T01
+  stale-path check compared nothing. The value also carries `--minimized`, which never
+  equals a bare exe path. Fixed in commit `7305214`,
+  [src-tauri/src/setup_helpers.rs:115](../src-tauri/src/setup_helpers.rs). (Importance High, 2 points)
+- [x] **Release build was blocked twice** — npm/Cargo Tauri version mismatch (commit `86b2f4d`)
+  and a parallel-test env race in [src-tauri/src/google_fit.rs:375](../src-tauri/src/google_fit.rs)
+  (commit `9559dea`). (Importance Medium, 3 points)
+- [ ] **Decide the supervision model for the installed app** — the Windows `Run` key covers
+  login start only. It does not restart the app after a crash, and it does not arbitrate
+  between the dev build and the installed build, which share the identifier `io.zntl.desk`
+  and therefore collide through `tauri-plugin-single-instance`
+  ([src-tauri/src/lib.rs:136](../src-tauri/src/lib.rs)). A PM3 watchdog is already planned as
+  Wave 4 of [E013](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md); this entry
+  records the extra requirement Wave 4 must satisfy: dev instance wins, installed instance
+  fills the gap, periodic re-check when neither runs. Recommendation: keep the `Run` key as
+  the login path and let PM3 own only crash recovery, rather than making PM3 launch the GUI
+  process at login too. (Importance Medium, 5 points)
+
 ## UX Issues — High Priority
 
 - [x] **Timeline readability** — fixed: implemented timeline skin system with 3 switchable themes (Semantic, Amber, Clinical). Each skin defines distinct `--tl-*` CSS vars. Dropdown in Settings → More → Timeline Theme. Default: Semantic (burgundy/green/blue/gray).
