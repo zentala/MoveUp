@@ -1,9 +1,13 @@
 # Desk App — CLAUDE.md
 
 ## Naming
-- **Product name**: SmartDesk (exe: `SmartDesk.exe`, camelCase, no spaces)
-- **Display name**: "Smart Desk" (with space — used in notifications, window titles, share text)
-- **Legacy name**: zntlDesk — same app, old name. Treat as synonym. Docs still use it in places.
+- **Product name**: MoveUp — `productName` in `src-tauri/tauri.conf.json`. This is the
+  name Windows uses for the autostart registry value under `HKCU\...\Run`, and the
+  installer uses it for `%LOCALAPPDATA%\MoveUp\`. Never hardcode it; read it from
+  `app.package_info().name`.
+- **Binary name**: `desk.exe` — from the Cargo package name, NOT from `productName`.
+- **Legacy names**: SmartDesk, "Smart Desk", zntlDesk — same app, older names. Treat as
+  synonyms in prose. They must not appear in code that looks anything up by name.
 - **Internal IDs**: `io.zntl.desk` (bundle identifier), `zntl-desk` (npm package) — do NOT change
 
 ## Purpose
