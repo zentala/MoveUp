@@ -110,13 +110,15 @@ pub fn ensure_autostart(
     let current_path = current_exe.display().to_string();
 
     let is_enabled = autostart.is_enabled().unwrap_or(false);
-    let registered_path = read_autostart_registry_path();
+    // The autostart plugin registers under the app name from tauri.conf.json
+    // (`productName`), so the registry value must be read under that same name.
+    let registered_path = read_autostart_registry_path(&app.package_info().name);
 
     // [B] Self-heal: if enabled but registered path differs, re-register
     let needs_reregister = is_enabled
         && registered_path
             .as_ref()
-            .map_or(true, |p| !paths_equal(p, &current_path));
+            .map_or(true, |p| !paths_equal(exe_from_command_line(p), &current_path));
 
     if needs_reregister {
         warn!(
@@ -314,20 +316,40 @@ pub fn flush_session_on_shutdown(app: &AppHandle) {
 ///
 /// Returns `None` when the value is absent or on read error.
 #[cfg(all(not(debug_assertions), target_os = "windows"))]
-fn read_autostart_registry_path() -> Option<String> {
+fn read_autostart_registry_path(app_name: &str) -> Option<String> {
     use winreg::enums::HKEY_CURRENT_USER;
     use winreg::RegKey;
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     hkcu.open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Run")
         .ok()?
-        .get_value("SmartDesk")
+        .get_value(app_name)
         .ok()
 }
 
 /// Non-Windows stub — always returns `None`.
 #[cfg(all(not(debug_assertions), not(target_os = "windows")))]
-fn read_autostart_registry_path() -> Option<String> {
+fn read_autostart_registry_path(_app_name: &str) -> Option<String> {
     None
+}
+
+/// Extracts the executable path from a Windows `Run` command line.
+///
+/// The registry value carries launch arguments (`<exe> --minimized`), so the raw
+/// value can never equal a bare executable path. Handles both the quoted form
+/// (`"C:\dir with space\app.exe" --arg`) and the unquoted form
+/// (`C:\dir\app.exe --arg`).
+fn exe_from_command_line(value: &str) -> &str {
+    let trimmed = value.trim();
+    if let Some(rest) = trimmed.strip_prefix('"') {
+        return match rest.find('"') {
+            Some(end) => &rest[..end],
+            None => rest,
+        };
+    }
+    match trimmed.to_lowercase().find(".exe") {
+        Some(idx) => trimmed[..idx + 4].trim(),
+        None => trimmed,
+    }
 }
 
 /// Compares two exe paths case-insensitively, normalising slashes and stripping quotes.
@@ -363,6 +385,30 @@ mod tests {
     #[test]
     fn paths_equal_normalizes_slashes() {
         assert!(paths_equal(r"C:/foo/bar.exe", r"C:\foo\bar.exe"));
+    }
+
+    #[test]
+    fn exe_from_command_line_strips_arguments() {
+        assert_eq!(
+            super::exe_from_command_line(r"C:\MoveUp\desk.exe --minimized"),
+            r"C:\MoveUp\desk.exe"
+        );
+    }
+
+    #[test]
+    fn exe_from_command_line_handles_quoted_path_with_spaces() {
+        assert_eq!(
+            super::exe_from_command_line(r#""C:\Program Files\MoveUp\desk.exe" --minimized"#),
+            r"C:\Program Files\MoveUp\desk.exe"
+        );
+    }
+
+    #[test]
+    fn exe_from_command_line_passes_through_bare_path() {
+        assert_eq!(
+            super::exe_from_command_line(r"C:\MoveUp\desk.exe"),
+            r"C:\MoveUp\desk.exe"
+        );
     }
 
     #[test]
