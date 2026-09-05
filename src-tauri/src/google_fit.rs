@@ -352,6 +352,17 @@ impl GoogleFitClient {
 mod tests {
     use super::*;
 
+    /// Serialises tests that mutate the shared process environment.
+    ///
+    /// `std::env` is global to the test binary, so these tests overwrite each
+    /// other's setup when the harness runs them on parallel threads.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Acquires the environment lock, ignoring poisoning left by an unrelated failure.
+    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     fn clear_env() {
         std::env::remove_var("GOOGLE_CLIENT_ID");
         std::env::remove_var("GOOGLE_CLIENT_SECRET");
@@ -361,12 +372,14 @@ mod tests {
 
     #[test]
     fn credentials_from_env_returns_none_when_missing() {
+        let _env = env_guard();
         clear_env();
         assert!(Credentials::from_env().is_none());
     }
 
     #[test]
     fn credentials_from_env_rejects_empty_values() {
+        let _env = env_guard();
         clear_env();
         std::env::set_var("GOOGLE_CLIENT_ID", "");
         std::env::set_var("GOOGLE_CLIENT_SECRET", "x");
@@ -377,6 +390,7 @@ mod tests {
 
     #[test]
     fn credentials_picks_up_optional_source_override() {
+        let _env = env_guard();
         clear_env();
         std::env::set_var("GOOGLE_CLIENT_ID", "id");
         std::env::set_var("GOOGLE_CLIENT_SECRET", "secret");
