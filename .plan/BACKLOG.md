@@ -2,7 +2,7 @@
 
 ## Planned Epics
 
-- [ ] **[E014 — Supervised release rollback](epics/E014-2026-09-05-supervised-release-rollback/PLAN.md)** — keep several installed builds with a `last-known-good` marker so a bad release can be rolled back, and let PM3 fill the gap when nothing holds the app. Waves 1-2 are unblocked; waves 3-4 wait on two PM3 backlog items (`int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md`, section "2026-09-05 — Nadzór z powrotem do poprzedniego builda").
+- [ ] **[E014 — Supervised release rollback](epics/E014-2026-09-05-supervised-release-rollback/PLAN.md)** — handoff: [HANDOFF.md](epics/E014-2026-09-05-supervised-release-rollback/HANDOFF.md). Keep several installed builds with a `last-known-good` marker so a bad release can be rolled back, and let PM3 fill the gap when nothing holds the app. Waves 1-2 are unblocked; waves 3-4 wait on two PM3 backlog items (`int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md`, section "2026-09-05 — Nadzór z powrotem do poprzedniego builda").
 - [ ] **[E013 — Signed Tauri release and PM3 deployment](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md)** — build signed Windows release, deploy the installed SmartDesk executable under PM3, and expose the remote display at `moveup.internal`. Prepare implementation tasks and execute in a new session.
 - [ ] **[E012 — Analyst Dashboard](epics/E012-2026-05-16-analyst-dashboard/PLAN.md)** — separate Tauri window with Data Catalog (8 sources, schema + samples) and Explorer (5 charts over last 7 days). Mockup-first per ux-design-flow rule. Research: [reports/2026-05-16-data-sources.md](epics/E012-2026-05-16-analyst-dashboard/reports/2026-05-16-data-sources.md). Version bump to 0.5.0 in epic setup.
 
@@ -47,7 +47,10 @@
   on two PM3 items** filed in `int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md` under
   "2026-09-05 — Nadzór z powrotem do poprzedniego builda": candidate lists with demotion
   (8 points) and singleton stand-down (5 points). E014 tasks T05, T06 and T07 cannot
-  start until those land. (Importance Medium, 5 points)
+  start until those land, and T10 additionally waits on PM3 item E000-A4 (`pm3d` has no
+  ONLOGON task). Cross-repo handoff: `int://mATX.lan/C:/code/pm3-mcp/.plan/handoffs/HANDOFF-2026-09-05-moveup-supervision.md`.
+  Revised 2026-09-05: Paweł decided PM3 must be the ONLY daemonizer, so the `Run` key is
+  retired by E014-T10 rather than kept. (Importance Medium, 5 points)
 
 ## UX Issues — High Priority
 

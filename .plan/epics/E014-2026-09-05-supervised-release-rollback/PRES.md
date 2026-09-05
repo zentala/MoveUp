@@ -67,11 +67,20 @@ co programista.
 - Zepsuty build nie zostaje na produkcji. PM3 wykrywa dwa nieudane
   sprawdzenia z rzędu i wraca do wersji, która ostatnio realnie działała —
   bez ręcznej interwencji.
-- Wpis w rejestrze Windows (`Run`) zostaje bez zmian — to nadal jedyna
-  droga startu przy logowaniu. PM3 tylko wypełnia lukę po zalogowaniu i
-  robi rollback, nie przejmuje startu appki.
-- Sesja deweloperska nie jest zakłócana: PM3 rozpoznaje, że aplikację trzyma
-  inny proces (przez wspólny mechanizm blokady MoveUp), i stoi z boku.
+- Wpis w rejestrze Windows (`Run`) **znika**. Decyzja Pawła z 2026-09-05:
+  jeden nadzorca, nie dwóch. Aplikacja przestaje sama wpisywać się do
+  rejestru, a start przy logowaniu przejmuje PM3.
+  Uwaga, to nas o coś blokuje: demon PM3 nie ma dziś własnego zadania przy
+  logowaniu i wstaje dopiero z watchdoga `pm3-doctor`, czyli w ciągu pięciu
+  minut. Dopóki to nie zostanie naprawione po stronie PM3, usunięcie klucza
+  `Run` oznaczałoby, że aplikacja wstaje pięć minut po zalogowaniu. Dlatego
+  klucz zostaje jako tymczasowy most i znika w tym samym zadaniu, które
+  potwierdzi, że PM3 startuje sam.
+- Sesja deweloperska nie jest zakłócana. PM3 rozpoznaje zajętość nie po
+  ścieżce pliku, tylko po tym, że health check już przechodzi. Oba buildy,
+  deweloperski i zainstalowany, serwują ten sam port, więc odpowiedź na
+  porcie jest dowodem, że ktoś aplikację trzyma. Nie potrzeba do tego
+  żadnego grzebania w API Windowsa.
 
 ## Zyski / Wady / Ryzyka
 

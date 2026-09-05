@@ -5,7 +5,7 @@ epic: E014
 created: 2026-09-05
 status: planning
 readiness: drafting
-points: 40
+points: 43
 agent: ts-dev
 depends-on: [E013]
 ---
@@ -70,13 +70,14 @@ app is broken, find an older installer, reinstall it by hand.
 | E014-T03 | Health-good probe (process-alive AND JSON) | 2 | 5 | High | ts-dev | Implement the "good build" check from D5: process alive 30s AND `GET /display/api` returns JSON within the health timeout. Neither alone is sufficient. **Tests:** unit test with a process that stays alive but never serves must NOT be marked good; unit test with a process that serves once then exits before 30s must NOT be marked good; unit test with both conditions met must be marked good. |
 | E014-T04 | Ordered candidate list writer | 2 | 3 | High | ts-dev | Emit the ordered candidate list (newest installed, then last-known-good, then next older retained) as a file PM3 can read (D6). **Tests:** unit test asserts order with 3 distinct candidates; unit test asserts the list collapses correctly when newest IS last-known-good (no duplicate entry). |
 | E014-T05 | `pm3.yaml` for MoveUp | 3 | 3 | High | pm | Add `pm3.yaml` declaring the MoveUp service, health check against `/display/api`, `boot: true`, and (once available) the candidate-list feature from the PM3 backlog. **BLOCKED on PM3 backlog item "Kandydaci i degradacja do poprzedniego builda".** **Tests:** manual — `pm3 reload` accepts the file with no schema error. |
-| E014-T06 | Singleton stand-down wiring | 3 | 3 | High | pm | Wire MoveUp's service entry to the PM3 stand-down feature (D4) so PM3 checks `io.zntl.desk` singleton ownership, not executable path, before respawning. **BLOCKED on PM3 backlog item "Stand-down, gdy usługę trzyma cudzy proces".** **Tests:** manual — start a dev build, confirm PM3 does not spawn the installed build for at least two poll cycles (120s). |
+| E014-T06 | Stand-down when the health check already passes | 3 | 3 | High | pm | Wire MoveUp's service so PM3 treats a passing health check as "service up" even when the answering process is not PM3's child (D4). No Windows interop. **BLOCKED on PM3 backlog item "Stand-down, gdy usluge trzyma cudzy proces".** **Tests:** manual — start a dev build, confirm PM3 does not spawn the installed build for at least two poll cycles (120s); manual — start a dev build with a non-default `DESK_REMOTE_PORT` and record whether the signal still holds (D4 assumption). |
 | E014-T07 | Demotion/promotion integration | 4 | 8 | High | pm | Wire PM3's candidate demotion to consume MoveUp's ordered list (T04) and to call back into T02's marker on a successful promotion. **BLOCKED on the same PM3 backlog item as T05.** **Tests:** integration test installs a deliberately broken "newest" build, confirms PM3 demotes to `last-known-good` within two 60s poll cycles, and confirms the broken build is never re-promoted until fixed. |
 | E014-T08 | End-to-end verification | 4 | 5 | High | verify | Verify the full loop: install a broken build over a working one, confirm two-miss detection (D3), confirm rollback to last-known-good, confirm no respawn while a dev build holds the singleton, confirm the Windows Run key is untouched. **Tests:** see `## Test strategy` below — this task executes that strategy end to end, not new tests of its own. |
 | E014-T09 | Epic setup: version bump + ADRs + docs | 1 | 5 | Medium | main | Bump `package.json`/`src-tauri/tauri.conf.json`/`src-tauri/Cargo.toml` to `0.6.0` per [`.claude/rules/versioning.md`](../../../.claude/rules/versioning.md) (not performed by this plan — recorded as a task); write the two ADRs named below; update `.plan/ARCH.md` for the new release-store directory and the PM3/app supervision boundary. **Tests:** none — documentation/config task, verified by review only. |
+| E014-T10 | Retire the `Run` key; PM3 owns login start | 4 | 3 | High | pm | Stop `ensure_autostart` from enabling autostart, delete the `HKCU\...\Run\MoveUp` value, and let PM3 start the app at logon (D2 revised). **BLOCKED on PM3 backlog item "`pm3d` has no ONLOGON Scheduled Task on mATX" (owner E000-A4)** — removing the key before PM3 starts at logon leaves a five-minute hole after every login. **Tests:** Rust unit test asserts `ensure_autostart` never calls enable once the feature flag is off; manual — reboot, confirm the app is running within one poll cycle and the `Run` key is absent. |
 
-Total: 9 tasks, **40 points**. Wave 1 is 13 points, wave 2 is 8, wave 3 is 6,
-wave 4 is 13, so no wave exceeds the 40-point split threshold.
+Total: 10 tasks, **43 points**. Wave 1 is 13 points, wave 2 is 8, wave 3 is 6,
+wave 4 is 16, so no wave exceeds the 40-point split threshold.
 
 Waves 1-2 (T01-T04, T09) are **not blocked** — they build MoveUp's half, which
 is independently useful even before PM3 gains candidate lists. Waves 3-4
@@ -94,18 +95,43 @@ here:
   contract (`--minimized`). The loop is generic process supervision and
   belongs to the process manager; keeping builds and deciding what "good"
   means is app knowledge.
-- **D2 — The Windows `Run` key stays the login path.** PM3 does not replace
-  it; it fills the gap after login and performs rollback. When PM3 polls and
-  the app is already running, it does nothing.
+- **D2 (revised 2026-09-05 by Paweł) — PM3 is the ONLY daemonizer; the
+  Windows `Run` key goes away.** The first draft of this plan kept the `Run`
+  key as the login path. Paweł reversed that: one supervisor, not two, and
+  the app must not register itself in the registry at all. So `ensure_autostart`
+  (`src-tauri/src/setup_helpers.rs:104`) stops enabling autostart, the existing
+  `HKCU\...\Run\MoveUp` value is removed, and PM3 starts the app.
+  **This makes E014 depend on a PM3 defect.** PM3's own daemon has no at-logon
+  Scheduled Task on this machine, contrary to its ADR 016; today it is revived
+  by the `pm3-doctor` watchdog that runs every 5 minutes. Filed in PM3's backlog
+  as "`pm3d` has no ONLOGON Scheduled Task on mATX" (owner E000-A4). Until that
+  lands, dropping the `Run` key means MoveUp starts up to five minutes late
+  after every logon. The `Run` key therefore stays as a temporary bridge and is
+  removed in the same task that verifies PM3 starts at logon, never before.
 - **D3 — Two consecutive misses, not one, at 60s spacing.** A single-miss
   rule would race the dev launcher's kill-then-start sequence and relaunch
   the installed build into the dev build's face.
-- **D4 — Occupancy is detected by singleton ownership, not executable path.**
-  Dev and installed builds share bundle id `io.zntl.desk` and therefore share
-  `tauri-plugin-single-instance` (`src-tauri/src/lib.rs:136`). A supervisor
-  matching only the installed path would respawn the installed build every
-  poll during a dev session, and every such spawn would exit immediately
-  against the singleton.
+- **D4 (refined 2026-09-05) — Occupancy is detected by the health check
+  answering, not by executable path and not by a Windows API.** The problem is
+  unchanged: dev and installed builds share bundle id `io.zntl.desk` and
+  therefore share `tauri-plugin-single-instance` (`src-tauri/src/lib.rs:136`),
+  so a supervisor matching the installed path would respawn every poll during a
+  dev session and every spawn would exit at once.
+  The mechanism is now settled. On Windows that plugin holds a named mutex and
+  a hidden message-only window whose class is `<bundle id>-sic`
+  (`tauri-plugin-single-instance-2.4.3/src/platform_impl/windows.rs:65-105`), so
+  PM3 *could* detect the holder with `FindWindowW` or `OpenMutexW`. It should
+  not. `setup_remote_display` runs unconditionally in
+  `src-tauri/src/setup_helpers.rs:67`, outside any `debug_assertions` gate, so
+  **both the dev and the installed build serve `DESK_REMOTE_PORT` (default
+  3390)**. Whoever holds the singleton is by definition the process answering
+  that port. PM3 therefore needs no new Windows interop: it must simply treat a
+  passing health check as "the service is up", even when the process answering
+  is not the child PM3 spawned. That is generic, portable, and reuses the HTTP
+  health check PM3 already has.
+  Assumption to verify in T06: a dev build started with a non-default
+  `DESK_REMOTE_PORT` breaks this signal. If that turns out to be routine, fall
+  back to the named-mutex probe named above.
 - **D5 — Definition of a good build.** Process alive 30s AND `GET
   http://127.0.0.1:<DESK_REMOTE_PORT>/display/api` returns JSON within the
   health timeout. Process-alive alone is not sufficient.
@@ -143,7 +169,7 @@ Two additions to the system:
   (`%LOCALAPPDATA%\MoveUp\releases\<version>\`, plus a `last-known-good`
   marker and a candidate-order file PM3 reads).
 - A new **supervision boundary** between PM3 and the app: PM3 owns the
-  poll/demote/promote loop and singleton-aware stand-down; MoveUp owns what
+  poll/demote/promote loop, login start, and stand-down; MoveUp owns what
   "good" means and which builds exist. This boundary is the precedent
   Approach B extends to every future PM3-supervised app on this machine.
 
