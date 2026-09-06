@@ -176,9 +176,9 @@ tasks:
     repo: MoveUp
     executor: main
     depends_on: []
-    write_set: [".arch/ADR/018-pm3-app-ownership-split.md", ".arch/ADR/019-release-store-layout.md", ".arch/ARCHITECTURE.md", ".plan/sessions/**", ".plan/BACKLOG.md", ".plan/IMPRO.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/JOURNAL.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/IMPRO.md"]
-    claims: [".arch/ADR/018-pm3-app-ownership-split.md", ".arch/ADR/019-release-store-layout.md", ".arch/ARCHITECTURE.md"]
-    verification: "node -e \"const fs=require('fs');for (const f of ['.arch/ADR/018-pm3-app-ownership-split.md','.arch/ADR/019-release-store-layout.md']) { if (!fs.existsSync(f)) { console.error('missing '+f); process.exit(1); } } console.log('ok');\""
+    write_set: [".arch/ADR/018-pm3-app-ownership-split.md", ".arch/ADR/019-release-store-layout.md", ".arch/ARCHITECTURE.md", "scripts/check-e014-t09-docs.mjs", ".plan/sessions/**", ".plan/BACKLOG.md", ".plan/IMPRO.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/JOURNAL.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/IMPRO.md"]
+    claims: [".arch/ADR/018-pm3-app-ownership-split.md", ".arch/ADR/019-release-store-layout.md", ".arch/ARCHITECTURE.md", "scripts/check-e014-t09-docs.mjs"]
+    verification: "node scripts/check-e014-t09-docs.mjs"
     budget_minutes: 45
   - id: E014-T01
     repo: MoveUp
