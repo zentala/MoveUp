@@ -1,0 +1,21 @@
+# Worktree setup contract (zntl-coder ADR 006) — read by wt-add / wt-remove.
+#
+# Preconditions for dispatching this repo through the Agent Orchestrator
+# (`skills/ao/SKILL.md` §1). Created by E016-T05, 2026-09-06.
+worktree:
+  # Nothing to copy. This repo has no gitignored setup file a fresh worktree
+  # needs: there is no `.env` at the root and none under `src-tauri/`, and the
+  # layout is flat (no `apps/`, no nested pnpm workspace packages). A fresh
+  # worktree only needs `pnpm install --frozen-lockfile`, which is the worker's
+  # job, not a file copy. Confirmed 2026-09-06 — do not invent a file here.
+  copy: []
+
+  # Directories in the MAIN checkout that wt-remove must assert survived a
+  # worktree teardown. Both are gitignored and rebuilt by a build, so losing
+  # them to a stray `rm -rf` is expensive and silent.
+  # A single root `node_modules` is sufficient: `.gitignore` declares one
+  # `node_modules/` line, and `pnpm-workspace.yaml` declares no `packages:`
+  # (only `allowBuilds`), so nothing splits the install into sub-packages.
+  guards:
+    - node_modules
+    - src-tauri/target
