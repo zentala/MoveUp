@@ -106,6 +106,7 @@ mod session_persistence;
 #[cfg(test)] mod session_tests_break_tracker;
 #[cfg(test)] mod session_tests_e015_credited;
 #[cfg(test)] mod session_tests_limits;
+#[cfg(test)] mod session_tests_scenario_table;
 mod tray;
 #[cfg(test)] mod tray_tests;
 mod tray_blink;
