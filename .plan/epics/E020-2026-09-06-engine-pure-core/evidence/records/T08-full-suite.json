@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "T08",
+  "check_id": "full-suite",
+  "class": "test",
+  "timestamp": "2026-09-06T15:13:01.013Z",
+  "command_digest": "sha256:699ba06dfc704c3390955e6df57aa371867d496a3bfdf49343928c2f69fbc04e",
+  "result": "pass",
+  "duration_ms": 4239,
+  "source_commit": "c16f6263655968e3483f189ea1809d04fd732b68",
+  "source_fingerprint": "sha256:6fc5baf527ba937b08d87fac701401c0ea9b16c17cb3da750154a23f0e83b7fd"
+}
