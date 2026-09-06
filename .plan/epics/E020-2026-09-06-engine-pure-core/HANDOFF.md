@@ -238,8 +238,8 @@ tasks:
     repo: MoveUp
     executor: ts-dev
     depends_on: ["E020-T04"]
-    write_set: ["src-tauri/src/session_manager.rs", "src-tauri/src/session_types.rs", "src-tauri/src/tray_controller.rs", "src-tauri/src/communication_policy.rs"]
-    claims: ["src-tauri/src/session_manager.rs", "src-tauri/src/session_types.rs", "src-tauri/src/tray_controller.rs", "src-tauri/src/communication_policy.rs"]
+    write_set: ["src-tauri/src/session_manager.rs", "src-tauri/src/session_types.rs", "src-tauri/src/tray_controller.rs", "src-tauri/src/tray_controller_tests.rs", "src-tauri/src/communication_policy.rs"]
+    claims: ["src-tauri/src/session_manager.rs", "src-tauri/src/session_types.rs", "src-tauri/src/tray_controller.rs", "src-tauri/src/tray_controller_tests.rs", "src-tauri/src/communication_policy.rs"]
     verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- tray_controller communication_policy"
     budget_minutes: 90
   - id: E020-T06
