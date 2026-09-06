@@ -3,6 +3,7 @@
  */
 import type { FC } from "react";
 import type { DeskState } from "@/types";
+import { formatIdleTime } from "@/utils/format";
 
 interface StateIndicatorProps {
   state: DeskState | null;
@@ -19,13 +20,6 @@ const STATE_DOT_CLASS: Record<DeskState, string> = {
   Walking:  "state-indicator__dot--walking",
   Away:     "state-indicator__dot--away",
 };
-
-/** Format seconds into "Xm Ys" string. */
-function formatIdleTime(secs: number): string {
-  const m = Math.floor(secs / 60);
-  const s = secs % 60;
-  return `${m}m ${s}s`;
-}
 
 const StateIndicator: FC<StateIndicatorProps> = ({
   state,
