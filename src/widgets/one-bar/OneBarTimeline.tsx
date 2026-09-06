@@ -7,7 +7,7 @@
 import { type FC, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { SessionEntry, WidgetProps } from "@/types";
-import { formatDurationShort } from "@/utils/format";
+import { formatDurationShort, formatTime } from "@/utils/format";
 import { computeHourMarkers } from "@/utils/timeline";
 
 /** Open the full Analyst window — the "magnified" version of this strip. */
@@ -33,14 +33,6 @@ function blockModifier(state: string): string {
   }
 }
 
-/** Format time from ISO string to HH:MM. */
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  const h = String(d.getHours()).padStart(2, "0");
-  const m = String(d.getMinutes()).padStart(2, "0");
-  return `${h}:${m}`;
-}
-
 interface TimelineTooltip {
   text: string;
   leftPct: number;
@@ -59,7 +51,7 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
   const sessions = props.todaySessions;
   const liveSecs = currentDuration(props);
 
-  const completedTotal = sessions.reduce((s, e) => s + e.duration_secs, 0);
+  const completedTotal = sessions.reduce((s, e) => s + (e.duration_secs ?? 0), 0);
   const totalSecs = completedTotal + liveSecs;
   const maxSecs = Math.max(totalSecs, 1);
 
@@ -97,7 +89,7 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
   ): void => {
     const label = entry.state.toLowerCase();
     const time = formatTime(entry.start);
-    const dur = formatDurationShort(entry.duration_secs);
+    const dur = formatDurationShort(entry.duration_secs ?? 0);
     setTooltip({
       text: `${time} \u2014 ${label} ${dur}`,
       leftPct: offsetPct + widthPct / 2,
@@ -124,7 +116,7 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
     <div className="one-bar__timeline" data-testid="one-bar-timeline">
       <div className="one-bar__timeline-bar">
         {sessions.map((entry, i) => {
-          const widthPct = Math.max((entry.duration_secs / maxSecs) * 100, 0.5);
+          const widthPct = Math.max(((entry.duration_secs ?? 0) / maxSecs) * 100, 0.5);
           const currentOffset = offsetPct;
           offsetPct += widthPct;
           return (

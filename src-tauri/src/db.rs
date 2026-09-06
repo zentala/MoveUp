@@ -107,8 +107,12 @@ pub fn break_credit_from_db_str(raw: &str) -> Option<BreakCredit> {
 
 /// A single row from the `sessions` table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct SessionRow {
     #[serde(skip_serializing)]
+    // Never on the wire, so it is absent from the generated TypeScript too.
+    #[cfg_attr(test, ts(skip))]
     #[allow(dead_code)] // read from DB but not accessed directly
     pub id: i64,
     #[serde(rename = "start")]
@@ -141,6 +145,8 @@ pub struct HeightReadingRow {
 
 /// Aggregated daily summary returned by `get_today_summary`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct TodaySummary {
     pub sitting_secs: i64,
     pub standing_secs: i64,

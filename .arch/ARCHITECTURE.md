@@ -90,6 +90,13 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 
 Key commands: `get_session_state`, `get_today_summary`, `inject_reading`, `list_ports`, `start_auto_connect`, `stop_reading`, `trigger_test_notification`, `set_session_limit`, `set_stand_limit`, `calibrate`, `get_settings`, `save_settings`, `get_overlay_state`, `dismiss_welcome`, `show_welcome`.
 
+Rust owns the shape of everything these send. `ts-rs` writes the TypeScript
+mirror into `src/generated/`, which `src/types.ts` and
+`components/settings/SettingsTypes.ts` re-export — a renamed Rust field fails
+`pnpm typecheck` instead of reading `undefined` at runtime. Regenerate with
+`cargo test --manifest-path src-tauri/Cargo.toml --lib -- ts_export`; see
+[ADR 017](ADR/017-ts-rs-for-rust-ts-codegen.md).
+
 ## Data Flow
 
 ```
@@ -149,6 +156,7 @@ Source: `session_types.rs`, `session_breaks.rs`,
 | **DataSource enum** | Demo/Live/Mock modes — develop overlay without hardware | E002 |
 | **One credited session counter** | A second, uncredited counter let timer and colour disagree; deleting it makes the compiler enforce the rule | E015, ADR 008 |
 | **One composition point for today's totals** | Three stores each hold part of today; composing them per call site let the startup cache seed `position_changes: 0` | E019, ADR 014 |
+| **Rust generates the TypeScript DTOs** | Hand-typed mirrors of the wire format drifted silently; ts-rs turns a renamed Rust field into a `pnpm typecheck` failure | E018, ADR 017 |
 
 ## Native UI Elements (WinAPI, outside Tauri)
 

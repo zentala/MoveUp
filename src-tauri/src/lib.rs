@@ -104,7 +104,6 @@ mod session_persistence;
 #[cfg(test)] mod session_tests_persistence;
 #[cfg(test)] mod session_tests_break_tracker;
 #[cfg(test)] mod session_tests_e015_credited;
-#[cfg(test)] mod session_dto_fixture_tests;
 mod tray;
 #[cfg(test)] mod tray_tests;
 mod tray_blink;
@@ -335,5 +334,43 @@ mod e019_t04_handler_parity {
             "debug-only commands drifted from DEBUG_ONLY_COMMANDS; add the command \
              to both handler lists, or declare it in DEBUG_ONLY_COMMANDS"
         );
+    }
+}
+
+/// Exports the Rust→TypeScript bindings under `src/generated/` (ADR 017).
+///
+/// ts-rs normally emits one `export_bindings_*` test per `#[ts(export)]` type,
+/// but those run under `Config::from_env()`, which renders `i64` as `bigint`.
+/// The DTOs cross the wire as JSON, where `JSON.parse` yields `number`, so the
+/// export runs from an explicit config instead and the attribute is left off.
+#[cfg(test)]
+mod ts_export {
+    use ts_rs::{Config, TS};
+
+    /// `i64` reaches TypeScript through `JSON.parse`, i.e. as `number`.
+    fn config() -> Config {
+        Config::new().with_large_int("number")
+    }
+
+    /// Writes every DTO TypeScript consumes, plus everything they reference.
+    #[test]
+    fn export_bindings() {
+        let cfg = config();
+        crate::metrics::DashboardState::export_all(&cfg).expect("DashboardState exports");
+        crate::session_types::StateChangedPayload::export_all(&cfg)
+            .expect("StateChangedPayload exports");
+        crate::db::TodaySummary::export_all(&cfg).expect("TodaySummary exports");
+        crate::config::AppConfig::export_all(&cfg).expect("AppConfig exports");
+        crate::serial_parser::PortInfo::export_all(&cfg).expect("PortInfo exports");
+    }
+
+    /// The wire counters must not be `bigint` — arithmetic on the TS side
+    /// would throw at runtime, and no test would catch it.
+    #[test]
+    fn export_bindings_render_i64_as_number() {
+        let dto = crate::session_types::SessionStateDto::export_to_string(&config())
+            .expect("SessionStateDto renders");
+        assert!(dto.contains("limit_used_secs: number"), "got: {dto}");
+        assert!(!dto.contains("bigint"), "got: {dto}");
     }
 }

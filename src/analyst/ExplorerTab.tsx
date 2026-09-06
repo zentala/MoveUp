@@ -12,18 +12,20 @@ import type {
   SnapshotRow,
 } from "@/test/analyst-fixtures";
 import type { DateRange } from "./DateRangePicker";
+import { AnalystHeader } from "./AnalystHeader";
 import { DateNavigator } from "./charts/DateNavigator";
 import { TimelineDetail } from "./charts/TimelineDetail";
 import { DeskHeightTimeline } from "./charts/DeskHeightTimeline";
 import { DailyScoreTrajectory } from "./charts/DailyScoreTrajectory";
-import { BreakCreditHistogram } from "./charts/BreakCreditHistogram";
-import { KpiTrend } from "./charts/KpiTrend";
+import { KpiDonutPanel } from "./charts/KpiDonutPanel";
 import { useSnapshotsRange } from "./hooks/useSnapshotsRange";
 import { useSessionsRange } from "./hooks/useSessionsRange";
 import { useEventsRange } from "./hooks/useEventsRange";
 import { useTimelineNav } from "./hooks/useTimelineNav";
 import { chartColors } from "./charts/chart-utils";
 import { downsampleSnapshots, deriveDailyKpis } from "./explorer-derivations";
+import { aggregateDayKpis } from "./explorer-day-kpis";
+import { formatRangeLabel, formatRefreshedAt } from "@/utils/format";
 
 export interface ExplorerTabProps {
   range: DateRange;
@@ -37,29 +39,6 @@ export interface ExplorerTabProps {
 }
 
 const DOWNSAMPLE_THRESHOLD = 1000;
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** Render an epoch millis as HH:MM:SS local. Returns `null` on null/0 input. */
-function formatRefreshedAt(epoch: number | null): string | null {
-  if (!epoch) return null;
-  const d = new Date(epoch);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-}
-
-/** Render a YYYY-MM-DD pair as `May 10–17` or `May 28–Jun 3`. */
-function formatRangeLabel(from: string, to: string): string {
-  const fParts = from.split("-").map(Number);
-  const tParts = to.split("-").map(Number);
-  if (fParts.length !== 3 || tParts.length !== 3) return `${from} → ${to}`;
-  const fm = MONTHS[fParts[1] - 1] ?? "?";
-  const tm = MONTHS[tParts[1] - 1] ?? "?";
-  if (fm === tm) return `${fm} ${fParts[2]}–${tParts[2]}`;
-  return `${fm} ${fParts[2]}–${tm} ${tParts[2]}`;
-}
 
 export function ExplorerTab({
   range,
@@ -121,21 +100,26 @@ export function ExplorerTab({
 
   const nav = useTimelineNav({ rangeFrom: range.from, rangeTo: range.to });
 
+  const dayKpis = useMemo(
+    () => aggregateDayKpis(snapshots, sessions, nav.selectedDay, kpis),
+    // snapshot/session identity is not stable across polls — key on length
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [snapshots.length, sessions.length, nav.selectedDay, kpis],
+  );
+
   return (
     <div data-testid="explorer-tab">
-      <DateNavigator
-        range={range}
-        onRangeChange={onRangeChange}
+      <AnalystHeader
         selectedDay={nav.selectedDay}
-        onSelectDay={nav.goTo}
-        snapshots={snapshots}
+        onPrev={nav.prev}
+        onNext={nav.next}
       />
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          margin: "12px 0 12px",
+          margin: "0 0 12px",
           gap: 12,
           flexWrap: "wrap",
         }}
@@ -177,12 +161,19 @@ export function ExplorerTab({
       />
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginTop: 16 }}>
         <DeskHeightTimeline data={heightSnaps} />
-        <BreakCreditHistogram data={sessions} />
-        <KpiTrend data={kpis} />
+        <KpiDonutPanel kpis={dayKpis} />
         <div style={{ gridColumn: "span 2" }}>
           <DailyScoreTrajectory data={snapshots} />
         </div>
       </div>
+      <DateNavigator
+        placement="bottom"
+        range={range}
+        onRangeChange={onRangeChange}
+        selectedDay={nav.selectedDay}
+        onSelectDay={nav.goTo}
+        snapshots={snapshots}
+      />
     </div>
   );
 }

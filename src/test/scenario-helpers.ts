@@ -32,8 +32,9 @@ export function mkSessions(
     return {
       start,
       end: t.toISOString(),
-      state: e.state as SessionEntry["state"],
+      state: e.state,
       duration_secs: e.mins * 60,
+      break_credit: null,
     };
   });
 }

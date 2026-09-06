@@ -171,7 +171,7 @@ const DebugSection: FC = () => {
         {d.todaySessions.slice(-5).map((s, i) => (
           <Row
             key={i}
-            label={`${s.state} ${fmtSecs(s.duration_secs)}`}
+            label={`${s.state} ${s.duration_secs === null ? "unknown" : fmtSecs(s.duration_secs)}`}
             value={new Date(s.start).toLocaleTimeString()}
           />
         ))}

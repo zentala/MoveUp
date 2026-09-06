@@ -27,16 +27,16 @@ Any combination is valid. All are independent.
 pnpm tauri:dev                    # live mode (default, real sensor)
 pnpm tauri:dev:demo               # cycling demo animation
 pnpm tauri:dev:mock               # simulated sit/stand
-pnpm tauri:dev --force            # live + auto-kill previous instance
+powershell -ExecutionPolicy Bypass -File scripts/tauri-dev.ps1 -Force  # live + auto-kill previous instance
 ```
 
-All variants go through `scripts/tauri-dev.sh` which handles process guard + env vars.
+All variants go through `scripts/tauri-dev.ps1` which handles process guard + env vars.
 
 ## Pre-dev process guard
 
-`scripts/tauri-dev.sh` detects if `desk.exe` is running. On Windows, `cargo` cannot replace a running `.exe`.
+`scripts/tauri-dev.ps1` detects if `desk.exe` is running. On Windows, `cargo` cannot replace a running `.exe`.
 - **[k] Kill** old process (default, auto after 10s) | **[s] Skip** — abort build
-- `--force` flag = auto-kill without prompt
+- `-Force` switch = auto-kill without prompt
 
 ## Data flow (Live mode)
 

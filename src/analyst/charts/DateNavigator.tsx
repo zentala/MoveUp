@@ -22,6 +22,13 @@ import { aggregateDayTotals, enumerateDays } from "./timeline-utils";
 
 export type { DateNavRange };
 
+/**
+ * Where the navigator sits on the page. `"bottom"` turns it into a sticky
+ * strip pinned to the viewport edge — see `placementStyle`. One component
+ * with a prop rather than a fork: only the outer container styling differs.
+ */
+export type DateNavPlacement = "top" | "bottom";
+
 export interface DateNavigatorProps {
   range: DateNavRange;
   onRangeChange: (r: DateNavRange) => void;
@@ -30,6 +37,8 @@ export interface DateNavigatorProps {
   snapshots: SnapshotRow[];
   /** Date considered "today" for the TODAY pill. Defaults to local now. */
   today?: string;
+  /** Page position. Defaults to `"top"` (the pre-E018 layout). */
+  placement?: DateNavPlacement;
 }
 
 function todayLocal(): string {
@@ -43,6 +52,26 @@ const LABELS: ReadonlyArray<["sit" | "stand" | "walk" | "away", string]> = [
   ["away", "Away"],
 ];
 
+/**
+ * Outer container styling per placement. Bottom sticks to the viewport edge
+ * rather than being fixed, so it scrolls with the page until it pins — fixed
+ * positioning competes with the window chrome.
+ */
+function placementStyle(placement: DateNavPlacement): React.CSSProperties {
+  if (placement === "bottom") {
+    return {
+      position: "sticky",
+      bottom: 0,
+      zIndex: 5,
+      marginTop: 20,
+      borderRadius: "8px 8px 0 0",
+      borderBottom: "none",
+      boxShadow: "0 -6px 16px rgba(0,0,0,0.35)",
+    };
+  }
+  return { borderRadius: 8 };
+}
+
 export function DateNavigator({
   range,
   onRangeChange,
@@ -50,6 +79,7 @@ export function DateNavigator({
   onSelectDay,
   snapshots,
   today = todayLocal(),
+  placement = "top",
 }: DateNavigatorProps) {
   const days = useMemo(() => enumerateDays(range.from, range.to), [range.from, range.to]);
   const totalsMap = useMemo(() => aggregateDayTotals(snapshots), [snapshots]);
@@ -73,11 +103,12 @@ export function DateNavigator({
   return (
     <div
       data-testid="date-navigator"
+      data-placement={placement}
       style={{
         background: chartColors.card,
         border: `1px solid ${chartColors.gridline}`,
-        borderRadius: 8,
         padding: "14px 18px 16px",
+        ...placementStyle(placement),
       }}
     >
       <DateNavigatorHeader range={range} onRangeChange={onRangeChange} today={today} />
@@ -161,7 +192,7 @@ export function DateNavigator({
           </span>
         ))}
         <span style={{ marginLeft: "auto", fontSize: 11, fontStyle: "italic" }}>
-          click a day to focus the timeline below
+          click a day to focus the timeline {placement === "bottom" ? "above" : "below"}
         </span>
       </div>
     </div>

@@ -1,11 +1,13 @@
 /**
- * TimelineDetailHeader.tsx — Header strip above TimelineDetail.
+ * TimelineDetailHeader.tsx — Caption strip above the TimelineDetail scroller.
  *
- * Shows the weekday + formatted date for the active day plus ‹ › nav
- * buttons. Layout split from TimelineDetail.tsx to respect the
- * 250-line-per-file cap.
+ * Since E018-T09 the page's date title lives in `AnalystHeader` at the top of
+ * the Explorer tab, so this strip is demoted to a small in-context caption:
+ * a subdued weekday/date label plus ‹ › buttons that nudge the strip without
+ * making the reader travel back to the top of the page.
  */
 import { chartColors } from "./chart-utils";
+import { formatDate, weekdayName } from "@/utils/format";
 
 export interface TimelineDetailHeaderProps {
   selectedDay: string;
@@ -14,28 +16,17 @@ export interface TimelineDetailHeaderProps {
 }
 
 const navBtn: React.CSSProperties = {
-  width: 26,
-  height: 26,
+  width: 22,
+  height: 22,
   background: "transparent",
   border: `1px solid ${chartColors.gridline}`,
   color: chartColors.subtext,
   borderRadius: 4,
   cursor: "pointer",
   fontFamily: "inherit",
-  fontSize: 15,
+  fontSize: 12,
+  lineHeight: 1,
 };
-
-function formatDate(date: string): string {
-  const d = new Date(`${date}T00:00:00`);
-  return `${date.slice(8, 10)} ${d.toLocaleDateString("en-US", {
-    month: "short",
-  })} ${date.slice(0, 4)}`;
-}
-
-function weekdayName(date: string): string {
-  const d = new Date(`${date}T00:00:00`);
-  return d.toLocaleDateString("en-US", { weekday: "long" });
-}
 
 export function TimelineDetailHeader({
   selectedDay,
@@ -53,15 +44,20 @@ export function TimelineDetailHeader({
         flexWrap: "wrap",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <span
           data-testid="tl-weekday"
-          style={{ fontSize: 24, color: chartColors.text, fontStyle: "italic" }}
+          style={{
+            fontSize: 11,
+            color: chartColors.subtext,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+          }}
         >
           {weekdayName(selectedDay)}
         </span>
         <span
-          style={{ fontSize: 12, color: chartColors.subtext, letterSpacing: "0.05em" }}
+          style={{ fontSize: 11, color: chartColors.gridline, letterSpacing: "0.05em" }}
         >
           {formatDate(selectedDay)}
         </span>

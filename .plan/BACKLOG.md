@@ -778,3 +778,48 @@ Priority order based on global market size and standing desk adoption:
 
 **Not doing**: Dutch, Finnish — too small, English proficiency too high.
 **When**: after 100 pre-orders validated demand. i18n is post-product-market-fit.
+
+---
+
+## ESLint baseline downgrades (E018-T04, 2026-09-06)
+
+E018-T04 installed ESLint 10 + `typescript-eslint` +
+`eslint-plugin-react-hooks` v7 ([`eslint.config.mjs`](../eslint.config.mjs)).
+Six rules are pinned to `"warn"` in the config's "baseline downgrades" block
+because they flag pre-existing code in files that task could not touch. They
+are warnings, not disables — `pnpm lint` still prints all 27 of them. Tighten
+each back to `"error"` once its sites are fixed.
+
+- [ ] **`react-hooks/rules-of-hooks` → error** — 8 sites, 2 real patterns:
+  `src/App.tsx:53` (hooks called after `import.meta.env.DEV` hash-route early
+  returns at `src/App.tsx:31-52`) and `src/hooks/useDeskAuto.ts:21,23`
+  (`useDesk()` vs `useRemoteDesk()` chosen by a module-level `isTauri`
+  constant). The `useDeskAuto` case is stable in practice but the App.tsx one
+  is not — the hash can change without a reload. Fix: hoist the mockup routes
+  above `App`, and make `useDeskAuto` call both hooks or split the component.
+  (Importance: Medium, Points: 3)
+- [ ] **`react-hooks/set-state-in-effect` → error** — 8 sites:
+  `src/analyst/charts/TimelineDetail.tsx:118`,
+  `src/analyst/hooks/useDataCatalog.ts:43`,
+  `src/analyst/hooks/useRangeQuery.ts:54`,
+  `src/analyst/hooks/useTimelineNav.ts:83`,
+  `src/components/ConnectionOverlay.tsx:35`,
+  `src/components/StepsWidget.tsx:108`,
+  `src/components/settings/ProfileSelector.tsx:69`, `src/hooks/useTimer.ts:21`.
+  React-Compiler-era rule; each needs a per-site judgement call, not a sweep.
+  (Importance: Low, Points: 5)
+- [ ] **`react-hooks/immutability` → error** — `src/components/AutostartToggle.tsx:15`,
+  `src/widgets/one-bar/OneBarTimeline.tsx:129` (running offset accumulated by
+  reassignment inside `.map()`). (Importance: Low, Points: 2)
+- [ ] **`react-hooks/purity` → error** — `src/components/StepsWidget.tsx:167`
+  calls `Date.now()` during render to compute staleness. (Importance: Low, Points: 2)
+- [ ] **`no-useless-assignment` → error** — `src/analyst/CatalogTab.tsx:111`.
+  (Importance: Low, Points: 1)
+- [ ] **`prefer-const` → error** — `src/hooks/useTimerAnimations.test.ts:24`.
+  Auto-fixable with `npx eslint src/ --fix`. (Importance: Low, Points: 1)
+
+Also left as warnings by the plugins' own defaults (not downgraded here):
+`react-hooks/exhaustive-deps` (`src/analyst/charts/TimelineDetail.tsx:141`,
+`src/hooks/useExponentialPoll.ts:92`) and `react-refresh/only-export-components`
+(3 sites). `src/hooks/useExponentialPoll.ts:55` carries a now-unused
+`eslint-disable` directive that can be deleted.
