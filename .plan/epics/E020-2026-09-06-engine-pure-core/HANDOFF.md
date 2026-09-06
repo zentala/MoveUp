@@ -254,8 +254,8 @@ tasks:
     repo: MoveUp
     executor: main
     depends_on: ["E020-T05", "E020-T06"]
-    write_set: [".arch/ADR/015-pure-ergo-engine.md", ".arch/ADR/008-proportional-break-credit.md", ".arch/ADR/009-day-break-credit.md", ".arch/ARCHITECTURE.md", "CLAUDE.md", ".plan/decisions.jsonl", "scripts/check-e020-t07-docs.mjs"]
-    claims: [".arch/ADR/015-pure-ergo-engine.md", ".arch/ADR/008-proportional-break-credit.md", ".arch/ADR/009-day-break-credit.md", ".arch/ARCHITECTURE.md", "CLAUDE.md", ".plan/decisions.jsonl", "scripts/check-e020-t07-docs.mjs"]
+    write_set: [".arch/ADR/015-pure-ergo-engine.md", ".arch/ADR/008-proportional-break-credit.md", ".arch/ADR/009-day-break-credit.md", ".arch/ARCHITECTURE.md", "CLAUDE.md", ".plan/decisions.jsonl", "scripts/check-e020-t07-docs.mjs", "scripts/check-e019-t08-docs.mjs"]
+    claims: [".arch/ADR/015-pure-ergo-engine.md", ".arch/ADR/008-proportional-break-credit.md", ".arch/ADR/009-day-break-credit.md", ".arch/ARCHITECTURE.md", "CLAUDE.md", ".plan/decisions.jsonl", "scripts/check-e020-t07-docs.mjs", "scripts/check-e019-t08-docs.mjs"]
     verification: "node scripts/check-e020-t07-docs.mjs"
     budget_minutes: 45
   - id: E020-T08
