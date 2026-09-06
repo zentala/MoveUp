@@ -7,7 +7,7 @@
 import { type FC, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { SessionEntry, WidgetProps } from "@/types";
-import { formatDurationShort } from "@/utils/format";
+import { formatDurationShort, formatTime } from "@/utils/format";
 import { computeHourMarkers } from "@/utils/timeline";
 
 /** Open the full Analyst window — the "magnified" version of this strip. */
@@ -31,14 +31,6 @@ function blockModifier(state: string): string {
     default:
       return "away";
   }
-}
-
-/** Format time from ISO string to HH:MM. */
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  const h = String(d.getHours()).padStart(2, "0");
-  const m = String(d.getMinutes()).padStart(2, "0");
-  return `${h}:${m}`;
 }
 
 interface TimelineTooltip {

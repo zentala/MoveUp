@@ -6,6 +6,7 @@
  * 250-line-per-file cap.
  */
 import { chartColors } from "./chart-utils";
+import { formatDate, weekdayName } from "@/utils/format";
 
 export interface TimelineDetailHeaderProps {
   selectedDay: string;
@@ -24,18 +25,6 @@ const navBtn: React.CSSProperties = {
   fontFamily: "inherit",
   fontSize: 15,
 };
-
-function formatDate(date: string): string {
-  const d = new Date(`${date}T00:00:00`);
-  return `${date.slice(8, 10)} ${d.toLocaleDateString("en-US", {
-    month: "short",
-  })} ${date.slice(0, 4)}`;
-}
-
-function weekdayName(date: string): string {
-  const d = new Date(`${date}T00:00:00`);
-  return d.toLocaleDateString("en-US", { weekday: "long" });
-}
 
 export function TimelineDetailHeader({
   selectedDay,
