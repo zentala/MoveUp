@@ -1,103 +1,92 @@
-# Updates and Upgrades
+# Updates
 
-zntlDesk keeps itself up-to-date automatically. This guide explains how the update system works and how to manage it.
+MoveUp has **no automatic updater**. It never phones home to check for a new
+version, and it will never install one on its own. Updating is a manual step:
+you download the new installer and run it over the current install.
 
-## Automatic Updates
+If you read an older copy of this page describing a 24-hour update check, a
+tray "Check for Updates" entry, or an auto-update toggle in Settings — none of
+that exists. The app has no updater plugin and no version-check code.
 
-zntlDesk checks for updates **every 24 hours** while the application is running.
+## How to update
 
-### When an Update is Available
+1. Open the releases page: <https://github.com/zentala/MoveUp/releases>
+2. Compare the newest tag with the version you run. To see your version, open
+   the MoveUp window — the version is shown in the app; you can also read
+   `version` in `src-tauri/tauri.conf.json` if you build from source.
+3. Download the installer asset for the newest release (`.exe`, Windows).
+4. Close MoveUp — right-click the tray icon and quit. An update cannot replace
+   a running `desk.exe`.
+5. Run the downloaded installer. It installs over the existing copy in
+   `%LOCALAPPDATA%\MoveUp\`; you do not need to uninstall first.
+6. Start MoveUp again from the Start menu.
 
-1. **Notification appears** in the system tray (bottom-right of screen)
-2. **Message says:** "A new version of zntlDesk is available"
-3. **Your choices:**
-   - **Install Later** — Update will be installed next time you restart the app
-   - **Install Now** — Update starts immediately and restarts the application
+## What survives an update
 
-### During Update
+Your data lives outside the program folder, so installing a new version does
+not touch it:
 
-- Your session data is **never lost** during updates
-- The update is downloaded in the background
-- Old data remains in `C:\Users\[YourUsername]\AppData\Local\zntlDesk\`
+- session history and settings — `%APPDATA%\io.zntl.desk\`
+- logs — `%APPDATA%\io.zntl.desk\logs\YYYY-MM-DD\`
 
-### After Update
+Sitting/standing counters, break credit and notification state for the current
+day are stored there too and are read back when the app restarts.
 
-- The application restarts automatically
-- Your previous session state (sitting time, break credits) is preserved
-- Release notes are shown in the app
+## Going back to an older version
 
-## Manual Update Check
+1. Close MoveUp.
+2. Download the older release's installer from the same releases page —
+   every past release stays available.
+3. Run it. It overwrites the newer build.
 
-To check for updates without waiting 24 hours:
+Your data in `%APPDATA%\io.zntl.desk\` stays where it is and the older build
+reads it.
 
-1. Click the zntlDesk system tray icon
-2. Select **Check for Updates**
-3. The app will check GitHub Releases immediately
+If you would rather start from a clean install, uninstall first (see
+[Installation Guide](./USER_INSTALL.md#uninstall)) and then run the older
+installer.
 
-## Release Notes
+## Being told about new versions
 
-To see what's new in the latest version:
+Since the app does not check for updates, use GitHub instead:
 
-1. Open zntlDesk
-2. Go to **Help** → **About**
-3. Click **View Release Notes**
+- Open <https://github.com/zentala/MoveUp>, click **Watch** →
+  **Custom** → **Releases**. GitHub then emails you on every new release.
+- Or subscribe to the releases feed:
+  <https://github.com/zentala/MoveUp/releases.atom>
 
-Or visit: [GitHub Releases](https://github.com/zentala/zntl-tray/releases)
+## Release notes
 
-## Disabling Auto-Updates
+Release notes are written on each GitHub release. There is no in-app "What's
+new" screen.
 
-If you prefer to manually control updates:
+## Troubleshooting
 
-1. Open zntlDesk
-2. Go to **Settings** → **General**
-3. Toggle off **Check for updates automatically**
-4. You can still use **Check for Updates** manually anytime
+### The installer says the file is in use
 
-## Rollback (Going Back to Previous Version)
+MoveUp is still running. Quit it from the tray icon (and check Task Manager
+for `desk.exe`), then run the installer again.
 
-If an update causes problems:
+### Windows SmartScreen warns about an unknown publisher
 
-1. **Uninstall zntlDesk** (see [Installation Guide](./USER_INSTALL.md#uninstall))
-2. **Download the previous version** from [GitHub Releases](https://github.com/zentala/zntl-tray/releases)
-3. **Install the older version** using the downloaded `.exe`
+Release builds are not code-signed yet. SmartScreen shows "Windows protected
+your PC" for unsigned installers. Choose **More info** → **Run anyway** if you
+trust the download, or build from source instead.
 
-Your session data remains in `AppData\Local\zntlDesk\` and will be accessible by the older version.
+### The new version behaves worse than the old one
 
-## Update History
+Go back to the previous release as described above, and please
+[report the issue](https://github.com/zentala/MoveUp/issues) with the log files
+from `%APPDATA%\io.zntl.desk\logs\`.
 
-Your update history is available in the application logs:
-- Location: `C:\Users\[YourUsername]\AppData\Local\zntlDesk\logs\`
-- File: `zntlDesk.log`
+## What is sent during an update
 
-To view logs:
-1. Open File Explorer
-2. Type in the address bar: `%APPDATA%\Local\zntlDesk\logs\`
-3. Open `zntlDesk.log` with Notepad
+Nothing by the app. You download the installer from GitHub yourself; MoveUp
+itself makes no version-check request. See **[Privacy](./PRIVACY.md)** for what
+the app does and does not send while it runs.
 
-## Troubleshooting Updates
+## Will there be an automatic updater?
 
-### "Update fails to download"
-
-- Check your internet connection
-- Try checking updates again later
-- If the problem persists, [report an issue](https://github.com/zentala/zntl-tray/issues)
-
-### "App crashes after update"
-
-- Try restarting your computer
-- If the crash persists, rollback to the previous version (see above)
-- Report the issue on [GitHub Issues](https://github.com/zentala/zntl-tray/issues) with logs attached
-
-### "Update notification keeps appearing"
-
-- Click **Install Now** to apply the update
-- Or disable auto-updates in Settings (see above)
-- Restart zntlDesk
-
-## Data Security During Updates
-
-- Your session history is **never sent** to any server
-- Updates only check version numbers from GitHub
-- No personal data is accessed or transmitted
-
-See **[Privacy](./PRIVACY.md)** for full details.
+It is on the backlog, not in the product. It needs code signing first — an
+unsigned auto-update would install unverified binaries. Tracked in
+[`.plan/BACKLOG.md`](../.plan/BACKLOG.md).
