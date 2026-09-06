@@ -30,11 +30,15 @@ impl NotificationService {
     /// Builds notification intents from session events and context.
     ///
     /// Translates raw `NotificationEvent` variants into human-readable
-    /// title/body pairs. Context values (sitting/standing seconds) are
-    /// used to enrich messages where appropriate.
+    /// title/body pairs. Context values enrich messages where appropriate.
+    ///
+    /// Both counters must be RAW daily totals (`sitting_seconds_total`,
+    /// `standing_seconds`). The PostureBalance message states one against the
+    /// other, so feeding it the credited `sitting_seconds` would report a
+    /// ratio the engine never computed (E015-T03).
     pub fn build_intents(
         events: &[NotificationEvent],
-        sitting_secs: i64,
+        sitting_secs_total: i64,
         standing_secs: i64,
     ) -> Vec<NotificationIntent> {
         let mut intents = Vec::new();
@@ -45,8 +49,8 @@ impl NotificationService {
                     "Time to move.".to_string(),
                 ),
                 NotificationEvent::PostureBalance => {
-                    let sit_h = sitting_secs / 3600;
-                    let sit_m = (sitting_secs % 3600) / 60;
+                    let sit_h = sitting_secs_total / 3600;
+                    let sit_m = (sitting_secs_total % 3600) / 60;
                     let stand_h = standing_secs / 3600;
                     let stand_m = (standing_secs % 3600) / 60;
                     info!(

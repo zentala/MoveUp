@@ -1,8 +1,14 @@
 //! db_tests.rs — Unit tests for the database layer.
+//!
+//! The sibling file below holds the break-credit and SessionRow wire tests.
+//! It is declared here, not in `lib.rs`, which is outside E015-T03's write set.
+
+#[path = "db_tests_break_credit.rs"]
+mod db_tests_break_credit;
 
 use rusqlite::Connection;
 
-use crate::db::{init_schema, SessionRow};
+use crate::db::init_schema;
 use crate::db_sessions::{insert_session, insert_session_with_date, load_today_totals, get_totals_for_date};
 use crate::db_queries::get_today_summary;
 use crate::db_sessions::get_yesterday_totals;
@@ -224,24 +230,7 @@ fn test_completed_session_visible_in_summary() {
     assert!(summary.sessions[0].ended_at.is_some(), "ended_at must be set");
 }
 
-#[test]
-fn test_session_row_json_field_names() {
-    let row = SessionRow {
-        id: 42,
-        started_at: "2025-03-16T09:00:00Z".to_string(),
-        ended_at: Some("2025-03-16T09:30:00Z".to_string()),
-        state: "Sitting".to_string(),
-        duration_seconds: Some(1800),
-    };
-    let json = serde_json::to_value(&row).unwrap();
-    assert!(json.get("id").is_none(), "id must be skipped in JSON");
-    assert!(json.get("start").is_some(), "started_at must serialize as 'start'");
-    assert!(json.get("end").is_some(), "ended_at must serialize as 'end'");
-    assert!(json.get("duration_secs").is_some(), "duration_seconds must serialize as 'duration_secs'");
-    assert!(json.get("started_at").is_none(), "raw field name must not appear");
-    assert!(json.get("ended_at").is_none(), "raw field name must not appear");
-    assert!(json.get("duration_seconds").is_none(), "raw field name must not appear");
-}
-
+// SessionRow JSON field-name test moved to db_tests_break_credit.rs (E015-T03),
+// next to the break_credit wire test that extends the same contract.
 // Multi-cycle round-trip test in db_tests_roundtrip.rs
 // After-filter test in db_tests_roundtrip.rs

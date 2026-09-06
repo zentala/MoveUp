@@ -14,7 +14,7 @@ pub fn get_today_summary(conn: &Connection) -> Result<TodaySummary, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, started_at, ended_at, state, duration_seconds FROM sessions \
+            "SELECT id, started_at, ended_at, state, duration_seconds, break_credit FROM sessions \
              WHERE (date_local = ?1 OR (date_local IS NULL AND started_at LIKE ?2)) \
              AND ended_at IS NOT NULL ORDER BY started_at",
         )
@@ -71,7 +71,7 @@ pub fn get_sessions_range(
 ) -> Result<Vec<SessionRow>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, started_at, ended_at, state, duration_seconds FROM sessions \
+            "SELECT id, started_at, ended_at, state, duration_seconds, break_credit FROM sessions \
              WHERE date_local BETWEEN ?1 AND ?2 \
              AND ended_at IS NOT NULL \
              ORDER BY started_at",

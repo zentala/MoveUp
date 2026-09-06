@@ -71,16 +71,18 @@ pub fn check_periodic(
         );
     }
 
-    let (notification_events, sitting_secs, standing_secs) = {
+    // Raw daily totals: the PostureBalance message compares sitting against
+    // standing, so both sides must be uncredited (E015-T03).
+    let (notification_events, sitting_secs_total, standing_secs) = {
         let mut sess = session.lock().unwrap();
         let events = sess.check_notification_conditions(&comm);
         let snap = sess.snapshot();
-        (events, snap.sitting_seconds, snap.standing_seconds)
+        (events, snap.sitting_seconds_total, snap.standing_seconds)
     };
 
     let intents = NotificationService::build_intents(
         &notification_events,
-        sitting_secs,
+        sitting_secs_total,
         standing_secs,
     );
     NotificationService::dispatch(
@@ -180,14 +182,18 @@ pub fn handle_reading(
 
     if let Some(ref completed) = result.completed_session {
         info!("Completed session: {:?}", completed);
+        // A break span that ended this tick carries the credit it earned; a
+        // sitting span carries none, and the column stays NULL for it.
+        let credit = result.break_credit.as_ref().map(|(c, _)| c);
         let db_lock = db.lock().unwrap();
         if let Some(ref conn) = *db_lock {
-            if let Err(e) = crate::db_sessions::insert_session(
+            if let Err(e) = crate::db_sessions::insert_session_with_credit(
                 conn,
                 &completed.started_at,
                 &completed.ended_at,
                 &format!("{:?}", state_before),
                 completed.duration_secs,
+                credit,
             ) {
                 error!("Failed to save completed session: {}", e);
             }
