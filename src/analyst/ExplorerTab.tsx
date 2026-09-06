@@ -12,6 +12,7 @@ import type {
   SnapshotRow,
 } from "@/test/analyst-fixtures";
 import type { DateRange } from "./DateRangePicker";
+import { AnalystHeader } from "./AnalystHeader";
 import { DateNavigator } from "./charts/DateNavigator";
 import { TimelineDetail } from "./charts/TimelineDetail";
 import { DeskHeightTimeline } from "./charts/DeskHeightTimeline";
@@ -101,19 +102,17 @@ export function ExplorerTab({
 
   return (
     <div data-testid="explorer-tab">
-      <DateNavigator
-        range={range}
-        onRangeChange={onRangeChange}
+      <AnalystHeader
         selectedDay={nav.selectedDay}
-        onSelectDay={nav.goTo}
-        snapshots={snapshots}
+        onPrev={nav.prev}
+        onNext={nav.next}
       />
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          margin: "12px 0 12px",
+          margin: "0 0 12px",
           gap: 12,
           flexWrap: "wrap",
         }}
@@ -161,6 +160,14 @@ export function ExplorerTab({
           <DailyScoreTrajectory data={snapshots} />
         </div>
       </div>
+      <DateNavigator
+        placement="bottom"
+        range={range}
+        onRangeChange={onRangeChange}
+        selectedDay={nav.selectedDay}
+        onSelectDay={nav.goTo}
+        snapshots={snapshots}
+      />
     </div>
   );
 }
