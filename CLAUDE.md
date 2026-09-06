@@ -81,7 +81,7 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 
 ## Communication Architecture & Profiles
 
-**CommunicationPolicy** (`communication_policy.rs`) is the single source of truth for all UI signals. It evaluates `(state, elapsed_secs) → Signals` and tells tray, overlay, popup, and notifications what to show. TrayController only executes signals — no decision logic.
+**CommunicationPolicy** (`communication_policy.rs`) is the single source of truth for all UI signals. It evaluates `(state, elapsed_secs) → Signals` and tells tray, overlay, popup, and notifications what to show. `CommunicationPolicy` decides *what* to show; `TrayController` computes the per-tick inputs it needs (elapsed seconds, standing laps, tooltip text, sensor connectivity) and calls it; `tray_signal_exec.rs` is the pure executor that turns a `Signal` into a UI call.
 
 **Two profile types** (JSON, hot-reloadable, in `{app_data_dir}/profiles/`):
 - **Ergonomic Profile** (`ergonomic/*.json`) — limits, scoring, KPI thresholds, break credit
