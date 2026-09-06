@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "T09",
+  "check_id": "docs-consistency",
+  "class": "manual",
+  "timestamp": "2026-09-06T18:46:01.134Z",
+  "command_digest": "sha256:4de862701714d6143a623e38327a1beb6672deee36340412a068ab6927608451",
+  "result": "pass",
+  "duration_ms": 110,
+  "source_commit": "d12412a8537ff3e6aa837676f86b66a1c4a68ba6",
+  "source_fingerprint": "sha256:62b625a7ee34dd046bc103c4fc72f50fb0da34991e30e4109ac67dc3562c99b7"
+}

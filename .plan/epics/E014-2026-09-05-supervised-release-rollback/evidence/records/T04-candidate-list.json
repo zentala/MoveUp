@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "T04",
+  "check_id": "candidate-list",
+  "class": "test",
+  "timestamp": "2026-09-06T18:47:10.099Z",
+  "command_digest": "sha256:87dda44292739efe779e43f380e3d32d2d178342e583748e2a3df873cd8b74b1",
+  "result": "pass",
+  "duration_ms": 1277,
+  "source_commit": "d12412a8537ff3e6aa837676f86b66a1c4a68ba6",
+  "source_fingerprint": "sha256:62b625a7ee34dd046bc103c4fc72f50fb0da34991e30e4109ac67dc3562c99b7"
+}

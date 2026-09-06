@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "T02",
+  "check_id": "last-known-good",
+  "class": "test",
+  "timestamp": "2026-09-06T18:46:31.109Z",
+  "command_digest": "sha256:dc441ca38491c8e328975a7fae4f417ff95674671d93a358b5115da61209b154",
+  "result": "pass",
+  "duration_ms": 1670,
+  "source_commit": "d12412a8537ff3e6aa837676f86b66a1c4a68ba6",
+  "source_fingerprint": "sha256:62b625a7ee34dd046bc103c4fc72f50fb0da34991e30e4109ac67dc3562c99b7"
+}

@@ -1,6 +1,6 @@
 ---
-updated: 2026-09-06T15:30:00
-active_epic: none (E011, E012, E016, E017, E018, E019, E020 code complete; E015 code-complete, T05 browser evidence gap open — see below)
+updated: 2026-09-06T18:50:00
+active_epic: none (E011, E012, E016, E017, E018, E019, E020 code complete; E014 waves 1-2 code complete, waves 3-4 blocked on pm3-mcp; E015 code-complete, T05 browser evidence gap open — see below)
 planning_epic: none
 planning_epic_path: null
 current_wave:
@@ -71,8 +71,22 @@ current_wave:
     tests, `just check` exit 0, all 8 evidence records current). No
     Outside-AO items — pure Rust engine refactor, no UI surface.
   - All three epics from the 2026-09-06 roadmap (E018, E019, E020) are now
-    code-complete. No further epic queued — next is whatever comes out of
-    a fresh `planner` sweep or a new review.
+    code-complete.
+  - E014 waves 1-2 done (2026-09-06) — wrote the epic's first `## AO` block
+    (it predated that convention) and dispatched: release store, marker,
+    health probe, candidate list. Ran through AO run E014-20260906-2012,
+    one fix along the way (a fragile inline `node -e` verification
+    one-liner replaced with a real script after it failed the YAML-to-shell
+    round trip despite correct worker output). Promoted to main at
+    d12412a, all 5 tasks merged and independently re-verified (620 Rust +
+    3 integration + 304 TS tests, `just check` exit 0, all 5 evidence
+    records current). Waves 3-4 (PM3 consumption, rollback/cutover) remain
+    BLOCKED on `pm3-mcp/.plan/BACKLOG.md` — not this repo's work.
+  - No further epic queued. Remaining open items needing a Paweł decision
+    before they can be planned: code-signing provider, E015-T05's dev-mode
+    browser-evidence gap. Two Pro-tier feature ideas (smartwatch
+    integration, cross-device/phone relay) exist only as vision-doc
+    paragraphs and would need a full planning session from scratch.
 ---
 
 ## Status

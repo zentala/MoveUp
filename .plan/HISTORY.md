@@ -259,3 +259,36 @@ fixed by syncing the integration branch's copy directly rather than
 generating a fresh run-id each time. Promoted at `244de29`; all 8 tasks
 independently re-verified on `main` (569 Rust + 3 integration + 304 TS
 tests). No Outside-AO items — pure Rust engine refactor, no UI surface.
+
+## E014 — Supervised release rollback, waves 1-2 (2026-09-06)
+
+Plan: [PLAN.md](./epics/E014-2026-09-05-supervised-release-rollback/PLAN.md) ·
+Handoff: [HANDOFF.md](./epics/E014-2026-09-05-supervised-release-rollback/HANDOFF.md) ·
+Journal: [JOURNAL.md](./epics/E014-2026-09-05-supervised-release-rollback/JOURNAL.md)
+
+The installed MoveUp app had no crash recovery and no way to survive a bad
+build — if it died, it stayed dead until the next login, and there was no
+record of which past build had last proven healthy. This epic splits the
+fix by ownership: MoveUp keeps a small store of past builds and decides
+what "good" means; PM3 (a separate repo) gains the generic poll/demote/
+promote loop. MoveUp's half ships first since it is useful on its own and
+unblocks nothing else (decision D7).
+
+Written 2026-09-05 with full decisions (D1-D7) but no `## AO` block or
+`tasks/` directory — it predates that convention. Wrote both on
+2026-09-06 before dispatching: dropped a stale "bump to 0.6.0" sub-item
+(E015 already did that), corrected a stale `.plan/ARCH.md` reference to the
+real `.arch/ARCHITECTURE.md`, and sequenced all five tasks instead of the
+plan's suggested two-wide wave, since every epic run through AO this
+session hit the same `lib.rs`-collision class when two tasks both add a
+module. Ran through the Agent Orchestrator (`E014-20260906-2012`) with one
+fix along the way: the first task's inline `node -e` verification
+one-liner failed the YAML-to-shell round trip on this machine even though
+the worker's actual output was correct, so it was replaced with a real
+script before resuming. Promoted at `d12412a`; all 5 tasks independently
+re-verified on `main` (620 Rust + 3 integration + 304 TS tests).
+
+**Waves 3-4 remain blocked**, exactly as the plan always said they would:
+PM3's own candidate-list feature and stand-down logic have to land in
+`pm3-mcp`'s backlog first. This epic is code-complete for its unblocked
+half only, not fully done.

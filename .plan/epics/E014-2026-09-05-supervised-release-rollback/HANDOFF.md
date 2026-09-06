@@ -50,7 +50,7 @@ documents; they were checked on 2026-09-05.
 
 ## Waves and order
 
-### Wave 1 — release store (13 points, not blocked)
+### Wave 1 — release store (13 points, not blocked) — [x] done 2026-09-06
 
 | Task | Points | Agent |
 |---|---|---|
@@ -64,7 +64,7 @@ the two ADRs the plan names, so later tasks have a decision to cite.
 
 T01 and T02 are independent of each other and can run in parallel.
 
-### Wave 2 — what "good" means (8 points, not blocked)
+### Wave 2 — what "good" means (8 points, not blocked) — [x] done 2026-09-06
 
 | Task | Points | Agent |
 |---|---|---|
@@ -216,3 +216,10 @@ tasks:
 
 Waves 3-4 (T05-T08, T10) stay out of this manifest — they are blocked on
 `pm3-mcp`'s backlog (see above) and are not dispatched by this block.
+
+**Waves 1-2 done (2026-09-06).** Run `E014-20260906-2012`, promoted at
+`d12412a`. All 5 tasks (T09, T01, T02, T03, T04) merged and independently
+re-verified on `main`: 620 Rust + 3 integration + 304 TS tests, `just
+check` exit 0, all 5 evidence records `current`. Waves 3-4 remain blocked
+on `pm3-mcp`'s backlog exactly as before — this epic is NOT fully done.
+See [JOURNAL.md](JOURNAL.md).

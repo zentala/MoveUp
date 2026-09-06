@@ -217,3 +217,19 @@ JOURNAL.md.
 - **[E020-T07](epics/E020-2026-09-06-engine-pure-core/tasks/E020-T07-docs-adr-015.md)** — `.arch/ADR/015-pure-ergo-engine.md`; `.arch/ARCHITECTURE.md` session-engine section rewritten; `CLAUDE.md` updated; also repaired E019's `check-e019-t08-docs.mjs`, whose assertions this epic's refactor had made stale.
 - **[E020-T08](epics/E020-2026-09-06-engine-pure-core/tasks/E020-T08-verify-full-suite.md)** — Full unfiltered `cargo test` run, 0 failures; all 8 evidence records written.
 - **Outside AO**: none — pure Rust engine refactor, no UI surface.
+
+## E014 — Supervised Release Rollback, Waves 1-2 (2026-09-06)
+Run through AO (`E014-20260906-2012`), promoted at `d12412a`. This epic
+predated the `## AO` block convention — wrote it fresh (task reference
+files, sequenced T01→T02→T03→T04 instead of the plan's suggested parallel
+wave to avoid a known `lib.rs` collision, and swapped a fragile inline
+verification one-liner for a real script) before dispatching. All 5 tasks
+merged and independently re-verified on `main` (620 Rust + 3 integration +
+304 TS tests). Waves 3-4 (T05-T08, T10) remain BLOCKED on `pm3-mcp`'s
+backlog — this epic is not fully done. See JOURNAL.md.
+- **[E014-T09](epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T09-epic-setup-adrs.md)** — `.arch/ADR/018-pm3-app-ownership-split.md`, `.arch/ADR/019-release-store-layout.md`, `.arch/ARCHITECTURE.md` updated.
+- **[E014-T01](epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T01-release-store.md)** — New `release_store.rs`: ordered, versioned release store with 3-build retention.
+- **[E014-T02](epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T02-last-known-good-marker.md)** — New `last_known_good.rs`: marker file for the last build that proved healthy.
+- **[E014-T03](epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T03-health-good-probe.md)** — New `health_probe.rs`: process-alive-30s AND `/display/api` returns JSON (D5).
+- **[E014-T04](epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T04-candidate-list-writer.md)** — New `candidate_list.rs`: ordered rollback candidate list (D6) for PM3 to consume once its half lands.
+- **Not done**: Waves 3-4 (PM3 consumption, rollback/cutover) — blocked on `pm3-mcp/.plan/BACKLOG.md`, not this repo's work to unblock.

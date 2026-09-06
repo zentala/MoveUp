@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "T03",
+  "check_id": "health-probe",
+  "class": "test",
+  "timestamp": "2026-09-06T18:46:51.725Z",
+  "command_digest": "sha256:34725a638b8d771ed361329ae74863d0cf42d1a59420608222c28c8ea88c4afa",
+  "result": "pass",
+  "duration_ms": 1458,
+  "source_commit": "d12412a8537ff3e6aa837676f86b66a1c4a68ba6",
+  "source_fingerprint": "sha256:62b625a7ee34dd046bc103c4fc72f50fb0da34991e30e4109ac67dc3562c99b7"
+}
