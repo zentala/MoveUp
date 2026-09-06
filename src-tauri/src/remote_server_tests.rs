@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::db::TodaySummary;
-use crate::remote_server::{RemoteState, MAX_WS_CLIENTS};
+use crate::remote_server::{default_dist_path, RemoteState, MAX_WS_CLIENTS};
 use crate::session::SessionManager;
 
 #[test]
@@ -41,6 +41,27 @@ fn max_clients_check() {
     let counter = AtomicUsize::new(MAX_WS_CLIENTS);
     let current = counter.load(Ordering::Relaxed);
     assert!(current >= MAX_WS_CLIENTS);
+}
+
+#[test]
+fn default_dist_path_uses_exe_parent_not_cwd() {
+    let exe = std::path::Path::new("/opt/moveup/install/desk.exe");
+    let dist = default_dist_path(exe);
+    assert_eq!(dist, std::path::PathBuf::from("/opt/moveup/install/dist"));
+
+    // Sanity: the result does not depend on std::env::current_dir() — it is a
+    // pure function of the exe path, so a different CWD changes nothing.
+    let cwd_before = std::env::current_dir().unwrap();
+    let dist_again = default_dist_path(exe);
+    assert_eq!(dist, dist_again);
+    assert_eq!(cwd_before, std::env::current_dir().unwrap());
+}
+
+#[test]
+fn default_dist_path_falls_back_when_exe_has_no_parent() {
+    let exe = std::path::Path::new("desk.exe");
+    let dist = default_dist_path(exe);
+    assert_eq!(dist, std::path::PathBuf::from("dist"));
 }
 
 fn empty_today_summary() -> TodaySummary {

@@ -200,11 +200,26 @@ async fn dev_fallback() -> Html<&'static str> {
     )
 }
 
+/// Default frontend dist directory, resolved relative to the executable's
+/// own location — never the process's current working directory, which
+/// varies with how the exe was launched (script, shortcut, scheduled task).
+pub(crate) fn default_dist_path(exe_path: &std::path::Path) -> std::path::PathBuf {
+    exe_path
+        .parent()
+        .map(|dir| dir.join("dist"))
+        .unwrap_or_else(|| std::path::PathBuf::from("dist"))
+}
+
 /// Serves the built React frontend from dist/ in release builds.
 #[cfg(not(debug_assertions))]
 fn frontend_service() -> tower_http::services::ServeDir {
-    let dist = std::env::var("DESK_REMOTE_DIST")
-        .unwrap_or_else(|_| "../../dist".to_string());
+    let dist = std::env::var("DESK_REMOTE_DIST").unwrap_or_else(|_| {
+        std::env::current_exe()
+            .map(|exe| default_dist_path(&exe))
+            .unwrap_or_else(|_| std::path::PathBuf::from("dist"))
+            .to_string_lossy()
+            .into_owned()
+    });
     tower_http::services::ServeDir::new(dist)
 }
 
