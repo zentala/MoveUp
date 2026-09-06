@@ -36,7 +36,7 @@ export function useWidgetData(onOpenSettings: () => void): WidgetDataResult {
       port: desk.port,
       state: desk.state,
       deskHeightCm: desk.deskHeightCm,
-      currentSessionSecs: desk.sittingSeconds,
+      limitUsedSecs: desk.limitUsedSecs,
       limitSecs: desk.sessionLimitSecs,
       standLimitSecs: desk.standLimitSecs,
       limitRemaining: desk.limitRemaining,

@@ -61,7 +61,7 @@ mod serde_contract_tests {
             limit_used_secs: 0,
             daily_score: 0.0,
             standing_session_secs: 300,
-            current_session_secs: 0,
+            secs_since_last_break: 0,
             continuous_computer_secs: 0,
             longest_computer_session_secs: 0,
             sitting_seconds_total: 0,
@@ -77,7 +77,6 @@ mod serde_contract_tests {
     fn state_changed_payload_state_field_is_pascal_case() {
         let payload = StateChangedPayload {
             state: DeskState::Sitting,
-            sitting_seconds: 600,
             standing_seconds: 0,
             break_seconds: 0,
             desk_height_cm: 72.0,
@@ -85,7 +84,7 @@ mod serde_contract_tests {
             last_break_secs: 300,
             last_sitting_secs: 600,
             break_credit: BreakCredit::Partial,
-            current_session_secs: 0,
+            limit_used_secs: 600,
         };
         let json = serde_json::to_value(&payload).unwrap();
         assert_eq!(json["state"], "Sitting");

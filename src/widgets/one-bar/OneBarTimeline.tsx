@@ -46,10 +46,10 @@ interface TimelineTooltip {
   leftPct: number;
 }
 
-/** Current session duration: sitting uses currentSessionSecs, others use breakSecs. */
+/** Current session duration: sitting uses limitUsedSecs, others use breakSecs. */
 function currentDuration(props: WidgetProps): number {
   return props.state === "Sitting"
-    ? props.currentSessionSecs
+    ? props.limitUsedSecs
     : props.breakSecs;
 }
 

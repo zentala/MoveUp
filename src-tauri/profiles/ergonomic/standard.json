@@ -8,7 +8,7 @@
     "standing_target_secs": 900,
     "standing_max_secs": 5400,
     "break_min_secs": 60,
-    "break_credit_multiplier": 2.0,
+    "break_credit_multiplier": 3.0,
     "day_break_min_secs": 21600,
     "posture_balance_min_sitting_secs": 21600
   },

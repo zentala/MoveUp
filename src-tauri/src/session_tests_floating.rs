@@ -139,35 +139,36 @@ mod floating_window_tests {
     // ── Scenario E: App restart mid-session ────────────────────────────────
 
     #[test]
-    fn scenario_e_restart_should_not_seed_session_timer() {
-        // SPEC: After restart, current_session_secs = 0 (fresh session)
-        // sitting_seconds is the daily accumulator and WILL be seeded from DB.
+    fn e015_scenario_e_restart_seeds_the_credited_counter() {
+        // SPEC (E015, inverted): a restart does not hand the user a fresh
+        // timer. The credited counter is seeded from the DB and the DTO the
+        // UI reads reports it — sitting time survives an app restart.
         let mut m = SessionManager::new();
         m.load_today_totals(&crate::db_sessions::TodayTotals::from_secs(1200, 600));
 
-        // sitting_seconds holds the daily total (expected: 1200)
         assert_eq!(m.state.sitting_seconds, 1200);
-        // current_session_secs must be 0 (no active session after restart)
         assert_eq!(
-            m.state.current_session_secs, 0,
-            "Scenario E: current_session_secs should be 0 after restart"
+            m.snapshot().limit_used_secs,
+            1200,
+            "Scenario E: the UI counter must show the seeded credited value"
         );
     }
 
-    // ── Scenario F: Sitting timer shows total today (FIXED) ─────────────
+    // ── Scenario F: timer shows the credited total, not a fresh zero ────
 
     #[test]
-    fn scenario_f_timer_shows_current_session_not_total() {
-        // SPEC: After full reset + restart, current_session_secs = 0
+    fn e015_scenario_f_timer_shows_credited_total_after_restart() {
+        // SPEC (E015, inverted): the old spec wanted the timer to start at 0
+        // after a restart. That is the second counter this epic deleted — the
+        // only timer is the credited one, so it shows today's credited total.
         let mut m = SessionManager::new();
         m.load_today_totals(&crate::db_sessions::TodayTotals::from_secs(35 * 60, 10 * 60));
 
-        // Daily accumulator is seeded
         assert_eq!(m.state.sitting_seconds, 35 * 60);
-        // But session timer starts at 0
         assert_eq!(
-            m.state.current_session_secs, 0,
-            "Scenario F: current_session_secs should be 0, not total today"
+            m.snapshot().limit_used_secs,
+            35 * 60,
+            "Scenario F: the timer reports the credited total, never a reset 0"
         );
     }
 

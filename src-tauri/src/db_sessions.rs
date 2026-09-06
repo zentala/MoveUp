@@ -5,12 +5,12 @@
 use log::error;
 use rusqlite::Connection;
 
-use crate::db::SessionRow;
-use crate::session_types::DeskState;
+use crate::db::{break_credit_to_db_str, SessionRow};
+use crate::session_types::{BreakCredit, DeskState};
 
 // ─── Insert operations ───────────────────────────────────────────────────────
 
-/// Inserts a completed session into the database.
+/// Inserts a completed session into the database with no break credit recorded.
 /// `date_local` is set to the LOCAL date at time of insert (timezone-safe queries).
 /// This means the date reflects the user's timezone when the session happened.
 pub fn insert_session(
@@ -20,8 +20,32 @@ pub fn insert_session(
     state: &str,
     duration_seconds: i64,
 ) -> Result<(), rusqlite::Error> {
+    insert_session_with_credit(conn, started_at, ended_at, state, duration_seconds, None)
+}
+
+/// Inserts a completed session, recording the break credit it earned (ADR 008).
+///
+/// `break_credit` is `None` for spans where credit does not apply (a sitting
+/// span, a session flushed on shutdown) — the column then stays NULL, meaning
+/// "not recorded" rather than "earned nothing".
+pub fn insert_session_with_credit(
+    conn: &Connection,
+    started_at: &str,
+    ended_at: &str,
+    state: &str,
+    duration_seconds: i64,
+    break_credit: Option<&BreakCredit>,
+) -> Result<(), rusqlite::Error> {
     let date_local = chrono::Local::now().format("%Y-%m-%d").to_string();
-    insert_session_with_date(conn, started_at, ended_at, state, duration_seconds, &date_local)
+    insert_session_with_date_and_credit(
+        conn,
+        started_at,
+        ended_at,
+        state,
+        duration_seconds,
+        &date_local,
+        break_credit,
+    )
 }
 
 /// Insert with explicit date_local (used by tests and migration).
@@ -33,9 +57,32 @@ pub fn insert_session_with_date(
     duration_seconds: i64,
     date_local: &str,
 ) -> Result<(), rusqlite::Error> {
+    insert_session_with_date_and_credit(
+        conn,
+        started_at,
+        ended_at,
+        state,
+        duration_seconds,
+        date_local,
+        None,
+    )
+}
+
+/// Insert with explicit date_local and break credit.
+pub fn insert_session_with_date_and_credit(
+    conn: &Connection,
+    started_at: &str,
+    ended_at: &str,
+    state: &str,
+    duration_seconds: i64,
+    date_local: &str,
+    break_credit: Option<&BreakCredit>,
+) -> Result<(), rusqlite::Error> {
+    let credit = break_credit.map(break_credit_to_db_str);
     conn.execute(
-        "INSERT INTO sessions (started_at, ended_at, state, duration_seconds, date_local) VALUES (?, ?, ?, ?, ?)",
-        rusqlite::params![started_at, ended_at, state, duration_seconds, date_local],
+        "INSERT INTO sessions (started_at, ended_at, state, duration_seconds, date_local, break_credit) \
+         VALUES (?, ?, ?, ?, ?, ?)",
+        rusqlite::params![started_at, ended_at, state, duration_seconds, date_local, credit],
     )?;
     Ok(())
 }
@@ -182,12 +229,17 @@ pub fn get_yesterday_totals(conn: &Connection) -> Result<(i64, i64), String> {
 }
 
 /// Maps a database row to a [`SessionRow`].
+///
+/// Expects the column order used by every `sessions` SELECT in `db_queries.rs`:
+/// `id, started_at, ended_at, state, duration_seconds, break_credit`.
 pub fn map_session_row(row: &rusqlite::Row) -> rusqlite::Result<SessionRow> {
+    let credit: Option<String> = row.get(5)?;
     Ok(SessionRow {
         id: row.get(0)?,
         started_at: row.get(1)?,
         ended_at: row.get(2)?,
         state: row.get(3)?,
         duration_seconds: row.get(4)?,
+        break_credit: credit.as_deref().and_then(crate::db::break_credit_from_db_str),
     })
 }

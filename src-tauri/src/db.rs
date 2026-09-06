@@ -7,6 +7,8 @@
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
+use crate::session_types::BreakCredit;
+
 // Re-export sub-module functions for backwards compatibility.
 pub use crate::db_queries::get_today_summary;
 pub use crate::db_sessions::load_today_totals;
@@ -27,7 +29,8 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
             sitting_seconds       INTEGER DEFAULT 0,
             standing_seconds      INTEGER DEFAULT 0,
             position_changes      INTEGER DEFAULT 0,
-            session_limit_secs    INTEGER DEFAULT 2700
+            session_limit_secs    INTEGER DEFAULT 2700,
+            break_credit          TEXT
         )
         "#,
         [],
@@ -65,9 +68,39 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
                 "UPDATE sessions SET date_local = SUBSTR(started_at, 1, 10) WHERE date_local IS NULL",
             );
         }
+        // break_credit: the credit actually applied when this session ended
+        // ("none" | "partial" | "full", ADR 008). Deliberately left NULL for
+        // pre-migration rows — the credit was never recorded for them, and
+        // NULL says "unknown" where 'none' would claim a break earned nothing.
+        if !cols.contains(&"break_credit".to_string()) {
+            let _ = conn.execute("ALTER TABLE sessions ADD COLUMN break_credit TEXT", []);
+        }
     }
 
     Ok(())
+}
+
+// ─── Break credit column ─────────────────────────────────────────────────────
+
+/// Serialises a [`BreakCredit`] for the `sessions.break_credit` column.
+pub fn break_credit_to_db_str(credit: &BreakCredit) -> &'static str {
+    match credit {
+        BreakCredit::None => "none",
+        BreakCredit::Partial => "partial",
+        BreakCredit::Full => "full",
+    }
+}
+
+/// Parses the `sessions.break_credit` column. Returns `None` for NULL and for
+/// any value this build does not know — an unreadable value is unknown, never
+/// "no credit".
+pub fn break_credit_from_db_str(raw: &str) -> Option<BreakCredit> {
+    match raw {
+        "none" => Some(BreakCredit::None),
+        "partial" => Some(BreakCredit::Partial),
+        "full" => Some(BreakCredit::Full),
+        _ => None,
+    }
 }
 
 // ─── Row types ───────────────────────────────────────────────────────────────
@@ -85,6 +118,12 @@ pub struct SessionRow {
     pub state: String,
     #[serde(rename = "duration_secs")]
     pub duration_seconds: Option<i64>,
+    /// Break credit applied when this session ended (ADR 008).
+    ///
+    /// `None` means the row predates the `break_credit` column — the value is
+    /// unknown, not zero. Consumers must render it as unknown rather than
+    /// silently treating it as "no credit".
+    pub break_credit: Option<BreakCredit>,
 }
 
 /// A single row from the `height_readings` table.

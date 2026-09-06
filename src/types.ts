@@ -31,7 +31,6 @@ export type BreakCredit = "none" | "partial" | "full";
 /** Payload for `desk:state-changed` event. */
 export interface StateChangedPayload {
   state: DeskState;
-  sitting_seconds: number;
   standing_seconds: number;
   break_seconds: number;
   desk_height_cm: number;
@@ -42,8 +41,8 @@ export interface StateChangedPayload {
   last_sitting_secs: number;
   /** Break credit applied on this transition. */
   break_credit: BreakCredit;
-  /** Current sitting session seconds (resets after break credit). */
-  current_session_secs: number;
+  /** Seconds of sitting limit consumed (credited — see `SessionStateDto`). */
+  limit_used_secs: number;
 }
 
 /** Payload for `desk:sensor-error` event. */
@@ -66,14 +65,25 @@ export interface SessionStateDto {
   stand_limit_secs: number;
   desk_height_cm: number;
   position_changes: number;
-  /** Seconds of sitting limit consumed (accounts for break credits). */
+  /**
+   * Seconds of sitting limit consumed (accounts for break credits).
+   *
+   * **The only counter a timer, progress bar, colour band or notification
+   * may read.** A break reduces it proportionally (ADR 008); returning to
+   * sitting never resets it.
+   */
   limit_used_secs: number;
   /** Daily posture score (in-memory, resets at midnight). */
   daily_score: number;
   /** Current continuous standing session seconds (resets on sit). */
   standing_session_secs: number;
-  /** Current sitting session seconds (resets after break credit). */
-  current_session_secs: number;
+  /**
+   * Seconds since the last position change, uncredited.
+   *
+   * **Debug tab only.** It ignores break credit and restarts from zero on
+   * every position change — read `limit_used_secs` for session progress.
+   */
+  secs_since_last_break: number;
   /** Continuous seconds at computer (Sitting+Standing). Resets after 5+ min Away. */
   continuous_computer_secs: number;
   /** Longest continuous computer session today (seconds). */
@@ -165,7 +175,11 @@ export interface WidgetProps {
   port: string | null;
   state: DeskState;
   deskHeightCm: number;
-  currentSessionSecs: number;
+  /**
+   * Seconds of the sitting limit consumed, credited for breaks.
+   * Drives the big timer, the progress bar and the colour band — one value.
+   */
+  limitUsedSecs: number;
   limitSecs: number;
   /** Standing target in seconds (e.g. 900 = 15 min). */
   standLimitSecs: number;

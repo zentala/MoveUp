@@ -110,7 +110,7 @@ Source: `tray.rs:119-158`, `tray_icon.rs:18-35`, `tray_controller.rs:187-210`
 |----------|---------|----------|---------|------|
 | **Visible** | Yes | Yes (gold bar) | No | No |
 | **Color** | green `#4caf50` (<60%) / yellow `#ffc107` (60-85%) / red `#f44336` (>=85%) | goldenrod `#DAA520` -> bright gold `#FFD720` (interpolated by lap progress) | n/a | n/a |
-| **Progress** | `sitting_seconds / session_limit_secs` (0.0-1.0, fills left to right) | lap progress within standing_target_mins (resets each lap) | n/a | n/a |
+| **Progress** | `limit_used_secs / session_limit_secs` (0.0-1.0, fills left to right) — credited counter, see §5 | lap progress within standing_target_mins (resets each lap) | n/a | n/a |
 | **Variant** | 0=solid (normal), 2=pulsing (alert Stage1) | 0=solid, 2=pulsing (lap flash, 2s) | n/a | n/a |
 | **Height** | default 4px (configurable 1-20px via `OVERLAY_HEIGHT`) | same | n/a | n/a |
 | **Lap visual** | none | 2-layer: dark goldenrod `#B8860B` base (completed laps) + bright gold fill (current lap). 2s pulse flash on lap completion. | n/a | n/a |
@@ -313,39 +313,62 @@ Source: `session_manager.rs:208-229`, `config.rs:22-31`
 
 ## 5. Session Lifecycle
 
+### Which counter the UI reads
+
+One counter drives everything the user reads as session progress: the
+credited `sitting_seconds`, exposed to the UI as `limit_used_secs`
+(`limitUsedSecs` in TypeScript). Timer, overlay fill, colour band and the
+sit-limit alert all take that one value, so the number and its colour can
+never disagree.
+
+`sitting_seconds_total` and `standing_seconds` are raw daily totals for KPI
+and reporting. Compare raw with raw; never a credited value with a raw one.
+
+`secs_since_last_break` (seconds since the last position change) exists for
+the Debug tab only. It ignores break credit and restarts at zero on every
+position change — that is exactly the reset E015 removed from the UI. See
+[ADR 008](ADR/008-proportional-break-credit.md) revision 2026-09-06.
+
 ### Session Creation
 
 A sitting session begins when the user transitions **to Sitting** from any other state:
 - `sitting_started = now` timestamp recorded
-- `current_session_secs` reset to 0 (always a fresh session timer)
+- Break credit for the break just ended is applied to `sitting_seconds` (below)
 
 ### Session Accumulation
 
 While sitting, seconds are computed live (not committed until exit):
-- `live_sitting = sitting_seconds + (now - sitting_started)`
-- `live_current_session = current_session_secs + (now - sitting_started)`
+- `live_sitting = sitting_seconds + (now - sitting_started)` — this is what
+  `limit_used_secs` reports
 - `live_break = (now - break_started)` (computed on demand for standing/walking/away)
 
 ### Session Completion
 
 A sitting session ends when transitioning **from Sitting** to any other state:
 - Elapsed time committed: `sitting_seconds += elapsed`
-- `current_session_secs` reset to 0
 - `CompletedSession` created with `started_at`, `ended_at`, `duration_secs`
-- Saved to SQLite via `db_sessions::insert_session()`
+- Saved to SQLite via `db_sessions::insert_session()`, with the `break_credit`
+  applied on that transition stored on the row
 - `alert_fired` reset to false for the next sitting stint
 
 ### Break Credit Rules
 
-Applied when returning to Sitting after a break (Standing, Walking, or Away):
+Applied when returning to Sitting after a break (Standing, Walking, or Away).
+Proportional, per [ADR 008](ADR/008-proportional-break-credit.md) — no tiers,
+no cliff at 5 or 10 minutes:
 
 | Break Duration | Credit Type | Effect on `sitting_seconds` |
 |---------------|-------------|----------------------------|
-| < 5 min (300s) | `None` | No change — session continues as if uninterrupted |
-| 5-9 min (300-599s) | `Partial` | Subtract 1200s (20 min) from sitting_seconds, min 0 |
-| >= 10 min (600s) | `Full` | Reset sitting_seconds to 0 |
+| < `break_min_secs` (default 60s) | `None` | No change — session continues as if uninterrupted |
+| >= `break_min_secs`, credit smaller than the counter | `Partial` | `sitting_seconds -= break_secs × break_credit_multiplier` |
+| >= `break_min_secs`, credit reaches the counter | `Full` | `sitting_seconds` floors at 0 |
 
-Constants: `BREAK_SHORT_SECS=300`, `BREAK_LONG_SECS=600`, `SHORT_BREAK_CREDIT_SECS=1200`
+`break_credit_multiplier` is per ergonomic profile: **3.0 in `standard`**
+(15 min break cancels 45 min of sitting), 2.0 in `default`, `relaxed`,
+`strict` and `demo`. Both knobs live under `limits` in
+`profiles/ergonomic/*.json`.
+
+Source: `session_breaks.rs:117-155`
 
 ### Timeline Representation
 
@@ -427,8 +450,10 @@ Profiles are hot-reloadable: edit JSON → app picks up changes in ~1s.
 
 ### Break Credit (proportional)
 
-Each second of break cancels `break_credit_multiplier` seconds of sitting (default 2.0).
+Each second of break cancels `break_credit_multiplier` seconds of sitting —
+**3.0 in `standard`**, 2.0 in `default`, `relaxed`, `strict` and `demo`.
 Configurable in ergonomic profile: `limits.break_min_secs` and `limits.break_credit_multiplier`.
+It reduces the credited counter the UI reads (`limit_used_secs`); see §5.
 
 ### Temperature Backgrounds
 
@@ -524,8 +549,8 @@ Source: `communication_policy.rs`, `colors.rs`, `temperature.ts`
        Score: -15 + 15*(+1.0) + 5 = +5 pts
 
 08:45  User lowers desk -> Sitting
-       Break credit: Full (15 min >= 10 min)
-       sitting_seconds reset to 0
+       Break credit: 15 min * 3.0 = 45 min, more than the counter holds
+       -> Full, sitting_seconds floors at 0
        Overlay: green bar at 0%, calm temperature
 
 09:15  30 min sitting, limitRatio = 0.67
@@ -536,8 +561,9 @@ Source: `communication_policy.rs`, `colors.rs`, `temperature.ts`
        Break credit from the 35 min sitting: none yet (no break applied until return)
        Gold bar starts filling again
 
-09:30  10 min standing -> full reset earned
-       User sits -> sitting_seconds = 0 again
+09:30  10 min standing -> 30 min of credit earned
+       User sits -> 35 min sitting - 30 min credit = 5 min left on the timer
+       Credit type: Partial. The timer shows 5 min, not 0 — no reset on sit.
 
        Pattern continues through the day.
        Typical daily score: positive, growing with each standing lap.
@@ -574,18 +600,20 @@ Source: `communication_policy.rs`, `colors.rs`, `temperature.ts`
        Score at this point: ~50 min overtime * -0.5/min = about -40 pts total
 
 09:49  Only 5 min standing
-       User sits -> Break credit: Partial (5-9 min)
-       sitting_seconds reduced by 1200s (20 min)
-       Effective sitting_seconds: was ~105 min, now ~85 min
+       User sits -> Break credit: Partial (5 min * 3.0 = 15 min)
+       Effective sitting_seconds: was ~105 min, now ~90 min
        Still over limit! limitRatio > 1.0
        Alert system immediately re-enters Stage1
 
-09:59  User stands again, this time for 12 min
+09:59  10 more min sitting (~100 min) -> user stands again, this time 20 min
 
-10:11  Full break credit earned
-       sitting_seconds reset to 0
-       User can sit fresh for 45 min
+10:19  20 min * 3.0 = 60 min of credit
+       sitting_seconds: 100 - 60 = 40 min, just under the limit
+       Timer shows 40 min on the return to sitting — not 0
        Score recovering with +1.0/min standing + lap bonus
+
+       A deep overshoot is not cleared by one short break: with multiplier
+       3.0 it takes a break of a third of the accumulated sitting time.
 ```
 
 ---
@@ -670,10 +698,10 @@ Beyond the alert escalation system, these one-shot notifications fire:
 
 | Notification | Trigger | Title | Body |
 |-------------|---------|-------|------|
-| Sit limit reached | `sitting_seconds >= session_limit_secs` (once per stint) | "Time to stand up!" | "You've been sitting for 40 minutes. Take a break." |
+| Sit limit reached | `limit_used_secs >= session_limit_secs` (credited counter, once per stint) | "Time to stand up!" | "You've been sitting for 40 minutes. Take a break." |
 | Stand limit reached | `break_seconds >= stand_limit_secs` while standing (once) | "You've been standing a while" | "Ready to sit down for a bit?" |
 | Inactivity | No position change for 60 min | "No position change in 60 minutes" | "Time to move." |
-| Posture balance | `sitting_seconds > standing_seconds * 2` today | "You've been sitting most of today" | "Consider standing for a while." |
+| Posture balance | `sitting_seconds_total >= 6h` AND `sitting_seconds_total > standing_seconds * 2` — both raw daily totals, never the credited counter | "You've been sitting most of today" | "Consider standing for a while." |
 | Praise halfway | Standing reaches 50% of standing target | "Halfway through your standing goal!" | "Keep it up." |
 | Standing target reached | Standing reaches 100% of standing target | "Standing target reached!" | "Great break! You stood for the full target duration." |
 
@@ -729,7 +757,7 @@ backend, so dragging the date input does not spam the disk.
 | Desk height timeline | `get_snapshots_range` (snapshots) | Sensor reading over the full range. Downsampled to ~1000 buckets when more than 1000 points fall in range — the curve stays smooth even for a full week of minute samples. Higher = standing. |
 | State Gantt by day | `get_snapshots_range` (snapshots) | One row per day, coloured by state across the 24-hour axis. Quick visual of when the user was sitting (burgundy), standing (green), walking (blue), or away (gray). |
 | Daily score trajectory | `get_snapshots_range` (snapshots) | One line per day, max posture score by hour. Reveals consistency: bumpy lines = chaotic days, smooth = stable rhythm. |
-| Break credit histogram | `get_sessions_range` (sessions) | Bar chart of the three break-credit buckets defined by ADR 008 — none (<60 s, no credit), partial (60-120 s), full (≥120 s). |
+| Break credit histogram | `get_sessions_range` (sessions) | Bar chart of the three break-credit outcomes defined by ADR 008 — none, partial, full — read from the `break_credit` column the engine wrote for that session, not guessed from its duration. Sessions recorded before the column existed carry `null`, which reads as unknown, not as "none". |
 | KPI trends (7 days) | derived from snapshots (last value per day) | Small multiples for Standing %, Position changes, Longest session, and Daily score. Most recent day on the right. |
 
 Colours follow the canonical Color Dictionary (section 6): burgundy = sitting,

@@ -24,11 +24,11 @@ mod timer_live_tests {
     // ─── Time Counting (tests 12–16) ─────────────────────────────────────
 
     #[test]
-    fn t042_12_sitting_5min_live_session_secs() {
+    fn e015_t042_12_sitting_5min_live_credited_secs() {
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
         m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(300));
-        let live = m.get_live_current_session_secs(Utc::now());
+        let live = m.get_live_sitting_seconds(Utc::now());
         assert!(live >= 299 && live <= 301, "expected ~300, got {}", live);
     }
 
@@ -42,24 +42,27 @@ mod timer_live_tests {
     }
 
     #[test]
-    fn t042_14_snapshot_after_60s_sitting() {
+    fn e015_t042_14_snapshot_after_60s_sitting() {
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
         m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(60));
         let snap = m.snapshot();
         assert!(snap.sitting_seconds >= 59 && snap.sitting_seconds <= 61);
-        assert!(snap.current_session_secs >= 59 && snap.current_session_secs <= 61);
+        // The UI timer reads limit_used_secs — one field, same value.
+        assert_eq!(snap.limit_used_secs, snap.sitting_seconds);
         assert_eq!(snap.break_seconds, 0);
     }
 
     #[test]
-    fn t042_15_snapshot_after_30s_standing() {
+    fn e015_t042_15_snapshot_after_30s_standing() {
         let mut m = SessionManager::new();
         transition_to_standing(&mut m);
+        m.state.sitting_seconds = 900;
         m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(30));
         let snap = m.snapshot();
         assert!(snap.break_seconds >= 29 && snap.break_seconds <= 31);
-        assert_eq!(snap.current_session_secs, 0);
+        // Standing freezes the credited counter; it does not zero it.
+        assert_eq!(snap.limit_used_secs, 900);
     }
 
     #[test]
@@ -132,14 +135,14 @@ mod timer_live_tests {
     }
 
     #[test]
-    fn t042_16_full_cycle_sit_stand_sit_snapshots() {
+    fn e015_t042_16_full_cycle_sit_stand_sit_timer_is_credited_never_reset() {
         let mut m = SessionManager::new();
 
         // Phase 1: Sit 5 min → sitting_seconds committed ≈ 300s on Stand transition
         transition_to_sitting(&mut m);
         m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(300));
         let s1 = m.snapshot();
-        assert!(s1.current_session_secs >= 299 && s1.current_session_secs <= 301);
+        assert!(s1.limit_used_secs >= 299 && s1.limit_used_secs <= 301);
         assert_eq!(s1.break_seconds, 0);
 
         // Phase 2: Stand 2 min (credit = 120s * 2.0 = 240s < ~300s sitting → Partial)
@@ -149,7 +152,12 @@ mod timer_live_tests {
         m.state.standing_bout_started = Some(t2);
         let s2 = m.snapshot();
         assert!(s2.break_seconds >= 119 && s2.break_seconds <= 121);
-        assert_eq!(s2.current_session_secs, 0);
+        // While standing the timer is frozen at what was consumed, not zeroed.
+        assert!(
+            s2.limit_used_secs >= 299 && s2.limit_used_secs <= 301,
+            "expected ~300 while standing, got {}",
+            s2.limit_used_secs
+        );
         // standing_seconds should include live break
         assert!(
             s2.standing_seconds >= 119 && s2.standing_seconds <= 121,
@@ -157,10 +165,17 @@ mod timer_live_tests {
             s2.standing_seconds
         );
 
-        // Phase 3: Sit again — 120s break * 2.0 = 240s credit < ~300s sitting → Partial
+        // Phase 3: Sit again — 120s break * 2.0 = 240s credit < ~300s sitting → Partial.
+        // This is the assertion E015 inverted: the old suite demanded ~0 here,
+        // which is the reset the user complained about. The engine credits, it
+        // does not reset, so the timer must show 300 − 240 ≈ 60.
         transition_to_sitting(&mut m);
         let s3 = m.snapshot();
         assert_eq!(m.state.last_break_credit, BreakCredit::Partial);
-        assert!(s3.current_session_secs < 5, "should be near 0, got {}", s3.current_session_secs);
+        assert!(
+            s3.limit_used_secs >= 55 && s3.limit_used_secs <= 70,
+            "expected ~60 (300 - 120*2.0), got {}",
+            s3.limit_used_secs
+        );
     }
 }

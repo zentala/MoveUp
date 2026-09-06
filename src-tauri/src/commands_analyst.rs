@@ -78,6 +78,10 @@ pub async fn get_events_range(
 }
 
 /// Returns completed session rows across a `[from, to]` inclusive date range.
+///
+/// Each row carries the `break_credit` the engine actually applied (ADR 008),
+/// read from the column rather than guessed from the session's duration. Rows
+/// written before that column existed carry `null` — unknown, not "none".
 #[tauri::command]
 pub async fn get_sessions_range(
     app: AppHandle,

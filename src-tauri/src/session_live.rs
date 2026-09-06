@@ -22,15 +22,17 @@ impl SessionManager {
         base
     }
 
-    /// Computes live current session seconds: committed + elapsed since sitting_started.
-    pub(crate) fn get_live_current_session_secs(&self, now: DateTime<Utc>) -> i64 {
-        if self.state.state == DeskState::Sitting {
-            if let Some(started) = self.state.sitting_started {
-                let elapsed = (now - started).num_seconds().max(0);
-                return self.state.current_session_secs + elapsed;
-            }
+    /// Seconds elapsed since the last position change — uncredited.
+    ///
+    /// Debug-tab diagnostic only (E015 decision D2). Never use it for a
+    /// timer, progress bar, colour band or notification; those read
+    /// `limit_used_secs`, the credited counter. Returns 0 when no position
+    /// change has been recorded yet.
+    pub(crate) fn get_secs_since_last_break(&self, now: DateTime<Utc>) -> i64 {
+        match self.state.last_position_change_at {
+            Some(changed_at) => (now - changed_at).num_seconds().max(0),
+            None => 0,
         }
-        self.state.current_session_secs
     }
 
     /// Computes live sitting seconds: committed + elapsed since sitting_started.

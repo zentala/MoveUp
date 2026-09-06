@@ -49,7 +49,6 @@ describe("SessionProgress — Floating Window Spec (T029)", () => {
     // The actual rendering of transition data is a UI feature for T030.
     const payload: StateChangedPayload = {
       state: "Sitting",
-      sitting_seconds: 0,
       standing_seconds: 720,
       break_seconds: 0,
       desk_height_cm: 72.3,
@@ -57,7 +56,7 @@ describe("SessionProgress — Floating Window Spec (T029)", () => {
       last_break_secs: 720,
       last_sitting_secs: 1800,
       break_credit: "full",
-      current_session_secs: 0,
+      limit_used_secs: 0,
     };
 
     expect(payload.last_break_secs).toBe(720);

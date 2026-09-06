@@ -12,7 +12,7 @@ export const S05_STANDING_MID: Scenario = {
   context: "User stood up, taking a break. Timer counts standing time.",
   props: {
     connected: true, port: "COM3", state: "Standing", deskHeightCm: 105,
-    currentSessionSecs: 0, limitSecs: 2400, standLimitSecs: 900,
+    limitUsedSecs: 0, limitSecs: 2400, standLimitSecs: 900,
     limitRemaining: 2400, limitRatio: 0, breakSecs: 480,
     breakResetThreshold: 600, breakResetProgress: 0.8,
     previousSession: { state: "Sitting", durationSecs: 2400, wasEffective: false },
@@ -36,7 +36,7 @@ export const S06_AWAY: Scenario = {
   context: "User went to kitchen/bathroom. App should NOT alert.",
   props: {
     connected: true, port: "COM3", state: "Away", deskHeightCm: 72,
-    currentSessionSecs: 0, limitSecs: 2400, standLimitSecs: 900,
+    limitUsedSecs: 0, limitSecs: 2400, standLimitSecs: 900,
     limitRemaining: 2400, limitRatio: 0, breakSecs: 720,
     breakResetThreshold: 600, breakResetProgress: 1.0,
     previousSession: { state: "Sitting", durationSecs: 1800, wasEffective: false },
@@ -60,7 +60,7 @@ export const S07_BACK_FROM_AWAY: Scenario = {
   context: "After lunch break. Sitting timer starts from 0.",
   props: {
     connected: true, port: "COM3", state: "Sitting", deskHeightCm: 72,
-    currentSessionSecs: 30, limitSecs: 2400, standLimitSecs: 900,
+    limitUsedSecs: 30, limitSecs: 2400, standLimitSecs: 900,
     limitRemaining: 2370, limitRatio: 0.0125, breakSecs: 0,
     breakResetThreshold: 600, breakResetProgress: 0,
     previousSession: { state: "Away", durationSecs: 900, wasEffective: true },
@@ -87,7 +87,7 @@ export const S08_GOOD_DAY: Scenario = {
   context: "The ideal day we're designing for.",
   props: {
     connected: true, port: "COM3", state: "Sitting", deskHeightCm: 72,
-    currentSessionSecs: 900, limitSecs: 2400, standLimitSecs: 900,
+    limitUsedSecs: 900, limitSecs: 2400, standLimitSecs: 900,
     limitRemaining: 1500, limitRatio: 0.375, breakSecs: 0,
     breakResetThreshold: 600, breakResetProgress: 0,
     previousSession: { state: "Standing", durationSecs: 900, wasEffective: true },
@@ -116,7 +116,7 @@ export const S09_DISCONNECTED: Scenario = {
   context: "USB unplugged, cable issue, sensor failure.",
   props: {
     connected: false, port: null, state: "Away", deskHeightCm: 0,
-    currentSessionSecs: 0, limitSecs: 2400, standLimitSecs: 900,
+    limitUsedSecs: 0, limitSecs: 2400, standLimitSecs: 900,
     limitRemaining: 2400, limitRatio: 0, breakSecs: 0,
     breakResetThreshold: 600, breakResetProgress: 0,
     previousSession: null, todaySessions: [], todayChanges: 0,

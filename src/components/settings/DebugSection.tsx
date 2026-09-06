@@ -84,7 +84,7 @@ const DebugSection: FC = () => {
       </Group>
 
       <Group title="Sitting Session">
-        <Row label="this session (sitting)" value={fmtSecs(d.sittingSeconds)} />
+        <Row label="since last break (debug only)" value={fmtSecs(d.secsSinceLastBreak)} />
         <Row label="limit used" value={`${fmtSecs(d.limitUsedSecs)} (${limitPct}%)`} />
         <Row label="limit remaining" value={fmtSecs(d.limitRemaining)} warn={d.limitRemaining < 0} />
         <Row label="limit ratio" value={d.limitRatio.toFixed(2)} warn={d.limitRatio > 1} />
