@@ -14,19 +14,25 @@ current_wave:
   `current_session_secs`); fix planned as E015. Roadmap E016→E015→E017→E018/E019→E020.
 - **E013 (signed Tauri release and PM3 deployment)** — planning; extends the
   deferred E003-T07 release-automation task. No implementation task is active.
-- **E011 (autostart hardening)** — active, scaffolded, T03 done. Wave 1 (T01+T02) and Wave 2-3 pending. See [PLAN.md](./epics/E011-2026-05-07-autostart-hardening/PLAN.md).
+- **E011 (autostart hardening)** — done, code-complete 2026-05-07, ceremony closed
+  via E016. All five tasks (T01–T05) are `[x]` in [DONE.md](./DONE.md). See
+  [PLAN.md](./epics/E011-2026-05-07-autostart-hardening/PLAN.md).
 - E000 (maintenance) — open (permanent)
 - E001–E009 — partially done (see ORCHESTRATOR.md per epic)
 - E010 (Marketing Launch) — 19/22 tasks DONE (3 human tasks remain)
 
-## E011 progress
+## E011 progress — complete
+
+All five tasks are done and recorded in [DONE.md](./DONE.md); the epic's
+close-out ceremony (HISTORY entry, IMPRO triage) is handled by E016-T03.
+
+- ✅ T01 — autostart self-heal + dev guard + events log (commit `2c95911`)
+- ✅ T02 — EventLogger investigation + write reliability
 - ✅ T03 — fix WidgetProps test (commit `95305b7`)
+- ✅ T04 — precommit tsc gate (commit `2dcf49c`)
+- ✅ T05 — `--minimized` autostart (commit `bd7df6`)
 - ✅ Epic scaffold (commit `bfddf63`)
 - ✅ Hot fix outside epic: registry rewritten to release path, fresh `desk.exe` built
-- ⏳ T01 — autostart self-heal + dev guard + events log
-- ⏳ T02 — EventLogger investigation + reliability
-- ⏳ T04 — precommit tsc gate (depends T03 ✅)
-- ⏳ T05 — `--minimized` autostart (depends T01)
 
 ## Version
 - Current: `v0.5.0` (tag v0.5.0; STATE previously said 0.3.0 — corrected 2026-09-06)
@@ -54,6 +60,15 @@ Major refactor completed in E000-maintenance:
   - T02: Collect real usage data (screenshots, photos)
   - T14: Marketing videos (2-3)
   - T18: Record 15-second hero GIF/video
+
+Reconciliation of the 3-vs-10 count: these 3 are E010's own numbered tasks.
+The "Collect from User — blocking launch" checklist in root
+[`BACKLOG.md:266-280`](../BACKLOG.md) lists 10 items — the same media work
+split finer, plus 7 additional business/infra items (Stripe account,
+Plausible account, Google Search Console, OG cover image, real usage stats
+export) that are outstanding but are not counted as E010 tasks.
+TODO: repoint this link at `.plan/BACKLOG.md` once E016-T02 merges that
+section out of the root file.
 
 ## Recent: Notification Anti-Spam (2026-03-30)
 - Removed duplicate notifications (toast + popup) — visual-only escalation at +5 min

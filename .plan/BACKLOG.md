@@ -68,7 +68,7 @@
 - [ ] E002-T11 — [Verify debug overlay info](epics/E002-2026-03-16-overlay-progress-bar/tasks/E002-T11-verify-debug-overlay.md) — display works, needs manual QA sign-off
 
 ### From E003 — Installer & Distribution
-- [ ] E003-T07 — [GitHub Releases CI/CD](epics/E003-2026-03-16-installer-distribution/tasks/E003-T07-github-releases-automation.md) (requires code signing certificate)
+- [ ] E003-T07 — [GitHub Releases CI/CD](epics/E003-2026-03-16-installer-distribution/tasks/E003-T07-github-releases-automation.md) (requires code signing certificate) — superseded by E013 (see [E013/PLAN.md](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md) status note).
 
 ### From E004 — Session Alerts & Snooze
 - [ ] E004-T04 — [Integration test: full alert flow](epics/E004-2026-03-20-session-alerts/tasks/E004-T04-integration-test-alert-flow.md) — basic tests exist, time simulation missing
@@ -367,5 +367,244 @@ Engine and backend items were filed above by their reviewers. Frontend and relea
 - [ ] **`coverage/` and `test-performance-report/` are tracked in git** (`git ls-files coverage | wc -l`). (Medium, 1) → E016
 - [ ] **Cargo package metadata still says "zntl Desk"** — [src-tauri/Cargo.toml](../src-tauri/Cargo.toml). (Medium, 1) → E017
 - [ ] **`installer.md` size target 60-70 MB vs observed ~4-6 MB; `.perf-baseline.json`/`.build-sizes.json` stale**. (Low, 1) → E017
-- [ ] **Four backlog-like files (root `BACKLOG.md`, `TASKS.md`, `ORCHESTRATOR.md`, this file); E010 human-task count contradicts (3 vs 10)** — [BACKLOG.md:266-280](../BACKLOG.md) vs [STATE.md](STATE.md). (High, 2) → E016
+- [x] **Four backlog-like files (root `BACKLOG.md`, `TASKS.md`, `ORCHESTRATOR.md`, this file); E010 human-task count contradicts (3 vs 10)** — consolidated 2026-09-06 by E016-T02: the three root files are deleted and every section unique to root `BACKLOG.md` is merged verbatim below under "Merged from root `BACKLOG.md`". E010's count is E016-T01's job ([STATE.md](STATE.md)). (High, 2) → E016
 - [ ] **E011 close-out ceremony not done; E003-T07 not marked superseded by E013** — [epics/E011-2026-05-07-autostart-hardening/ORCHESTRATOR.md:44-51](epics/E011-2026-05-07-autostart-hardening/ORCHESTRATOR.md). (High, 3) → E016
+
+---
+
+## Merged from root `BACKLOG.md` (2026-09-06, E016-T02)
+
+Root `BACKLOG.md`, `TASKS.md` and `ORCHESTRATOR.md` were deleted; this file is the
+single backlog. Every section below is copied byte-for-byte from root `BACKLOG.md`,
+original headings kept so provenance is traceable. Sections whose content already
+existed here (Tauri Plugins, App Icon, Alert System, Max Continuous Computer Time
+Alert, Activity Tracking, Logging & Observability, Timeline Full Window, KPI Time
+Range Selector, Future Features, Removed) were not copied twice.
+
+Note: relative links inside the copied sections were written from the repo root, so
+they read as `.plan/...` rather than as paths relative to this file.
+
+## Dokumentacja
+
+- **Overlay Progress Bar Architecture Document** — pełny opis systemu paska na górze ekranu
+
+---
+
+## Sensor & Readings
+
+- **Height stabilization algorithms** — moving average, 1cm rounding, trend locking (scheduled: T037)
+- **Sensor diagnostics panel** — show raw vs smoothed readings, debounce state, threshold visualization
+  - Helps debug standing detection issues like T036
+
+---
+
+## Persistent KPI Strip
+
+Always-visible KPI strip on every view — fixed position, same place. Shows 4 daily ergonomics metrics with color coding.
+
+### KPIs (all RELATIVE, not raw counts):
+
+| KPI | Format | Green | Yellow | Red |
+|-----|--------|-------|--------|-----|
+| **Standing %** | `12%` | ≥15% | 10-15% | <10% |
+| **Position changes/h** | `1.2/h` | ≥1.0 | 0.5-1.0 | <0.5 |
+| **Hourly breaks** | `5/7h` | all hours covered | 1-2 missed | ≥3 missed |
+| **Longest session** | `47m` | <45m | 45-75m | >75m |
+
+- Position change count (raw number) = secondary/small, shown alongside changes/h
+- No raw counts without context — everything relative to time worked
+
+### Design rules:
+
+- Widoczne na KAŻDYM widoku, stałe miejsce (np. dolny pasek, header strip)
+- Kompaktowe — 4 liczby + kolory, zero tekstu opisowego
+- Kolor komunikuje stan (zielony/żółty/czerwony) — nie trzeba czytać
+
+### Position change definition:
+
+- 5+ minut stania LUB 5+ minut away = 1 zmiana pozycji
+- Standing i away są wymienne jako "przerwa"
+- Cel: ~1 zmiana/godzinę
+
+### Hourly break definition:
+
+- Binarne sprawdzenie per godzina: "Czy była ≥5 min przerwa od ekranu?"
+- KPI = ile godzin miało przerwę / ile godzin pracowaliśmy
+- Jedna 30-min przerwa w jednej godzinie = 1/1 dla tej godziny, NIE nadrabia za inne
+- Away = odpoczynek dla oczu (nawet stojąc, oczy pracują)
+
+---
+
+## Coach Messages → Progress Bar
+
+Zamienić tekstowe coach messages ("Half limit used", "On track", etc.) w OneBarCoach na wizualne elementy. Istniejący 4px progress bar w OneBarTimer działa dobrze — coach message pod nim jest niepotrzebny/nieczytelny.
+
+- Progress bar już istnieje i jest dynamiczny (OneBarTimer.tsx) — reużyć/rozszerzyć
+- Usunąć lub uprościć coach text messages — bar sam komunikuje stan
+- Ewentualnie: coach message jako tooltip, nie stały tekst
+
+---
+
+## KPI "Session" Label — Confusing, Rename Required
+
+- KPI badge labeled "Session" actually means "longest continuous screen time without 5+ min away"
+- User interprets "Session" as sitting session or app uptime — both wrong
+- **Rename to**: "Screen" or "Screen time" or "At desk" — something that communicates "continuous time at computer"
+- **Possible bug**: Away detection doesn't work (Away state unreachable) → screen time counter NEVER resets → always red after 75 min. Fix Away state first (see "State Machine Redesign" below), then verify this KPI resets properly.
+- **Not covered by tests**: no test verifying that 5+ min away resets the longest_session counter in practice (only unit tests on counter logic, but Away is never triggered by sensor)
+
+---
+
+## Notification Centralization (pre-requisite for alert escalation)
+
+> Before implementing full alert escalation flow (T017 Stages 3-5), centralize all notification sources.
+
+- **NotificationService** — single Rust module that routes ALL notifications through one backend
+  - Currently two parallel systems: native toasts (`tauri-plugin-notification`) scattered across `serial_periodic.rs` + custom WinAPI popup (`alert_popup_window.rs`)
+  - 6 toast conditions spread across `serial_periodic.rs` and `session_breaks.rs` with no central coordination
+  - `notification_backend` field exists in `config.rs` (`"toast" | "popup" | "both"`) but is **dead code** — never read
+  - **Goal:** one `NotificationService` that:
+    1. Collects all notification intents (inactivity, posture balance, praise, alerts, escalation)
+    2. Routes through selected backend: native toast OR custom popup OR both
+    3. Manages once-per-day / once-per-session gates centrally (not scattered flags)
+    4. Makes T018 (A/B testing) trivial — just flip `notification_backend` in config
+  - **Blocks:** T017 (Stages 3-5), T018 (A/B testing)
+  - **Custom popup redesign** — migrate from raw WinAPI GDI (Win32 2003 look) to Tauri WebviewWindow (HTML/CSS, dark theme, acrylic blur). Already in backlog above under "Alert System — Future".
+
+---
+
+## Away Detection — Runtime Diagnostic (2026-03-25)
+
+> State machine logic FIXED (commit c305f08): `!active → Away` regardless of desk height.
+> Unit tests pass (340/340), including Standing→Away regression test.
+> BUT: user reports Standing + inactive does NOT transition to Away at runtime.
+
+**Status:** Diagnostic logging added to `serial_periodic.rs`. Next occurrence, check:
+- Event log: `STATE Standing→Away idle=XXs` — if missing, `is_active()` never returned false
+- Debug log: `Standing idle diagnostic: idle=XXs` — shows Windows API idle value
+
+**Open questions:**
+1. Does something on Windows reset `GetLastInputInfo` when overlay bar is in standing (gold) mode?
+2. Is there a race condition where UI snapshot reads old state before transition?
+3. Could the floating window (Tauri webview) or overlay (WinAPI) generate synthetic input?
+
+**Next steps:**
+- Run app with `RUST_LOG=desk_lib=debug`, reproduce, check logs
+- If `is_active()` always returns true during standing: investigate WinAPI interactions
+- Add integration test: `inject_reading(1200, false)` from frontend → verify UI shows Away
+
+---
+
+## DB Persistence in Dev Mode (2026-03-25)
+
+> Database keeps getting reset during development. User needs persistent data even in dev mode.
+
+**Current behavior:**
+- DB path: `{AppData}/io.zntl.desk/desk.db`
+- Lazy-initialized via `ensure_initialized()` — only opens when first IPC command fires
+- `load_today_totals()` overwrites in-memory counters with DB values on init
+- In dev mode (`pnpm tauri:dev`), rebuilds may change identifier → different `app_data_dir` → lost DB
+
+**Proposed fixes:**
+1. **Eager DB init** — open DB in `setup()`, not lazy on first IPC call. Prevents lost sessions before frontend loads.
+2. **Log DB path at startup** — print `info!("DB: {}", db_path)` so user can verify path stays consistent.
+3. **DB backup on startup** — copy `desk.db` → `desk.db.bak` before opening, protect against corruption.
+4. **Pin `identifier` in dev mode** — ensure `tauri.conf.json` identifier doesn't change between builds.
+
+**Priority:** HIGH — data loss during development is unacceptable when testing break patterns
+
+---
+
+## Remote Display — Phone as Desk Dashboard
+
+**Epic E009** — full spec at `.plan/epics/E009-2026-03-24-remote-display/PLAN.md`
+
+Phase 1 (E009): Web kiosk — PC serves React+WS to phone browser. 7 tasks, ~16h.
+Phase 2 (future): Tauri Mobile native Android app.
+Phase 3 (future): Standalone — sensor communicates wirelessly (BLE/WiFi) with phone, no PC needed.
+
+See `.plan/vision/2026-03-15-desk-app-vision.md` → "Remote Display" section for full vision.
+
+---
+
+## Motivation Analytics & Adaptive Coaching (ongoing process)
+
+- **Progressive break credit curve** — replace step function (<5m=0, 5-9m=-20m, ≥10m=reset) with smooth curve where every minute of break gives increasing credit. Short breaks (1-4 min) should give *some* reward. See memory: `project_progressive_break_credit.md`.
+- **`/ergo-review` skill** — agent reads minute snapshots + event log, analyzes sitting/standing patterns, discusses UX effectiveness with user, proposes parameter tweaks. Created as `.claude/skills/ergo-review/`.
+- **Notification outcome tracking** — log whether a notification led to action within 5 min (standing/away). Currently we fire notifications but don't track if they worked. Needed for measuring motivation effectiveness.
+- **Configurable break credit parameters** — move hardcoded `BREAK_SHORT_SECS`, `BREAK_LONG_SECS`, `SHORT_BREAK_CREDIT_SECS` to `AppConfig` so they can be tuned without code changes.
+- **Adaptive motivation engine (long-term)** — A/B test different notification strategies, learn what works for this user, optimize automatically. Needs: notification outcomes, sufficient history, parameter framework.
+
+---
+
+## Fullscreen Debug Dashboard (2026-03-26)
+
+Dedicated fullscreen window for debugging and verifying app behavior. NOT the popup — a separate Tauri WebviewWindow.
+
+### Must show:
+1. **Timeline visualization** — full-day timeline bar (like popup but bigger), color-coded by state (green=standing, red=sitting, gray=away, gold=break credit applied)
+2. **Event log overlay** — event log entries mapped to timeline positions. Each STATE/CREDIT/ALERT/NOTIF event visible as markers on the timeline
+3. **Counter dashboard** — all live counters with their data source explained:
+   - `sitting_seconds` — "Total sitting today (committed + live elapsed)"
+   - `standing_seconds` — "Total standing today (committed + live bout)"
+   - `break_seconds` — "Current break duration (from break_started)"
+   - `position_changes` — "Sit↔Stand transitions only"
+   - `daily_score` — "Points formula: -0.5/min sit, +1.0/min stand, +5.0/lap"
+   - `continuous_computer_secs` — "Time at keyboard without 5min break"
+4. **Raw state dump** — all SessionState fields, updated live (1s polling)
+5. **DB session history** — list of CompletedSession rows from SQLite for today, with started_at, ended_at, state, duration_secs
+
+### Purpose:
+When user sees timeline not matching reality, they can open this view and immediately compare: "timeline shows X, but event log says Y, and DB has Z." No more guessing.
+
+### Implementation:
+- New Tauri WebviewWindow (like welcome popup pattern)
+- Route: `/#/debug-dashboard`
+- Read-only — no mutations
+- IPC: `get_dashboard_state` (existing) + new `get_event_log` + `get_db_sessions_today`
+
+---
+
+## 🔴 Collect from User (zentala) — blocking launch
+
+These items require human action. Everything else is blocked until these are done.
+
+- [ ] **Real usage screenshots** — app popup showing real KPIs (not mock data)
+- [ ] **Sensor photo** — VL53L1X mounted under real desk, visible cable
+- [ ] **Desk setup photo** — full desk with sensor visible, monitor, keyboard
+- [ ] **15-second hero GIF** — screen recording: overlay bar going green→red, popup open
+- [ ] **2-3 marketing videos** — (1) "How I track sitting" 2-3min, (2) short-form 1min, (3) maker build 5-10min
+- [ ] **Real usage stats** — export 30 days of data: standing %, position changes/day, longest session. Replace all [PLACEHOLDER] markers in posts, emails, blog, social proof
+- [ ] **OG cover image** — 1200×630px for social sharing (Figma/Canva: app screenshot + sensor + headline)
+- [ ] **Stripe account** — create Stripe account, generate 3 Payment Links (Basic €49, Pro €79, Founder's €149), replace placeholder URLs in Pricing.tsx
+- [ ] **Plausible account** — sign up at plausible.io, configure desk.zentala.io domain
+- [ ] **Google Search Console** — verify desk.zentala.io, submit sitemap
+
+---
+
+## Landing Page — Post-Launch
+
+- **Cloudflare Worker for waitlist** — real endpoint to store emails (CF Worker + D1). Currently forms submit to placeholder URL
+- **Live pre-order counter** — Stripe webhook → CF Worker → KV → landing page fetches live count. Currently static JSON
+- **Share as image** — html2canvas or Rust screenshot API for better viral sharing (currently text-only)
+- **Telemetry CF Worker** — endpoint at telemetry.desk.zentala.io/api/report to receive opt-in daily aggregates
+- **Blog RSS feed** — Astro has built-in plugin, helps SEO and HN/Reddit readers
+
+---
+
+## i18n — Landing Page Translations (post-validation)
+
+Priority order based on global market size and standing desk adoption:
+1. 🇬🇧 English (done — primary)
+2. 🇵🇱 Polish (personal — zentala is Polish)
+3. 🇨🇳 Chinese (Simplified) — huge market, low English proficiency
+4. 🇧🇷🇵🇹 Portuguese — Brazil + Portugal
+5. 🇪🇸 Spanish — Latin America + Spain
+6. 🇩🇪 German — strong standing desk market
+7. 🇫🇷 French — France + francophone Africa
+8. 🇰🇷 Korean — tech-savvy market, low English
+9. 🇯🇵 Japanese — similar to Korean, secondary priority
+10. 🇸🇪🇳🇴🇩🇰 Scandinavian — high desk adoption but speak English well (lowest priority)
+
+**Not doing**: Dutch, Finnish — too small, English proficiency too high.
+**When**: after 100 pre-orders validated demand. i18n is post-product-market-fit.

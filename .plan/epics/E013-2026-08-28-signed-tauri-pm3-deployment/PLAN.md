@@ -1,10 +1,23 @@
 ---
 epic: E013
 created: 2026-08-28
-status: planning
+status: superseded
 ---
 
 # E013: Signed Tauri release and PM3 deployment
+
+> **Superseded 2026-09-06**: this epic's planned waves 1-2 (release readiness:
+> docs, license, CI, signing decision) move to
+> [E017](../E017-2026-09-06-release-readiness/); waves 3-5 (PM3 supervision,
+> rollback, `moveup.internal` health checks) move to
+> [E014](../E014-2026-09-05-supervised-release-rollback/). This file is
+> retained for its acceptance-criteria research; do not resume implementation
+> against it directly.
+>
+> The frontmatter says `superseded` while the body below still reads as an
+> active plan — that disagreement is deliberate during a split. The body is
+> kept verbatim as source material for E017 and E014; only the status field
+> and this note describe where the work actually lives now.
 
 ## Goal
 

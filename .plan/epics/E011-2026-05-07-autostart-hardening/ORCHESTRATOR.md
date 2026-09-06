@@ -44,11 +44,28 @@
 
 ## Final integration
 
+Closed 2026-09-06 by E016-T03. Boxes that were genuinely done are checked;
+the rest are replaced by a note saying why they are moot. Nothing here is
+checked off for work that did not happen.
+
 - [x] All worktrees merged to `main`
-- [ ] `pnpm tauri:build` succeeds
-- [ ] Manual end-to-end smoke per PLAN.md acceptance criteria
-- [ ] Bump version to `0.4.0` per `.claude/rules/versioning.md` (new epic = MAJOR bump)
-- [ ] Tag `v0.4.0`
-- [ ] Update `.arch/HISTORY.md` with epic summary
-- [ ] Triage `IMPROVEMENTS.md` with user
-- [ ] Mark in `.plan/DONE.md`
+- **`pnpm tauri:build` succeeds** — moot as an E011 gate. The build has run
+  many times since on the same `main`, most recently for the `v0.5.0` release
+  (E012); a retroactive E011-scoped build would prove nothing about the state
+  of the tree in May.
+- **Manual end-to-end smoke per PLAN.md acceptance criteria** — moot as a
+  ceremony step: the autostart behaviour has been dogfooded daily since
+  2026-05-07 (the fresh `desk.exe` built against the release registry path is
+  recorded in `.plan/STATE.md`). No smoke record was written at the time and
+  one cannot be written now honestly.
+- **Bump version to `0.4.0`** — moot; the version progressed to `0.5.0` via
+  E012 before this ceremony closed. A retroactive `0.4.0` would not reflect
+  real history.
+- **Tag `v0.4.0`** — moot, same reason. `v0.5.0` is the tag that exists.
+- [x] Update history with epic summary — done as
+  [`.plan/HISTORY.md`](../../HISTORY.md) § E011 (the file lives under `.plan/`,
+  not `.arch/`, per the plan-structure migration).
+- [x] Triage [`IMPROVEMENTS.md`](./IMPROVEMENTS.md) — triaged 2026-09-06, no
+  entries, nothing promoted.
+- [x] Mark in [`.plan/DONE.md`](../../DONE.md) — all five tasks recorded under
+  "E011 — Autostart Hardening (2026-05-07)".
