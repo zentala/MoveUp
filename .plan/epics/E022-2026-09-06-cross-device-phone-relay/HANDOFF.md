@@ -237,13 +237,13 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   `src/remote/**`; run skill `review-loop`; fix confirmed findings here (or
   file them with the disputed list after 3 rounds); `review-log record
   review --status clean|issues --findings N`. Manual — skipped in AO.
-- [ ] **T14** (3, main) — Docs + ADRs. `.arch/ADR/020-relay-on-cloudflare-durable-objects.md`,
-  `.arch/ADR/021-pairing-code-device-token-auth.md`, `.arch/ARCHITECTURE.md`
+- [ ] **T14** (3, main) — Docs + ADRs. `.arch/ADR/022-relay-on-cloudflare-durable-objects.md`,
+  `.arch/ADR/023-pairing-code-device-token-auth.md`, `.arch/ARCHITECTURE.md`
   section, `CLAUDE.md` Remote Display section rewrite, `docs/REMOTE_DISPLAY.md`
   rewrite (pairing first, LAN second, Fully Kiosk notes kept),
   `docs/PRIVACY.md` relay paragraph, `.plan/decisions.jsonl` D1–D5,
   `.plan/BACKLOG.md` entry "LAN pairing" (Importance Low, 5), `.plan/BUSINESS_CONTEXT.md`
-  link to ADR 020/021, `scripts/check-e022-t14-docs.mjs`. Verify:
+  link to ADR 022/023, `scripts/check-e022-t14-docs.mjs`. Verify:
   `node scripts/check-e022-t14-docs.mjs`.
 - [ ] **T15** (2, verify) — Verify + browser pass. Agent `verify` over all
   ten acceptance criteria; ONE `browser` dispatch (three pages per PLAN.md
@@ -379,8 +379,8 @@ tasks:
     repo: MoveUp
     executor: main
     depends_on: ["E022-T12"]
-    write_set: [".arch/ADR/020-relay-on-cloudflare-durable-objects.md", ".arch/ADR/021-pairing-code-device-token-auth.md", ".arch/ARCHITECTURE.md", "CLAUDE.md", "docs/REMOTE_DISPLAY.md", "docs/PRIVACY.md", ".plan/decisions.jsonl", ".plan/BACKLOG.md", ".plan/BUSINESS_CONTEXT.md", "scripts/check-e022-t14-docs.mjs"]
-    claims: [".arch/ADR/020-relay-on-cloudflare-durable-objects.md", ".arch/ADR/021-pairing-code-device-token-auth.md", ".arch/ARCHITECTURE.md", "CLAUDE.md", "docs/REMOTE_DISPLAY.md", "docs/PRIVACY.md", ".plan/decisions.jsonl", "scripts/check-e022-t14-docs.mjs"]
+    write_set: [".arch/ADR/022-relay-on-cloudflare-durable-objects.md", ".arch/ADR/023-pairing-code-device-token-auth.md", ".arch/ARCHITECTURE.md", "CLAUDE.md", "docs/REMOTE_DISPLAY.md", "docs/PRIVACY.md", ".plan/decisions.jsonl", ".plan/BACKLOG.md", ".plan/BUSINESS_CONTEXT.md", "scripts/check-e022-t14-docs.mjs"]
+    claims: [".arch/ADR/022-relay-on-cloudflare-durable-objects.md", ".arch/ADR/023-pairing-code-device-token-auth.md", ".arch/ARCHITECTURE.md", "CLAUDE.md", "docs/REMOTE_DISPLAY.md", "docs/PRIVACY.md", ".plan/decisions.jsonl", "scripts/check-e022-t14-docs.mjs"]
     verification: "node scripts/check-e022-t14-docs.mjs"
     budget_minutes: 45
 ```

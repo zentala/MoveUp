@@ -69,14 +69,14 @@ unaffected).
 Five decisions, each with the alternatives weighed in the next section:
 
 - **D1 — Relay runs on Cloudflare Workers + Durable Objects (+ D1 for
-  credentials).** New ADR 020. The vision doc named this; it still holds
+  credentials).** New ADR 022. The vision doc named this; it still holds
   eleven months later because the relay is a *customer-facing* service, and
   `knowdlege/my-severs.md` reserves self-hosting for Paweł's own services
   ("self-host by default; Cloudflare DNS + Workers + D1 + R2 + Pages already
   used, independently of own infra"). `pve01.lan` sits behind NAT with
   autosleep and no SLA — a paying user's phone cannot depend on it.
 - **D2 — Auth is pairing code → long-lived device tokens, no accounts.** New
-  ADR 021. The desk registers once with a license key and receives a
+  ADR 023. The desk registers once with a license key and receives a
   `desk_token`; each phone pairs once with an 8-character code shown on the
   desktop (QR or typed) and receives a `viewer_token`. Tokens are opaque
   random bytes; the relay stores only SHA-256 hashes. Revocation is a list in
@@ -109,7 +109,7 @@ Five decisions, each with the alternatives weighed in the next section:
   self-hosted relays work without a rebuild. Deploying to that hostname is an
   outward-facing action and goes through `consent-broker` (T16).
 
-Decisions D1-D5 are appended to `.plan/decisions.jsonl` in T14; ADR 020 and
+Decisions D1-D5 are appended to `.plan/decisions.jsonl` in T14; ADR 022 and
 021 are written there too. ADR numbers assume 019 is the highest at plan time
 (`ls .arch/ADR/` on 2026-09-06). If the sibling epic E021 (planned in
 parallel today) claims 020 first, T14 takes the next free integers and fixes
@@ -334,17 +334,17 @@ from a fixed list (`invalid_license`, `license_exhausted`, `bad_code`,
   code must reflect, not just the docs: secrets go to the OS credential store
   (`keyring`), never to `tauri-plugin-store` JSON; every remote write is
   allowlisted and logged; the LAN path stays read-only so the unauthenticated
-  surface never gains a write. ADR 021 records this as the pattern any later
+  surface never gains a write. ADR 023 records this as the pattern any later
   cloud feature (history sync, coaching) must follow — "a credential the
   relay hashed, a command the desk allowlisted".
-- **New supervision boundary: local app ↔ cloud relay.** ADR 020. The relay
+- **New supervision boundary: local app ↔ cloud relay.** ADR 022. The relay
   is not a PM3 service (ADR 018 unaffected); its lifecycle is `wrangler
   deploy` behind `consent-broker`, its health is `/healthz`, and the desktop
   treats it as unreliable by design (backoff, stale snapshot on the phone).
 - **New dependencies**: Rust `tokio-tungstenite` (with `rustls-tls-webpki-roots`)
   and `keyring`; TS `qrcode` (desktop Settings), `zod` (envelope validation,
   shared by the viewer and the relay), `wrangler` + `@cloudflare/workers-types`
-  + `@cloudflare/vitest-pool-workers` in `relay/` only. Listed in ADR 020/021.
+  + `@cloudflare/vitest-pool-workers` in `relay/` only. Listed in ADR 022/023.
 - **New top-level directory `relay/`** — a standalone pnpm project with its
   own lockfile (the root workspace declares no `packages:` and `.giter.yaml`
   guards only the root `node_modules`; T12 adds `relay/node_modules` to
@@ -374,7 +374,7 @@ app-handle-free switch functions), `lib.rs`, `Cargo.toml`, `src/remote/**`
 `src/components/ConnectionOverlay.tsx`, `src/components/settings/RemoteSection.tsx`
 (new), `src/App.tsx` (`#/pair` route), `tests/fixtures/relay-protocol/**`
 (new), `vite.config.ts` (dev proxy for `/display`, see note), `.giter.yaml`,
-`justfile`, `package.json`, `.arch/ADR/020-*.md`, `021-*.md`,
+`justfile`, `package.json`, `.arch/ADR/022-*.md`, `023-*.md`,
 `.arch/ARCHITECTURE.md`, `CLAUDE.md`, `PROJECT.xml`, `docs/REMOTE_DISPLAY.md`,
 `docs/PRIVACY.md`, `.plan/decisions.jsonl`.
 
@@ -404,7 +404,7 @@ therefore lands here (the backlog entry is closed by T12, the other two stay).
 | T11 | LAN path on the shared envelope: `remote_server.rs` wraps `DisplayEvent` in the v1 envelope, honours `remote_lan_enabled`, keeps the receive loop read-only; `remote_server_tests.rs` updated; `docs/REMOTE_DISPLAY.md` LAN section notes the toggle | 3 | ts-dev | 1 |
 | T12 | Wiring + local end-to-end: `just relay-dev/relay-test/relay-deploy`, `.giter.yaml` guard, Vite `/display` dev proxy, `scripts/relay-e2e.mjs` (starts `wrangler dev`, registers a desk with a test license, pairs a fake viewer, asserts an `event` arrives and a `command` round-trips with p95 latency < 500 ms over 100 messages), `PROJECT.xml` | 5 | ts-dev | 4 |
 | T13 | **Security review — pipeline step 5, not skippable**: threat model in `reports/threat-model.md`, `security-reviewer` agent pass over `relay/`, `relay_*.rs`, `commands_relay.rs`, `remote_server.rs`; `review-loop` until zero confirmed findings (max 3 rounds, then escalate with the disputed list); fixes land in this task; manual checklist executed and recorded | 5 | main | 5 |
-| T14 | Docs + ADRs: ADR 020 (relay on Cloudflare DO), ADR 021 (pairing-code device-token auth), `.arch/ARCHITECTURE.md`, `CLAUDE.md` Remote Display section, `docs/REMOTE_DISPLAY.md` rewrite, `docs/PRIVACY.md`, `decisions.jsonl` D1-D5, backlog entry for LAN pairing, `scripts/check-e022-t14-docs.mjs` | 3 | main | 6 |
+| T14 | Docs + ADRs: ADR 022 (relay on Cloudflare DO), ADR 023 (pairing-code device-token auth), `.arch/ARCHITECTURE.md`, `CLAUDE.md` Remote Display section, `docs/REMOTE_DISPLAY.md` rewrite, `docs/PRIVACY.md`, `decisions.jsonl` D1-D5, backlog entry for LAN pairing, `scripts/check-e022-t14-docs.mjs` | 3 | main | 6 |
 | T15 | Verify + browser pass: `verify` agent over every acceptance criterion; one `browser` dispatch (three pages: desktop Settings → Remote with a code shown; phone `/app/#/pair` → paired dashboard with a live snapshot; a `set_limits` from the phone visible on the desktop popup); evidence records `current` | 2 | verify | 6 |
 | T16 | Deploy relay to `relay.desk.zentala.io` (staging first): `wrangler deploy` + D1 migration + one minted Founder license — outward-facing, through `consent-broker`; `/healthz` and the T12 e2e script against the live host | 2 | main | 6 |
 
@@ -552,7 +552,7 @@ output, screenshots and `wrangler tail` captures under `evidence/.local/`.
 | lan-envelope | test | `cargo test --manifest-path src-tauri/Cargo.toml --lib -- remote_server` | pass; inbound-command-ignored case included | `T11-lan-envelope.json` |
 | e2e-local | test | `node scripts/relay-e2e.mjs` | exit 0; prints p95 latency and it is < 500 ms; 100 events counted | `T12-e2e-local.json` |
 | security-review | review | `review-loop` over the listed files + manual checklist in `reports/threat-model.md` | zero confirmed findings after ≤ 3 rounds, or escalation list; every checklist row has a recorded observation | `T13-security-review.json` |
-| docs-consistency | manual | `node scripts/check-e022-t14-docs.mjs` | exit 0: ADR 020/021 exist, referenced from ARCHITECTURE.md and CLAUDE.md; `docs/REMOTE_DISPLAY.md` mentions pairing; PRIVACY.md mentions the relay | `T14-docs-consistency.json` |
+| docs-consistency | manual | `node scripts/check-e022-t14-docs.mjs` | exit 0: ADR 022/023 exist, referenced from ARCHITECTURE.md and CLAUDE.md; `docs/REMOTE_DISPLAY.md` mentions pairing; PRIVACY.md mentions the relay | `T14-docs-consistency.json` |
 | browser-visual | visual | `browser` agent, three pages, landmarks: pairing code visible in Settings; phone dashboard shows `limit_used_secs` moving; desktop popup reflects a phone-sent `set_limits` | verdict with screenshots in `evidence/.local/` | `T15-browser-visual.json` |
 | relay-live | deployment | `curl https://relay.desk.zentala.io/healthz` and `node scripts/relay-e2e.mjs --relay https://relay.desk.zentala.io --license <minted>` (license via `password-broker inject`) | `{ok:true}`; e2e exit 0 | `T16-relay-live.json` |
 
@@ -591,7 +591,7 @@ never a pass.
 9. The security review ran, its checklist has an observation per row, and
    zero confirmed findings remain (or an explicit escalation list exists)
    (T13; `security-review`) — this criterion has no skip path.
-10. ADR 020 and ADR 021 exist and are linked from `.arch/ARCHITECTURE.md`
+10. ADR 022 and ADR 023 exist and are linked from `.arch/ARCHITECTURE.md`
     and `CLAUDE.md`; `docs/REMOTE_DISPLAY.md` documents pairing; `PRIVACY.md`
     states what the relay stores; `PROJECT.xml` lists the new files and
     commands (T14; `docs-consistency`).
