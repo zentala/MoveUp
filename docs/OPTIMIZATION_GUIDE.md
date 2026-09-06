@@ -1,6 +1,6 @@
 # Performance Optimization Guide
 
-This guide documents current performance baselines, optimization strategies, and regression detection practices for zntlDesk.
+This guide documents current performance baselines, optimization strategies, and regression detection practices for MoveUp.
 
 ## Current Baselines
 
@@ -275,7 +275,7 @@ Use this checklist before every commit or merge:
 
 ```bash
 # 1. Kill any running instances
-taskkill /IM zntlDesk.exe /F 2>/dev/null || true
+taskkill /IM desk.exe /F 2>/dev/null || true
 
 # 2. Run performance test
 pnpm test:perf

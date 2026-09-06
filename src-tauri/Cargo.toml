@@ -1,8 +1,9 @@
 [package]
 name = "desk"
 version = "0.6.0"
-description = "zntl Desk — VL53L1X ToF sensor reader"
+description = "MoveUp — sit/stand desk ergonomics tracker driven by a VL53L1X ToF sensor"
 authors = ["zentala"]
+license = "MIT"
 edition = "2021"
 
 [lib]

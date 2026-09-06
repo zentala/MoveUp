@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-03-16T18:44:13.693Z",
-  "peak_mb": 229.32851445532634,
-  "stable_mb": 201.1663740781051,
+  "timestamp": "2026-09-06T04:28:47.149Z",
+  "peak_mb": 228.41476779313987,
+  "stable_mb": 206.721541272317,
   "trend": "growing",
   "samples_count": 20,
   "comment": "Samples taken every 500ms for 10s"
