@@ -244,8 +244,8 @@ tasks:
     repo: MoveUp
     executor: ts-dev
     depends_on: ["E018-T09"]
-    write_set: ["src/analyst/charts/KpiDonut.tsx", "src/analyst/charts/KpiDonut.test.tsx", "src/analyst/charts/KpiDonutPanel.tsx", "src/analyst/explorer-day-kpis.ts", "src/analyst/ExplorerTab.tsx", "package.json", ".arch/ADR/016-recharts-for-kpi-donuts.md"]
-    claims: ["src/analyst/charts/KpiDonut.tsx", "src/analyst/charts/KpiDonut.test.tsx", "src/analyst/charts/KpiDonutPanel.tsx", "src/analyst/explorer-day-kpis.ts", "src/analyst/ExplorerTab.tsx", ".arch/ADR/016-recharts-for-kpi-donuts.md"]
+    write_set: ["src/analyst/charts/KpiDonut.tsx", "src/analyst/charts/KpiDonut.test.tsx", "src/analyst/charts/KpiDonutPanel.tsx", "src/analyst/explorer-day-kpis.ts", "src/analyst/explorer-day-kpis.test.ts", "src/analyst/ExplorerTab.tsx", "package.json", "pnpm-lock.yaml", "CLAUDE.md", ".arch/ADR/016-recharts-for-kpi-donuts.md"]
+    claims: ["src/analyst/charts/KpiDonut.tsx", "src/analyst/charts/KpiDonut.test.tsx", "src/analyst/charts/KpiDonutPanel.tsx", "src/analyst/explorer-day-kpis.ts", "src/analyst/explorer-day-kpis.test.ts", "src/analyst/ExplorerTab.tsx", "pnpm-lock.yaml", "CLAUDE.md", ".arch/ADR/016-recharts-for-kpi-donuts.md"]
     verification: "npx vitest run --config vite.config.ts src/analyst/charts/KpiDonut.test.tsx"
     budget_minutes: 90
   - id: E018-T11
