@@ -21,7 +21,7 @@ describe("useTimerAnimations", () => {
   });
 
   it("fade triggers on state change", () => {
-    let state = "Sitting" as const;
+    const state = "Sitting" as const;
     const { result, rerender } = renderHook(
       ({ s }) => useTimerAnimations(s, 0.5),
       { initialProps: { s: state as "Sitting" | "Standing" | "Walking" | "Away" } },

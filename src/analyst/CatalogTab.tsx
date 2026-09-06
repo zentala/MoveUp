@@ -108,9 +108,10 @@ function CatalogTable({ sources }: CatalogTableProps) {
         )
       : [...sources];
     arr.sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === "fields") cmp = a.fields.length - b.fields.length;
-      else cmp = String(a[sortKey]).localeCompare(String(b[sortKey]));
+      const cmp =
+        sortKey === "fields"
+          ? a.fields.length - b.fields.length
+          : String(a[sortKey]).localeCompare(String(b[sortKey]));
       return sortDir === "asc" ? cmp : -cmp;
     });
     return arr;

@@ -820,10 +820,15 @@ each back to `"error"` once its sites are fixed.
   reassignment inside `.map()`). (Importance: Low, Points: 2)
 - [ ] **`react-hooks/purity` → error** — `src/components/StepsWidget.tsx:167`
   calls `Date.now()` during render to compute staleness. (Importance: Low, Points: 2)
-- [ ] **`no-useless-assignment` → error** — `src/analyst/CatalogTab.tsx:111`.
-  (Importance: Low, Points: 1)
-- [ ] **`prefer-const` → error** — `src/hooks/useTimerAnimations.test.ts:24`.
-  Auto-fixable with `npx eslint src/ --fix`. (Importance: Low, Points: 1)
+- [x] **`no-useless-assignment` → error** — fixed 2026-09-06: `CatalogTab.tsx`'s
+  sort comparator rewritten as a single ternary assigned once instead of a
+  `let cmp = 0` always overwritten by both branches
+  ([src/analyst/CatalogTab.tsx:110-115](../src/analyst/CatalogTab.tsx)). Rule is
+  now `"error"` in [eslint.config.mjs](../eslint.config.mjs). (Importance: Low, Points: 1)
+- [x] **`prefer-const` → error** — fixed 2026-09-06: `let state` changed to
+  `const state` (never reassigned)
+  ([src/hooks/useTimerAnimations.test.ts:24](../src/hooks/useTimerAnimations.test.ts)).
+  Rule is now `"error"` in [eslint.config.mjs](../eslint.config.mjs). (Importance: Low, Points: 1)
 
 Also left as warnings by the plugins' own defaults (not downgraded here):
 `react-hooks/exhaustive-deps` (`src/analyst/charts/TimelineDetail.tsx:141`,

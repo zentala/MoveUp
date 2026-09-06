@@ -53,8 +53,8 @@ export default tseslint.config(
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/immutability": "warn",
       "react-hooks/purity": "warn",
-      "no-useless-assignment": "warn",
-      "prefer-const": "warn",
+      "no-useless-assignment": "error",
+      "prefer-const": "error",
     },
   },
   {
