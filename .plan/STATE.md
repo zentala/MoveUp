@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-06T05:35:00
+updated: 2026-09-06T06:17:35
 active_epic: none (E011 and E012 code complete, ceremonies closed by E016; E015 code-complete, T05 browser evidence gap open — see below)
 planning_epic: none
 planning_epic_path: null
