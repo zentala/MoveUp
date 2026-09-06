@@ -1,4 +1,23 @@
 //! session_breaks.rs — Break credit, state exit, and notification logic.
+//!
+//! # "Break" means three different things
+//!
+//! They are deliberately kept apart: they measure different quantities, fire on
+//! different clocks, and one is not derivable from the others. Log lines carry a
+//! distinct prefix each, so a log read tells you which one acted.
+//!
+//! | Concept | Lives in | Measures | Log prefix |
+//! |---|---|---|---|
+//! | Session Break Credit | [`SessionManager::apply_break_credit`] (this file) | a countdown: seconds of break cancel `multiplier ×` seconds of credited sitting (ADR 008) | `[break:credit]` |
+//! | Day Break Credit | [`SessionManager::apply_day_break_reset`] (this file) | a one-shot reset: a sleep-length break clears notification flags and `daily_score` (ADR 009) | `[break:day]` |
+//! | Hourly break coverage | [`crate::hourly_break_tracker::HourlyBreakTracker`] | a per-clock-hour boolean: did this hour contain ≥5 continuous minutes Away? (KPI only) | `[break:hourly]` |
+//!
+//! Session and Day credit share an entry point — `apply_break_credit` calls
+//! `apply_day_break_reset` — because both are triggered by the same event, a
+//! return to sitting. They stay separate functions because the thresholds,
+//! the state they touch, and the reasons to change them have nothing in common.
+//! Hourly coverage is driven by the per-tick reading loop instead
+//! (`session_reading.rs`) and never sees a break-end event at all.
 
 use chrono::DateTime;
 use chrono::Utc;
@@ -114,7 +133,7 @@ impl SessionManager {
         completed_session
     }
 
-    /// Applies proportional break credit when returning to sitting.
+    /// Applies Session Break Credit when returning to sitting (ADR 008).
     ///
     /// Each second of break cancels `break_credit_multiplier` seconds of sitting.
     /// E.g., with multiplier 2.0: 10 min break cancels 20 min sitting.
@@ -123,11 +142,21 @@ impl SessionManager {
     /// Thresholds are read from [`SessionManager::limits`] — the live ergonomic
     /// profile, refreshed every tick — not from `SessionState`, so a profile
     /// edited on disk applies to the next credit without an app restart.
+    ///
+    /// A break long enough also triggers the separate Day Break Credit reset,
+    /// delegated to [`SessionManager::apply_day_break_reset`]. A break too short
+    /// to earn session credit returns before that call — it cannot reach the
+    /// far higher day threshold anyway. See this module's header for how both
+    /// relate to [`crate::hourly_break_tracker::HourlyBreakTracker`].
     pub fn apply_break_credit(&mut self, break_secs: i64) {
         let min_secs = self.limits.break_min_secs as i64;
         let multiplier = self.limits.break_credit_multiplier.clamp(0.0, 10.0);
         if break_secs < min_secs {
             self.state.last_break_credit = BreakCredit::None;
+            log::debug!(
+                "[break:credit] {}s break < {}s minimum — no credit",
+                break_secs, min_secs
+            );
             return;
         }
         let credit = (break_secs as f64 * multiplier as f64) as i64;
@@ -138,23 +167,46 @@ impl SessionManager {
         } else {
             self.state.last_break_credit = BreakCredit::Partial;
         }
+        log::info!(
+            "[break:credit] {}s break x{} = {}s credit — sitting {}s -> {}s ({:?})",
+            break_secs, multiplier, credit, before, self.state.sitting_seconds,
+            self.state.last_break_credit
+        );
 
-        // Day Break Credit: long breaks (e.g. sleep) reset notification flags
-        // and daily_score for a fresh motivational start.
-        // Does NOT reset daily KPI counters (sitting_seconds_total, standing_seconds, etc.).
+        self.apply_day_break_reset(break_secs);
+    }
+
+    /// Applies Day Break Credit: a sleep-length break clears the motivational
+    /// slate (ADR 009).
+    ///
+    /// This is NOT the countdown of [`SessionManager::apply_break_credit`] — it
+    /// subtracts no seconds. It resets the four notification flags and
+    /// `daily_score`, so a user returning after a night gets a fresh start
+    /// instead of yesterday's exhausted reminders. Daily KPI counters
+    /// (`sitting_seconds_total`, `standing_seconds`, `position_changes`, the
+    /// hourly-coverage pair) are deliberately preserved: they describe the
+    /// calendar day and are reset only by the daily rollover in
+    /// `session_daily.rs`.
+    ///
+    /// Sets the one-shot `day_break_applied` flag, drained by
+    /// `serial_periodic_reset::log_break_credit` to write its own event-log line.
+    ///
+    /// A `day_break_min_secs` of 0 disables the feature entirely.
+    pub fn apply_day_break_reset(&mut self, break_secs: i64) {
         let day_min = self.limits.day_break_min_secs as i64;
-        if day_min > 0 && break_secs >= day_min {
-            log::info!(
-                "Day break credit: {}s break >= {}s threshold — resetting flags and score",
-                break_secs, day_min
-            );
-            self.notify_inactivity_fired = false;
-            self.notify_posture_balance_fired = false;
-            self.praise_halfway_fired_today = false;
-            self.standing_target_reached_fired = false;
-            self.state.daily_score = 0.0;
-            self.day_break_applied = true;
+        if day_min == 0 || break_secs < day_min {
+            return;
         }
+        log::info!(
+            "[break:day] {}s break >= {}s threshold — resetting notification flags and score",
+            break_secs, day_min
+        );
+        self.notify_inactivity_fired = false;
+        self.notify_posture_balance_fired = false;
+        self.praise_halfway_fired_today = false;
+        self.standing_target_reached_fired = false;
+        self.state.daily_score = 0.0;
+        self.day_break_applied = true;
     }
 
     /// Checks notification conditions using the system clock.
