@@ -77,7 +77,7 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 3. **Top-of-screen progress bar** — green→red over 40min session (overlay_renderer.rs)
 4. **Alert popup** — progressive escalation when limit reached (alert_manager.rs, planned)
 5. **Activity status** — "Active" / "Idle Xm Ys" in StateIndicator, shown when keyboard/mouse idle ≥30s. Toggle: Settings → More → "Show activity status".
-6. **Analyst window** — separate 1280×800 Tauri window opened from tray ("Open Analyst"). Two tabs: Catalog (all data sources the app produces) and Explorer. Explorer leads with `DateNavigator` (range + 14 day tabs with grouped mini bars) and a hero `TimelineDetail` (one continuous proportional strip with smooth-scroll between days), followed by KpiTrend / BreakCreditHistogram / DeskHeightTimeline and the full-width DailyScoreTrajectory. Default range 14 days. Route `/#/analyst` live, `/#/mockup/analyst` with fake fixtures. See [ADR 012](.arch/ADR/012-analyst-dashboard-separate-window.md) for window-vs-route, [ADR 013](.arch/ADR/013-date-navigator-merge.md) for the DateNavigator merge.
+6. **Analyst window** — separate 1280×800 Tauri window opened from tray ("Open Analyst"). Two tabs: Catalog (all data sources the app produces) and Explorer. Explorer leads with `DateNavigator` (range + 14 day tabs with grouped mini bars) and a hero `TimelineDetail` (one continuous proportional strip with smooth-scroll between days), followed by DeskHeightTimeline and a `KpiDonutPanel` (three Recharts donuts for the selected day: standing %, posture changes, daily score), then the full-width DailyScoreTrajectory. Default range 14 days. Route `/#/analyst` live, `/#/mockup/analyst` with fake fixtures. See [ADR 012](.arch/ADR/012-analyst-dashboard-separate-window.md) for window-vs-route, [ADR 013](.arch/ADR/013-date-navigator-merge.md) for the DateNavigator merge, [ADR 016](.arch/ADR/016-recharts-for-kpi-donuts.md) for the Recharts donuts.
 
 ## Communication Architecture & Profiles
 
@@ -278,6 +278,7 @@ Do NOT hardcode prices in markdown — they may change or be A/B tested.
 | [006](.arch/ADR/006-self-declaration-ce-not-notified-body.md) | CE self-declaration (not notified body) |
 | [007](.arch/ADR/007-plexi-mount-dev-kit-enclosure.md) | Plexi/PCB carrier mount for dev kit |
 | [011](.arch/ADR/011-unified-sit-stand-walk-cycle.md) | Unified sit-stand-walk cycle (no separate screen timer) |
+| [016](.arch/ADR/016-recharts-for-kpi-donuts.md) | Recharts for the Analyst KPI donuts |
 
 ### Hardware Design
 

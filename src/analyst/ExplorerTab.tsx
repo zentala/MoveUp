@@ -17,14 +17,14 @@ import { DateNavigator } from "./charts/DateNavigator";
 import { TimelineDetail } from "./charts/TimelineDetail";
 import { DeskHeightTimeline } from "./charts/DeskHeightTimeline";
 import { DailyScoreTrajectory } from "./charts/DailyScoreTrajectory";
-import { BreakCreditHistogram } from "./charts/BreakCreditHistogram";
-import { KpiTrend } from "./charts/KpiTrend";
+import { KpiDonutPanel } from "./charts/KpiDonutPanel";
 import { useSnapshotsRange } from "./hooks/useSnapshotsRange";
 import { useSessionsRange } from "./hooks/useSessionsRange";
 import { useEventsRange } from "./hooks/useEventsRange";
 import { useTimelineNav } from "./hooks/useTimelineNav";
 import { chartColors } from "./charts/chart-utils";
 import { downsampleSnapshots, deriveDailyKpis } from "./explorer-derivations";
+import { aggregateDayKpis } from "./explorer-day-kpis";
 import { formatRangeLabel, formatRefreshedAt } from "@/utils/format";
 
 export interface ExplorerTabProps {
@@ -100,6 +100,13 @@ export function ExplorerTab({
 
   const nav = useTimelineNav({ rangeFrom: range.from, rangeTo: range.to });
 
+  const dayKpis = useMemo(
+    () => aggregateDayKpis(snapshots, sessions, nav.selectedDay, kpis),
+    // snapshot/session identity is not stable across polls — key on length
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [snapshots.length, sessions.length, nav.selectedDay, kpis],
+  );
+
   return (
     <div data-testid="explorer-tab">
       <AnalystHeader
@@ -154,8 +161,7 @@ export function ExplorerTab({
       />
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginTop: 16 }}>
         <DeskHeightTimeline data={heightSnaps} />
-        <BreakCreditHistogram data={sessions} />
-        <KpiTrend data={kpis} />
+        <KpiDonutPanel kpis={dayKpis} />
         <div style={{ gridColumn: "span 2" }}>
           <DailyScoreTrajectory data={snapshots} />
         </div>
