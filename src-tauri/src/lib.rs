@@ -12,6 +12,7 @@ mod ergonomic_profile;
 mod profile_loader;
 mod profile_reload;
 mod commands;
+#[cfg(test)] mod commands_tests;
 mod commands_analyst;
 #[cfg(test)] mod commands_analyst_tests;
 mod commands_backup;
@@ -24,15 +25,19 @@ mod commands_google_fit;
 mod commands_share;
 mod commands_welcome;
 mod google_fit;
+mod google_fit_client;
 #[cfg(test)] mod google_fit_http_tests;
 mod google_fit_models;
 mod google_fit_service;
 #[cfg(test)] mod google_fit_service_tests;
+#[cfg(test)] mod google_fit_tests;
 mod config;
 mod db;
 mod db_backup;
 mod db_queries;
 mod db_sessions;
+mod today_totals;
+mod desk_events;
 pub mod event_logger;
 mod height_stabilizer;
 mod hourly_break_tracker;
@@ -49,6 +54,7 @@ mod overlay_renderer;
 mod overlay_standing;
 #[cfg(test)] mod overlay_standing_tests;
 mod overlay_variants;
+mod remote_display_state;
 mod remote_server;
 #[cfg(test)] mod remote_server_tests;
 mod ws_broadcaster;
@@ -64,6 +70,8 @@ mod ws_broadcaster;
 mod serial;
 mod serial_parser;
 mod serial_periodic;
+mod serial_periodic_reset;
+#[cfg(test)] mod serial_periodic_tests;
 mod setup_helpers;
 mod snapshot_logger;
 mod telemetry;
@@ -121,6 +129,17 @@ use snapshot_logger::SnapshotLogger;
 use tray_signal_exec::BlinkState;
 use tauri::Manager;
 pub(crate) const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Commands registered only in test/debug builds.
+///
+/// `tauri::generate_handler!` is a proc macro over a fixed list of paths and
+/// does not expand `#[cfg(...)]` on its entries, so the debug and release
+/// handler lists below must stay hand-written duplicates. This constant is the
+/// declared difference between them, and `e019_t04_handler_parity` reads the
+/// two lists back out of this file and fails if they drift from it.
+pub(crate) const DEBUG_ONLY_COMMANDS: &[&str] = &[
+    "commands::inject_reading",
+    "commands_config::get_overlay_state",
+];
 pub(crate) struct Loggers {
     pub snapshot: Arc<SnapshotLogger>,
     pub event: Arc<EventLogger>,
@@ -248,4 +267,73 @@ pub fn run() {
                 setup_helpers::flush_session_on_shutdown(app);
             }
         });
+}
+
+/// Guards the two hand-written `invoke_handler` command lists against drift.
+///
+/// The debug and release arms of `invoke_handler` are duplicates that differ
+/// only by [`DEBUG_ONLY_COMMANDS`]. Nothing in the type system enforces that,
+/// so this test reads both lists back out of this file's own source and
+/// compares them. Adding a command to one arm and forgetting the other — the
+/// actual failure mode, which produces a release build missing a command the
+/// frontend calls — fails here.
+#[cfg(test)]
+mod e019_t04_handler_parity {
+    use super::DEBUG_ONLY_COMMANDS;
+
+    const SOURCE: &str = include_str!("lib.rs");
+
+    /// Built by `concat!` so this literal never appears verbatim in the source
+    /// being scanned — otherwise the test's own text would match.
+    const MARKER: &str = concat!("generate_handler", "![");
+
+    /// Returns the command paths of the `n`-th `generate_handler!` list in
+    /// declaration order (0 = debug arm, 1 = release arm).
+    fn handler_list(n: usize) -> Vec<String> {
+        let start = SOURCE
+            .match_indices(MARKER)
+            .nth(n)
+            .unwrap_or_else(|| panic!("no generate_handler list #{n} in lib.rs"))
+            .0
+            + MARKER.len();
+        let len = SOURCE[start..]
+            .find(']')
+            .expect("unterminated generate_handler list");
+        SOURCE[start..start + len]
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect()
+    }
+
+    #[test]
+    fn debug_and_release_lists_differ_only_by_debug_only_commands() {
+        let debug = handler_list(0);
+        let release = handler_list(1);
+
+        // An empty parse must not read as a clean pass.
+        assert!(debug.len() > 1, "debug handler list parsed as {debug:?}");
+        assert!(release.len() > 1, "release handler list parsed as {release:?}");
+
+        let missing: Vec<&String> = release.iter().filter(|c| !debug.contains(c)).collect();
+        assert!(
+            missing.is_empty(),
+            "commands in the release handler but not the debug handler: {missing:?}"
+        );
+
+        let mut extra: Vec<&str> = debug
+            .iter()
+            .filter(|c| !release.contains(c))
+            .map(String::as_str)
+            .collect();
+        extra.sort_unstable();
+        let mut expected: Vec<&str> = DEBUG_ONLY_COMMANDS.to_vec();
+        expected.sort_unstable();
+        assert_eq!(
+            extra, expected,
+            "debug-only commands drifted from DEBUG_ONLY_COMMANDS; add the command \
+             to both handler lists, or declare it in DEBUG_ONLY_COMMANDS"
+        );
+    }
 }

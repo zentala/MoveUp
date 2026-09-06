@@ -19,6 +19,9 @@ use log::{error, info, warn};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::desk_events::{
+    DESK_DEVICE_CONNECTED, DESK_DEVICE_LOST, DESK_DEVICE_MISSING, DESK_DISTANCE, DESK_SENSOR_ERROR,
+};
 use crate::event_logger::EventLogger;
 use crate::session::SessionManager;
 use crate::serial_parser::{parse_distance, probe_port};
@@ -99,7 +102,7 @@ fn reader_loop(
             Err(e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
             Err(e) => {
                 warn!("Serial read error on {port_name}: {e}");
-                let _ = app.emit("desk:device-lost", ());
+                let _ = app.emit(DESK_DEVICE_LOST, ());
                 return;
             }
         }
@@ -112,7 +115,7 @@ fn reader_loop(
                 cm: mm as f32 / 10.0,
                 timestamp: Utc::now().to_rfc3339(),
             };
-            let _ = app.emit("desk:distance", reading);
+            let _ = app.emit(DESK_DISTANCE, reading);
 
             handle_reading(app, mm, session, db, config, event_logger, alert_popup);
 
@@ -171,7 +174,7 @@ pub fn scan_and_connect(
                 info!("Desk sensor found on {port_name}");
 
                 let _ = app.emit(
-                    "desk:device-connected",
+                    DESK_DEVICE_CONNECTED,
                     DeviceConnected { port: port_name.clone() },
                 );
 
@@ -198,7 +201,7 @@ pub fn scan_and_connect(
                 }
             } else {
                 info!("No desk sensor found; retrying in {RESCAN_INTERVAL_SECS}s");
-                let _ = app.emit("desk:device-missing", ());
+                let _ = app.emit(DESK_DEVICE_MISSING, ());
             }
 
             std::thread::sleep(Duration::from_secs(RESCAN_INTERVAL_SECS));
@@ -216,7 +219,7 @@ pub fn stop_reading(conn: &ConnectionState) {
 
 fn emit_error(app: &AppHandle, message: &str) {
     let _ = app.emit(
-        "desk:sensor-error",
+        DESK_SENSOR_ERROR,
         SensorError {
             message: message.to_string(),
             timestamp: Utc::now().to_rfc3339(),

@@ -41,7 +41,7 @@ pub struct AppState {
 
 /// Lazy-initializes AppState fields (db, config, session) on first call.
 pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<(), String> {
-    let mut db_guard = state.db.lock().unwrap();
+    let mut db_guard = state.db.lock().unwrap_or_else(|e| e.into_inner());
     if db_guard.is_some() {
         return Ok(());
     }
@@ -71,19 +71,14 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
         log::info!("Seeding without daily_reset_after filter (first run or no reset yet)");
     }
     if let Ok(totals) = crate::db::load_today_totals(&conn, reset_after.as_deref()) {
-        state.session.lock().unwrap().load_today_totals(&totals);
+        state.session.lock().unwrap_or_else(|e| e.into_inner()).load_today_totals(&totals);
     }
 
     // Restore persisted notification flags and credit-reduced sitting_seconds.
     if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
         if let Some(persisted) = crate::session_persistence::PersistedSessionState::load(store.inner()) {
-            state.session.lock().unwrap().load_persisted_state(&persisted);
+            state.session.lock().unwrap_or_else(|e| e.into_inner()).load_persisted_state(&persisted);
         }
-    }
-
-    // Populate today_cache from DB on first init
-    if let Ok(summary) = crate::db::get_today_summary(&conn) {
-        *state.today_cache.lock().unwrap() = summary;
     }
 
     *db_guard = Some(conn);
@@ -92,16 +87,27 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
         .try_state::<tauri_plugin_store::Store<tauri::Wry>>()
         .map(|store| AppConfig::load(store.inner()))
         .unwrap_or_default();
-    *state.config.lock().unwrap() = Some(cfg.clone());
+    *state.config.lock().unwrap_or_else(|e| e.into_inner()) = Some(cfg.clone());
 
-    let mut session = state.session.lock().unwrap();
+    let mut session = state.session.lock().unwrap_or_else(|e| e.into_inner());
     session.sitting_height_cm = cfg.sitting_mm as f32 / 10.0;
     session.standing_height_cm = cfg.standing_mm as f32 / 10.0;
     session.desk_thickness_cm = cfg.desk_thickness_mm as f32 / 10.0;
     // Limits come from the ergonomic profile (already in CommunicationPolicy)
-    let ergo = state.comm_policy.lock().unwrap().ergo_profile().clone();
+    let ergo = state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).ergo_profile().clone();
     session.state.session_limit_secs = ergo.limits.sitting_secs as i64;
     session.state.stand_limit_secs = ergo.limits.standing_target_secs as i64;
+
+    // Seed today_cache through the one composition point (ADR 014), so the
+    // cache starts with the live position_changes instead of the placeholder
+    // zero the DB query returns.
+    let live_changes = session.snapshot().position_changes;
+    drop(session);
+    if let Some(conn) = db_guard.as_ref() {
+        if let Ok(summary) = crate::today_totals::load_today_summary(conn, live_changes) {
+            *state.today_cache.lock().unwrap_or_else(|e| e.into_inner()) = summary;
+        }
+    }
 
     Ok(())
 }
@@ -152,7 +158,7 @@ pub fn get_session_state(
     state: State<'_, AppState>,
 ) -> Result<SessionStateDto, String> {
     ensure_initialized(&app, &state)?;
-    Ok(state.session.lock().unwrap().snapshot())
+    Ok(state.session.lock().unwrap_or_else(|e| e.into_inner()).snapshot())
 }
 
 /// Returns session snapshot + all KPI metrics in a single IPC call.
@@ -163,7 +169,7 @@ pub fn get_dashboard_state(
 ) -> Result<DashboardState, String> {
     ensure_initialized(&app, &state)?;
     let (snapshot, ss) = {
-        let s = state.session.lock().unwrap();
+        let s = state.session.lock().unwrap_or_else(|e| e.into_inner());
         let now = chrono::Utc::now();
         let mut raw = s.state.clone();
         // Inject live values so metrics see current totals (not stale committed values).
@@ -171,7 +177,7 @@ pub fn get_dashboard_state(
         raw.standing_seconds = s.get_live_standing_seconds(now);
         (s.snapshot(), raw)
     };
-    let ergo = state.comm_policy.lock().unwrap().ergo_profile().clone();
+    let ergo = state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).ergo_profile().clone();
     let metrics = MetricEngine::with_defaults().compute_all(&ss, &ergo);
     Ok(DashboardState { session: snapshot, metrics })
 }
@@ -179,7 +185,7 @@ pub fn get_dashboard_state(
 /// Returns the currently connected serial port name, or null.
 #[tauri::command]
 pub fn get_connected_port(state: State<'_, AppState>) -> Option<String> {
-    state.conn.connected_port.lock().unwrap().clone()
+    state.conn.connected_port.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 /// Returns today's summary of sitting and standing time.
@@ -190,16 +196,14 @@ pub fn get_today_summary(
 ) -> Result<TodaySummary, String> {
     ensure_initialized(&app, &state)?;
 
-    let db_lock = state.db.lock().unwrap();
+    let db_lock = state.db.lock().unwrap_or_else(|e| e.into_inner());
     let conn = db_lock
         .as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
-    let mut summary = crate::db::get_today_summary(conn)?;
-    let session = state.session.lock().unwrap();
-    summary.position_changes = session.snapshot().position_changes;
+    let live_changes = state.session.lock().unwrap_or_else(|e| e.into_inner()).snapshot().position_changes;
 
-    Ok(summary)
+    crate::today_totals::load_today_summary(conn, live_changes)
 }
 
 /// Test/debug command: inject a sensor reading directly.
@@ -213,11 +217,11 @@ pub fn inject_reading(
 ) -> Result<(), String> {
     ensure_initialized(&app, &state)?;
 
-    let mut session = state.session.lock().unwrap();
+    let mut session = state.session.lock().unwrap_or_else(|e| e.into_inner());
     let result = session.on_reading(mm, active);
 
     if let Some(payload) = result.state_change {
-        let _ = app.emit("desk:state-changed", &payload);
+        let _ = app.emit(crate::desk_events::DESK_STATE_CHANGED, &payload);
     }
 
     Ok(())

@@ -12,6 +12,7 @@ use tauri::{
     AppHandle, Emitter, Manager,
 };
 
+use crate::desk_events::{DESK_SHOW_SETTINGS, DESK_SHOW_WIDGET};
 use crate::session::DeskState;
 use crate::tray_icon::{generate_tray_icon, generate_tray_icon_no_dot};
 
@@ -172,7 +173,7 @@ fn toggle_main_window(app: &AppHandle) {
         if window.is_visible().unwrap_or(false) {
             let _ = window.hide();
         } else {
-            let _ = app.emit("desk:show-widget", ());
+            let _ = app.emit(DESK_SHOW_WIDGET, ());
             let _ = window.show();
             let _ = window.set_focus();
         }
@@ -182,7 +183,7 @@ fn toggle_main_window(app: &AppHandle) {
 /// Opens the main window directly to the Settings view.
 fn show_main_window_settings(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = app.emit("desk:show-settings", ());
+        let _ = app.emit(DESK_SHOW_SETTINGS, ());
         let _ = window.show();
         let _ = window.set_focus();
     }

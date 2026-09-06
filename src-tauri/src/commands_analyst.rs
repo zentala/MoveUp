@@ -130,6 +130,11 @@ fn parse_range(from: &str, to: &str) -> Result<Vec<String>, String> {
 
 /// Walks `logs_dir/<date>/*.json`, deserializing each into a `SnapshotRow`.
 /// Missing days and malformed files are silently skipped (warned via `log`).
+///
+/// This is **not** another source of truth for today's scalar totals. It reads
+/// the per-minute snapshot files to build a time series for charting; the
+/// scalar "today's totals" a user sees come from `today_totals::load_today_summary`.
+/// Precedence between the stores: `.arch/ADR/014-persistence-precedence.md`.
 fn collect_snapshots(logs_dir: &Path, dates: &[String]) -> Vec<SnapshotRow> {
     let mut out: Vec<SnapshotRow> = Vec::new();
     for date in dates {
