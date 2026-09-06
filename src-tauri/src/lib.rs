@@ -40,6 +40,8 @@ mod today_totals;
 mod desk_events;
 pub mod event_logger;
 mod height_stabilizer;
+pub mod candidate_list;
+#[cfg(test)] mod candidate_list_tests;
 pub mod health_probe;
 #[cfg(test)] mod health_probe_tests;
 pub mod last_known_good;
