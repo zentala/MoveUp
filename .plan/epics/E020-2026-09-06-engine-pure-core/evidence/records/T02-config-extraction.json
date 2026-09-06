@@ -1,12 +1,12 @@
 {
   "schema_version": "1",
-  "task_id": "T08",
-  "check_id": "full-suite",
+  "task_id": "T02",
+  "check_id": "config-extraction",
   "class": "test",
-  "timestamp": "2026-09-06T15:21:45.882Z",
-  "command_digest": "sha256:699ba06dfc704c3390955e6df57aa371867d496a3bfdf49343928c2f69fbc04e",
+  "timestamp": "2026-09-06T15:20:59.397Z",
+  "command_digest": "sha256:50cac63115919212ee3b9b24118cb026b3344f8620f149ecc19170e90d251729",
   "result": "pass",
-  "duration_ms": 558,
+  "duration_ms": 439,
   "source_commit": "244de29a4f8e36b538772a892f0509dfb0d46581",
   "source_fingerprint": "sha256:a168af504ddee5c42975f3f53f916cc5257145fc2716a08246ecb4fbaf19cd87"
 }

@@ -1,12 +1,12 @@
 {
   "schema_version": "1",
-  "task_id": "T08",
-  "check_id": "full-suite",
+  "task_id": "T03",
+  "check_id": "unify-break-model",
   "class": "test",
-  "timestamp": "2026-09-06T15:21:45.882Z",
-  "command_digest": "sha256:699ba06dfc704c3390955e6df57aa371867d496a3bfdf49343928c2f69fbc04e",
+  "timestamp": "2026-09-06T15:21:06.801Z",
+  "command_digest": "sha256:8475a350d88b25270d228ec687f0519370ad47a839ccc51528cb73c0bed7c73b",
   "result": "pass",
-  "duration_ms": 558,
+  "duration_ms": 438,
   "source_commit": "244de29a4f8e36b538772a892f0509dfb0d46581",
   "source_fingerprint": "sha256:a168af504ddee5c42975f3f53f916cc5257145fc2716a08246ecb4fbaf19cd87"
 }

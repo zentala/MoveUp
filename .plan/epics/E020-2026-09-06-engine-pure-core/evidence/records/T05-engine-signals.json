@@ -1,12 +1,12 @@
 {
   "schema_version": "1",
-  "task_id": "T08",
-  "check_id": "full-suite",
+  "task_id": "T05",
+  "check_id": "engine-signals",
   "class": "test",
-  "timestamp": "2026-09-06T15:21:45.882Z",
-  "command_digest": "sha256:699ba06dfc704c3390955e6df57aa371867d496a3bfdf49343928c2f69fbc04e",
+  "timestamp": "2026-09-06T15:21:22.751Z",
+  "command_digest": "sha256:680e8f3e4e4c5dbf2f19de45ce2f7d29bf70e3ef731c4d3b38484f68d350cbc8",
   "result": "pass",
-  "duration_ms": 558,
+  "duration_ms": 430,
   "source_commit": "244de29a4f8e36b538772a892f0509dfb0d46581",
   "source_fingerprint": "sha256:a168af504ddee5c42975f3f53f916cc5257145fc2716a08246ecb4fbaf19cd87"
 }

@@ -222,3 +222,40 @@ since the live window needs a physical sensor this session did not have;
 the coverage-threshold call (decision D4) was surfaced as a dated code
 comment plus a `.plan/BACKLOG.md` follow-up rather than decided silently,
 since T05 could not reach the original 80/80/75% target within budget.
+
+## E020 — Engine: pure core (2026-09-06)
+
+Plan: [PLAN.md](./epics/E020-2026-09-06-engine-pure-core/PLAN.md) ·
+Handoff: [HANDOFF.md](./epics/E020-2026-09-06-engine-pure-core/HANDOFF.md) ·
+Journal: [JOURNAL.md](./epics/E020-2026-09-06-engine-pure-core/JOURNAL.md)
+
+The session engine took `Utc::now()` directly instead of an injected clock
+(making deterministic tests depend on backdating tricks), `SessionState`
+carried six ergonomic-limit fields that belonged to configuration, not
+state, persistence was ad hoc rather than one versioned snapshot, and
+`tray_controller.rs` re-derived signals (`elapsed_secs`, standing-lap
+progress) the engine should have owned outright. E020 closed all four: the
+clock is injected end to end with a dedicated midnight/DST test, the limit
+fields moved out into `&ErgonomicProfile`, persistence became one
+`PersistedEngineState { schema_version, .. }` with a migration from the old
+shape, and the engine now computes every policy-facing derived field
+itself — `tray_controller.rs::compute_standing_lap` is gone.
+
+Ran through the Agent Orchestrator (`E020-20260906-1418`) mostly
+sequentially (every task edits `SessionState`/`SessionManager` or a file
+depending on the previous task's shape). One Claude session-limit hit on
+the first task, resolved by waiting past the reset. Four write_set
+widenings, all legitimate: three narrow ones (a clock-consistency fix in
+`session_manager.rs`, a `lib.rs` mod line plus a new limits test file, a
+test sibling for the engine-owned signals), and one genuine cross-epic fix
+— this epic's refactor made two assertions in the already-closed E019's own
+doc-consistency script permanently false, and the worker corrected them
+rather than leaving a check that would fail on every future `just check`,
+credited in a code comment. Also discovered and fixed a self-inflicted
+class of false positive: editing `HANDOFF.md` mid-run to widen a write_set
+leaves the frozen `ao/integration` branch's copy stale, which then flags
+completely unrelated doc drift as an out-of-scope write on the next task —
+fixed by syncing the integration branch's copy directly rather than
+generating a fresh run-id each time. Promoted at `244de29`; all 8 tasks
+independently re-verified on `main` (569 Rust + 3 integration + 304 TS
+tests). No Outside-AO items — pure Rust engine refactor, no UI surface.

@@ -1,12 +1,12 @@
 {
   "schema_version": "1",
-  "task_id": "T08",
-  "check_id": "full-suite",
+  "task_id": "T01",
+  "check_id": "clock-injection",
   "class": "test",
-  "timestamp": "2026-09-06T15:21:45.882Z",
-  "command_digest": "sha256:699ba06dfc704c3390955e6df57aa371867d496a3bfdf49343928c2f69fbc04e",
+  "timestamp": "2026-09-06T15:20:49.087Z",
+  "command_digest": "sha256:4e8a3dd58ce056abb59b71123cc36d739eb40ef5ea4eb1b6638b15d3fd541658",
   "result": "pass",
-  "duration_ms": 558,
+  "duration_ms": 454,
   "source_commit": "244de29a4f8e36b538772a892f0509dfb0d46581",
   "source_fingerprint": "sha256:a168af504ddee5c42975f3f53f916cc5257145fc2716a08246ecb4fbaf19cd87"
 }

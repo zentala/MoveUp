@@ -117,7 +117,7 @@ sequential/paired waves, 59 points total. Work in a worktree via
 
 ## Tasks
 
-- [ ] **T01** (13, ts-dev Rust) — inject the clock. Change
+- [x] **T01** (13, ts-dev Rust) — inject the clock. Change
   `SessionManager::on_reading`, `needs_daily_reset`, `check_daily_reset`,
   `check_notification_conditions` to take `now: DateTime<Utc>`; remove
   every internal `Utc::now()` call from these; update
@@ -135,7 +135,7 @@ sequential/paired waves, 59 points total. Work in a worktree via
   Verify: `cargo test --manifest-path src-tauri/Cargo.toml --lib --
   session_tests_clock session_tests_break_credit session_tests_sleep
   session_tests_day_break session_tests_daily`.
-- [ ] **T02** (13, ts-dev Rust) — extract config from state. Delete
+- [x] **T02** (13, ts-dev Rust) — extract config from state. Delete
   `break_min_secs`, `break_credit_multiplier`, `day_break_min_secs`,
   `posture_balance_min_sitting_secs`, `max_continuous_computer_secs`,
   `computer_break_reset_secs` from `SessionState`; thread
@@ -145,14 +145,14 @@ sequential/paired waves, 59 points total. Work in a worktree via
   Mental model above. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- session_tests_away
   session_tests_serde communication_policy`.
-- [ ] **T03** (5, ts-dev Rust) — unify the break model. Extract the Day
+- [x] **T03** (5, ts-dev Rust) — unify the break model. Extract the Day
   Break Credit special case out of `apply_break_credit` into its own
   named function; add cross-referencing doc comments to
   `session_breaks.rs` and `hourly_break_tracker.rs`; give the three
   concepts distinct, consistent log-line prefixes if they are not already
   distinct. Verify: `cargo test --manifest-path src-tauri/Cargo.toml
   --lib -- session_tests_day_break hourly_break_tracker`.
-- [ ] **T04** (13, ts-dev Rust) — one persistence snapshot. Derive
+- [x] **T04** (13, ts-dev Rust) — one persistence snapshot. Derive
   `Serialize`/`Deserialize` on `SessionState`; introduce
   `PersistedEngineState { schema_version: u32, .. }` wrapping it plus the
   manager-level flags and `HourlyBreakTracker`; write a migration from the
@@ -160,7 +160,7 @@ sequential/paired waves, 59 points total. Work in a worktree via
   `clear`/`load_reset_after` signatures. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib --
   session_tests_persistence`.
-- [ ] **T05** (13, ts-dev Rust) — engine owns policy-facing derived
+- [x] **T05** (13, ts-dev Rust) — engine owns policy-facing derived
   fields. Add `elapsed_secs`, `standing_lap_progress`, `standing_lap`,
   `standing_lap_flash` to what `SessionManager::snapshot()` (or a new
   `policy_input(now)` method) computes; delete
@@ -169,13 +169,13 @@ sequential/paired waves, 59 points total. Work in a worktree via
   `communication_policy.rs` does not change. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib --
   tray_controller communication_policy`.
-- [ ] **T06** (8, ts-dev Rust) — scenario-table regression test. New file,
+- [x] **T06** (8, ts-dev Rust) — scenario-table regression test. New file,
   one table of `(events, expected DTO)` cases: sit→stand(2min)→sit credit
   on the DTO, sleep-gap credit, midnight rollover, DST-transition day.
   Each row's comment names the pre-existing test it supersedes and
   whether that test was deleted or inverted. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- scenario_table`.
-- [ ] **T07** (3, main) — docs. `.arch/ADR/015-pure-ergo-engine.md`
+- [x] **T07** (3, main) — docs. `.arch/ADR/015-pure-ergo-engine.md`
   (numbering caveat in PLAN.md Decisions); cross-references added to ADR
   008/009; `.arch/ARCHITECTURE.md` session-engine section rewritten;
   `CLAUDE.md` Communication Architecture section updated;
@@ -184,7 +184,7 @@ sequential/paired waves, 59 points total. Work in a worktree via
   `node scripts/check-e020-t07-docs.mjs` (new script, asserts ADR-015
   exists, is non-empty, and is referenced by both `.arch/ARCHITECTURE.md`
   and `CLAUDE.md`; exits non-zero on any missing reference).
-- [ ] **T08** (1, verify) — full-suite verify. Run
+- [x] **T08** (1, verify) — full-suite verify. Run
   `cargo test --manifest-path src-tauri/Cargo.toml --lib` unfiltered;
   confirm 0 failures; write all eight evidence records as `current`.
 
@@ -194,6 +194,17 @@ All eight acceptance criteria in PLAN.md hold, evidence records are
 `current`, `.plan/HISTORY.md` entry written, `STATE.md` updated, and the
 epic's `IMPRO.md` (if the Stop hook created one) has been triaged before
 closing via `/done`.
+
+**Done (2026-09-06).** All 8 tasks `[x]`. Run `E020-20260906-1418`,
+promoted at `244de29` after two operator interventions (a Claude
+session-limit hit on T01, resolved by waiting past reset) and four
+write_set widenings (T01, T02, T05 — each a legitimately narrow
+under-declared scope — and T07, which correctly repaired an assertion in
+E019's own doc-check script that this epic's refactor had made stale).
+Independently re-verified on `main`: 569 Rust + 3 integration + 304 TS
+tests, `just check` exit 0; all 8 evidence records `current`. No
+Outside-AO items — pure Rust engine refactor, no UI surface. See
+[JOURNAL.md](JOURNAL.md).
 
 ## AO
 

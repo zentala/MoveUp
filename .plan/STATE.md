@@ -1,6 +1,6 @@
 ---
-updated: 2026-09-06T14:00:00
-active_epic: none (E011, E012, E016, E017, E018, E019 code complete; E015 code-complete, T05 browser evidence gap open — see below)
+updated: 2026-09-06T15:30:00
+active_epic: none (E011, E012, E016, E017, E018, E019, E020 code complete; E015 code-complete, T05 browser evidence gap open — see below)
 planning_epic: none
 planning_epic_path: null
 current_wave:
@@ -57,8 +57,22 @@ current_wave:
     not checked, stated honestly); coverage-threshold call (D4) surfaced as
     a code comment + BACKLOG.md follow-up (T05 reached 84.96/82.81/73.07/72.04,
     short of the original 80/80/75 target, thresholds lowered accordingly).
-  - E020 (engine: pure core, 69 pts) next per the 2026-09-06 roadmap — last
-    of the three planned epics, wants a stable core after E018/E019.
+  - E020 done (2026-09-06) — ran through AO run E020-20260906-1418. One
+    Claude session-limit hit (T01, resolved by waiting past reset) and four
+    write_set widenings (T01, T02, T05 — legitimately narrow declared
+    scopes — and T07, which correctly repaired two now-false assertions in
+    E019's own doc-check script after this epic's refactor). Also fixed a
+    self-inflicted class of false positive: mid-run HANDOFF.md widening
+    edits leave the frozen integration branch's copy stale, which then
+    flags unrelated doc drift as out-of-scope on the next task — fixed by
+    syncing the integration branch's HANDOFF.md copy directly instead of
+    a fresh run-id each time. Promoted to main at 244de29, all 8 tasks
+    merged and independently re-verified (569 Rust + 3 integration + 304 TS
+    tests, `just check` exit 0, all 8 evidence records current). No
+    Outside-AO items — pure Rust engine refactor, no UI surface.
+  - All three epics from the 2026-09-06 roadmap (E018, E019, E020) are now
+    code-complete. No further epic queued — next is whatever comes out of
+    a fresh `planner` sweep or a new review.
 ---
 
 ## Status

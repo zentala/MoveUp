@@ -199,3 +199,21 @@ JOURNAL.md.
 - **[E018-T11](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T11-selected-day-pulse.md)** — Pulse highlight on the KPI donuts when the selected day changes.
 - **Outside AO — mockup + browser pass**: `browser` agent confirmed all 4 UI checkpoints (date header/nav, sticky day-nav, 3 donut cards, pulse-on-day-change) via `pnpm dev` → `/#/mockup/analyst` — the live `pnpm tauri:dev` window was not checked (needs the physical VL53L1X sensor), stated honestly in the evidence record rather than upgraded to "live-verified".
 - **Outside AO — coverage threshold (D4)**: T05 could not reach 80/80/75%; lowered functions/branches to 73/72 with a dated comment; raise-it-back-up tracked in `.plan/BACKLOG.md`.
+
+## E020 — Engine: Pure Core (2026-09-06)
+Run through AO (`E020-20260906-1418`), promoted at `244de29` after a Claude
+session-limit hit (T01, resolved by waiting past reset) and four write_set
+widenings (T01, T02, T05 — legitimately narrow declared scopes — and T07,
+which correctly repaired an assertion in E019's own doc-check script that
+this epic's refactor had made stale). All 8 tasks merged and independently
+re-verified on `main` (569 Rust + 3 integration + 304 TS tests). See
+JOURNAL.md.
+- **[E020-T01](epics/E020-2026-09-06-engine-pure-core/tasks/E020-T01-inject-clock.md)** — Injected `now: DateTime<Utc>` through the session engine; removed internal `Utc::now()` calls; fixed the UTC-vs-local day comparison; new `session_tests_clock.rs` (midnight rollover, DST transition).
+- **[E020-T02](epics/E020-2026-09-06-engine-pure-core/tasks/E020-T02-config-out-of-state.md)** — Extracted 6 ergonomic-limit fields out of `SessionState`; threaded `&ErgonomicProfile` into the functions that need them; new `session_tests_limits.rs`.
+- **[E020-T03](epics/E020-2026-09-06-engine-pure-core/tasks/E020-T03-unify-break-model.md)** — Extracted the Day Break Credit special case into its own named function; cross-referencing doc comments between `session_breaks.rs` and `hourly_break_tracker.rs`.
+- **[E020-T04](epics/E020-2026-09-06-engine-pure-core/tasks/E020-T04-persistence-snapshot.md)** — One versioned `PersistedEngineState` snapshot replacing ad hoc persistence; migration from the old unversioned JSON shape.
+- **[E020-T05](epics/E020-2026-09-06-engine-pure-core/tasks/E020-T05-engine-owns-signals.md)** — Engine now computes `elapsed_secs`/`standing_lap_progress`/`standing_lap`/`standing_lap_flash`; deleted `tray_controller.rs::compute_standing_lap`.
+- **[E020-T06](epics/E020-2026-09-06-engine-pure-core/tasks/E020-T06-scenario-table-test.md)** — New scenario-table regression test: sit→stand→sit credit, sleep-gap credit, midnight rollover, DST-transition day.
+- **[E020-T07](epics/E020-2026-09-06-engine-pure-core/tasks/E020-T07-docs-adr-015.md)** — `.arch/ADR/015-pure-ergo-engine.md`; `.arch/ARCHITECTURE.md` session-engine section rewritten; `CLAUDE.md` updated; also repaired E019's `check-e019-t08-docs.mjs`, whose assertions this epic's refactor had made stale.
+- **[E020-T08](epics/E020-2026-09-06-engine-pure-core/tasks/E020-T08-verify-full-suite.md)** — Full unfiltered `cargo test` run, 0 failures; all 8 evidence records written.
+- **Outside AO**: none — pure Rust engine refactor, no UI surface.
