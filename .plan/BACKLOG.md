@@ -517,7 +517,7 @@ Engine and backend items were filed above by their reviewers. Frontend and relea
 - [x] **5 dead pre-OneBar components still built and tested** (`AppProgressBar`, `HeightRail`, `SessionProgress`, `TodayStats`, `TransitionBanner`) plus dead `src/overlay/main.tsx` + `overlay.html` entry. (Medium, 3) → E018-T03
 - [x] **UX-FLOW.md missing Steps/Google Fit widget and timeline→Analyst click** — [.arch/UX-FLOW.md](../.arch/UX-FLOW.md). (Medium, 2) → E018-T08
 - [x] **6 local `formatXxx` helpers duplicate `src/utils/format.ts`**. (Low, 1) → E018-T06
-- [ ] **"Smart Desk" branding in share-card copy** — [src/components/ShareStats.tsx](../src/components/ShareStats.tsx). (Low, 1) → E017
+- [x] **"Smart Desk" branding in share-card copy** — [src/components/ShareStats.tsx](../src/components/ShareStats.tsx). Replaced with "MoveUp" (3 occurrences: share text, tweet/reddit title, preview card). (Low, 1) → E017
 - [x] **No `justfile`**; `.claude/rules/overlay.md` documents `tauri-dev.sh --force` that was replaced by `tauri-dev.ps1 -Force`. (Low, 1) → E018-T05/T07 (justfile added by T05, overlay.md fixed by T07)
 - [ ] **User docs describe zntlDesk: name, `AppData\Local\zntlDesk`, repo `zentala/zntl-tray`** — `docs/README.md`, `USER_INSTALL.md`, `USER_SUPPORT.md`, `PRIVACY.md`. (High, 3) → E017
 - [ ] **`docs/USER_UPDATES.md` documents a 24h auto-updater that is not wired in code** (no updater plugin in `src-tauri/tauri.conf.json`). (High, 2) → E017
