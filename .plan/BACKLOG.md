@@ -7,6 +7,20 @@
 - [ ] **E014 HANDOFF.md has no `## AO` block** — waves 1-2 are unblocked but cannot be dispatched through AO until the block exists ([epics/E014-2026-09-05-supervised-release-rollback/HANDOFF.md](epics/E014-2026-09-05-supervised-release-rollback/HANDOFF.md)); write it in the E016 session using E015's block as the template. (Medium, 2)
 - [ ] **[E014 — Supervised release rollback](epics/E014-2026-09-05-supervised-release-rollback/PLAN.md)** — handoff: [HANDOFF.md](epics/E014-2026-09-05-supervised-release-rollback/HANDOFF.md). Keep several installed builds with a `last-known-good` marker so a bad release can be rolled back, and let PM3 fill the gap when nothing holds the app. Waves 1-2 are unblocked; waves 3-4 wait on two PM3 backlog items (`int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md`, section "2026-09-05 — Nadzór z powrotem do poprzedniego builda").
 - [ ] **[E013 — Signed Tauri release and PM3 deployment](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md)** — build signed Windows release, deploy the installed SmartDesk executable under PM3, and expose the remote display at `moveup.internal`. Prepare implementation tasks and execute in a new session.
+- [ ] **Code-signing provider — decision deliberately deferred** (2026-09-06,
+  E017 "Outside AO" checklist, [HANDOFF.md](epics/E017-2026-09-06-release-readiness/HANDOFF.md#outside-ao)):
+  the installer ships unsigned, so every download shows a Windows SmartScreen
+  warning. Constraint from
+  [E013 PLAN.md, Wave 2](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md):
+  no exportable private key in the repo, must support unattended CI signing.
+  Two candidates surfaced and not chosen: a traditional EV/OV cert
+  (DigiCert/GlobalSign, ~200-500 USD/yr per
+  [`.claude/rules/installer.md`](../.claude/rules/installer.md)) or Azure
+  Trusted Signing (~10 USD/mo + per-signing, key never leaves Azure — matches
+  the "no exportable key" constraint directly). Paweł chose to leave this open
+  rather than decide now (2026-09-06) — does not block E017 or any other
+  epic, only blocks a SmartScreen-warning-free public release. (Importance:
+  Medium, Points: 8 decision + 5 CI wiring, per E013 Wave 2 estimate)
 - [ ] **[E012 — Analyst Dashboard](epics/E012-2026-05-16-analyst-dashboard/PLAN.md)** — separate Tauri window with Data Catalog (8 sources, schema + samples) and Explorer (5 charts over last 7 days). Mockup-first per ux-design-flow rule. Research: [reports/2026-05-16-data-sources.md](epics/E012-2026-05-16-analyst-dashboard/reports/2026-05-16-data-sources.md). Version bump to 0.5.0 in epic setup.
 
 ---
@@ -18,6 +32,50 @@
 - [x] **Duplicate notifications on sit limit** — fixed: removed `notify: "popup"` from second escalation step in all profiles. Now only one toast fires at limit, visual-only escalation (blink+pulse) at +5 min.
 - [x] **Notification spam when ignored** — fixed: escalating cooldown (0→5m→15m→30m→silence), configurable per profile via `snooze.notify_cooldowns_secs`. Max 4 reminders, then silence until position change.
 - [x] **3 conflicting autostart registry entries** — removed `zntlDesk`, `Smart Desk`, `SmartDesk` from HKCU Run.
+- [ ] **`welcome.html` shows raw `\uXXXX` escapes instead of Polish diacritics**
+  — the first-run welcome popup title renders literally as
+  `Cześć! Jestem Twoim osobistym asystentem biurkowym.` instead of
+  `Cześć! …` in the real rendered UI (verified via browser at
+  `http://localhost:3390/welcome.html`, screenshot 2026-09-06). Every other
+  diacritic in the same copy block (`długo`, `żwiga`, etc.) has the
+  same problem. Likely a JSON/i18n string that was JS-escaped
+  (`JSON.stringify`) somewhere upstream and never decoded before being put in
+  JSX, or a build step mangling a UTF-8 source file. `src/components/WelcomePopup.tsx`
+  (component `WelcomePopup`) and whatever supplies its copy strings.
+  Found 2026-09-06, E017 `first-run-browser` evidence check
+  (`.plan/epics/E017-2026-09-06-release-readiness/PLAN.md:202`).
+  (Importance: High, Points: 2)
+- [ ] **`remote_server.rs` frontend static path is CWD-relative and breaks
+  outside one specific launch context** — `frontend_service()` in
+  `src-tauri/src/remote_server.rs:205-209` defaults `DESK_REMOTE_DIST` to the
+  literal string `"../../dist"`, resolved against the **process's current
+  working directory**, not the exe's own location. Launching the freshly
+  built `desk.exe` with CWD = repo root (e.g. from a script, a shortcut with
+  no explicit "Start in" folder, or a scheduled task) makes the remote
+  display (`http://localhost:3390/`) 404 on every route — confirmed
+  2026-09-06 while trying to browser-verify E017's `first-run-browser`
+  check: root gave `404` until relaunched with `DESK_REMOTE_DIST` pointed
+  explicitly at the real `dist/` folder. Whether double-click-from-Explorer
+  or the installed shortcut happens to set the right CWD is untested and
+  should not be relied on — this needs an absolute path derived from
+  `std::env::current_exe()` (or a Tauri resource dir), not a relative guess.
+  (Importance: High, Points: 3)
+- [ ] **`App.tsx` calls Tauri's `listen()` unconditionally — throws on every
+  browser/remote-display load** — `src/App.tsx`'s
+  `useEffect(() => { const unWidget = listen("desk:show-widget", ...); const
+  unSettings = listen("desk:show-settings", ...); ... }, [])` is not gated by
+  `isTauri`, so in remote-display (plain browser, no `window.__TAURI_INTERNALS__`)
+  it throws `TypeError: Cannot read properties of undefined (reading
+  'transformCallback')` on mount — confirmed via browser console at
+  `http://localhost:3390/`, 2026-09-06 (E017 `first-run-browser` check).
+  Same class of bug in `src/components/StepsWidget.tsx`: its Tauri `invoke`
+  call in remote mode fails with `Cannot read properties of undefined
+  (reading 'invoke')`, surfaced to the user as "Last refresh failed: TypeError:
+  …" in the Steps KPI tile instead of a clean "not available in remote mode"
+  state. Neither crash currently breaks the rest of the UI (the dashboard
+  still renders), but both are unhandled exceptions on every phone/remote
+  page load and should be guarded with `if (!isTauri) return;`.
+  (Importance: Medium, Points: 3)
 - [ ] **No `.gitattributes` — line endings depend on local `core.autocrlf`** — a
   fresh `git worktree add` checkout on this machine converted LF blobs to
   CRLF, which made 3 unrelated files (`.plan/.../HANDOFF.md`, its task file,
