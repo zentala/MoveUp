@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E017-T06",
+  "check_id": "firmware-readme",
+  "class": "test",
+  "timestamp": "2026-09-06T04:50:12.982Z",
+  "command_digest": "sha256:daaa3c9c1ff830ab624584d941e65283302d17011cdf0c3dae9af56e8ba4ea46",
+  "result": "pass",
+  "duration_ms": 93,
+  "source_commit": "91b35729caa673fc6264ede5249d6ca884343284",
+  "source_fingerprint": "sha256:d82edb870a262dbc5427bdc358870d8d6ee0aeb3c496606a613afe0a8e3b617e"
+}

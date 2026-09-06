@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E017-T01",
+  "check_id": "docs-naming",
+  "class": "test",
+  "timestamp": "2026-09-06T04:49:58.016Z",
+  "command_digest": "sha256:4f2840d014fbd55d566f427b62c789568a4aa9d0b719f36b96b7126608e75bb2",
+  "result": "pass",
+  "duration_ms": 166,
+  "source_commit": "91b35729caa673fc6264ede5249d6ca884343284",
+  "source_fingerprint": "sha256:d82edb870a262dbc5427bdc358870d8d6ee0aeb3c496606a613afe0a8e3b617e"
+}

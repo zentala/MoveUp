@@ -14,7 +14,10 @@ pnpm tauri:build
 
 ## Size Targets
 
-- **Installer:** 60–70 MB | **Peak memory:** < 250 MB | **Stable memory:** < 200 MB
+- **Installer:** ~4–6 MB (NSIS ~4.3 MB, MSI ~6.2 MB — measured on v0.6.0,
+  2026-09-06; the old 60–70 MB figure was never true for this app and is
+  corrected here, see `.plan/epics/E017-2026-09-06-release-readiness/evidence/records/E017-outside-ao-build-gate.json`)
+- **Peak memory:** < 250 MB | **Stable memory:** < 200 MB
 - Check: `pnpm build:report` → `.build-sizes.json`
 - Profile: `pnpm test:perf` → `.perf-baseline.json`
 

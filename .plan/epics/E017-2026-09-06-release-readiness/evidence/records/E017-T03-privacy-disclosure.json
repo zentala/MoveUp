@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E017-T03",
+  "check_id": "privacy-disclosure",
+  "class": "test",
+  "timestamp": "2026-09-06T04:50:11.450Z",
+  "command_digest": "sha256:5ba84e9c5746cb6e286b0b166e2037469a11c9493a85771fdd39b20c59cdfebf",
+  "result": "pass",
+  "duration_ms": 94,
+  "source_commit": "91b35729caa673fc6264ede5249d6ca884343284",
+  "source_fingerprint": "sha256:d82edb870a262dbc5427bdc358870d8d6ee0aeb3c496606a613afe0a8e3b617e"
+}

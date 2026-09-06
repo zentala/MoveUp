@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E017-T07",
+  "check_id": "perf-refresh",
+  "class": "test",
+  "timestamp": "2026-09-06T04:50:13.462Z",
+  "command_digest": "sha256:3c52523635319045d60ccaa4d3a66b153e0a0a71ba082bf953cf93534fa7bda4",
+  "result": "pass",
+  "duration_ms": 89,
+  "source_commit": "91b35729caa673fc6264ede5249d6ca884343284",
+  "source_fingerprint": "sha256:d82edb870a262dbc5427bdc358870d8d6ee0aeb3c496606a613afe0a8e3b617e"
+}
