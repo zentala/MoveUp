@@ -68,7 +68,7 @@
 - [ ] E002-T11 — [Verify debug overlay info](epics/E002-2026-03-16-overlay-progress-bar/tasks/E002-T11-verify-debug-overlay.md) — display works, needs manual QA sign-off
 
 ### From E003 — Installer & Distribution
-- [ ] E003-T07 — [GitHub Releases CI/CD](epics/E003-2026-03-16-installer-distribution/tasks/E003-T07-github-releases-automation.md) (requires code signing certificate)
+- [ ] E003-T07 — [GitHub Releases CI/CD](epics/E003-2026-03-16-installer-distribution/tasks/E003-T07-github-releases-automation.md) (requires code signing certificate) — superseded by E013 (see [E013/PLAN.md](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md) status note).
 
 ### From E004 — Session Alerts & Snooze
 - [ ] E004-T04 — [Integration test: full alert flow](epics/E004-2026-03-20-session-alerts/tasks/E004-T04-integration-test-alert-flow.md) — basic tests exist, time simulation missing
