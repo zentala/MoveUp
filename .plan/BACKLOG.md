@@ -431,18 +431,20 @@ recommended target structure: [reports/_review-2026-09-06/backend.md](reports/_r
 Not implemented (review task explicitly did not modify source). Top items,
 low-confidence-to-fix-alone so filed here rather than auto-applied. **Planned
 as [E019 — backend hardening](epics/E019-2026-09-06-backend-hardening/PLAN.md)
-(2026-09-06, 28 points, 8 tasks)** — items below stay checked `[ ]` until
-that epic actually lands:
+(2026-09-06, 28 points, 8 tasks)** — done via AO run `E019-20260906-0822`,
+promoted `4649dc5` (2026-09-06). Items below closed by E019's tasks (T01,
+T02, T05, T04, T03, and T07/T08 for the TrayController item) — the clippy
+and popup-timer items are NOT E019's scope and stay open.
 
-- [ ] **`commands.rs` uses plain `.unwrap()` on every mutex lock (14 sites)** — a panic
+- [x] **`commands.rs` uses plain `.unwrap()` on every mutex lock (14 sites)** — a panic
   elsewhere while holding `session`/`db`/`config`/`comm_policy` poisons the mutex and
   then every subsequent IPC call through `commands.rs` panics too, unlike
   `tray_controller.rs`/`tray_signal_exec.rs`/`remote_server.rs` which use
   `unwrap_or_else(|e| e.into_inner())` to survive a poisoned lock. Violates
   `rules/rust.md` ("No `unwrap()` in production code").
   [src-tauri/src/commands.rs:44,74,75,80,86,89,95,97,102,155,166,182,193,199,216](../src-tauri/src/commands.rs)
-  (Importance High, 3 points)
-- [ ] **Four overlapping persistence mechanisms, no documented precedence** — SQLite
+  (Importance High, 3 points) — closed by E019-T01 (poison-safe pattern + regression test).
+- [x] **Four overlapping persistence mechanisms, no documented precedence** — SQLite
   `sessions` table, `tauri-plugin-store` (`persisted_session_state`), per-minute JSON
   snapshots, and `events.log` each independently reconstruct "today's totals" via three
   different code paths (`db_sessions::load_today_totals`,
@@ -450,32 +452,32 @@ that epic actually lands:
   `commands_analyst::collect_snapshots`). A discrepancy between them is currently
   undetectable at runtime. [src-tauri/src/commands.rs:60-82](../src-tauri/src/commands.rs),
   [src-tauri/src/commands_analyst.rs:129-159](../src-tauri/src/commands_analyst.rs)
-  (Importance High, 8 points)
-- [ ] **`TrayController` does more than "execute signals"** (contradicts `CLAUDE.md`'s
+  (Importance High, 8 points) — closed by E019-T02 (`today_totals.rs` + ADR 014).
+- [x] **`TrayController` does more than "execute signals"** (contradicts `CLAUDE.md`'s
   routing claim) — it computes `PolicyInput`, standing-lap math, tooltip text, and WS
   broadcasting; `tray_signal_exec.rs` is the real pure executor. Either retitle the
   module boundary in `CLAUDE.md`/`.arch/ARCHITECTURE.md` or move the computation out of
   `tray_controller.rs`. [src-tauri/src/tray_controller.rs:53-186](../src-tauri/src/tray_controller.rs)
-  (Importance Medium, 3 points)
-- [ ] **`google_fit.rs` (473 lines) and `google_fit_service.rs` (328 lines) breach the
+  (Importance Medium, 3 points) — closed by E019-T08 (corrected the `CLAUDE.md` claim) and E019-T07 (deduped remote-display-state derivation out of `tray_controller.rs`).
+- [x] **`google_fit.rs` (473 lines) and `google_fit_service.rs` (328 lines) breach the
   250-line file cap** — unlike every other oversized cluster in this codebase, which
   already follows the `<module>_tests.rs`/`<module>_helpers.rs` split convention
   consistently. [src-tauri/src/google_fit.rs](../src-tauri/src/google_fit.rs),
   [src-tauri/src/google_fit_service.rs](../src-tauri/src/google_fit_service.rs)
-  (Importance Medium, 3 points)
-- [ ] **`EventLogger::new` panics on log-dir creation failure**; sibling `SnapshotLogger`
+  (Importance Medium, 3 points) — closed by E019-T05 (split into ≤250-line siblings).
+- [x] **`EventLogger::new` panics on log-dir creation failure**; sibling `SnapshotLogger`
   only warns on the same failure class — inconsistent startup-failure philosophy for two
   structurally identical loggers, and `EventLogger::new` runs early in
   `perform_app_setup`, so a permissions issue there crashes the whole app.
   [src-tauri/src/event_logger.rs:25-35](../src-tauri/src/event_logger.rs) vs.
   [src-tauri/src/snapshot_logger.rs:39-43](../src-tauri/src/snapshot_logger.rs)
-  (Importance Medium, 2 points)
-- [ ] **8 `desk:*` Tauri event names are stringly typed with no shared constants module**
+  (Importance Medium, 2 points) — closed by E019-T04 (warns instead of panicking, regression test).
+- [x] **8 `desk:*` Tauri event names are stringly typed with no shared constants module**
   — each `emit`/`listen` site retypes the literal; a typo fails silently (listener never
   fires). `ws_broadcaster.rs`'s `DisplayEvent` enum re-encodes 5 of the 8 with a better,
   serde-tagged representation that isn't shared with the Tauri-event side. See the
   Event/IPC inventory in the linked report for the full 8×N call-site table.
-  (Importance Low, 3 points)
+  (Importance Low, 3 points) — closed by E019-T03 (`desk_events.rs`/`src/events.ts` named constants).
 - [ ] **`cargo-clippy` is not installed for this toolchain** (`stable-x86_64-pc-windows-msvc`)
   — the architecture review could not get a clippy warning count; `rustup component add
   clippy` was intentionally not run by the reviewing agent (out of scope to modify the

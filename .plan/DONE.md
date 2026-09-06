@@ -161,3 +161,20 @@ tasks merged and independently re-verified on `main`. See JOURNAL.md.
 - **Outside AO — first-run browser pass**: PARTIAL. Welcome screen visually confirmed; calibration is structurally unreachable from the remote-display path (CSS hides Settings under `.remote-display` by design — desktop-only); no-sensor state unreachable because a real sensor was connected. Found and fixed 3 real bugs surfaced by the pass: mangled Polish diacritics in the welcome popup, a CWD-relative static-file path in `remote_server.rs` that could 404 depending on launch context, and unguarded Tauri `listen()`/`invoke()` calls throwing in remote mode. All three fixed same-session (506 Rust + 259 TS tests green after the fix), `.plan/BACKLOG.md` entries closed in place.
 - **Outside AO — code-signing decision**: deliberately deferred by Paweł (2026-09-06); recorded as an open `.plan/BACKLOG.md` item, does not block this epic.
 - **Outside AO — tag**: `v0.6.0` (already tagged during E015; confirmed still current after this epic's build gate passed).
+
+## E019 — Backend Hardening (2026-09-06)
+Run through AO (`E019-20260906-0822`), promoted at `4649dc5` after two operator
+interventions — a Claude session-limit hit on the first wave, and a Windows
+Smart App Control block on freshly-compiled Rust build DLLs that surfaced only
+during T04's verification. Neither was a code defect. All 8 tasks merged and
+independently re-verified on `main` (533 Rust + 3 integration + 261 TS tests).
+See JOURNAL.md.
+- **[E019-T01](epics/E019-2026-09-06-backend-hardening/tasks/E019-T01-commands-mutex-poison-safe.md)** — Poison-safe mutex pattern across 14 sites in `commands.rs`; regression test for a poisoned lock.
+- **[E019-T02](epics/E019-2026-09-06-backend-hardening/tasks/E019-T02-today-totals-single-path.md)** — New `today_totals.rs` consolidating the duplicate "today's totals" computation; `.arch/ADR/014-persistence-precedence.md`.
+- **[E019-T03](epics/E019-2026-09-06-backend-hardening/tasks/E019-T03-desk-events-constants.md)** — New `desk_events.rs`/`src/events.ts` — named constants for all 8 IPC event strings, used at every emit/listen site.
+- **[E019-T04](epics/E019-2026-09-06-backend-hardening/tasks/E019-T04-logger-warn-and-handler-parity.md)** — `EventLogger::new` warns instead of panicking on an unusable base dir; debug/release `generate_handler!` parity enforced by a test.
+- **[E019-T05](epics/E019-2026-09-06-backend-hardening/tasks/E019-T05-split-google-fit.md)** — Split `google_fit.rs`/`google_fit_service.rs` into ≤250-line siblings.
+- **[E019-T06](epics/E019-2026-09-06-backend-hardening/tasks/E019-T06-split-serial-periodic.md)** — Split `serial_periodic::check_periodic`/`handle_reading` by responsibility.
+- **[E019-T07](epics/E019-2026-09-06-backend-hardening/tasks/E019-T07-dedupe-remote-display-state.md)** — Deduped `tray_controller`/`remote_server` remote-display-state derivation into `remote_display_state.rs`.
+- **[E019-T08](epics/E019-2026-09-06-backend-hardening/tasks/E019-T08-fix-claude-md-tray-claim.md)** — Corrected a stale `CLAUDE.md` claim about `TrayController`.
+- **Outside AO**: none — all 8 tasks were backend/non-UI, verified by `cargo test`/`vitest` alone per HANDOFF.md.

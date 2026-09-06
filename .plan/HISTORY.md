@@ -150,3 +150,35 @@ the no-sensor state could not be visually confirmed even after the fixes:
 calibration is deliberately hidden from the remote-display path by CSS
 (desktop-only by design), and the no-sensor state needs the physical
 sensor unplugged, which a browser agent cannot do.
+
+## E019 — Backend hardening (2026-09-06)
+
+Plan: [PLAN.md](./epics/E019-2026-09-06-backend-hardening/PLAN.md) ·
+Handoff: [HANDOFF.md](./epics/E019-2026-09-06-backend-hardening/HANDOFF.md) ·
+Journal: [JOURNAL.md](./epics/E019-2026-09-06-backend-hardening/JOURNAL.md)
+
+Fourteen sites in `commands.rs` unwrapped a mutex lock directly, so one
+poisoned lock (a panic while holding it) would have crashed every subsequent
+command instead of failing gracefully. `get_today_summary` computed "today's
+totals" two different ways in two places, IPC event names were duplicated as
+string literals at every emit/listen site instead of named constants, and
+`EventLogger::new` panicked rather than warned when its base directory was
+unusable. E019 fixed all four, plus split two over-length files
+(`google_fit.rs`, `serial_periodic.rs`) and deduped remote-display-state
+derivation between the tray and the remote server.
+
+Ran through the Agent Orchestrator (`E019-20260906-0822`) with two operator
+interventions, neither a code defect: the first wave's two workers both hit
+a Claude session-limit wall at the same moment (diagnosed by pulling raw
+`stdout` out of the AO ledger — `ao status` does not surface it directly);
+after the reset, task T04 then failed verification because Windows Smart App
+Control had started blocking freshly-compiled, unsigned Rust proc-macro DLLs
+system-wide (confirmed via `Microsoft-Windows-CodeIntegrity/Operational`,
+193 events) — not specific to this epic or to AO, a plain `cargo build` in
+the main checkout hit the same wall. Fixed live with `CiTool.exe --refresh`
+(no reboot needed) after explicit user consent, since disabling a Windows
+security feature is treated as irreversible. Promoted at `4649dc5`; all 8
+tasks independently re-verified on `main` afterward (533 Rust + 3
+integration + 261 TS tests). Both root causes filed to
+`dispatch.internal/.plan/BACKLOG.md` as gaps in AO's `executor_result_error`
+classification.

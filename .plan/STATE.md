@@ -1,6 +1,6 @@
 ---
-updated: 2026-09-06T08:03:55
-active_epic: none (E011, E012, E016, E017 code complete; E015 code-complete, T05 browser evidence gap open — see below)
+updated: 2026-09-06T12:05:00
+active_epic: none (E011, E012, E016, E017, E019 code complete; E015 code-complete, T05 browser evidence gap open — see below)
 planning_epic: none
 planning_epic_path: null
 current_wave:
@@ -29,7 +29,25 @@ current_wave:
     deliberately deferred by Paweł — open in BACKLOG.md. `main` is not
     pushed to `origin` (20+ commits ahead, accumulated across E016/E015/E017)
     — push was not requested this session.
-  - E018/E019/E020 next per the roadmap set by the 2026-09-06 full review.
+  - E019 done (2026-09-06) — ran through AO run E019-20260906-0822 with two
+    operator interventions, neither a code defect: (1) both wave-0 workers
+    hit a Claude session-limit wall at the same moment, resolved by waiting
+    past the reset then `ao resume`; (2) task T04 then failed verification
+    because Windows Smart App Control started blocking freshly-compiled,
+    unsigned Rust proc-macro DLLs system-wide (confirmed via
+    Microsoft-Windows-CodeIntegrity/Operational, 193 events since
+    10:45:32) — not epic-specific, hit a plain `cargo build` in the main
+    checkout too. Fixed live with `CiTool.exe --refresh` (no reboot) after
+    explicit user consent via consent-broker. Promoted to main at 4649dc5,
+    all 8 tasks merged and independently re-verified (533 Rust + 3
+    integration + 261 TS tests, `just check` exit 0). No Outside-AO items —
+    all backend/non-UI. Both root causes filed to
+    `dispatch.internal/.plan/BACKLOG.md` as gaps in AO's
+    `executor_result_error` classification.
+  - E018/E020 next per the roadmap set by the 2026-09-06 full review — E018
+    (frontend consolidation, 45 pts) recommended next since it doesn't
+    collide file-wise with E019's changes; E020 (engine pure core, 69 pts)
+    last since it wants a stable core after E019.
 ---
 
 ## Status

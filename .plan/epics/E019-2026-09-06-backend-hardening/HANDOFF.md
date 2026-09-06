@@ -134,32 +134,32 @@ worktree via `wt-add`, branch `feat/E019-backend-hardening`. Do not touch
 
 ## Tasks
 
-- [ ] **T01** (3, ts-dev) — poison-safe mutex pattern in `commands.rs` (14
+- [x] **T01** (3, ts-dev) — poison-safe mutex pattern in `commands.rs` (14
   sites) + new `commands_tests.rs` with a poisoned-lock regression test.
   Verify: `cargo test --manifest-path src-tauri/Cargo.toml --lib -- e019_t01_commands_poison`.
-- [ ] **T02** (8, ts-dev) — `.arch/ADR/014-persistence-precedence.md` +
+- [x] **T02** (8, ts-dev) — `.arch/ADR/014-persistence-precedence.md` +
   `today_totals.rs` (new) consolidating the duplicate "today's totals" path
   in `commands::get_today_summary`; doc comment in `commands_analyst.rs`
   pointing at the ADR. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- e019_t02_today_totals`.
-- [ ] **T03** (5, ts-dev) — `desk_events.rs` (new, 8 `pub const` event
+- [x] **T03** (5, ts-dev) — `desk_events.rs` (new, 8 `pub const` event
   names) used at every emit/listen site; `src/events.ts` (new, mirrored
   constants only, no consumer rewiring). Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- e019_t03_desk_events`
   and `npx vitest run --config vite.config.ts src/events.test.ts`.
-- [ ] **T04** (2, ts-dev) — `EventLogger::new` warns instead of panics;
+- [x] **T04** (2, ts-dev) — `EventLogger::new` warns instead of panics;
   `generate_handler!` debug/release parity enforced by a test. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- e019_t04`.
-- [ ] **T05** (3, ts-dev) — split `google_fit.rs`/`google_fit_service.rs`
+- [x] **T05** (3, ts-dev) — split `google_fit.rs`/`google_fit_service.rs`
   into ≤250-line siblings. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- google_fit`.
-- [ ] **T06** (3, ts-dev) — split `serial_periodic::check_periodic`/
+- [x] **T06** (3, ts-dev) — split `serial_periodic::check_periodic`/
   `handle_reading` by responsibility. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- e019_t06_serial_periodic`.
-- [ ] **T07** (3, ts-dev) — dedupe `tray_controller`/`remote_server`
+- [x] **T07** (3, ts-dev) — dedupe `tray_controller`/`remote_server`
   remote-display-state derivation into `remote_display_state.rs`. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- e019_t07_remote_display_state`.
-- [ ] **T08** (1, main) — correct `CLAUDE.md`'s TrayController claim.
+- [x] **T08** (1, main) — correct `CLAUDE.md`'s TrayController claim.
   Verify: `node scripts/check-e019-t08-docs.mjs`.
 
 ## Done means
@@ -169,6 +169,13 @@ src-tauri/Cargo.toml --lib` reports 492+ passed / 0 failed, every evidence
 record is `current`, `.plan/HISTORY.md` gets an entry, `STATE.md` is
 updated, version is bumped per `.claude/rules/versioning.md` if this epic
 starts the release cycle (check `Cargo.toml` for the current version first).
+
+**Done (2026-09-06).** All eight tasks `[x]`. Run `E019-20260906-0822`,
+promoted at `4649dc5`. Independently re-verified on `main` afterward: 533
+Rust + 3 integration + 261 TS tests, `just check` exit 0. See
+[JOURNAL.md](JOURNAL.md) for the run's two operator interventions (a
+session-limit hit and a Windows Smart App Control block, neither a code
+defect).
 
 ## Outside AO
 
