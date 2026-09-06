@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::activity::is_active;
 use crate::commands::AppState;
+use crate::desk_events::{DESK_DAILY_RESET, DESK_STATE_CHANGED};
 use crate::event_logger::EventLogger;
 use crate::metrics::MetricEngine;
 use crate::notification_service::NotificationService;
@@ -45,7 +46,7 @@ pub fn check_periodic(
 
     if daily_reset_occurred {
         info!("Daily reset occurred — in-memory counters cleared");
-        let _ = app.emit("desk:daily-reset", ());
+        let _ = app.emit(DESK_DAILY_RESET, ());
         event_logger.log("RESET daily");
         // Clear stale persisted flags so they don't leak into tomorrow.
         if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
@@ -144,7 +145,7 @@ pub fn handle_reading(
             "STATE {:?}\u{2192}{:?} h={:.0}cm idle={}s",
             state_before, payload.state, height_cm, idle_secs
         ));
-        let _ = app.emit("desk:state-changed", payload);
+        let _ = app.emit(DESK_STATE_CHANGED, payload);
 
         // Persist notification flags and credit-reduced sitting_seconds on state change.
         save_session_state(app, session);

@@ -13,6 +13,9 @@ use window_vibrancy::apply_acrylic;
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::commands::AppState;
+use crate::desk_events::{
+    DESK_DAILY_RESET, DESK_DEVICE_CONNECTED, DESK_DEVICE_LOST, DESK_DEVICE_MISSING,
+};
 use crate::ws_broadcaster::{self, DisplayEvent};
 
 /// Main app setup — called from the Tauri `.setup()` closure in `lib.rs`.
@@ -179,7 +182,7 @@ pub fn setup_device_notifications(app: &AppHandle) {
 
     {
         let last = Arc::clone(&last_notif);
-        app.listen("desk:device-missing", move |_| {
+        app.listen(DESK_DEVICE_MISSING, move |_| {
             let mut guard = last.lock().unwrap_or_else(|e| {
                 log::warn!("Recovered from poisoned mutex");
                 e.into_inner()
@@ -193,7 +196,7 @@ pub fn setup_device_notifications(app: &AppHandle) {
 
     {
         let last = Arc::clone(&last_notif);
-        app.listen("desk:device-lost", move |_| {
+        app.listen(DESK_DEVICE_LOST, move |_| {
             let mut guard = last.lock().unwrap_or_else(|e| {
                 log::warn!("Recovered from poisoned mutex");
                 e.into_inner()
@@ -230,7 +233,7 @@ pub fn setup_remote_display(app: &AppHandle) {
 pub fn setup_broadcast_listeners(app: &AppHandle) {
     // desk:device-connected → broadcast to remote clients
     let handle1 = app.clone();
-    app.listen("desk:device-connected", move |event| {
+    app.listen(DESK_DEVICE_CONNECTED, move |event| {
         let ws_tx = handle1.state::<AppState>().ws_tx.clone();
         let port = serde_json::from_str::<serde_json::Value>(event.payload())
             .ok()
@@ -241,14 +244,14 @@ pub fn setup_broadcast_listeners(app: &AppHandle) {
 
     // desk:device-lost → broadcast to remote clients
     let handle2 = app.clone();
-    app.listen("desk:device-lost", move |_event| {
+    app.listen(DESK_DEVICE_LOST, move |_event| {
         let ws_tx = handle2.state::<AppState>().ws_tx.clone();
         ws_broadcaster::broadcast_event(&ws_tx, &DisplayEvent::DeviceLost);
     });
 
     // desk:daily-reset → broadcast + clear today_cache
     let handle3 = app.clone();
-    app.listen("desk:daily-reset", move |_event| {
+    app.listen(DESK_DAILY_RESET, move |_event| {
         let state = handle3.state::<AppState>();
         ws_broadcaster::broadcast_event(&state.ws_tx, &DisplayEvent::DailyReset);
         // Clear cached today summary

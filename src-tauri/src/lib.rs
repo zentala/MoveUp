@@ -35,6 +35,7 @@ mod db_backup;
 mod db_queries;
 mod db_sessions;
 mod today_totals;
+mod desk_events;
 pub mod event_logger;
 mod height_stabilizer;
 mod hourly_break_tracker;

@@ -221,7 +221,7 @@ pub fn inject_reading(
     let result = session.on_reading(mm, active);
 
     if let Some(payload) = result.state_change {
-        let _ = app.emit("desk:state-changed", &payload);
+        let _ = app.emit(crate::desk_events::DESK_STATE_CHANGED, &payload);
     }
 
     Ok(())
