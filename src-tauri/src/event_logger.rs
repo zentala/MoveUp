@@ -20,17 +20,21 @@ pub struct EventLogger {
 impl EventLogger {
     /// Creates a new logger writing to `base_dir` (e.g. `{app_data}/logs`).
     ///
-    /// Panics if `base_dir` cannot be created — event logging is critical
-    /// infrastructure and silent failure masks data-loss bugs.
+    /// Creating `base_dir` is best-effort: a failure is logged at `warn!` and
+    /// the logger is still returned. `log` calls `ensure_day_dir` on every
+    /// write, so a directory that becomes creatable later starts working
+    /// without a restart. Mirrors `SnapshotLogger`, which never creates the
+    /// base directory eagerly at all.
     pub fn new(base_dir: PathBuf) -> Self {
-        std::fs::create_dir_all(&base_dir).unwrap_or_else(|e| {
-            panic!(
-                "event_logger: cannot create base log dir {:?}: {} (kind={:?})",
+        if let Err(e) = std::fs::create_dir_all(&base_dir) {
+            log::warn!(
+                "event_logger: cannot create base log dir {:?}: {} (kind={:?}) — \
+                 event logging degraded, each write will retry",
                 base_dir,
                 e,
                 e.kind()
-            )
-        });
+            );
+        }
         Self { base_dir }
     }
 
@@ -141,6 +145,24 @@ mod tests {
         // Verify time prefix pattern (HH:MM:SS)
         let parts: Vec<&str> = line.splitn(2, ' ').collect();
         assert_eq!(parts[0].len(), 8); // HH:MM:SS
+    }
+
+    /// A base dir that cannot be created must degrade to a warning, not a
+    /// panic. Reverting `new` to `unwrap_or_else(|e| panic!(...))` makes this
+    /// test fail.
+    #[test]
+    fn e019_t04_event_logger_new_warns_instead_of_panicking() {
+        let tmp = TempDir::new().unwrap();
+        // A regular file where a directory component must be: `create_dir_all`
+        // fails on every platform.
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"not a directory").unwrap();
+        let unusable = blocker.join("logs");
+        assert!(std::fs::create_dir_all(&unusable).is_err());
+
+        let logger = EventLogger::new(unusable);
+        // Writing must not panic either — `log` already handles the failure.
+        logger.log("START degraded");
     }
 
     #[test]
