@@ -1,39 +1,46 @@
 /**
- * SettingsTypes.ts — shared types and defaults for settings panel.
+ * SettingsTypes.ts — shared types and defaults for the settings panel.
  */
+import type { AppConfig } from "@/generated/AppConfig";
+
+export type { AppConfig };
 
 export interface SettingsPanelProps {
   /** Called when user clicks Back/Cancel to close settings without saving. */
   onClose: () => void;
 }
 
-export interface DeskSettings {
+/**
+ * Toggles the settings UI still renders but the backend no longer sends.
+ *
+ * They moved to the ergonomic and communication profiles when those were
+ * introduced; `get_settings` returns `AppConfig`, which has none of them, so
+ * at runtime every one of these reads `undefined` today. They are optional
+ * and quarantined here so `AppConfig` stays the sole description of what the
+ * backend actually sends — deleting the dead UI that reads them is a
+ * follow-up, not part of the codegen change (ADR 017).
+ */
+interface LegacySettingsFields {
   sit_limit_mins: number;
   stand_limit_mins: number;
-  sitting_mm: number;
-  standing_mm: number;
   notify_inactivity: boolean;
   notify_daily_posture_balance: boolean;
   notify_praise_halfway: boolean;
-  /** Timeline color skin: "semantic" | "amber" | "clinical". */
-  timeline_skin: string;
-  /** Show Active/Idle status in StateIndicator. */
-  show_activity_status: boolean;
-  /** Whether anonymous telemetry is enabled. Default: false (opt-in). */
-  telemetry_enabled: boolean;
-  /** Unique device identifier for telemetry. Auto-generated on first run. */
-  telemetry_device_id: string;
 }
 
+/**
+ * What the settings panel holds in state: the real `get_settings` payload
+ * (generated from Rust's `AppConfig`) plus the legacy leftovers above.
+ */
+export type DeskSettings = AppConfig & Partial<LegacySettingsFields>;
+
 export const DEFAULT_SETTINGS: DeskSettings = {
-  sit_limit_mins: 45,
-  stand_limit_mins: 15,
   sitting_mm: 720,
   standing_mm: 1050,
-  notify_inactivity: true,
-  notify_daily_posture_balance: true,
-  notify_praise_halfway: false,
+  desk_thickness_mm: 30,
+  active_widget: 'one-bar',
   timeline_skin: 'semantic',
+  show_welcome_on_startup: true,
   show_activity_status: true,
   telemetry_enabled: false,
   telemetry_device_id: '',

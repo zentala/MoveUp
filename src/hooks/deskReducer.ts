@@ -22,6 +22,27 @@ export const BREAK_RESET_THRESHOLD_SECS = 600;
 /** A break counts as effective from this duration on (seconds). */
 const EFFECTIVE_BREAK_SECS = 300;
 
+/** A day with nothing recorded yet — every counter genuinely zero. */
+const EMPTY_TODAY_SUMMARY: TodaySummaryDto = {
+  sitting_secs: 0,
+  standing_secs: 0,
+  yesterday_sitting_secs: 0,
+  yesterday_standing_secs: 0,
+  position_changes: 0,
+  sessions: [],
+};
+
+const DESK_STATES: readonly string[] = ["Sitting", "Standing", "Walking", "Away"];
+
+/**
+ * Narrows a session row's `state` column, which the backend types as a plain
+ * string. Mirrors Rust's `DeskState::from_db_str`: an unrecognised value is
+ * unknown, never silently mapped onto a real state.
+ */
+function toDeskState(raw: string): DeskState | null {
+  return DESK_STATES.includes(raw) ? (raw as DeskState) : null;
+}
+
 /** Everything a transport-agnostic desk view needs to render. */
 export interface DeskReducerState {
   connected: boolean;
@@ -155,7 +176,7 @@ export function deskReducer(state: DeskReducerState, action: DeskAction): DeskRe
         positionChanges: 0,
         limitUsedSecs: 0,
         dailyScore: 0,
-        todaySummary: { sitting_secs: 0, standing_secs: 0, sessions: [] },
+        todaySummary: EMPTY_TODAY_SUMMARY,
       };
 
     case "clear-transition":
@@ -168,12 +189,17 @@ export function selectPreviousSession(state: DeskReducerState): PreviousSession 
   const sessions = state.todaySummary?.sessions;
   if (!sessions || sessions.length < 2) return null;
   const prev = sessions[sessions.length - 2];
+  const prevState = toDeskState(prev.state);
+  if (prevState === null) return null;
   const isBreak =
-    prev.state === "Standing" || prev.state === "Walking" || prev.state === "Away";
+    prevState === "Standing" || prevState === "Walking" || prevState === "Away";
+  // A row written before the duration column is unknown, so it cannot have
+  // earned credit — 0 keeps it out of `wasEffective` without claiming a length.
+  const durationSecs = prev.duration_secs ?? 0;
   return {
-    state: prev.state,
-    durationSecs: prev.duration_secs,
-    wasEffective: isBreak && prev.duration_secs >= EFFECTIVE_BREAK_SECS,
+    state: prevState,
+    durationSecs,
+    wasEffective: isBreak && durationSecs >= EFFECTIVE_BREAK_SECS,
   };
 }
 

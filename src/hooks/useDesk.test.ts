@@ -35,7 +35,14 @@ function makeSession(overrides: Partial<SessionStateDto> = {}): SessionStateDto 
   };
 }
 
-const emptySummary: TodaySummaryDto = { sitting_secs: 0, standing_secs: 0, sessions: [] };
+const emptySummary: TodaySummaryDto = {
+  sitting_secs: 0,
+  standing_secs: 0,
+  yesterday_sitting_secs: 0,
+  yesterday_standing_secs: 0,
+  position_changes: 0,
+  sessions: [],
+};
 
 /** Route each Tauri command to a canned reply. */
 function stubBackend(opts: {
@@ -132,9 +139,10 @@ describe("useDesk — happy path", () => {
   it("matches the useRemoteDesk view for an equivalent payload", async () => {
     const today: TodaySummaryDto = {
       sitting_secs: 300, standing_secs: 100,
+      yesterday_sitting_secs: 0, yesterday_standing_secs: 0, position_changes: 2,
       sessions: [
-        { start: "09:00", end: "09:20", state: "Standing", duration_secs: 600 },
-        { start: "09:20", end: null, state: "Sitting", duration_secs: 120 },
+        { start: "09:00", end: "09:20", state: "Standing", duration_secs: 600, break_credit: "full" },
+        { start: "09:20", end: null, state: "Sitting", duration_secs: 120, break_credit: null },
       ],
     };
     stubBackend({ today });
