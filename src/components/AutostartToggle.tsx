@@ -11,10 +11,6 @@ export const AutostartToggle: FC<AutostartToggleProps> = ({ appName }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void loadAutostartStatus();
-  }, []);
-
   async function loadAutostartStatus() {
     try {
       const { isEnabled } = await import("@tauri-apps/plugin-autostart");
@@ -25,6 +21,10 @@ export const AutostartToggle: FC<AutostartToggleProps> = ({ appName }) => {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    void loadAutostartStatus();
+  }, []);
 
   async function handleToggle(event: ChangeEvent<HTMLInputElement>) {
     const checked = event.target.checked;

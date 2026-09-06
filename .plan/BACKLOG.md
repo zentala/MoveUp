@@ -818,9 +818,17 @@ each back to `"error"` once its sites are fixed.
   `src/components/settings/ProfileSelector.tsx:69`, `src/hooks/useTimer.ts:21`.
   React-Compiler-era rule; each needs a per-site judgement call, not a sweep.
   (Importance: Low, Points: 5)
-- [ ] **`react-hooks/immutability` → error** — `src/components/AutostartToggle.tsx:15`,
-  `src/widgets/one-bar/OneBarTimeline.tsx:129` (running offset accumulated by
-  reassignment inside `.map()`). (Importance: Low, Points: 2)
+- [x] **`react-hooks/immutability` → error** — fixed 2026-09-06:
+  `AutostartToggle.tsx` moved `loadAutostartStatus` above the `useEffect` that
+  calls it, instead of relying on function-declaration hoisting
+  ([src/components/AutostartToggle.tsx:9-24](../src/components/AutostartToggle.tsx)).
+  `OneBarTimeline.tsx` replaced the mutable `offsetPct` accumulated inside
+  `.map()` with a pure `layoutSessions()` helper that pre-computes each
+  session's width and cumulative offset via a local loop before render, and a
+  `liveOffsetPct` reduce for the trailing live block
+  ([src/widgets/one-bar/OneBarTimeline.tsx:36-56,133-158](../src/widgets/one-bar/OneBarTimeline.tsx)).
+  Rule is now `"error"` in [eslint.config.mjs](../eslint.config.mjs).
+  (Importance: Low, Points: 2)
 - [x] **`react-hooks/purity` → error** — fixed 2026-09-06: `StepsWidget` no
   longer calls `Date.now()` in the render body. It tracks a `nowMs` state
   seeded from `Date.now()` at mount and ticked every 60s by an effect

@@ -38,6 +38,28 @@ interface TimelineTooltip {
   leftPct: number;
 }
 
+/** A session entry with its proportional width and cumulative left offset. */
+interface PositionedSession {
+  entry: SessionEntry;
+  widthPct: number;
+  offsetPct: number;
+}
+
+/** Lays out sessions left-to-right, each block's width proportional to its duration. */
+function layoutSessions(
+  sessions: SessionEntry[],
+  maxSecs: number,
+): PositionedSession[] {
+  const positioned: PositionedSession[] = [];
+  let offsetPct = 0;
+  for (const entry of sessions) {
+    const widthPct = Math.max(((entry.duration_secs ?? 0) / maxSecs) * 100, 0.5);
+    positioned.push({ entry, widthPct, offsetPct });
+    offsetPct += widthPct;
+  }
+  return positioned;
+}
+
 /** Current session duration: sitting uses limitUsedSecs, others use breakSecs. */
 function currentDuration(props: WidgetProps): number {
   return props.state === "Sitting"
@@ -110,25 +132,24 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
 
   const handleMouseLeave = (): void => setTooltip(null);
 
-  let offsetPct = 0;
+  const positionedSessions = layoutSessions(sessions, maxSecs);
+  const liveOffsetPct = positionedSessions.reduce(
+    (sum, s) => sum + s.widthPct,
+    0,
+  );
 
   return (
     <div className="one-bar__timeline" data-testid="one-bar-timeline">
       <div className="one-bar__timeline-bar">
-        {sessions.map((entry, i) => {
-          const widthPct = Math.max(((entry.duration_secs ?? 0) / maxSecs) * 100, 0.5);
-          const currentOffset = offsetPct;
-          offsetPct += widthPct;
-          return (
-            <div
-              key={`${entry.start}-${i}`}
-              className={`one-bar__timeline-block one-bar__timeline-block--${blockModifier(entry.state)}`}
-              style={{ width: `${widthPct}%` }}
-              onMouseEnter={() => handleMouseEnter(entry, widthPct, currentOffset)}
-              onMouseLeave={handleMouseLeave}
-            />
-          );
-        })}
+        {positionedSessions.map(({ entry, widthPct, offsetPct }, i) => (
+          <div
+            key={`${entry.start}-${i}`}
+            className={`one-bar__timeline-block one-bar__timeline-block--${blockModifier(entry.state)}`}
+            style={{ width: `${widthPct}%` }}
+            onMouseEnter={() => handleMouseEnter(entry, widthPct, offsetPct)}
+            onMouseLeave={handleMouseLeave}
+          />
+        ))}
         {liveSecs > 0 && (
           <div
             key="live-current"
@@ -137,7 +158,7 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
             data-testid="timeline-live-block"
             onMouseEnter={() => {
               const w = Math.max((liveSecs / maxSecs) * 100, 0.5);
-              handleLiveMouseEnter(w, offsetPct);
+              handleLiveMouseEnter(w, liveOffsetPct);
             }}
             onMouseLeave={handleMouseLeave}
           />
