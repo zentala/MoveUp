@@ -148,6 +148,7 @@ Source: `session_types.rs`, `session_breaks.rs`,
 | **Arc<Mutex<>> shared state** | Thread-safe state between Tauri thread and WinAPI overlay thread | E002 |
 | **DataSource enum** | Demo/Live/Mock modes — develop overlay without hardware | E002 |
 | **One credited session counter** | A second, uncredited counter let timer and colour disagree; deleting it makes the compiler enforce the rule | E015, ADR 008 |
+| **One composition point for today's totals** | Three stores each hold part of today; composing them per call site let the startup cache seed `position_changes: 0` | E019, ADR 014 |
 
 ## Native UI Elements (WinAPI, outside Tauri)
 
@@ -160,6 +161,15 @@ Both run in dedicated background threads with their own Windows message loops.
 
 - **SQLite** (via rusqlite): session history, daily summaries
 - **tauri-plugin-store**: user config (session limits, calibration, notification prefs, widget selection)
+- **Per-minute JSON snapshots** (`logs/YYYY-MM-DD/HH-MM.json`): the Analyst time series
+
+The three overlap, so precedence is fixed rather than decided per call site:
+SQLite owns today's durations and session list, the in-memory `SessionManager`
+owns `position_changes` (the DB count excludes the running span), and
+`tauri-plugin-store` owns notification flags, credited `sitting_seconds` and
+`daily_score`. `today_totals::load_today_summary` is the one place that
+composes them — see
+[ADR 014](ADR/014-persistence-precedence.md).
 
 ## Stack
 

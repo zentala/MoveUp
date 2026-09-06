@@ -81,11 +81,6 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
         }
     }
 
-    // Populate today_cache from DB on first init
-    if let Ok(summary) = crate::db::get_today_summary(&conn) {
-        *state.today_cache.lock().unwrap_or_else(|e| e.into_inner()) = summary;
-    }
-
     *db_guard = Some(conn);
 
     let cfg = app
@@ -102,6 +97,17 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
     let ergo = state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).ergo_profile().clone();
     session.state.session_limit_secs = ergo.limits.sitting_secs as i64;
     session.state.stand_limit_secs = ergo.limits.standing_target_secs as i64;
+
+    // Seed today_cache through the one composition point (ADR 014), so the
+    // cache starts with the live position_changes instead of the placeholder
+    // zero the DB query returns.
+    let live_changes = session.snapshot().position_changes;
+    drop(session);
+    if let Some(conn) = db_guard.as_ref() {
+        if let Ok(summary) = crate::today_totals::load_today_summary(conn, live_changes) {
+            *state.today_cache.lock().unwrap_or_else(|e| e.into_inner()) = summary;
+        }
+    }
 
     Ok(())
 }
@@ -195,11 +201,9 @@ pub fn get_today_summary(
         .as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
-    let mut summary = crate::db::get_today_summary(conn)?;
-    let session = state.session.lock().unwrap_or_else(|e| e.into_inner());
-    summary.position_changes = session.snapshot().position_changes;
+    let live_changes = state.session.lock().unwrap_or_else(|e| e.into_inner()).snapshot().position_changes;
 
-    Ok(summary)
+    crate::today_totals::load_today_summary(conn, live_changes)
 }
 
 /// Test/debug command: inject a sensor reading directly.
