@@ -1,6 +1,7 @@
 //! Wires `desk:state-changed` + `desk:distance` events to tray tooltip,
 //! overlay progress bar, and [`CommunicationPolicy`] signal engine.
 
+use chrono::Utc;
 use tauri::{AppHandle, Listener, Manager};
 
 use crate::{
@@ -107,12 +108,17 @@ fn update_from_policy(app: &AppHandle) {
         app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).dismiss();
     }
 
+    let is_connected = app_state.conn.connected_port.lock().unwrap_or_else(|e| e.into_inner()).is_some();
+
     let session = app_state.session.lock().unwrap_or_else(|e| e.into_inner());
     // Dismiss alert popup when user stands (popup is no longer relevant).
     if session.state.state == DeskState::Standing {
         app_state.alert_popup.lock().unwrap_or_else(|e| e.into_inner()).dismiss();
     }
     let snapshot = session.snapshot();
+    // Every policy-facing derived value comes from the engine (E020-T05); this
+    // adapter contributes only the sensor-connectivity fact the engine lacks.
+    let input: PolicyInput = session.policy_input(Utc::now(), is_connected);
     drop(session);
 
     remote_display_state::broadcast(
@@ -122,26 +128,6 @@ fn update_from_policy(app: &AppHandle) {
         &app_state.today_cache,
     );
     update_tooltip(app, &snapshot);
-
-    let is_connected = app_state.conn.connected_port.lock().unwrap_or_else(|e| e.into_inner()).is_some();
-    let (standing_lap_progress, standing_lap, standing_lap_flash) =
-        compute_standing_lap(&snapshot);
-
-    let elapsed_secs = match snapshot.state {
-        DeskState::Sitting => snapshot.sitting_seconds,
-        DeskState::Standing => snapshot.break_seconds,
-        _ => 0,
-    };
-
-    let input = PolicyInput {
-        state: snapshot.state.clone(),
-        elapsed_secs,
-        sensor_connected: is_connected,
-        standing_lap_progress,
-        standing_lap,
-        standing_lap_flash,
-        continuous_computer_secs: snapshot.continuous_computer_secs,
-    };
 
     let signals = app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).evaluate(&input);
 
@@ -154,19 +140,6 @@ fn update_from_policy(app: &AppHandle) {
     if let Some(ref notify) = signals.notify {
         tray_signal_exec::execute_notify(notify, &app_state);
     }
-}
-
-/// Computes standing lap progress, lap count, and flash trigger.
-fn compute_standing_lap(snapshot: &crate::session::SessionStateDto) -> (f32, u32, bool) {
-    if snapshot.state != DeskState::Standing || snapshot.stand_limit_secs <= 0 {
-        return (0.0, 0, false);
-    }
-    let target = snapshot.stand_limit_secs;
-    let session_secs = snapshot.break_seconds;
-    let session_lap = (session_secs / target) as u32;
-    let lap_progress = (session_secs % target) as f32 / target as f32;
-    let total_laps = (snapshot.standing_seconds / target) as u32;
-    (lap_progress, total_laps, session_lap > 0)
 }
 
 /// Updates tray tooltip from a session snapshot (called every ~1s).

@@ -1,6 +1,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use log::info;
 
+use crate::communication_policy::PolicyInput;
 use crate::ergonomic_profile::{ErgonomicProfile, Limits};
 use crate::height_stabilizer::HeightStabilizer;
 use crate::hourly_break_tracker::HourlyBreakTracker;
@@ -48,36 +49,11 @@ impl SessionManager {
     pub fn new() -> Self {
         let now = Utc::now();
         Self {
+            // Every other field starts at its `Default` — an Away manager with
+            // zeroed counters. Only the limits differ from that.
             state: SessionState {
-                state: DeskState::Away,
-                sitting_started: None,
-                sitting_seconds: 0,
-                standing_seconds: 0,
-                break_started: None,
-                break_seconds: 0,
                 session_limit_secs: DEFAULT_SESSION_LIMIT_SECS,
-                stand_limit_secs: 0,
-                desk_height_cm: 0.0,
-                last_position_change_at: None,
-                position_changes: 0,
-                last_break_secs: 0,
-                last_sitting_secs: 0,
-                last_break_credit: BreakCredit::None,
-                daily_score: 0.0,
-                standing_session_secs: 0,
-                standing_session_started: None,
-                lap_bonus_awarded_for_lap: 0,
-                continuous_computer_secs: 0,
-                longest_computer_session_secs: 0,
-                away_bout_secs: 0,
-                first_reading_at: None,
-                last_tick_ts: None,
-                last_accumulate_ts: None,
-                standing_bout_started: None,
-                hourly_breaks_covered: 0,
-                hourly_breaks_active: 0,
-                sitting_seconds_total: 0,
-                idle_secs: 0,
+                ..SessionState::default()
             },
             limits: Limits::default(),
             pending_state: None,
@@ -108,35 +84,9 @@ impl SessionManager {
         let now = Utc::now();
         Self {
             state: SessionState {
-                state: DeskState::Away,
-                sitting_started: None,
-                sitting_seconds: 0,
-                standing_seconds: 0,
-                break_started: None,
-                break_seconds: 0,
                 session_limit_secs: ergo.limits.sitting_secs as i64,
                 stand_limit_secs: ergo.limits.standing_target_secs as i64,
-                desk_height_cm: 0.0,
-                last_position_change_at: None,
-                position_changes: 0,
-                last_break_secs: 0,
-                last_sitting_secs: 0,
-                last_break_credit: BreakCredit::None,
-                daily_score: 0.0,
-                standing_session_secs: 0,
-                standing_session_started: None,
-                lap_bonus_awarded_for_lap: 0,
-                continuous_computer_secs: 0,
-                longest_computer_session_secs: 0,
-                away_bout_secs: 0,
-                first_reading_at: None,
-                last_tick_ts: None,
-                last_accumulate_ts: None,
-                standing_bout_started: None,
-                hourly_breaks_covered: 0,
-                hourly_breaks_active: 0,
-                sitting_seconds_total: 0,
-                idle_secs: 0,
+                ..SessionState::default()
             },
             limits: ergo.limits.clone(),
             pending_state: None,
@@ -221,6 +171,40 @@ impl SessionManager {
             idle_secs: self.state.idle_secs,
             away_bout_secs: self.state.away_bout_secs,
             max_continuous_computer_secs: self.limits.max_continuous_computer_secs as i64,
+        }
+    }
+
+    /// Builds this tick's [`PolicyInput`] for the communication policy.
+    ///
+    /// The engine owns every derived value here (E020-T05). Until then
+    /// `tray_controller` re-derived `elapsed_secs` and the standing-lap trio
+    /// from snapshot fields, so a second consumer could silently disagree with
+    /// the first. Adapters now pass in only what the engine cannot know:
+    /// whether the sensor is connected.
+    pub fn policy_input(&self, now: DateTime<Utc>, sensor_connected: bool) -> PolicyInput {
+        let target = self.state.stand_limit_secs;
+        let lapping = self.state.state == DeskState::Standing && target > 0;
+        let bout = self.get_live_break_seconds(now);
+        PolicyInput {
+            state: self.state.state.clone(),
+            elapsed_secs: match self.state.state {
+                DeskState::Sitting => self.get_live_sitting_seconds(now),
+                DeskState::Standing => bout,
+                _ => 0,
+            },
+            sensor_connected,
+            standing_lap_progress: if lapping {
+                (bout % target) as f32 / target as f32
+            } else {
+                0.0
+            },
+            standing_lap: if lapping {
+                (self.get_live_standing_seconds(now) / target) as u32
+            } else {
+                0
+            },
+            standing_lap_flash: lapping && bout / target > 0,
+            continuous_computer_secs: self.state.continuous_computer_secs,
         }
     }
 

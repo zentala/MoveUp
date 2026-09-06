@@ -65,50 +65,112 @@ fn tooltip_away_shows_zero() {
     assert_eq!(label, "\u{2195} 0 cm \u{2014} Away (00:00) +0");
 }
 
-// ─── Standing progress calculation tests ─────────────────────────────────────
+// ─── PolicyInput is built by the engine (E020-T05) ───────────────────────────
+//
+// These used to recompute the lap arithmetic inline and assert the result
+// against itself — they passed no matter what `tray_controller` did. They now
+// drive `SessionManager::policy_input`, the one place the values are derived.
 
-#[test]
-fn standing_progress_at_zero() {
-    let session_secs: i64 = 0;
-    let target: i64 = 900;
-    let session_lap = (session_secs / target) as u32;
-    let lap_progress = (session_secs % target) as f32 / target as f32;
-    assert_eq!(session_lap, 0);
-    assert!((lap_progress - 0.0).abs() < 0.01);
-}
+mod policy_input {
+    use chrono::{DateTime, Duration, TimeZone, Utc};
 
-#[test]
-fn standing_progress_at_half() {
-    let session_secs: i64 = 450;
-    let target: i64 = 900;
-    let session_lap = (session_secs / target) as u32;
-    let lap_progress = (session_secs % target) as f32 / target as f32;
-    assert_eq!(session_lap, 0);
-    assert!((lap_progress - 0.5).abs() < 0.01);
-}
+    use crate::session_manager::SessionManager;
+    use crate::session_types::DeskState;
 
-#[test]
-fn standing_progress_at_target_fires_flash() {
-    let session_secs: i64 = 900;
-    let standing_seconds: i64 = 900;
-    let target: i64 = 900;
-    let session_lap = (session_secs / target) as u32;
-    let lap_progress = (session_secs % target) as f32 / target as f32;
-    let total_laps = (standing_seconds / target) as u32;
-    assert_eq!(session_lap, 1, "session_lap should be 1 at target");
-    assert!((lap_progress - 0.0).abs() < 0.01);
-    assert_eq!(total_laps, 1);
-}
+    const TARGET: i64 = 900;
 
-#[test]
-fn standing_new_session_after_sit_no_immediate_flash() {
-    let session_secs: i64 = 300;
-    let standing_seconds: i64 = 1200;
-    let target: i64 = 900;
-    let session_lap = (session_secs / target) as u32;
-    let lap_progress = (session_secs % target) as f32 / target as f32;
-    let total_laps = (standing_seconds / target) as u32;
-    assert_eq!(session_lap, 0, "session_lap=0 (no flash)");
-    assert!((lap_progress - 0.333).abs() < 0.01);
-    assert_eq!(total_laps, 1, "total_laps shows 1 completed today");
+    /// A fixed instant, so nothing here depends on when the suite runs.
+    fn now() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
+    }
+
+    /// Standing for `bout` seconds, with `standing_today` already banked.
+    fn standing(bout: i64, standing_today: i64) -> SessionManager {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Standing;
+        m.state.stand_limit_secs = TARGET;
+        m.state.standing_seconds = standing_today - bout;
+        m.state.break_started = Some(now() - Duration::seconds(bout));
+        m.state.standing_bout_started = Some(now() - Duration::seconds(bout));
+        m
+    }
+
+    #[test]
+    fn standing_progress_at_zero() {
+        let input = standing(0, 0).policy_input(now(), true);
+        assert_eq!(input.elapsed_secs, 0);
+        assert!(input.standing_lap_progress.abs() < 0.01);
+        assert_eq!(input.standing_lap, 0);
+        assert!(!input.standing_lap_flash);
+    }
+
+    #[test]
+    fn standing_progress_at_half() {
+        let input = standing(450, 450).policy_input(now(), true);
+        assert_eq!(input.elapsed_secs, 450, "standing elapsed is the current bout");
+        assert!((input.standing_lap_progress - 0.5).abs() < 0.01);
+        assert_eq!(input.standing_lap, 0);
+        assert!(!input.standing_lap_flash);
+    }
+
+    #[test]
+    fn standing_progress_at_target_fires_flash() {
+        let input = standing(TARGET, TARGET).policy_input(now(), true);
+        assert!(input.standing_lap_progress.abs() < 0.01, "wraps back to 0");
+        assert_eq!(input.standing_lap, 1, "one lap completed today");
+        assert!(input.standing_lap_flash, "crossing the target flashes");
+    }
+
+    #[test]
+    fn standing_new_session_after_sit_no_immediate_flash() {
+        // 300 s into a fresh bout, with a full lap already banked earlier today.
+        let input = standing(300, 1200).policy_input(now(), true);
+        assert!((input.standing_lap_progress - 0.333).abs() < 0.01);
+        assert_eq!(input.standing_lap, 1, "yesterday's lap still counts today");
+        assert!(!input.standing_lap_flash, "a new bout must not re-flash");
+    }
+
+    /// empty — a profile with no standing target must not divide by zero.
+    #[test]
+    fn zero_stand_limit_yields_no_lap() {
+        let mut m = standing(450, 450);
+        m.state.stand_limit_secs = 0;
+        let input = m.policy_input(now(), true);
+        assert!(input.standing_lap_progress.abs() < f32::EPSILON);
+        assert_eq!(input.standing_lap, 0);
+        assert!(!input.standing_lap_flash);
+    }
+
+    /// happy — sitting reports the CREDITED counter, the one E015 made canonical.
+    #[test]
+    fn sitting_elapsed_is_the_credited_counter() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Sitting;
+        m.state.sitting_seconds = 600;
+        m.state.sitting_started = Some(now() - Duration::seconds(120));
+
+        let input = m.policy_input(now(), true);
+        assert_eq!(input.elapsed_secs, 720);
+        assert_eq!(input.standing_lap, 0, "not standing — no lap");
+    }
+
+    /// nil — neither sitting nor standing: no elapsed time to escalate on.
+    #[test]
+    fn away_has_no_elapsed_time() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Away;
+        m.state.sitting_seconds = 3000;
+
+        let input = m.policy_input(now(), true);
+        assert_eq!(input.elapsed_secs, 0);
+        assert_eq!(input.state, DeskState::Away);
+    }
+
+    /// The one fact the engine cannot know is passed in, not derived.
+    #[test]
+    fn sensor_connectivity_comes_from_the_caller() {
+        let m = SessionManager::new();
+        assert!(!m.policy_input(now(), false).sensor_connected);
+        assert!(m.policy_input(now(), true).sensor_connected);
+    }
 }
