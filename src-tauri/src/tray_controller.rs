@@ -11,6 +11,7 @@ use crate::{
         DESK_DEVICE_CONNECTED, DESK_DEVICE_LOST, DESK_DEVICE_MISSING, DESK_DISTANCE,
         DESK_STATE_CHANGED,
     },
+    remote_display_state,
     session::{DeskState, StateChangedPayload},
     tray,
     tray_signal_exec,
@@ -112,13 +113,14 @@ fn update_from_policy(app: &AppHandle) {
         app_state.alert_popup.lock().unwrap_or_else(|e| e.into_inner()).dismiss();
     }
     let snapshot = session.snapshot();
-    let now = chrono::Utc::now();
-    let mut raw_state = session.state.clone();
-    raw_state.sitting_seconds_total = session.get_live_sitting_seconds_total(now);
-    raw_state.standing_seconds = session.get_live_standing_seconds(now);
     drop(session);
 
-    broadcast_remote_state(app, &app_state, &snapshot, &raw_state);
+    remote_display_state::broadcast(
+        &app_state.ws_tx,
+        &app_state.session,
+        &app_state.comm_policy,
+        &app_state.today_cache,
+    );
     update_tooltip(app, &snapshot);
 
     let is_connected = app_state.conn.connected_port.lock().unwrap_or_else(|e| e.into_inner()).is_some();
@@ -165,28 +167,6 @@ fn compute_standing_lap(snapshot: &crate::session::SessionStateDto) -> (f32, u32
     let lap_progress = (session_secs % target) as f32 / target as f32;
     let total_laps = (snapshot.standing_seconds / target) as u32;
     (lap_progress, total_laps, session_lap > 0)
-}
-
-/// Broadcasts session state + metrics to remote display WebSocket clients.
-fn broadcast_remote_state(
-    _app: &AppHandle,
-    app_state: &AppState,
-    snapshot: &crate::session::SessionStateDto,
-    raw_state: &crate::session_types::SessionState,
-) {
-    let ergo = app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).ergo_profile().clone();
-    let metrics = crate::metrics::MetricEngine::with_defaults()
-        .compute_all(raw_state, &ergo);
-    let today = app_state.today_cache.lock().unwrap_or_else(|e| e.into_inner()).clone();
-    let remote_state = ws_broadcaster::RemoteDisplayState {
-        session: snapshot.clone(),
-        metrics,
-        today,
-    };
-    ws_broadcaster::broadcast_event(
-        &app_state.ws_tx,
-        &DisplayEvent::Snapshot(remote_state),
-    );
 }
 
 /// Updates tray tooltip from a session snapshot (called every ~1s).

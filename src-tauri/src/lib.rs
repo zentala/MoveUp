@@ -54,6 +54,7 @@ mod overlay_renderer;
 mod overlay_standing;
 #[cfg(test)] mod overlay_standing_tests;
 mod overlay_variants;
+mod remote_display_state;
 mod remote_server;
 #[cfg(test)] mod remote_server_tests;
 mod ws_broadcaster;
