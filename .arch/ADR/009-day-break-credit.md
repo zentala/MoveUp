@@ -3,6 +3,15 @@
 - **Status**: accepted
 - **Date**: 2026-03-30
 - **Epic**: E000 (maintenance)
+- **Related**: [ADR 008](008-proportional-break-credit.md),
+  [ADR 015](015-pure-ergo-engine.md)
+
+> E020-T03 moved this rule out of `apply_break_credit` into its own function,
+> `SessionManager::apply_day_break_reset` — same trigger, same thresholds, no
+> behaviour change. `day_break_min_secs` and
+> `posture_balance_min_sitting_secs` now come from `SessionManager.limits`
+> rather than a copy in `SessionState`, so a profile edit applies without a
+> restart. Log prefix: `[break:day]`. See [ADR 015](015-pure-ergo-engine.md).
 
 ## Context
 

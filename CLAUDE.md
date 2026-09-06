@@ -81,7 +81,9 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 
 ## Communication Architecture & Profiles
 
-**CommunicationPolicy** (`communication_policy.rs`) is the single source of truth for all UI signals. It evaluates `(state, elapsed_secs) → Signals` and tells tray, overlay, popup, and notifications what to show. `CommunicationPolicy` decides *what* to show; `TrayController` computes the per-tick inputs it needs (elapsed seconds, standing laps, tooltip text, sensor connectivity) and calls it; `tray_signal_exec.rs` is the pure executor that turns a `Signal` into a UI call.
+**CommunicationPolicy** (`communication_policy.rs`) is the single source of truth for all UI signals. It evaluates `(state, elapsed_secs) → Signals` and tells tray, overlay, popup, and notifications what to show. Three roles, no overlap: the **engine** computes the per-tick inputs — `SessionManager::policy_input(now, sensor_connected)` fills the whole `PolicyInput`, elapsed seconds and the standing-lap trio included; `CommunicationPolicy` decides *what* to show; `TrayController` computes the per-tick inputs it does not get from the engine (tooltip text, sensor connectivity), routes the call and dismisses the alert popup; `tray_signal_exec.rs` is the pure executor that turns a `Signal` into a UI call. `tray_controller.rs` re-derives nothing from a snapshot — see [ADR 015](.arch/ADR/015-pure-ergo-engine.md).
+
+**Engine purity** (E020, [ADR 015](.arch/ADR/015-pure-ergo-engine.md)): the caller owns the clock (every stepping function has an `_at` variant taking `now`; the zero-argument names are thin wrappers, and `serial_periodic.rs` / `commands.rs::inject_reading` are the adapters that read the clock once per tick); a day boundary is the **local** calendar day, not UTC; ergonomic limits live in `SessionManager.limits`, refreshed each tick, never copied into `SessionState` — so editing an ergonomic profile now applies without an app restart; persistence is one versioned `PersistedEngineState`, migrated from the old unversioned shape on load.
 
 **Two profile types** (JSON, hot-reloadable, in `{app_data_dir}/profiles/`):
 - **Ergonomic Profile** (`ergonomic/*.json`) — limits, scoring, KPI thresholds, break credit
@@ -89,7 +91,7 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 
 **Built-in profiles**: default, aggressive, gentle, silent, demo (communication) + standard, strict, relaxed, demo (ergonomic).
 
-**Break credit**: proportional — each second of break cancels `break_credit_multiplier` (default 2.0) seconds of sitting. Configurable in ergonomic profile. See [ADR 008](.arch/ADR/008-proportional-break-credit.md).
+**Break credit**: proportional — each second of break cancels `break_credit_multiplier` (default 2.0) seconds of sitting. Configurable in ergonomic profile. See [ADR 008](.arch/ADR/008-proportional-break-credit.md). "Break" names three unrelated things, each with its own log prefix: Session Break Credit (`[break:credit]`, ADR 008), Day Break Credit (`[break:day]`, ADR 009, `apply_day_break_reset`), hourly break coverage (`[break:hourly]`, KPI only). The map is the module doc comment at the top of `session_breaks.rs`.
 
 **Notification philosophy**: fewer, well-timed nudges > bombardment. Escalation is visual-first (yellow→red→blink+pulse), with a single toast at the limit. No popup notifications by default. Escalating silence: after each reminder, cooldown grows (0→5m→15m→30m→silence). Configurable per profile via `snooze.notify_cooldowns_secs`. After all reminders exhausted, system stays silent until position changes. See [ADR 010](.arch/ADR/010-notification-escalating-silence.md).
 
