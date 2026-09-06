@@ -139,11 +139,12 @@ The popup widget renders top-to-bottom (reordered in E002-T08):
 │ 25:00 / 40:00            previously:     │  OneBarTimer (big number + bar)
 │ ████████████████████░░░░░░░░░░░░░░░░░░░ │  stood 12m ✓
 ├──────────────────────────────────────────┤
-│ Today                                    │  KpiStrip ("Today" + 4 badges)
-│ ↕ Standing 12%  ⇄ Changes 1.2/h  ...    │
+│ Today                                    │  KpiStrip ("Today" + 4 badges
+│ ↕ Standing 12%  ⇄ Changes 1.2/h  ...    │   + StepsWidget, see 2.9)
+│ Steps 8,412 ↻                            │
 ├──────────────────────────────────────────┤
 │ ▓▓▓▓░░▓▓▓▓▓▓▓▓░░▓▓▓▓▓▓▓▓▓▓▓▓▓▓░▓▓▓▓▓▓│  OneBarTimeline (+ live block)
-│  8         9        10        11         │  (hour markers)
+│  8         9        10        11         │  (hour markers; click → Analyst)
 └──────────────────────────────────────────┘
 ```
 
@@ -221,7 +222,58 @@ Empty state: shows "No sessions yet" when no sessions recorded.
 
 Hover tooltip: `HH:MM — {state} {duration}` (e.g., `09:15 — sitting 23m`).
 
-Source: `OneBarTimeline.tsx:12-102`
+**Click opens the Analyst window.** The timeline strip is a compressed view of
+one day; clicking it invokes the `open_analyst_window` Tauri command, which
+opens the full Analyst window (section 11) — the "magnified" version of the
+same data. The container carries `role="button"` and `tabIndex={0}`, so Enter
+and Space do the same thing for keyboard users, and the hover title reads
+"Click to open Analyst — full timeline view". If the command fails, the click
+is a no-op and the failure is logged to the console only; nothing in the popup
+changes.
+
+> **Known gap (2026-09-06):** the click/keyboard handler is attached only to
+> the *empty-state* container (`OneBarTimeline.tsx:71-81`). Once the day has
+> sessions, the populated container (`OneBarTimeline.tsx:124`) renders without
+> it, so the timeline stops being clickable exactly when it is worth opening.
+> Documented here rather than silently fixed — the fix touches a file outside
+> E018-T08's write set.
+
+Source: `OneBarTimeline.tsx:13-17,66-86,124`
+
+### 2.9 Steps Widget (Google Fit)
+
+A compact "steps today" badge slotted **inside** the KPI strip (2.5), so it
+wraps in the same flex flow as the four metric badges and reads as a fifth
+badge. Unlike those four, its number does not come from the app's own engine:
+it comes from **Google Fit**, over the `fitness.activity.read` OAuth scope,
+fetched by the Rust backend and read by the UI through the
+`get_steps_today` / `refresh_steps_now` commands.
+
+| Situation | What the user sees |
+|---|---|
+| Google Fit not configured (no `GOOGLE_REFRESH_TOKEN`) | `Steps  connect google fit` — muted hint; tooltip names the `.env` key |
+| Configured, no snapshot fetched yet | `Steps  —` |
+| Fresh snapshot (< 1 h old) | `Steps  8,412` plus a `↻` refresh button; count uses the OS locale's thousands separator |
+| Stale snapshot (> 1 h old) | same count, dimmed; tooltip says "Last successful refresh > 1h ago (stale)" |
+| Refresh token revoked (`auth_revoked`) | `Steps  reconnect google fit` — tooltip gives the exact repair command, `node apps/desk/scripts/google-fit-auth.cjs` |
+| Transient error (network, API) | last known count, plus a small red dot; tooltip carries the error message |
+| Remote display (browser, no Tauri) | `Steps  not available` — steps are desktop-only |
+
+**Refresh cadence.** First fetch ~500 ms after the popup mounts, then every
+5 minutes on success. A transient failure backs off 1 → 2 → 5 → 10 → 30 min
+and stays at 30. `auth_revoked` stops the polling entirely — retrying without
+the user re-consenting cannot succeed. The `↻` button forces a refresh at any
+time and is disabled while one is in flight.
+
+**Why it is here.** Standing at the desk and walking are both breaks, but the
+app's own sensor only sees the desk. Google Fit steps are the one signal that
+distinguishes "stood still" from "actually moved", so the badge sits next to
+the ergonomic KPIs rather than in the Analyst window.
+
+Setup and the three `.env` keys: root `CLAUDE.md` §Google Fit Integration.
+
+Source: `StepsWidget.tsx`, `OneBarWidget.tsx:69-71`, `KpiStrip.tsx:14`,
+`google_fit_service.rs`, `commands_google_fit.rs`
 
 ---
 
