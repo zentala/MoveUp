@@ -2,6 +2,7 @@
 
 ## Planned Epics
 
+- [ ] **[E015 — One truth for the sitting counter](epics/E015-2026-09-06-engine-single-truth/PLAN.md)** — popup reads the uncredited `current_session_secs`; delete it, one credited counter, PostureBalance + `break_credit` row, ADR 008 rev. Handoff: [HANDOFF.md](epics/E015-2026-09-06-engine-single-truth/HANDOFF.md). 21 points. Do after E016 (plan hygiene, 3 points, defined in the review report).
 - [ ] **[E014 — Supervised release rollback](epics/E014-2026-09-05-supervised-release-rollback/PLAN.md)** — handoff: [HANDOFF.md](epics/E014-2026-09-05-supervised-release-rollback/HANDOFF.md). Keep several installed builds with a `last-known-good` marker so a bad release can be rolled back, and let PM3 fill the gap when nothing holds the app. Waves 1-2 are unblocked; waves 3-4 wait on two PM3 backlog items (`int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md`, section "2026-09-05 — Nadzór z powrotem do poprzedniego builda").
 - [ ] **[E013 — Signed Tauri release and PM3 deployment](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md)** — build signed Windows release, deploy the installed SmartDesk executable under PM3, and expose the remote display at `moveup.internal`. Prepare implementation tasks and execute in a new session.
 - [ ] **[E012 — Analyst Dashboard](epics/E012-2026-05-16-analyst-dashboard/PLAN.md)** — separate Tauri window with Data Catalog (8 sources, schema + samples) and Explorer (5 charts over last 7 days). Mockup-first per ux-design-flow rule. Research: [reports/2026-05-16-data-sources.md](epics/E012-2026-05-16-analyst-dashboard/reports/2026-05-16-data-sources.md). Version bump to 0.5.0 in epic setup.
@@ -266,3 +267,100 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 - ~~AlertManager message strings in settings panel~~ — superseded by CommunicationPolicy profiles (messages live in communication profile JSON, editable per profile)
 - ~~Notification strategy as pluggable system~~ — superseded by CommunicationPolicy + profiles (different backends, escalation patterns, thresholds are all configurable per profile)
 - ~~Color inconsistency (green/gold)~~ — fixed: unified color dictionary, green/gold removed from color system
+
+---
+
+## Backend architecture review — 2026-09-06
+
+Full findings, module map, persistence/config/event inventories, and a
+recommended target structure: [reports/_review-2026-09-06/backend.md](reports/_review-2026-09-06/backend.md).
+Not implemented (review task explicitly did not modify source). Top items,
+low-confidence-to-fix-alone so filed here rather than auto-applied:
+
+- [ ] **`commands.rs` uses plain `.unwrap()` on every mutex lock (14 sites)** — a panic
+  elsewhere while holding `session`/`db`/`config`/`comm_policy` poisons the mutex and
+  then every subsequent IPC call through `commands.rs` panics too, unlike
+  `tray_controller.rs`/`tray_signal_exec.rs`/`remote_server.rs` which use
+  `unwrap_or_else(|e| e.into_inner())` to survive a poisoned lock. Violates
+  `rules/rust.md` ("No `unwrap()` in production code").
+  [src-tauri/src/commands.rs:44,74,75,80,86,89,95,97,102,155,166,182,193,199,216](../src-tauri/src/commands.rs)
+  (Importance High, 3 points)
+- [ ] **Four overlapping persistence mechanisms, no documented precedence** — SQLite
+  `sessions` table, `tauri-plugin-store` (`persisted_session_state`), per-minute JSON
+  snapshots, and `events.log` each independently reconstruct "today's totals" via three
+  different code paths (`db_sessions::load_today_totals`,
+  `session_persistence::PersistedSessionState::load`,
+  `commands_analyst::collect_snapshots`). A discrepancy between them is currently
+  undetectable at runtime. [src-tauri/src/commands.rs:60-82](../src-tauri/src/commands.rs),
+  [src-tauri/src/commands_analyst.rs:129-159](../src-tauri/src/commands_analyst.rs)
+  (Importance High, 8 points)
+- [ ] **`TrayController` does more than "execute signals"** (contradicts `CLAUDE.md`'s
+  routing claim) — it computes `PolicyInput`, standing-lap math, tooltip text, and WS
+  broadcasting; `tray_signal_exec.rs` is the real pure executor. Either retitle the
+  module boundary in `CLAUDE.md`/`.arch/ARCHITECTURE.md` or move the computation out of
+  `tray_controller.rs`. [src-tauri/src/tray_controller.rs:53-186](../src-tauri/src/tray_controller.rs)
+  (Importance Medium, 3 points)
+- [ ] **`google_fit.rs` (473 lines) and `google_fit_service.rs` (328 lines) breach the
+  250-line file cap** — unlike every other oversized cluster in this codebase, which
+  already follows the `<module>_tests.rs`/`<module>_helpers.rs` split convention
+  consistently. [src-tauri/src/google_fit.rs](../src-tauri/src/google_fit.rs),
+  [src-tauri/src/google_fit_service.rs](../src-tauri/src/google_fit_service.rs)
+  (Importance Medium, 3 points)
+- [ ] **`EventLogger::new` panics on log-dir creation failure**; sibling `SnapshotLogger`
+  only warns on the same failure class — inconsistent startup-failure philosophy for two
+  structurally identical loggers, and `EventLogger::new` runs early in
+  `perform_app_setup`, so a permissions issue there crashes the whole app.
+  [src-tauri/src/event_logger.rs:25-35](../src-tauri/src/event_logger.rs) vs.
+  [src-tauri/src/snapshot_logger.rs:39-43](../src-tauri/src/snapshot_logger.rs)
+  (Importance Medium, 2 points)
+- [ ] **8 `desk:*` Tauri event names are stringly typed with no shared constants module**
+  — each `emit`/`listen` site retypes the literal; a typo fails silently (listener never
+  fires). `ws_broadcaster.rs`'s `DisplayEvent` enum re-encodes 5 of the 8 with a better,
+  serde-tagged representation that isn't shared with the Tauri-event side. See the
+  Event/IPC inventory in the linked report for the full 8×N call-site table.
+  (Importance Low, 3 points)
+- [ ] **`cargo-clippy` is not installed for this toolchain** (`stable-x86_64-pc-windows-msvc`)
+  — the architecture review could not get a clippy warning count; `rustup component add
+  clippy` was intentionally not run by the reviewing agent (out of scope to modify the
+  toolchain). (Importance Low, 1 point)
+- [ ] **Popup's main timer/progress bar reads the wrong field and hard-resets on every
+  break, contradicting ADR-008's proportional break credit** — `OneBarTimer.tsx:28`
+  binds its big number and progress-bar fill to `current_session_secs`, which is
+  unconditionally zeroed on every Standing/Walking/Away→Sitting transition
+  (`src-tauri/src/session_breaks.rs:34,63,85`) with no credit ever applied to it. The
+  correctly-credited counter (`sitting_seconds`/`limitUsedSecs`) already exists and is
+  used correctly by the overlay bar and notification engine
+  (`src-tauri/src/tray_controller.rs:61-62,124-128`) — only the popup widget is wired to
+  the wrong one. `useDesk.ts:106,170` even names its state `sittingSeconds` while it
+  actually holds `current_session_secs`. A test
+  (`src-tauri/src/session_tests_timers_live.rs:160-164`) explicitly asserts the reset
+  behavior as correct inside a scenario titled around partial credit — the wrong
+  behavior is locked in by the test suite, not merely untested. Full trace, log
+  evidence, and migration plan: [.plan/reports/_review-2026-09-06/engine.md](reports/_review-2026-09-06/engine.md).
+  (Importance High, 3 points)
+
+## Full review 2026-09-06 — frontend and release findings
+
+Synthesis and roadmap: [reports/2026-09-06-pelny-przeglad-architektury-i-release.md](reports/2026-09-06-pelny-przeglad-architektury-i-release.md).
+Engine and backend items were filed above by their reviewers. Frontend and release items:
+
+- [ ] **`pnpm lint` calls an eslint that is not installed** — no devDependency, no config ([package.json:23](../package.json)). Found by frontend review. (High, 2) → E018
+- [ ] **Coverage gate 80/80/75 never invoked by any script; real coverage 76.5/68.1/66.0** — [vite.config.ts:22-31](../vite.config.ts). (High, 2) → E018
+- [ ] **`useDesk.ts` and `useRemoteDesk.ts` duplicate one state machine (~500 lines); `useDesk` at 0.78 % coverage** — [src/hooks/useDesk.ts:37-247](../src/hooks/useDesk.ts), [src/hooks/useRemoteDesk.ts:43-252](../src/hooks/useRemoteDesk.ts). (High, 8) → E018
+- [ ] **Rust DTOs hand-copied into TS with no codegen or drift test** — [src/types.ts](../src/types.ts), `SettingsTypes.ts`. (Medium, 5) → E015 adds the drift test, E018 the codegen
+- [ ] **5 dead pre-OneBar components still built and tested** (`AppProgressBar`, `HeightRail`, `SessionProgress`, `TodayStats`, `TransitionBanner`) plus dead `src/overlay/main.tsx` + `overlay.html` entry. (Medium, 3) → E018
+- [ ] **UX-FLOW.md missing Steps/Google Fit widget and timeline→Analyst click** — [.arch/UX-FLOW.md](../.arch/UX-FLOW.md). (Medium, 2) → E018
+- [ ] **6 local `formatXxx` helpers duplicate `src/utils/format.ts`**. (Low, 1) → E018
+- [ ] **"Smart Desk" branding in share-card copy** — [src/components/ShareStats.tsx](../src/components/ShareStats.tsx). (Low, 1) → E017
+- [ ] **No `justfile`**; `.claude/rules/overlay.md` documents `tauri-dev.sh --force` that was replaced by `tauri-dev.ps1 -Force`. (Low, 1) → E018
+- [ ] **User docs describe zntlDesk: name, `AppData\Local\zntlDesk`, repo `zentala/zntl-tray`** — `docs/README.md`, `USER_INSTALL.md`, `USER_SUPPORT.md`, `PRIVACY.md`. (High, 3) → E017
+- [ ] **`docs/USER_UPDATES.md` documents a 24h auto-updater that is not wired in code** (no updater plugin in `src-tauri/tauri.conf.json`). (High, 2) → E017
+- [ ] **No LICENSE file, no `license` field, despite open-core (ADR 005)**. (High, 2) → E017, decision D3
+- [ ] **`PRIVACY.md` claims no network egress; Google Fit sends to Google** — [src-tauri/src/google_fit.rs](../src-tauri/src/google_fit.rs). (High, 2) → E017
+- [ ] **`.github/workflows/test.yml` targets defunct `apps/desk/` path, runs on every push**. (High, 3) → E017
+- [ ] **`firmware/` ships a bare `.ino`, no README, no flashing steps, no cable warning** (see CLAUDE.md Hardware). (High, 3) → E017
+- [ ] **`coverage/` and `test-performance-report/` are tracked in git** (`git ls-files coverage | wc -l`). (Medium, 1) → E016
+- [ ] **Cargo package metadata still says "zntl Desk"** — [src-tauri/Cargo.toml](../src-tauri/Cargo.toml). (Medium, 1) → E017
+- [ ] **`installer.md` size target 60-70 MB vs observed ~4-6 MB; `.perf-baseline.json`/`.build-sizes.json` stale**. (Low, 1) → E017
+- [ ] **Four backlog-like files (root `BACKLOG.md`, `TASKS.md`, `ORCHESTRATOR.md`, this file); E010 human-task count contradicts (3 vs 10)** — [BACKLOG.md:266-280](../BACKLOG.md) vs [STATE.md](STATE.md). (High, 2) → E016
+- [ ] **E011 close-out ceremony not done; E003-T07 not marked superseded by E013** — [epics/E011-2026-05-07-autostart-hardening/ORCHESTRATOR.md:44-51](epics/E011-2026-05-07-autostart-hardening/ORCHESTRATOR.md). (High, 3) → E016

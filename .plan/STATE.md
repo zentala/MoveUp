@@ -1,13 +1,17 @@
 ---
-updated: 2026-08-28T00:00:00Z
-active_epic: E011
-active_epic_path: .plan/epics/E011-2026-05-07-autostart-hardening
-planning_epic: E013
-planning_epic_path: .plan/epics/E013-2026-08-28-signed-tauri-pm3-deployment
-current_wave: 1 (not yet dispatched)
+updated: 2026-09-06T02:30:52
+active_epic: none (E011 and E012 code complete; E011 close-out ceremony pending, see E016 in reports/2026-09-06-pelny-przeglad-architektury-i-release.md)
+planning_epic: E015
+planning_epic_path: .plan/epics/E015-2026-09-06-engine-single-truth
+current_wave:
+  - E015 wave 1 planned, not dispatched (handoff written 2026-09-06)
 ---
 
 ## Status
+- **2026-09-06 full review** — engine, backend, frontend, release, plans:
+  [reports/2026-09-06-pelny-przeglad-architektury-i-release.md](reports/2026-09-06-pelny-przeglad-architektury-i-release.md).
+  Root cause of the "counter resets on standing" complaint found (popup reads
+  `current_session_secs`); fix planned as E015. Roadmap E016→E015→E017→E018/E019→E020.
 - **E013 (signed Tauri release and PM3 deployment)** — planning; extends the
   deferred E003-T07 release-automation task. No implementation task is active.
 - **E011 (autostart hardening)** — active, scaffolded, T03 done. Wave 1 (T01+T02) and Wave 2-3 pending. See [PLAN.md](./epics/E011-2026-05-07-autostart-hardening/PLAN.md).
@@ -25,7 +29,7 @@ current_wave: 1 (not yet dispatched)
 - ⏳ T05 — `--minimized` autostart (depends T01)
 
 ## Version
-- Current: `v0.3.0`
+- Current: `v0.5.0` (tag v0.5.0; STATE previously said 0.3.0 — corrected 2026-09-06)
 
 ## Test Totals
 - Rust: 420 tests
