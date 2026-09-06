@@ -45,7 +45,7 @@ mod tests {
     #[test]
     fn e015_sit30_stand2_sit_dto_shows_credited_value() {
         let mut m = SessionManager::new();
-        let multiplier = m.state.break_credit_multiplier as f64;
+        let multiplier = m.limits.break_credit_multiplier as f64;
 
         transition_to(&mut m, DeskState::Sitting, SIT_MM);
         simulate_elapsed(&mut m, 1800);

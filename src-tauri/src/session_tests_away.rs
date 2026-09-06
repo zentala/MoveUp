@@ -198,7 +198,7 @@ mod tests {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Away;
         m.state.continuous_computer_secs = 4500;
-        m.state.computer_break_reset_secs = 5; // 5s instead of default 300s
+        m.limits.computer_break_reset_secs = 5; // 5s instead of default 300s
         m.state.last_accumulate_ts = None;
 
         for i in 0..5 {
@@ -223,7 +223,7 @@ mod tests {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Away;
         m.state.continuous_computer_secs = 4500;
-        m.state.computer_break_reset_secs = 10;
+        m.limits.computer_break_reset_secs = 10;
         m.state.last_accumulate_ts = None;
 
         for i in 0..5 {

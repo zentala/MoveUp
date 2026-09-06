@@ -177,6 +177,10 @@ impl SessionManager {
     /// Throttled to run at most once per second: the sensor may send readings
     /// faster than 1 Hz, but counters like `continuous_computer_secs` and
     /// `away_bout_secs` must grow at wall-clock rate.
+    ///
+    /// The Away duration that resets the computer timer comes from
+    /// [`SessionManager::limits`] (the live ergonomic profile), not from
+    /// `SessionState`.
     pub(crate) fn accumulate_ongoing(&mut self, now: DateTime<Utc>) {
         self.last_accumulate_ran = false;
         if let Some(prev) = self.state.last_accumulate_ts {
@@ -205,7 +209,7 @@ impl SessionManager {
                 self.state.away_bout_secs += 1;
                 // After configured away duration: reset continuous computer timer
                 // and count as a posture change (user left the computer).
-                if self.state.away_bout_secs >= self.state.computer_break_reset_secs
+                if self.state.away_bout_secs >= self.limits.computer_break_reset_secs as i64
                     && self.state.continuous_computer_secs > 0
                 {
                     self.state.continuous_computer_secs = 0;

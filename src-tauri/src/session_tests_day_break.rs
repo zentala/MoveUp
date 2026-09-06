@@ -68,7 +68,7 @@ mod day_break_tests {
     #[test]
     fn day_break_credit_disabled_when_zero() {
         let mut m = SessionManager::new();
-        m.state.day_break_min_secs = 0; // disabled
+        m.limits.day_break_min_secs = 0; // disabled
         m.notify_posture_balance_fired = true;
         m.state.daily_score = 42.0;
 

@@ -98,6 +98,15 @@ pub fn reload_profiles_if_changed(app: &AppHandle) {
         if watchers.ergo.has_changed() {
             let profile = load_profile::<ErgonomicProfile>(&ergo_path);
             info!("Hot-reloaded ergonomic profile from {:?}", ergo_path);
+            // The session engine holds its own copy of the limits; without this
+            // it would keep the values captured at construction and the reload
+            // would silently change nothing for break credit, PostureBalance or
+            // the computer-time reset (E020-T02).
+            state
+                .session
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .set_ergo_profile(&profile);
             state
                 .comm_policy
                 .lock()

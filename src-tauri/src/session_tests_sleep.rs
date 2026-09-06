@@ -163,7 +163,7 @@ mod tests {
 
         m.state.sitting_seconds = 2400; // 40 min sitting
         m.state.sitting_seconds_total = 2400;
-        m.state.break_credit_multiplier = 1.0; // slower reset
+        m.limits.break_credit_multiplier = 1.0; // slower reset
         // Simulate 10-minute gap.
         m.state.last_tick_ts = Some(now - Duration::minutes(10));
 
