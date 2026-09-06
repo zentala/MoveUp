@@ -218,7 +218,9 @@ pub fn inject_reading(
     ensure_initialized(&app, &state)?;
 
     let mut session = state.session.lock().unwrap_or_else(|e| e.into_inner());
-    let result = session.on_reading(mm, active);
+    // Capture the clock once per invocation, at the boundary (E020-T01).
+    let now = chrono::Utc::now();
+    let result = session.on_reading_at(mm, active, now);
 
     if let Some(payload) = result.state_change {
         let _ = app.emit(crate::desk_events::DESK_STATE_CHANGED, &payload);

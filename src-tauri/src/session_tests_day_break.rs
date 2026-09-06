@@ -1,11 +1,21 @@
 //! session_tests_day_break.rs — Tests for Day Break Credit (ADR 009).
+//!
+//! `apply_break_credit` never read the clock; the notification checks did, so
+//! they now take an explicit instant (E020-T01).
 
 #[cfg(test)]
 mod day_break_tests {
+    use chrono::{DateTime, TimeZone, Utc};
+
     use crate::communication_profile::CommunicationProfile;
     use crate::notification_service::NotificationService;
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
+
+    /// A fixed instant, so nothing here depends on when the suite runs.
+    fn base() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
+    }
 
     #[test]
     fn day_break_credit_resets_notification_flags() {
@@ -58,7 +68,7 @@ mod day_break_tests {
     #[test]
     fn day_break_credit_disabled_when_zero() {
         let mut m = SessionManager::new();
-        m.state.day_break_min_secs = 0; // disabled
+        m.limits.day_break_min_secs = 0; // disabled
         m.notify_posture_balance_fired = true;
         m.state.daily_score = 42.0;
 
@@ -66,6 +76,74 @@ mod day_break_tests {
 
         assert!(m.notify_posture_balance_fired, "flags unchanged when disabled");
         assert_eq!(m.state.daily_score, 42.0);
+    }
+
+    #[test]
+    fn day_break_reset_is_callable_on_its_own() {
+        // The reset was extracted out of `apply_break_credit` (E020-T03); it
+        // must stand alone, and it must NOT touch the sitting countdown that
+        // Session Break Credit owns.
+        let mut m = SessionManager::new();
+        m.state.sitting_seconds = 1234;
+        m.notify_posture_balance_fired = true;
+        m.state.daily_score = 42.0;
+
+        m.apply_day_break_reset(21600);
+
+        assert!(!m.notify_posture_balance_fired);
+        assert_eq!(m.state.daily_score, 0.0);
+        assert!(m.day_break_applied);
+        assert_eq!(
+            m.state.sitting_seconds, 1234,
+            "day break reset must not subtract sitting seconds"
+        );
+        assert_eq!(
+            m.state.last_break_credit,
+            BreakCredit::None,
+            "day break reset must not set a session credit verdict"
+        );
+    }
+
+    #[test]
+    fn day_break_reset_below_threshold_is_a_no_op() {
+        let mut m = SessionManager::new();
+        m.notify_posture_balance_fired = true;
+        m.state.daily_score = 42.0;
+
+        m.apply_day_break_reset(21599);
+
+        assert!(m.notify_posture_balance_fired);
+        assert_eq!(m.state.daily_score, 42.0);
+        assert!(!m.day_break_applied);
+    }
+
+    #[test]
+    fn session_credit_still_applies_alongside_day_break_reset() {
+        // Both must run for one long break: seconds subtracted AND flags reset.
+        let mut m = SessionManager::new();
+        m.state.sitting_seconds = 1800;
+        m.notify_posture_balance_fired = true;
+
+        m.apply_break_credit(21600);
+
+        assert_eq!(m.state.sitting_seconds, 0);
+        assert_eq!(m.state.last_break_credit, BreakCredit::Full);
+        assert!(!m.notify_posture_balance_fired);
+        assert!(m.day_break_applied);
+    }
+
+    #[test]
+    fn short_break_reaches_neither_credit_nor_day_reset() {
+        let mut m = SessionManager::new();
+        m.state.sitting_seconds = 1800;
+        m.notify_posture_balance_fired = true;
+
+        m.apply_break_credit(1); // below break_min_secs
+
+        assert_eq!(m.state.sitting_seconds, 1800);
+        assert_eq!(m.state.last_break_credit, BreakCredit::None);
+        assert!(m.notify_posture_balance_fired);
+        assert!(!m.day_break_applied);
     }
 
     #[test]
@@ -79,7 +157,7 @@ mod day_break_tests {
         let mut comm = CommunicationProfile::default();
         comm.periodic_notifications.posture_balance_enabled = true;
 
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         assert!(
             !events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)),
             "PostureBalance should NOT fire with only 1h total sitting"
@@ -97,7 +175,7 @@ mod day_break_tests {
         let mut comm = CommunicationProfile::default();
         comm.periodic_notifications.posture_balance_enabled = true;
 
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         assert!(
             events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)),
             "PostureBalance should fire with 6h+ total sitting"
@@ -124,7 +202,7 @@ mod day_break_tests {
         let mut comm = CommunicationProfile::default();
         comm.periodic_notifications.posture_balance_enabled = true;
 
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         // sitting_seconds_total still 22000 (above threshold)
         // sitting_seconds 2000 > standing_seconds * 2 (1000)
         assert!(

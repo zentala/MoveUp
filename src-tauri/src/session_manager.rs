@@ -1,6 +1,8 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use log::info;
 
+use crate::communication_policy::PolicyInput;
+use crate::ergonomic_profile::{ErgonomicProfile, Limits};
 use crate::height_stabilizer::HeightStabilizer;
 use crate::hourly_break_tracker::HourlyBreakTracker;
 use crate::session_types::*;
@@ -8,6 +10,15 @@ use crate::session_types::*;
 /// Owns `SessionState` and drives state transitions.
 pub struct SessionManager {
     pub state: SessionState,
+    /// Ergonomic limits currently in force — configuration, never state.
+    ///
+    /// Every engine function that needs a threshold reads it from here rather
+    /// than from [`SessionState`], and adapters refresh it from the active
+    /// profile on each tick ([`SessionManager::set_limits`]). Before E020-T02
+    /// these values were copied into `SessionState` at construction and never
+    /// re-read, so editing an ergonomic profile on disk changed nothing until
+    /// the app restarted.
+    pub limits: Limits,
     pub(crate) pending_state: Option<DeskState>,
     pub(crate) pending_count: u8,
     pub sitting_height_cm: f32,
@@ -38,43 +49,13 @@ impl SessionManager {
     pub fn new() -> Self {
         let now = Utc::now();
         Self {
+            // Every other field starts at its `Default` — an Away manager with
+            // zeroed counters. Only the limits differ from that.
             state: SessionState {
-                state: DeskState::Away,
-                sitting_started: None,
-                sitting_seconds: 0,
-                standing_seconds: 0,
-                break_started: None,
-                break_seconds: 0,
                 session_limit_secs: DEFAULT_SESSION_LIMIT_SECS,
-                stand_limit_secs: 0,
-                desk_height_cm: 0.0,
-                last_position_change_at: None,
-                position_changes: 0,
-                last_break_secs: 0,
-                last_sitting_secs: 0,
-                last_break_credit: BreakCredit::None,
-                daily_score: 0.0,
-                standing_session_secs: 0,
-                standing_session_started: None,
-                lap_bonus_awarded_for_lap: 0,
-                continuous_computer_secs: 0,
-                longest_computer_session_secs: 0,
-                away_bout_secs: 0,
-                first_reading_at: None,
-                last_tick_ts: None,
-                last_accumulate_ts: None,
-                standing_bout_started: None,
-                hourly_breaks_covered: 0,
-                hourly_breaks_active: 0,
-                sitting_seconds_total: 0,
-                break_min_secs: BREAK_MIN_SECS,
-                break_credit_multiplier: BREAK_CREDIT_MULTIPLIER as f32,
-                day_break_min_secs: DAY_BREAK_MIN_SECS,
-                posture_balance_min_sitting_secs: POSTURE_BALANCE_MIN_SITTING_SECS,
-                max_continuous_computer_secs: 3600,
-                computer_break_reset_secs: 300,
-                idle_secs: 0,
+                ..SessionState::default()
             },
+            limits: Limits::default(),
             pending_state: None,
             pending_count: 0,
             sitting_height_cm: 72.0,
@@ -82,7 +63,7 @@ impl SessionManager {
             desk_thickness_cm: 3.0,
             alert_fired: false,
             stand_alert_fired: false,
-            last_reset_date: now.date_naive(),
+            last_reset_date: crate::session_daily::local_date_of(now),
             last_reset_check: now,
             notify_inactivity_fired: false,
             notify_posture_balance_fired: false,
@@ -103,42 +84,11 @@ impl SessionManager {
         let now = Utc::now();
         Self {
             state: SessionState {
-                state: DeskState::Away,
-                sitting_started: None,
-                sitting_seconds: 0,
-                standing_seconds: 0,
-                break_started: None,
-                break_seconds: 0,
                 session_limit_secs: ergo.limits.sitting_secs as i64,
                 stand_limit_secs: ergo.limits.standing_target_secs as i64,
-                desk_height_cm: 0.0,
-                last_position_change_at: None,
-                position_changes: 0,
-                last_break_secs: 0,
-                last_sitting_secs: 0,
-                last_break_credit: BreakCredit::None,
-                daily_score: 0.0,
-                standing_session_secs: 0,
-                standing_session_started: None,
-                lap_bonus_awarded_for_lap: 0,
-                continuous_computer_secs: 0,
-                longest_computer_session_secs: 0,
-                away_bout_secs: 0,
-                first_reading_at: None,
-                last_tick_ts: None,
-                last_accumulate_ts: None,
-                standing_bout_started: None,
-                hourly_breaks_covered: 0,
-                hourly_breaks_active: 0,
-                sitting_seconds_total: 0,
-                break_min_secs: ergo.limits.break_min_secs as i64,
-                break_credit_multiplier: ergo.limits.break_credit_multiplier,
-                day_break_min_secs: ergo.limits.day_break_min_secs as i64,
-                posture_balance_min_sitting_secs: ergo.limits.posture_balance_min_sitting_secs as i64,
-                max_continuous_computer_secs: ergo.limits.max_continuous_computer_secs as i64,
-                computer_break_reset_secs: ergo.limits.computer_break_reset_secs as i64,
-                idle_secs: 0,
+                ..SessionState::default()
             },
+            limits: ergo.limits.clone(),
             pending_state: None,
             pending_count: 0,
             sitting_height_cm: config.sitting_mm as f32 / 10.0,
@@ -146,7 +96,7 @@ impl SessionManager {
             desk_thickness_cm: config.desk_thickness_mm as f32 / 10.0,
             alert_fired: false,
             stand_alert_fired: false,
-            last_reset_date: now.date_naive(),
+            last_reset_date: crate::session_daily::local_date_of(now),
             last_reset_check: now,
             notify_inactivity_fired: false,
             notify_posture_balance_fired: false,
@@ -169,6 +119,23 @@ impl SessionManager {
             "seeded today totals: sitting={}s standing={}s changes={}",
             totals.sitting_secs, totals.standing_secs, totals.position_changes
         );
+    }
+
+    /// Replaces the ergonomic limits in force, taking effect on the next tick.
+    ///
+    /// Adapters call this with the profile they already loaded for the tick
+    /// (`serial_periodic.rs`) or right after a hot-reload
+    /// (`profile_reload.rs`), so a profile edited on disk changes break credit,
+    /// PostureBalance and the computer-time reset without an app restart.
+    /// `session_limit_secs`/`stand_limit_secs` are deliberately untouched — the
+    /// user can override those at runtime through settings.
+    pub fn set_limits(&mut self, limits: &Limits) {
+        self.limits = limits.clone();
+    }
+
+    /// Replaces the ergonomic limits from a whole profile.
+    pub fn set_ergo_profile(&mut self, ergo: &ErgonomicProfile) {
+        self.set_limits(&ergo.limits);
     }
 
     /// Updates the sitting session limit (minutes -> seconds).
@@ -203,7 +170,41 @@ impl SessionManager {
             sitting_seconds_total: self.get_live_sitting_seconds_total(now),
             idle_secs: self.state.idle_secs,
             away_bout_secs: self.state.away_bout_secs,
-            max_continuous_computer_secs: self.state.max_continuous_computer_secs,
+            max_continuous_computer_secs: self.limits.max_continuous_computer_secs as i64,
+        }
+    }
+
+    /// Builds this tick's [`PolicyInput`] for the communication policy.
+    ///
+    /// The engine owns every derived value here (E020-T05). Until then
+    /// `tray_controller` re-derived `elapsed_secs` and the standing-lap trio
+    /// from snapshot fields, so a second consumer could silently disagree with
+    /// the first. Adapters now pass in only what the engine cannot know:
+    /// whether the sensor is connected.
+    pub fn policy_input(&self, now: DateTime<Utc>, sensor_connected: bool) -> PolicyInput {
+        let target = self.state.stand_limit_secs;
+        let lapping = self.state.state == DeskState::Standing && target > 0;
+        let bout = self.get_live_break_seconds(now);
+        PolicyInput {
+            state: self.state.state.clone(),
+            elapsed_secs: match self.state.state {
+                DeskState::Sitting => self.get_live_sitting_seconds(now),
+                DeskState::Standing => bout,
+                _ => 0,
+            },
+            sensor_connected,
+            standing_lap_progress: if lapping {
+                (bout % target) as f32 / target as f32
+            } else {
+                0.0
+            },
+            standing_lap: if lapping {
+                (self.get_live_standing_seconds(now) / target) as u32
+            } else {
+                0
+            },
+            standing_lap_flash: lapping && bout / target > 0,
+            continuous_computer_secs: self.state.continuous_computer_secs,
         }
     }
 

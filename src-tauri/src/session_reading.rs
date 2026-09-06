@@ -7,10 +7,23 @@ use crate::session_types::*;
 use crate::session_manager::SessionManager;
 
 impl SessionManager {
-    /// Process a sensor reading. Returns state change and/or completed session.
+    /// Process a sensor reading using the system clock.
+    ///
+    /// This is the impure boundary: it reads `Utc::now()` once and hands it to
+    /// [`SessionManager::on_reading_at`], which holds all the logic. Production
+    /// callers that already own a `now` for the current tick should call
+    /// `on_reading_at` directly so every counter in that tick agrees on one
+    /// instant; tests should always call `on_reading_at`.
     pub fn on_reading(&mut self, mm: i32, active: bool) -> ReadingResult {
-        let now = Utc::now();
+        self.on_reading_at(mm, active, Utc::now())
+    }
 
+    /// Process a sensor reading at an explicit instant. Returns state change
+    /// and/or completed session.
+    ///
+    /// Pure with respect to the clock: `now` is the only source of time here,
+    /// so a caller can replay a whole day of readings deterministically.
+    pub fn on_reading_at(&mut self, mm: i32, active: bool, now: DateTime<Utc>) -> ReadingResult {
         if self.state.first_reading_at.is_none() {
             self.state.first_reading_at = Some(now);
         }
@@ -164,6 +177,10 @@ impl SessionManager {
     /// Throttled to run at most once per second: the sensor may send readings
     /// faster than 1 Hz, but counters like `continuous_computer_secs` and
     /// `away_bout_secs` must grow at wall-clock rate.
+    ///
+    /// The Away duration that resets the computer timer comes from
+    /// [`SessionManager::limits`] (the live ergonomic profile), not from
+    /// `SessionState`.
     pub(crate) fn accumulate_ongoing(&mut self, now: DateTime<Utc>) {
         self.last_accumulate_ran = false;
         if let Some(prev) = self.state.last_accumulate_ts {
@@ -192,7 +209,7 @@ impl SessionManager {
                 self.state.away_bout_secs += 1;
                 // After configured away duration: reset continuous computer timer
                 // and count as a posture change (user left the computer).
-                if self.state.away_bout_secs >= self.state.computer_break_reset_secs
+                if self.state.away_bout_secs >= self.limits.computer_break_reset_secs as i64
                     && self.state.continuous_computer_secs > 0
                 {
                     self.state.continuous_computer_secs = 0;

@@ -1,28 +1,49 @@
 //! session_tests_sleep.rs — Sleep/suspend gap detection and break credit tests.
+//!
+//! Readings are injected at explicit instants (E020-T01), so the gap the engine
+//! sees is exactly the gap the test intends. The old form backdated
+//! `last_tick_ts` against one `Utc::now()` and then let `on_reading` read a
+//! second, later one, which is why some assertions here were inequalities.
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
+    use chrono::{DateTime, Duration, TimeZone, Utc};
 
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
 
-    fn advance_ticks(m: &mut SessionManager, mm: i32, active: bool, count: usize) {
-        for _ in 0..count {
-            let _ = m.on_reading(mm, active);
+    /// A fixed instant, so nothing here depends on when the suite runs.
+    fn base() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
+    }
+
+    /// Feeds `count` readings one second apart from `at`; returns the instant
+    /// after the last one.
+    fn advance_ticks(
+        m: &mut SessionManager,
+        mm: i32,
+        active: bool,
+        at: DateTime<Utc>,
+        count: i64,
+    ) -> DateTime<Utc> {
+        for i in 0..count {
+            let _ = m.on_reading_at(mm, active, at + Duration::seconds(i));
         }
+        at + Duration::seconds(count)
     }
 
     /// Transitions manager to Sitting state via debounced readings.
-    fn transition_to_sitting(m: &mut SessionManager) {
-        advance_ticks(m, 800, true, DEBOUNCE_COUNT as usize);
+    fn transition_to_sitting(m: &mut SessionManager, at: DateTime<Utc>) -> DateTime<Utc> {
+        let next = advance_ticks(m, 800, true, at, DEBOUNCE_COUNT as i64);
         assert_eq!(m.state.state, DeskState::Sitting);
+        next
     }
 
     /// Transitions manager to Standing state via debounced readings.
-    fn transition_to_standing(m: &mut SessionManager) {
-        advance_ticks(m, 1200, true, DEBOUNCE_COUNT as usize);
+    fn transition_to_standing(m: &mut SessionManager, at: DateTime<Utc>) -> DateTime<Utc> {
+        let next = advance_ticks(m, 1200, true, at, DEBOUNCE_COUNT as i64);
         assert_eq!(m.state.state, DeskState::Standing);
+        next
     }
 
     // ── Inflation-prevention (original tests) ──────────────────────────────
@@ -31,16 +52,16 @@ mod tests {
     #[test]
     fn sleep_does_not_inflate_sitting_seconds() {
         let mut m = SessionManager::new();
-        let now = Utc::now();
+        let now = base();
 
-        transition_to_sitting(&mut m);
+        transition_to_sitting(&mut m, now - Duration::hours(9));
 
-        m.state.sitting_started = Some(now - chrono::Duration::hours(8));
+        m.state.sitting_started = Some(now - Duration::hours(8));
         m.state.sitting_seconds = 600;
         m.state.sitting_seconds_total = 600;
-        m.state.last_tick_ts = Some(now - chrono::Duration::hours(8));
+        m.state.last_tick_ts = Some(now - Duration::hours(8));
 
-        advance_ticks(&mut m, 800, false, DEBOUNCE_COUNT as usize);
+        advance_ticks(&mut m, 800, false, now, DEBOUNCE_COUNT as i64);
         assert_eq!(m.state.state, DeskState::Away);
 
         assert!(
@@ -54,18 +75,18 @@ mod tests {
     #[test]
     fn sleep_does_not_inflate_standing_seconds() {
         let mut m = SessionManager::new();
-        let now = Utc::now();
+        let now = base();
 
-        transition_to_sitting(&mut m);
+        let t = transition_to_sitting(&mut m, now - Duration::hours(9));
         m.state.sitting_started = Some(now);
-        transition_to_standing(&mut m);
+        transition_to_standing(&mut m, t);
         assert_eq!(m.state.state, DeskState::Standing);
 
-        m.state.standing_bout_started = Some(now - chrono::Duration::hours(8));
+        m.state.standing_bout_started = Some(now - Duration::hours(8));
         m.state.standing_seconds = 300;
-        m.state.last_tick_ts = Some(now - chrono::Duration::hours(8));
+        m.state.last_tick_ts = Some(now - Duration::hours(8));
 
-        advance_ticks(&mut m, 1200, false, DEBOUNCE_COUNT as usize);
+        advance_ticks(&mut m, 1200, false, now, DEBOUNCE_COUNT as i64);
         assert_eq!(m.state.state, DeskState::Away);
 
         assert!(
@@ -82,15 +103,16 @@ mod tests {
     #[test]
     fn sleep_gap_full_credit_resets_sitting() {
         let mut m = SessionManager::new();
-        transition_to_sitting(&mut m);
+        let now = base();
+        transition_to_sitting(&mut m, now - Duration::hours(3));
 
         m.state.sitting_seconds = 2400; // 40 min sitting
         m.state.sitting_seconds_total = 2400;
         // Simulate 2-hour gap between last tick and now.
-        m.state.last_tick_ts = Some(Utc::now() - chrono::Duration::hours(2));
+        m.state.last_tick_ts = Some(now - Duration::hours(2));
 
         // The next reading triggers sleep gap detection → apply_break_credit(7200).
-        let _ = m.on_reading(800, true);
+        let _ = m.on_reading_at(800, true, now);
 
         assert_eq!(
             m.state.sitting_seconds, 0,
@@ -109,14 +131,15 @@ mod tests {
     #[test]
     fn sleep_gap_partial_credit_reduces_sitting() {
         let mut m = SessionManager::new();
-        transition_to_sitting(&mut m);
+        let now = base();
+        transition_to_sitting(&mut m, now - Duration::hours(1));
 
         m.state.sitting_seconds = 2400; // 40 min sitting
         m.state.sitting_seconds_total = 2400;
         // Simulate 10-minute gap.
-        m.state.last_tick_ts = Some(Utc::now() - chrono::Duration::minutes(10));
+        m.state.last_tick_ts = Some(now - Duration::minutes(10));
 
-        let _ = m.on_reading(800, true);
+        let _ = m.on_reading_at(800, true, now);
 
         // 600s × 2.0 = 1200s credit → 2400 - 1200 = 1200 remaining.
         assert_eq!(
@@ -135,15 +158,16 @@ mod tests {
     #[test]
     fn sleep_gap_respects_custom_multiplier() {
         let mut m = SessionManager::new();
-        transition_to_sitting(&mut m);
+        let now = base();
+        transition_to_sitting(&mut m, now - Duration::hours(1));
 
         m.state.sitting_seconds = 2400; // 40 min sitting
         m.state.sitting_seconds_total = 2400;
-        m.state.break_credit_multiplier = 1.0; // slower reset
+        m.limits.break_credit_multiplier = 1.0; // slower reset
         // Simulate 10-minute gap.
-        m.state.last_tick_ts = Some(Utc::now() - chrono::Duration::minutes(10));
+        m.state.last_tick_ts = Some(now - Duration::minutes(10));
 
-        let _ = m.on_reading(800, true);
+        let _ = m.on_reading_at(800, true, now);
 
         // 600s × 1.0 = 600s credit → 2400 - 600 = 1800 remaining.
         assert_eq!(
@@ -158,29 +182,27 @@ mod tests {
     #[test]
     fn sleep_gap_while_standing_is_harmless() {
         let mut m = SessionManager::new();
-        transition_to_sitting(&mut m);
+        let now = base();
+        let t = transition_to_sitting(&mut m, now - Duration::hours(1));
         m.state.sitting_seconds = 0; // just transitioned from credit
-        transition_to_standing(&mut m);
+        transition_to_standing(&mut m, t);
 
-        let bout_start = Utc::now() - chrono::Duration::minutes(5);
-        m.state.standing_bout_started = Some(bout_start);
+        m.state.standing_bout_started = Some(now - Duration::minutes(5));
         // Simulate 30-minute sleep gap while standing.
-        m.state.last_tick_ts = Some(Utc::now() - chrono::Duration::minutes(30));
+        m.state.last_tick_ts = Some(now - Duration::minutes(30));
 
         // Should not panic; apply_break_credit(0) is called but credit is harmless.
-        let _ = m.on_reading(1200, true);
+        let _ = m.on_reading_at(1200, true, now);
 
         assert_eq!(
             m.state.sitting_seconds, 0,
             "sitting_seconds must stay 0 after sleep gap in Standing state"
         );
         // standing_bout_started must have been rewound to prevent standing inflation.
-        let rewound = m.state.standing_bout_started.expect("should still be set");
-        let age_secs = (Utc::now() - rewound).num_seconds();
-        assert!(
-            age_secs < 5,
-            "standing_bout_started should be rewound to ~now, but is {}s old",
-            age_secs
+        assert_eq!(
+            m.state.standing_bout_started,
+            Some(now - Duration::seconds(1)),
+            "standing_bout_started should be rewound to just before the reading"
         );
     }
 
@@ -189,14 +211,15 @@ mod tests {
     #[test]
     fn sleep_gap_preserves_sitting_seconds_total() {
         let mut m = SessionManager::new();
-        transition_to_sitting(&mut m);
+        let now = base();
+        transition_to_sitting(&mut m, now - Duration::hours(3));
 
         m.state.sitting_seconds = 2400;
         m.state.sitting_seconds_total = 2400;
         // 2-hour sleep gap → full credit, sitting_seconds → 0.
-        m.state.last_tick_ts = Some(Utc::now() - chrono::Duration::hours(2));
+        m.state.last_tick_ts = Some(now - Duration::hours(2));
 
-        let _ = m.on_reading(800, true);
+        let _ = m.on_reading_at(800, true, now);
 
         assert_eq!(
             m.state.sitting_seconds, 0,

@@ -9,6 +9,11 @@ use crate::ergonomic_profile::ErgonomicProfile;
 use crate::session_types::DeskState;
 
 /// Snapshot of session data passed to [`CommunicationPolicy::evaluate`] each cycle.
+///
+/// Built by the engine — `SessionManager::policy_input` — not by whoever calls
+/// [`CommunicationPolicy::evaluate`]. Adapters must not derive `elapsed_secs`
+/// or the `standing_lap*` trio themselves: two derivations of the same value
+/// drift apart without ever failing (E020-T05).
 pub struct PolicyInput {
     pub state: DeskState,
     pub elapsed_secs: i64,

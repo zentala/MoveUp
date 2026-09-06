@@ -33,6 +33,10 @@ pub fn check_periodic(
     alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
     let (ergo, comm) = active_profiles(app);
+    session
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .set_limits(&ergo.limits);
 
     if steps::run_daily_reset(session, config) {
         info!("Daily reset occurred — in-memory counters cleared");
@@ -77,12 +81,18 @@ pub fn handle_reading(
 
     let active = is_active();
     let idle_secs = crate::activity::get_idle_seconds();
+    // One clock read per tick: the state machine and the score accumulator must
+    // agree on the same instant, or a slow lock makes them disagree by a second.
+    let now = chrono::Utc::now();
     let (state_before, result) = {
         let mut sess = session.lock().unwrap();
+        // Config for this tick comes from the profile just loaded above, so an
+        // edited ergonomic profile applies without an app restart.
+        sess.set_limits(&ergo.limits);
         let before = sess.current_state();
-        let res = sess.on_reading(mm, active);
+        let res = sess.on_reading_at(mm, active, now);
         if sess.last_accumulate_ran {
-            sess.accumulate_score_tick(&ergo);
+            sess.accumulate_score_tick_at(&ergo, now);
         }
         (before, res)
     };

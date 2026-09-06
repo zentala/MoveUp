@@ -3,6 +3,16 @@
 - **Status**: accepted (revised 2026-09-06, E015)
 - **Date**: 2026-03-30
 - **Epic**: E000 (maintenance); revised by [E015](../../.plan/epics/E015-2026-09-06-engine-single-truth/PLAN.md)
+- **Related**: [ADR 009](009-day-break-credit.md),
+  [ADR 015](015-pure-ergo-engine.md)
+
+> The formula below is unchanged by E020. What changed is where its inputs
+> come from: `break_credit_multiplier` and `break_min_secs` are read from
+> `SessionManager.limits` (refreshed from the ergonomic profile each tick),
+> not from a copy inside `SessionState`, so a profile edit applies without a
+> restart. This is one of three unrelated things called a "break" — see the
+> module doc comment in `session_breaks.rs` and
+> [ADR 015](015-pure-ergo-engine.md). Log prefix: `[break:credit]`.
 
 ## Context
 
