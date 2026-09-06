@@ -5,14 +5,14 @@ Turn an old phone or tablet into a dedicated desk dashboard. The app runs an emb
 ## Requirements
 
 - Android phone or tablet (any age — even old devices work)
-- Same WiFi network as the PC running zntlDesk
+- Same WiFi network as the PC running MoveUp
 - A kiosk browser app (recommended: Fully Kiosk Browser)
 
 ## Quick Setup
 
 ### 1. Find your PC's local IP
 
-On the PC running zntlDesk, open a terminal:
+On the PC running MoveUp, open a terminal:
 
 ```
 ipconfig
@@ -54,7 +54,7 @@ The remote display server listens on port **3390**. You may need to allow inboun
 2. Click **Inbound Rules** > **New Rule...**
 3. Select **Port** > **TCP** > Specific port: `3390`
 4. **Allow the connection**
-5. Name it: `zntlDesk Remote Display`
+5. Name it: `MoveUp Remote Display`
 
 ## Configuration
 
@@ -64,7 +64,7 @@ The remote display server listens on port **3390**. You may need to allow inboun
 
 ## How It Works
 
-1. zntlDesk starts an embedded HTTP server alongside the Tauri app
+1. MoveUp starts an embedded HTTP server alongside the Tauri app
 2. `GET /display` serves the same React UI used by the desktop popup
 3. The browser connects via WebSocket (`/display/ws`) for real-time updates
 4. Session state, metrics, and today's summary stream at ~1 event/sec
@@ -81,7 +81,8 @@ The remote display server listens on port **3390**. You may need to allow inboun
 
 ### "Reconnecting..." shown on phone
 
-- The desktop app is not running — start it with `pnpm tauri:dev`
+- The desktop app is not running — start MoveUp on the PC (from source:
+  `pnpm tauri:dev`)
 - WiFi dropped briefly — the phone will auto-reconnect within seconds
 - PC went to sleep — wake it up, the phone reconnects automatically
 
