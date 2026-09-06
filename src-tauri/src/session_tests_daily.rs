@@ -1,12 +1,32 @@
 //! session_tests_daily.rs — Tests for daily reset and notification conditions.
+//!
+//! The clock is injected (E020-T01): every reset test states both the instant
+//! and the LOCAL calendar day it belongs to (D3). Deriving the day from
+//! `Utc::now()` here would make these tests pass or fail depending on the hour
+//! the suite runs at, because the local day rolls over before the UTC one.
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
+    use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
 
     use crate::communication_profile::CommunicationProfile;
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
+
+    /// A fixed instant, mid-morning, well away from any day boundary.
+    fn base() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
+    }
+
+    /// The local day `base()` falls on. Boundary cases live in
+    /// `session_tests_clock.rs`; these tests only need "today" and "yesterday".
+    fn today() -> NaiveDate {
+        crate::session_daily::local_date_of(base())
+    }
+
+    fn yesterday() -> NaiveDate {
+        today() - Duration::days(1)
+    }
 
     fn comm_with(inactivity: bool, posture_balance: bool) -> CommunicationProfile {
         let mut comm = CommunicationProfile::default();
@@ -24,9 +44,9 @@ mod tests {
         m.state.sitting_seconds = 2400;
         m.alert_fired = true;
         m.stand_alert_fired = true;
-        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
-        m.last_reset_check = Utc::now() - chrono::Duration::seconds(120);
-        let reset_happened = m.check_daily_reset();
+        m.last_reset_date = yesterday();
+        m.last_reset_check = base() - Duration::seconds(120);
+        let reset_happened = m.check_daily_reset_at(base(), today());
         assert!(reset_happened, "daily reset should have triggered");
         assert_eq!(m.state.standing_seconds, 0);
         assert_eq!(m.state.sitting_seconds, 0);
@@ -39,9 +59,9 @@ mod tests {
         let mut m = SessionManager::new();
         m.state.sitting_seconds = 1000;
         m.state.standing_seconds = 500;
-        m.last_reset_date = Utc::now().date_naive();
-        m.last_reset_check = Utc::now() - chrono::Duration::seconds(30);
-        let reset_happened = m.check_daily_reset();
+        m.last_reset_date = today();
+        m.last_reset_check = base() - Duration::seconds(30);
+        let reset_happened = m.check_daily_reset_at(base(), today());
         assert!(!reset_happened, "reset should not happen on same day");
         assert_eq!(m.state.sitting_seconds, 1000);
         assert_eq!(m.state.standing_seconds, 500);
@@ -51,9 +71,9 @@ mod tests {
     fn check_daily_reset_throttled_every_60_seconds() {
         let mut m = SessionManager::new();
         m.state.sitting_seconds = 1000;
-        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
-        m.last_reset_check = Utc::now() - chrono::Duration::seconds(30);
-        let reset_happened = m.check_daily_reset();
+        m.last_reset_date = yesterday();
+        m.last_reset_check = base() - Duration::seconds(30);
+        let reset_happened = m.check_daily_reset_at(base(), today());
         assert!(!reset_happened, "reset should be throttled if < 60 seconds");
         assert_eq!(m.state.sitting_seconds, 1000);
     }
@@ -62,9 +82,10 @@ mod tests {
     fn check_daily_reset_idempotent_same_day() {
         let mut m = SessionManager::new();
         m.state.sitting_seconds = 500;
-        m.last_reset_date = Utc::now().date_naive();
-        let first = m.check_daily_reset();
-        let second = m.check_daily_reset();
+        m.last_reset_date = today();
+        m.last_reset_check = base() - Duration::seconds(120);
+        let first = m.check_daily_reset_at(base(), today());
+        let second = m.check_daily_reset_at(base(), today());
         assert!(!first && !second, "same day should return false");
         assert_eq!(m.state.sitting_seconds, 500);
     }
@@ -78,9 +99,9 @@ mod tests {
         m.standing_target_reached_fired = true;
         m.alert_fired = true;
         m.stand_alert_fired = true;
-        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
-        m.last_reset_check = Utc::now() - chrono::Duration::seconds(120);
-        let _ = m.check_daily_reset();
+        m.last_reset_date = yesterday();
+        m.last_reset_check = base() - Duration::seconds(120);
+        let _ = m.check_daily_reset_at(base(), today());
         assert!(!m.notify_inactivity_fired);
         assert!(!m.notify_posture_balance_fired);
         assert!(!m.praise_halfway_fired_today);
@@ -96,9 +117,8 @@ mod tests {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Sitting;
         let comm = comm_with(true, false);
-        m.state.last_position_change_at =
-            Some(Utc::now() - chrono::Duration::minutes(61));
-        let events = m.check_notification_conditions(&comm);
+        m.state.last_position_change_at = Some(base() - Duration::minutes(61));
+        let events = m.check_notification_conditions_at(&comm, base());
         assert!(events.iter().any(|e| matches!(e, NotificationEvent::Inactivity)));
         assert!(m.notify_inactivity_fired);
     }
@@ -107,9 +127,8 @@ mod tests {
     fn check_notification_conditions_inactivity_not_disabled() {
         let mut m = SessionManager::new();
         let comm = comm_with(false, false);
-        m.state.last_position_change_at =
-            Some(Utc::now() - chrono::Duration::minutes(61));
-        let events = m.check_notification_conditions(&comm);
+        m.state.last_position_change_at = Some(base() - Duration::minutes(61));
+        let events = m.check_notification_conditions_at(&comm, base());
         assert!(!events.iter().any(|e| matches!(e, NotificationEvent::Inactivity)));
         assert!(!m.notify_inactivity_fired);
     }
@@ -122,7 +141,7 @@ mod tests {
         m.state.sitting_seconds = 22000;
         m.state.sitting_seconds_total = 22000;
         m.state.standing_seconds = 1000;
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         assert!(events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)));
         assert!(m.notify_posture_balance_fired);
     }
@@ -133,7 +152,7 @@ mod tests {
         let comm = comm_with(false, false);
         m.state.sitting_seconds = 3600;
         m.state.standing_seconds = 1000;
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         assert!(!events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)));
     }
 
@@ -145,11 +164,11 @@ mod tests {
         m.notify_posture_balance_fired = true;
         m.praise_halfway_fired_today = true;
         m.standing_target_reached_fired = true;
-        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
-        m.last_reset_check = Utc::now() - chrono::Duration::seconds(120);
-        let _ = m.check_daily_reset();
+        m.last_reset_date = yesterday();
+        m.last_reset_check = base() - Duration::seconds(120);
+        let _ = m.check_daily_reset_at(base(), today());
         assert!(!m.standing_target_reached_fired);
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         assert_eq!(events.len(), 0, "no notifications should fire after reset");
     }
 
@@ -160,7 +179,7 @@ mod tests {
         m.state.stand_limit_secs = 900; // 15 min
         m.state.standing_seconds = 900;
         let comm = CommunicationProfile::default();
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         assert!(events.iter().any(|e| matches!(e, NotificationEvent::StandingTargetReached)));
         assert!(m.standing_target_reached_fired);
     }
@@ -172,9 +191,9 @@ mod tests {
         m.state.stand_limit_secs = 900;
         m.state.standing_seconds = 1000;
         let comm = CommunicationProfile::default();
-        let _ = m.check_notification_conditions(&comm);
+        let _ = m.check_notification_conditions_at(&comm, base());
         assert!(m.standing_target_reached_fired);
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         assert!(!events.iter().any(|e| matches!(e, NotificationEvent::StandingTargetReached)));
     }
 
@@ -182,9 +201,9 @@ mod tests {
     fn standing_target_reached_resets_on_daily_reset() {
         let mut m = SessionManager::new();
         m.standing_target_reached_fired = true;
-        m.last_reset_date = Utc::now().date_naive() - chrono::Duration::days(1);
-        m.last_reset_check = Utc::now() - chrono::Duration::seconds(120);
-        let _ = m.check_daily_reset();
+        m.last_reset_date = yesterday();
+        m.last_reset_check = base() - Duration::seconds(120);
+        let _ = m.check_daily_reset_at(base(), today());
         assert!(!m.standing_target_reached_fired);
     }
 }

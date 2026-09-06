@@ -87,6 +87,7 @@ mod session_persistence;
 #[cfg(test)] mod session_tests_alerts;
 #[cfg(test)] mod session_tests_floating;
 #[cfg(test)] mod session_tests_daily;
+#[cfg(test)] mod session_tests_clock;
 #[cfg(test)] mod session_tests_props;
 #[cfg(test)] mod session_tests_score;
 #[cfg(test)] mod session_tests_timers;

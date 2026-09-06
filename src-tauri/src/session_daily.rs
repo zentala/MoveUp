@@ -1,27 +1,59 @@
 //! session_daily.rs — Daily reset, score accumulation, and alert logic.
 
-use chrono::Utc;
+use chrono::{DateTime, Local, NaiveDate, Utc};
 use log::info;
 
 use crate::session_types::*;
 use crate::session_manager::SessionManager;
 
+/// The calendar day `now` falls on **in the machine's local time zone** (D3).
+///
+/// Every other date-keyed surface in this app — `session_persistence.rs`,
+/// `db_sessions.rs` — keys on the local day, so the daily reset must too.
+/// Deriving it from UTC fired the reset at 01:00 or 02:00 local in Warsaw.
+///
+/// This is the second impure boundary of the engine (it reads the system time
+/// zone). The reset functions take the resulting date as an explicit argument
+/// so a test can pass any zone's date without touching the machine's.
+pub fn local_date_of(now: DateTime<Utc>) -> NaiveDate {
+    now.with_timezone(&Local).date_naive()
+}
+
 impl SessionManager {
     /// Returns true if a daily reset would occur on the next `check_daily_reset` call.
     /// Does NOT mutate state — safe to call for pre-reset telemetry.
+    ///
+    /// Impure boundary; the logic lives in [`SessionManager::needs_daily_reset_at`].
     pub fn needs_daily_reset(&self) -> bool {
         let now = Utc::now();
-        let today = now.date_naive();
+        self.needs_daily_reset_at(now, local_date_of(now))
+    }
+
+    /// Returns true if [`SessionManager::check_daily_reset_at`] would reset at
+    /// `now`, given `today_local` as the current LOCAL calendar day (D3).
+    pub fn needs_daily_reset_at(&self, now: DateTime<Utc>, today_local: NaiveDate) -> bool {
         if (now - self.last_reset_check).num_seconds() < 60 {
             return false;
         }
-        self.last_reset_date < today
+        self.last_reset_date < today_local
     }
 
     /// Checks if a new day has begun and resets daily counters (throttled to 60s).
+    ///
+    /// Impure boundary; the logic lives in [`SessionManager::check_daily_reset_at`].
     pub fn check_daily_reset(&mut self) -> bool {
         let now = Utc::now();
-        let today = now.date_naive();
+        self.check_daily_reset_at(now, local_date_of(now))
+    }
+
+    /// Resets daily counters when `today_local` is past `last_reset_date`
+    /// (throttled to one check per 60s of `now`).
+    ///
+    /// `today_local` is the current **local** calendar day, passed in rather
+    /// than derived here (D3) so callers replaying a fixed timeline — and the
+    /// DST test — control both the instant and the day boundary.
+    pub fn check_daily_reset_at(&mut self, now: DateTime<Utc>, today_local: NaiveDate) -> bool {
+        let today = today_local;
         if (now - self.last_reset_check).num_seconds() < 60 {
             return false;
         }
@@ -61,10 +93,23 @@ impl SessionManager {
         false
     }
 
-    /// Accumulates score every tick (~1s). Called from serial_periodic after on_reading.
+    /// Accumulates score every tick (~1s) using the system clock.
+    ///
+    /// Impure boundary; the logic lives in
+    /// [`SessionManager::accumulate_score_tick_at`].
+    pub fn accumulate_score_tick(&mut self, ergo: &crate::ergonomic_profile::ErgonomicProfile) {
+        self.accumulate_score_tick_at(ergo, Utc::now());
+    }
+
+    /// Accumulates score for the tick at `now`. Called from serial_periodic
+    /// after `on_reading_at`, with the same `now`.
     ///
     /// Caller must gate this behind `last_accumulate_ran` to ensure 1 Hz rate.
-    pub fn accumulate_score_tick(&mut self, ergo: &crate::ergonomic_profile::ErgonomicProfile) {
+    pub fn accumulate_score_tick_at(
+        &mut self,
+        ergo: &crate::ergonomic_profile::ErgonomicProfile,
+        now: DateTime<Utc>,
+    ) {
         match self.state.state {
             DeskState::Sitting => {
                 self.state.daily_score += ergo.scoring.pts_sitting_per_min / 60.0;
@@ -74,7 +119,7 @@ impl SessionManager {
 
                 // Compute live standing session duration from timestamp.
                 let live_standing_secs = self.state.standing_session_started
-                    .map(|s| (Utc::now() - s).num_seconds().max(0))
+                    .map(|s| (now - s).num_seconds().max(0))
                     .unwrap_or(self.state.standing_session_secs);
                 self.state.standing_session_secs = live_standing_secs;
 

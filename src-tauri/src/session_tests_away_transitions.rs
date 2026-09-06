@@ -1,36 +1,78 @@
 //! session_tests_away_transitions.rs — Away state transition + credit tests (E002-T04).
+//!
+//! Readings are injected at explicit instants (E020-T01). The old form read the
+//! system clock once per backdated timestamp and again inside every reading, so
+//! a debounce batch appeared to take zero time; here a batch takes
+//! `DEBOUNCE_COUNT` seconds, which is what the sensor actually does. Durations
+//! are therefore stated relative to the instant a transition CONFIRMS, not to
+//! the start of the batch.
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
+    use chrono::{DateTime, Duration, TimeZone, Utc};
 
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
 
-    fn advance_ticks(m: &mut SessionManager, mm: i32, active: bool, count: usize) {
-        for _ in 0..count {
-            let _ = m.on_reading(mm, active);
+    /// A fixed instant, so nothing here depends on when the suite runs.
+    fn base() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
+    }
+
+    /// Feeds one debounce batch of readings, one second apart, starting at `at`.
+    /// Returns the instant the NEXT batch should start from.
+    fn advance_ticks(
+        m: &mut SessionManager,
+        mm: i32,
+        active: bool,
+        at: DateTime<Utc>,
+    ) -> DateTime<Utc> {
+        let (next, _) = batch(m, mm, active, at);
+        next
+    }
+
+    /// Same as [`advance_ticks`], but also returns the last `ReadingResult` —
+    /// the one carrying the transition, since the batch confirms on its final
+    /// reading.
+    fn batch(
+        m: &mut SessionManager,
+        mm: i32,
+        active: bool,
+        at: DateTime<Utc>,
+    ) -> (DateTime<Utc>, ReadingResult) {
+        let mut last = ReadingResult {
+            state_change: None,
+            completed_session: None,
+            break_credit: None,
+        };
+        for i in 0..DEBOUNCE_COUNT as i64 {
+            last = m.on_reading_at(mm, active, at + Duration::seconds(i));
         }
+        (at + Duration::seconds(DEBOUNCE_COUNT as i64), last)
+    }
+
+    /// The instant the batch starting at `at` confirms its transition.
+    fn confirms_at(at: DateTime<Utc>) -> DateTime<Utc> {
+        at + Duration::seconds(DEBOUNCE_COUNT as i64 - 1)
     }
 
     // ─── Away → Sitting = New Session ───────────────────────────────────────
 
     #[test]
     fn away_to_sitting_full_credit() {
-        // break=700s, credit=700*2=1400 < sitting=2000 → Partial, sitting=600.
-        // To get Full credit, break must be >= sitting/2 = 1000s. Use 1100s.
+        // 1100s break → credit = 1100*2 = 2200 >= sitting (2000) → Full.
         let mut m = SessionManager::new();
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        let t = advance_ticks(&mut m, 800, true, base());
         assert_eq!(m.state.state, DeskState::Sitting);
         m.state.sitting_seconds = 2000;
-        m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(100));
+        m.state.sitting_started = Some(t - Duration::seconds(100));
 
-        advance_ticks(&mut m, 800, false, DEBOUNCE_COUNT as usize);
+        let t = advance_ticks(&mut m, 800, false, t);
         assert_eq!(m.state.state, DeskState::Away);
 
-        // 1100s break → credit = 1100*2 = 2200 >= sitting (2000) → Full, sitting = 0
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(1100));
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        m.state.sitting_seconds = 2000; // reseeded: the exit above committed the bout
+        m.state.break_started = Some(confirms_at(t) - Duration::seconds(1100));
+        advance_ticks(&mut m, 800, true, t);
         assert_eq!(m.state.state, DeskState::Sitting);
 
         assert_eq!(m.state.sitting_seconds, 0, "break credit >= sitting => full reset");
@@ -40,33 +82,35 @@ mod tests {
     #[test]
     fn away_to_sitting_partial_credit() {
         let mut m = SessionManager::new();
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        let t = advance_ticks(&mut m, 800, true, base());
         m.state.sitting_seconds = 2000;
-        m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(100));
+        m.state.sitting_started = Some(t - Duration::seconds(100));
 
-        advance_ticks(&mut m, 800, false, DEBOUNCE_COUNT as usize);
+        let t = advance_ticks(&mut m, 800, false, t);
         assert_eq!(m.state.state, DeskState::Away);
 
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(420));
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        m.state.sitting_seconds = 2000;
+        // 7 min break → credit 840 < 2000 → Partial.
+        m.state.break_started = Some(confirms_at(t) - Duration::seconds(420));
+        advance_ticks(&mut m, 800, true, t);
         assert_eq!(m.state.state, DeskState::Sitting);
         assert_eq!(m.state.last_break_credit, BreakCredit::Partial, "7 min = partial");
+        assert_eq!(m.state.sitting_seconds, 2000 - 840);
     }
 
     #[test]
     fn away_to_sitting_no_credit() {
-        // Threshold is now BREAK_MIN_SECS=60 (1 min). Use 30s break to get None.
+        // Threshold is BREAK_MIN_SECS=60 (1 min). Use 30s break to get None.
         let mut m = SessionManager::new();
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        let t = advance_ticks(&mut m, 800, true, base());
         m.state.sitting_seconds = 2000;
-        m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(100));
+        m.state.sitting_started = Some(t - Duration::seconds(100));
 
-        advance_ticks(&mut m, 800, false, DEBOUNCE_COUNT as usize);
+        let t = advance_ticks(&mut m, 800, false, t);
         assert_eq!(m.state.state, DeskState::Away);
 
-        // 30s away (< 60s = no credit)
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(30));
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        m.state.break_started = Some(confirms_at(t) - Duration::seconds(30));
+        advance_ticks(&mut m, 800, true, t);
         assert_eq!(m.state.state, DeskState::Sitting);
         assert_eq!(m.state.last_break_credit, BreakCredit::None, "<1 min = no credit");
     }
@@ -74,14 +118,14 @@ mod tests {
     #[test]
     fn away_to_standing_resets_away_bout() {
         let mut m = SessionManager::new();
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
-        m.state.sitting_started = Some(Utc::now());
+        let t = advance_ticks(&mut m, 800, true, base());
+        m.state.sitting_started = Some(t);
 
-        advance_ticks(&mut m, 800, false, DEBOUNCE_COUNT as usize);
+        let t = advance_ticks(&mut m, 800, false, t);
         assert_eq!(m.state.state, DeskState::Away);
         m.state.away_bout_secs = 120;
 
-        advance_ticks(&mut m, 1200, true, DEBOUNCE_COUNT as usize);
+        advance_ticks(&mut m, 1200, true, t);
         assert_eq!(m.state.state, DeskState::Standing);
         assert_eq!(m.state.away_bout_secs, 0, "away_bout must reset on standing");
     }
@@ -89,17 +133,10 @@ mod tests {
     #[test]
     fn sitting_to_away_creates_completed_session() {
         let mut m = SessionManager::new();
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
-        m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(300));
+        let t = advance_ticks(&mut m, 800, true, base());
+        m.state.sitting_started = Some(t - Duration::seconds(300));
 
-        let mut last = ReadingResult {
-            state_change: None,
-            completed_session: None,
-            break_credit: None,
-        };
-        for _ in 0..DEBOUNCE_COUNT {
-            last = m.on_reading(800, false);
-        }
+        let (_, last) = batch(&mut m, 800, false, t);
         assert_eq!(m.state.state, DeskState::Away);
         assert!(
             last.completed_session.is_some(),
@@ -116,27 +153,20 @@ mod tests {
         let mut m = SessionManager::new();
 
         // 1. Start Sitting
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        let t = advance_ticks(&mut m, 800, true, base());
         assert_eq!(m.state.state, DeskState::Sitting);
-        m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(600));
+        m.state.sitting_started = Some(t - Duration::seconds(600));
         m.state.sitting_seconds = 600;
         m.state.sitting_seconds_total = 600;
 
         // 2. Stand up (active) — should transition to Standing
-        advance_ticks(&mut m, 1200, true, DEBOUNCE_COUNT as usize);
+        let t = advance_ticks(&mut m, 1200, true, t);
         assert_eq!(m.state.state, DeskState::Standing, "should be Standing when desk high + active");
         assert!(m.state.break_started.is_some(), "break_started must be set on Sitting→Standing");
         let break_start = m.state.break_started.unwrap();
 
         // 3. Walk away (inactive, desk still high) — MUST transition to Away
-        let mut last = ReadingResult {
-            state_change: None,
-            completed_session: None,
-            break_credit: None,
-        };
-        for _ in 0..DEBOUNCE_COUNT {
-            last = m.on_reading(1200, false);  // high desk + inactive
-        }
+        let (t, last) = batch(&mut m, 1200, false, t);
         assert_eq!(
             m.state.state, DeskState::Away,
             "Standing + inactive MUST transition to Away (not stay Standing)"
@@ -157,11 +187,11 @@ mod tests {
             "break_started must be preserved on Standing→Away"
         );
 
-        // 4. Stay away for 10+ minutes — simulate with fake break_started
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(700));
+        // 4. Stay away for 10+ minutes.
+        m.state.break_started = Some(confirms_at(t) - Duration::seconds(700));
 
         // 5. Return and sit down — break credit should apply
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        advance_ticks(&mut m, 800, true, t);
         assert_eq!(m.state.state, DeskState::Sitting);
         assert_eq!(
             m.state.last_break_credit, BreakCredit::Full,
@@ -176,60 +206,48 @@ mod tests {
     fn standing_away_standing_sitting_only_counts_standing() {
         let mut m = SessionManager::new();
         // Start sitting
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
-        m.state.sitting_started = Some(Utc::now());
+        let t = advance_ticks(&mut m, 800, true, base());
+        m.state.sitting_started = Some(t);
 
-        // Stand for ~5 min (faked)
-        advance_ticks(&mut m, 1200, true, DEBOUNCE_COUNT as usize);
+        // Stand up, then pretend the bout has been running for 300s.
+        let t = advance_ticks(&mut m, 1200, true, t);
         assert_eq!(m.state.state, DeskState::Standing);
-        let t1 = Utc::now() - chrono::Duration::seconds(300);
-        m.state.break_started = Some(t1);
-        m.state.standing_bout_started = Some(t1);
+        let first_bout_start = confirms_at(t) - Duration::seconds(300);
+        m.state.break_started = Some(first_bout_start);
+        m.state.standing_bout_started = Some(first_bout_start);
 
-        // Go away for ~10 min
-        advance_ticks(&mut m, 1200, false, DEBOUNCE_COUNT as usize);
+        // Go away — the standing bout is committed here, at exactly 300s.
+        let t = advance_ticks(&mut m, 1200, false, t);
         assert_eq!(m.state.state, DeskState::Away);
-        // standing_seconds should now have ~300s from the standing bout
-        let after_first_stand = m.state.standing_seconds;
-        assert!(after_first_stand >= 299, "got {}", after_first_stand);
+        assert_eq!(m.state.standing_seconds, 300);
 
-        // Come back standing for ~3 min
-        advance_ticks(&mut m, 1200, true, DEBOUNCE_COUNT as usize);
+        // Come back standing, then pretend that bout has run for 180s.
+        let t = advance_ticks(&mut m, 1200, true, t);
         assert_eq!(m.state.state, DeskState::Standing);
-        let t3 = Utc::now() - chrono::Duration::seconds(180);
-        m.state.standing_bout_started = Some(t3);
+        m.state.standing_bout_started = Some(confirms_at(t) - Duration::seconds(180));
 
-        // Sit down
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
+        // Sit down — commits the second bout.
+        advance_ticks(&mut m, 800, true, t);
         assert_eq!(m.state.state, DeskState::Sitting);
 
-        // Total standing should be ~300 + ~180 = ~480, NOT 300+600+180
-        let total = m.state.standing_seconds;
-        assert!(
-            total >= 478 && total <= 482,
-            "expected ~480 (300+180), got {} — away time must not count",
-            total
+        // Total standing is 300 + 180; the away stretch in between must not count.
+        assert_eq!(
+            m.state.standing_seconds, 480,
+            "away time must not count towards standing"
         );
     }
 
     #[test]
     fn away_to_sitting_creates_completed_session() {
         let mut m = SessionManager::new();
-        advance_ticks(&mut m, 800, true, DEBOUNCE_COUNT as usize);
-        m.state.sitting_started = Some(Utc::now());
+        let t = advance_ticks(&mut m, 800, true, base());
+        m.state.sitting_started = Some(t);
 
-        advance_ticks(&mut m, 800, false, DEBOUNCE_COUNT as usize);
+        let t = advance_ticks(&mut m, 800, false, t);
         assert_eq!(m.state.state, DeskState::Away);
 
-        m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(600));
-        let mut last = ReadingResult {
-            state_change: None,
-            completed_session: None,
-            break_credit: None,
-        };
-        for _ in 0..DEBOUNCE_COUNT {
-            last = m.on_reading(800, true);
-        }
+        m.state.break_started = Some(confirms_at(t) - Duration::seconds(600));
+        let (_, last) = batch(&mut m, 800, true, t);
         assert_eq!(m.state.state, DeskState::Sitting);
         assert!(
             last.completed_session.is_some(),

@@ -1,11 +1,21 @@
 //! session_tests_day_break.rs — Tests for Day Break Credit (ADR 009).
+//!
+//! `apply_break_credit` never read the clock; the notification checks did, so
+//! they now take an explicit instant (E020-T01).
 
 #[cfg(test)]
 mod day_break_tests {
+    use chrono::{DateTime, TimeZone, Utc};
+
     use crate::communication_profile::CommunicationProfile;
     use crate::notification_service::NotificationService;
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
+
+    /// A fixed instant, so nothing here depends on when the suite runs.
+    fn base() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
+    }
 
     #[test]
     fn day_break_credit_resets_notification_flags() {
@@ -79,7 +89,7 @@ mod day_break_tests {
         let mut comm = CommunicationProfile::default();
         comm.periodic_notifications.posture_balance_enabled = true;
 
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         assert!(
             !events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)),
             "PostureBalance should NOT fire with only 1h total sitting"
@@ -97,7 +107,7 @@ mod day_break_tests {
         let mut comm = CommunicationProfile::default();
         comm.periodic_notifications.posture_balance_enabled = true;
 
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         assert!(
             events.iter().any(|e| matches!(e, NotificationEvent::PostureBalance)),
             "PostureBalance should fire with 6h+ total sitting"
@@ -124,7 +134,7 @@ mod day_break_tests {
         let mut comm = CommunicationProfile::default();
         comm.periodic_notifications.posture_balance_enabled = true;
 
-        let events = m.check_notification_conditions(&comm);
+        let events = m.check_notification_conditions_at(&comm, base());
         // sitting_seconds_total still 22000 (above threshold)
         // sitting_seconds 2000 > standing_seconds * 2 (1000)
         assert!(
