@@ -1,117 +1,130 @@
 # Installation Guide
 
-Welcome to zntlDesk! This guide will walk you through installing the application on your Windows computer.
+This guide walks you through installing MoveUp on a Windows computer.
 
 ## System Requirements
 
 - **Windows 10 or later** (Windows 11 recommended)
-- **Disk space**: ~150 MB for application and data
+- **Disk space**: ~150 MB for the application and its data
 - **RAM**: 512 MB minimum (1 GB recommended)
-- **USB connection**: For sensor hardware (if using a desk height sensor)
+- **USB port**: for the desk height sensor (optional)
 
 ## Download
 
-Download the latest installer from:
-[GitHub Releases](https://github.com/zentala/zntl-tray/releases) → Look for `zntlDesk-Setup-*.exe`
+Download the latest installer from
+[GitHub Releases](https://github.com/zentala/MoveUp/releases) — look for the
+Windows setup asset, `MoveUp_<version>_x64-setup.exe`.
 
 ## Step-by-Step Installation
 
-### 1. Run the Installer
+### 1. Run the installer
 
-Double-click `zntlDesk-Setup-*.exe` to start the installation wizard.
+Double-click `MoveUp_<version>_x64-setup.exe` to start the wizard.
 
-### 2. Accept License (if shown)
+MoveUp installs for the current user into `%LOCALAPPDATA%\MoveUp\`, so it does
+not ask for administrator rights. Windows SmartScreen may still warn you — the
+installer is not code-signed yet (see [Troubleshooting](#installer-wont-run)).
 
-Read and accept the license agreement to proceed.
+### 2. Choose the installation location
 
-### 3. Choose Installation Location
+The installer suggests `%LOCALAPPDATA%\MoveUp\`. Accept it, or click **Browse**
+to pick another folder.
 
-The installer will suggest a default location. You can:
-- Accept the default (recommended)
-- Click "Browse" to choose a custom folder
+### 3. Installation progress
 
-**Note:** The application requires administrator privileges to:
-- Access keyboard/mouse activity
-- Create system tray icon
-- Enable auto-start on login
+The installer copies files to your computer. This takes a few seconds.
 
-### 4. Installation Progress
+### 4. Shortcuts
 
-The installer will copy files to your computer. This takes 30-60 seconds.
+You can add MoveUp to the Start menu and, optionally, to the desktop.
 
-### 5. Create Start Menu Shortcut
+### 5. Launch
 
-You can choose to:
-- Add a shortcut to your Start Menu (recommended)
-- Create a desktop shortcut
-
-### 6. Launch Application
-
-After installation completes:
-- Check "Launch zntlDesk" to start immediately
-- Or find "zntlDesk" in your Start Menu
+When the wizard finishes, start MoveUp from the Start menu. It runs in the
+system tray — look for the tray icon showing the current desk height.
 
 ## First Run
 
-On first launch, zntlDesk will:
-1. Detect your sensor hardware (if connected via USB)
-2. Create a database to store your data
-3. Ask you to calibrate desk height (if sensor detected)
+On first launch MoveUp:
+
+1. looks for the sensor on the USB serial ports and connects if it finds one
+2. creates its database and log folders under `%APPDATA%\io.zntl.desk\`
+3. shows the welcome window and asks you to calibrate your sitting and standing
+   desk heights
 
 ## Data Storage
 
-Your session data and preferences are stored in:
+Your sessions, settings and logs live in:
+
 ```
-C:\Users\[YourUsername]\AppData\Local\zntlDesk\
+%APPDATA%\io.zntl.desk\
 ```
 
-This includes:
-- SQLite database with sitting/standing sessions
-- User preferences and settings
-- Application logs
+That is `C:\Users\<you>\AppData\Roaming\io.zntl.desk\`. It contains:
+
+- `desk.db` — SQLite database with your sitting/standing sessions
+- `logs\YYYY-MM-DD\` — per-minute state snapshots and `events.log`
+- `profiles\` — ergonomic and communication profiles
+- `backups\` — timestamped copies of `desk.db`
+- the settings store written by `tauri-plugin-store`
+
+The program folder (`%LOCALAPPDATA%\MoveUp\`) holds only the application
+itself, so reinstalling never touches your data.
 
 ## Uninstall
 
-To remove zntlDesk:
+1. Open **Settings** → **Apps** → **Installed apps**.
+2. Find **MoveUp** in the list.
+3. Click it and select **Uninstall**.
 
-1. Go to **Settings** → **Apps** → **Apps & Features**
-2. Find **zntlDesk** in the list
-3. Click it and select **Uninstall**
-4. Follow the uninstall wizard
+Your session data is **not** deleted. To remove it too:
 
-**Note:** Your session data will NOT be deleted. To remove it manually:
-1. Close zntlDesk
-2. Delete the folder: `C:\Users\[YourUsername]\AppData\Local\zntlDesk\`
+1. Quit MoveUp from the tray icon.
+2. Delete the folder `%APPDATA%\io.zntl.desk\`.
 
 ## Troubleshooting Installation
 
-### "Administrator privileges required"
+### The app reports no sensor
 
-Right-click the installer and select **Run as administrator**.
+Check the USB cable before anything else — on this board the cable is the most
+common cause by a wide margin.
 
-### "Cannot find sensor hardware"
+**Cable sensitivity — most USB-C cables do NOT work with this board.**
+The XIAO ESP32-C3 uses *native* USB (no CH340/CP2102 bridge), so it is far
+pickier than a classic Arduino. Three overlapping causes, all observed
+2026-09-06:
 
-If you have a desk height sensor but zntlDesk doesn't detect it:
-1. Check the USB cable connection
-2. Open Device Manager (search in Start Menu)
-3. Look for "XIAO ESP32" or "COM3" in ports
-4. If missing, install USB drivers from Seeed Studio
+1. Charge-only cables (VBUS+GND, no D+/D-) — board lights up, host sees
+   nothing, and Windows enumerates **zero** COM ports.
+2. C-to-C links depend on the board's 5.1k CC resistors; flipping the plug 180°
+   or using an A-to-C cable often fixes a link that refuses to come up.
+3. Voltage drop on thin (28 AWG) or long cables — the ESP32-C3 plus VL53L1X
+   browns out mid-enumeration, producing a `DEVICE connected` / `DEVICE lost`
+   loop within the same second, audible as repeated Windows plug/unplug chimes.
+
+Diagnosis order when the app reports no sensor: check for a COM port at all
+(`HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`; empty = cable or power, not software),
+then check `events.log` for connect/lost churn. Prefer a short (<=1 m) A-to-C
+cable straight into the motherboard, bypassing USB hubs.
+
+If a COM port does appear and the sensor is still not found, see
+[Support — Sensor not detected](./USER_SUPPORT.md#issue-sensor-not-detected).
 
 ### "Installer won't run"
 
-- Windows Defender may block it. Click "More info" → "Run anyway"
-- Disable antivirus temporarily
-- Try downloading again from GitHub
+- Windows SmartScreen blocks unsigned installers. Click **More info** →
+  **Run anyway**.
+- Your antivirus may quarantine the file — allow it, or download again from
+  the [releases page](https://github.com/zentala/MoveUp/releases).
 
 ## Next Steps
 
-After installation, see:
-- **[Settings](./USER_SUPPORT.md#settings)** — Configure desk height, break intervals
-- **[Updates](./USER_UPDATES.md)** — How auto-updates work
-- **[Privacy](./PRIVACY.md)** — Your data stays local
+- **[Settings](./USER_SUPPORT.md#settings)** — desk calibration, break interval
+- **[Updates](./USER_UPDATES.md)** — how to install a new version
+- **[Privacy](./PRIVACY.md)** — what MoveUp stores and what leaves your machine
+- **[Remote Display](./REMOTE_DISPLAY.md)** — optional phone dashboard
 
 ## Getting Help
 
-If installation fails or you need help:
-1. Check **[Support](./USER_SUPPORT.md)** for common issues
-2. Report a problem on [GitHub Issues](https://github.com/zentala/zntl-tray/issues)
+1. Check **[Support](./USER_SUPPORT.md)** for common problems.
+2. Open an issue: <https://github.com/zentala/MoveUp/issues>
