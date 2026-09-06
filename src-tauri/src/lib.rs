@@ -54,6 +54,8 @@ mod overlay_renderer;
 mod overlay_standing;
 #[cfg(test)] mod overlay_standing_tests;
 mod overlay_variants;
+pub mod release_store;
+#[cfg(test)] mod release_store_tests;
 mod remote_display_state;
 mod remote_server;
 #[cfg(test)] mod remote_server_tests;
