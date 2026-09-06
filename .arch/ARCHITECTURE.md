@@ -173,6 +173,43 @@ Source: `session_manager.rs`, `session_reading.rs`, `session_daily.rs`,
 `session_breaks.rs`, `session_persistence.rs`,
 [E020](../.plan/epics/E020-2026-09-06-engine-pure-core/PLAN.md).
 
+## Release Store and Supervision Boundary
+
+The installed app is not supervised by itself. PM3 runs the loop; MoveUp keeps
+the builds and says which one is healthy. The line between them is fixed in
+[ADR 018](ADR/018-pm3-app-ownership-split.md):
+
+| Owner | Owns |
+|-------|------|
+| **PM3** | poll, restart, two-miss rule at 60s spacing, stand-down, demotion and promotion, login start |
+| **MoveUp** | the release store, the `last-known-good` marker, the ordered candidate list, the health contract, the `--minimized` launch flag |
+
+Three file contracts cross that boundary, laid out in
+[ADR 019](ADR/019-release-store-layout.md):
+
+```
+%LOCALAPPDATA%\MoveUp\releases\<version>\   one directory per build, 3 retained
+%LOCALAPPDATA%\MoveUp\last-known-good       names the version that passed the probe
+%LOCALAPPDATA%\MoveUp\candidates            newest → last-known-good → next older
+```
+
+A build is good only when the process stayed alive 30s **and**
+`GET http://127.0.0.1:<DESK_REMOTE_PORT>/display/api` returned JSON — process-alive
+alone would promote a build that starts and never serves. Pruning never removes
+the build named by `last-known-good`.
+
+Two consequences worth knowing before touching this code. `setup_remote_display`
+runs unconditionally (`setup_helpers.rs:67`), so the dev build and the installed
+build both serve port 3390 and both share the `io.zntl.desk` singleton — which is
+why occupancy is detected by the health check answering, never by a Windows API.
+And `/display/api` is now a supervision interface, not just the remote display's
+endpoint: changing its path, port default or response shape breaks rollback with
+no compiler error.
+
+Supervision itself (`pm3.yaml`, demotion wiring, retiring the `Run` key) is
+blocked on PM3 gaining candidate lists — see
+[E014](../.plan/epics/E014-2026-09-05-supervised-release-rollback/PLAN.md).
+
 ## Key Architectural Decisions
 
 | Decision | Rationale | Reference |
@@ -187,6 +224,8 @@ Source: `session_manager.rs`, `session_reading.rs`, `session_daily.rs`,
 | **One composition point for today's totals** | Three stores each hold part of today; composing them per call site let the startup cache seed `position_changes: 0` | E019, ADR 014 |
 | **Rust generates the TypeScript DTOs** | Hand-typed mirrors of the wire format drifted silently; ts-rs turns a renamed Rust field into a `pnpm typecheck` failure | E018, ADR 017 |
 | **Pure engine, impure adapters** | The engine reading its own clock made midnight and DST untestable; config copied into state made profile hot-reload a no-op; tray re-derivation let two consumers disagree | E020, ADR 015 |
+| **PM3 supervises, the app defines health** | A private watchdog would put a second supervisor on a machine where PM3 owns long-lived processes, and every future app would rewrite the same rollback logic | E014, ADR 018 |
+| **Versioned release store, 3 retained** | Overwriting the single installed build leaves nothing to fall back to; "process alive" would promote a build that starts and never serves | E014, ADR 019 |
 
 ## Native UI Elements (WinAPI, outside Tauri)
 
