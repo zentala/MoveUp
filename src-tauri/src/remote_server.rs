@@ -14,7 +14,6 @@ use axum::{Json, Router};
 use tokio::sync::broadcast;
 use crate::communication_policy::CommunicationPolicy;
 use crate::db::TodaySummary;
-use crate::metrics::MetricEngine;
 use crate::session::SessionManager;
 use crate::ws_broadcaster::{DisplayEvent, RemoteDisplayState};
 
@@ -155,38 +154,10 @@ async fn api_handler(State(state): State<RemoteState>) -> Json<serde_json::Value
 }
 
 /// Builds the full [`RemoteDisplayState`] for initial WS handshake or REST.
-/// Uses `unwrap_or_else` for mutex poison recovery (read-only, safe).
-fn build_remote_display_state(state: &RemoteState) -> RemoteDisplayState {
-    let session_mgr = state
-        .session
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    let snapshot = session_mgr.snapshot();
-
-    let now = chrono::Utc::now();
-    let mut raw = session_mgr.state.clone();
-    raw.sitting_seconds_total = session_mgr.get_live_sitting_seconds_total(now);
-    raw.standing_seconds = session_mgr.get_live_standing_seconds(now);
-    drop(session_mgr);
-
-    let ergo = state.comm_policy
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .ergo_profile()
-        .clone();
-
-    let metrics = MetricEngine::with_defaults().compute_all(&raw, &ergo);
-    let today = state
-        .today_cache
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone();
-
-    RemoteDisplayState {
-        session: snapshot,
-        metrics,
-        today,
-    }
+/// The derivation itself lives in [`crate::remote_display_state`], shared with
+/// the tray tick so the two paths cannot drift apart.
+pub(crate) fn build_remote_display_state(state: &RemoteState) -> RemoteDisplayState {
+    crate::remote_display_state::build(&state.session, &state.comm_policy, &state.today_cache)
 }
 
 /// Dev mode fallback — returns helpful HTML when Vite proxy not yet set up.
