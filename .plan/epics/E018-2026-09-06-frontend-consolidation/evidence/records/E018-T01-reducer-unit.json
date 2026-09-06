@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E018-T01",
+  "check_id": "reducer-unit",
+  "class": "test",
+  "timestamp": "2026-09-06T12:09:01.001Z",
+  "command_digest": "sha256:a2cb05ff223f1c4946c1b3d61244c87c995c1cf51adc2911dda2ba010be9f7f2",
+  "result": "pass",
+  "duration_ms": 5324,
+  "source_commit": "076062f58f154ea112a3753ded2980bb5f472769",
+  "source_fingerprint": "sha256:f0d0c4c5ba4de5b0c3ff322c8d679bd0713eb2cfb05f263857feb1f9b47d556e"
+}

@@ -182,3 +182,43 @@ tasks independently re-verified on `main` afterward (533 Rust + 3
 integration + 261 TS tests). Both root causes filed to
 `dispatch.internal/.plan/BACKLOG.md` as gaps in AO's `executor_result_error`
 classification.
+
+## E018 — Frontend consolidation (2026-09-06)
+
+Plan: [PLAN.md](./epics/E018-2026-09-06-frontend-consolidation/PLAN.md) ·
+Handoff: [HANDOFF.md](./epics/E018-2026-09-06-frontend-consolidation/HANDOFF.md) ·
+Journal: [JOURNAL.md](./epics/E018-2026-09-06-frontend-consolidation/JOURNAL.md)
+
+Two hooks (`useDesk`, `useRemoteDesk`) duplicated one state machine at
+0.78% coverage, five pre-OneBar components stayed built and tested despite
+being dead, Rust DTOs were hand-copied into TypeScript with no codegen or
+drift check, the coverage gate declared in `vite.config.ts` was never
+actually invoked by any script, and E012's last three tasks (Analyst layout
+flip, Recharts KPI donuts, a pulse highlight) had never landed. E018 closed
+all of it: a shared `deskReducer` behind thin Tauri/WS adapters, the five
+dead components deleted, ts-rs codegen wired end to end (`.arch/ADR/017`),
+ESLint installed and configured, the coverage gate wired into `pnpm build`
+for real, and E012's three remaining UI tasks implemented under E018's own
+numbering (`.arch/ADR/016` for Recharts).
+
+Ran through the Agent Orchestrator (`E018-20260906-1209`) with three
+write_set widenings and one transient flake, none a worker mistake: T03
+correctly deleted a dead component's *two* test files but the plan only
+declared one; T02's ts-rs codegen legitimately touched 18 files across
+Rust and TypeScript that the plan's narrow write_set never anticipated
+(confirmed by diffing every violated path before widening); T10 needed its
+new dependency's lockfile, a forgotten test sibling, and a genuine
+`CLAUDE.md` documentation update. T05's `pnpm build` verification failed
+once from build-cache contention with a parallel worker and passed clean on
+a bare re-run. Promoted at `7566de7`; all 11 tasks independently
+re-verified on `main` (534 Rust + 3 integration + 304 TS tests).
+
+All three "Outside AO" items were closed in the same session: the
+`browser` agent confirmed all four UI checkpoints for the new Analyst
+layout (date header/nav, sticky day-nav, three donut KPI cards, and a
+pulse on day-change, verified via `MutationObserver`) against `pnpm dev`'s
+mockup route rather than the live Tauri window, honestly recorded as such
+since the live window needs a physical sensor this session did not have;
+the coverage-threshold call (decision D4) was surfaced as a dated code
+comment plus a `.plan/BACKLOG.md` follow-up rather than decided silently,
+since T05 could not reach the original 80/80/75% target within budget.

@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E018-T08",
+  "check_id": "ux-flow-synced",
+  "class": "manual",
+  "timestamp": "2026-09-06T12:10:39.056Z",
+  "command_digest": "sha256:8cb4be8da46bd226a59af597be7c992355b7610dd77b634ee656063116dd27b2",
+  "result": "pass",
+  "duration_ms": 80,
+  "source_commit": "076062f58f154ea112a3753ded2980bb5f472769",
+  "source_fingerprint": "sha256:f0d0c4c5ba4de5b0c3ff322c8d679bd0713eb2cfb05f263857feb1f9b47d556e"
+}

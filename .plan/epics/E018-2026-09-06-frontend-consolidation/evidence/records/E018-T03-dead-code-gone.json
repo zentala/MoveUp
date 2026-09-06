@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E018-T03",
+  "check_id": "dead-code-gone",
+  "class": "test",
+  "timestamp": "2026-09-06T12:09:12.754Z",
+  "command_digest": "sha256:bbf158588311acb98cdd2fbb64ae490fcc5efdee1cb1930bd6ffb83f728f1d3e",
+  "result": "pass",
+  "duration_ms": 266,
+  "source_commit": "076062f58f154ea112a3753ded2980bb5f472769",
+  "source_fingerprint": "sha256:f0d0c4c5ba4de5b0c3ff322c8d679bd0713eb2cfb05f263857feb1f9b47d556e"
+}

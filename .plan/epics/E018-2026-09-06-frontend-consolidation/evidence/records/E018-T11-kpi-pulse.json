@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E018-T11",
+  "check_id": "kpi-pulse",
+  "class": "test",
+  "timestamp": "2026-09-06T12:11:17.199Z",
+  "command_digest": "sha256:cd2f87a2770c2de606b58cf7c0ed75487f70891d167e33ed6e72a04b3511ab80",
+  "result": "pass",
+  "duration_ms": 3076,
+  "source_commit": "076062f58f154ea112a3753ded2980bb5f472769",
+  "source_fingerprint": "sha256:f0d0c4c5ba4de5b0c3ff322c8d679bd0713eb2cfb05f263857feb1f9b47d556e"
+}

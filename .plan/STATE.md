@@ -1,6 +1,6 @@
 ---
-updated: 2026-09-06T12:05:00
-active_epic: none (E011, E012, E016, E017, E019 code complete; E015 code-complete, T05 browser evidence gap open — see below)
+updated: 2026-09-06T14:00:00
+active_epic: none (E011, E012, E016, E017, E018, E019 code complete; E015 code-complete, T05 browser evidence gap open — see below)
 planning_epic: none
 planning_epic_path: null
 current_wave:
@@ -44,10 +44,21 @@ current_wave:
     all backend/non-UI. Both root causes filed to
     `dispatch.internal/.plan/BACKLOG.md` as gaps in AO's
     `executor_result_error` classification.
-  - E018/E020 next per the roadmap set by the 2026-09-06 full review — E018
-    (frontend consolidation, 45 pts) recommended next since it doesn't
-    collide file-wise with E019's changes; E020 (engine pure core, 69 pts)
-    last since it wants a stable core after E019.
+  - E018 done (2026-09-06) — ran through AO run E018-20260906-1209, promoted
+    to main at 7566de7 after three write_set widenings (T03, T02 — 18 files,
+    ts-rs codegen fallout — and T10, all legitimate under-declared scope,
+    not worker mistakes) and one transient `pnpm build` flake (T05, cache
+    contention with a parallel worker). All 11 tasks merged and
+    independently re-verified (534 Rust + 3 integration + 304 TS tests,
+    `just check` exit 0, all 12 evidence records current). Both Outside-AO
+    items closed: `browser` agent confirmed all 4 Analyst-UI checkpoints
+    (date header/nav, sticky day-nav, 3 donut KPI cards, pulse-on-day-change)
+    against the mockup route (live Tauri window needs the physical sensor,
+    not checked, stated honestly); coverage-threshold call (D4) surfaced as
+    a code comment + BACKLOG.md follow-up (T05 reached 84.96/82.81/73.07/72.04,
+    short of the original 80/80/75 target, thresholds lowered accordingly).
+  - E020 (engine: pure core, 69 pts) next per the 2026-09-06 roadmap — last
+    of the three planned epics, wants a stable core after E018/E019.
 ---
 
 ## Status

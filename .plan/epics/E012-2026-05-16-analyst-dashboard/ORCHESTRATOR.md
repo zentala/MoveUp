@@ -47,6 +47,14 @@
 - IMPROVEMENTS.md triaged with zentala (deferred items → `.plan/IMPROVEMENTS.md` or dropped)
 - `.arch/HISTORY.md` (if exists in apps/desk/.arch/) gets E012 summary line
 
+## Follow-on
+
+E012's last 3 planned tasks (layout flip, Recharts donut KPIs, pulse
+highlight — originally `E012-T09`/`T10`/`T11`) were implemented by
+[E018](../E018-2026-09-06-frontend-consolidation/PLAN.md) (2026-09-06,
+`E018-T09`/`T10`/`T11`) rather than under this epic's own numbering; E016's
+close-out ceremony still owns marking E012 itself done.
+
 ## Subagent prompt template
 
 ```

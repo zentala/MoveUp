@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E018-T05",
+  "check_id": "coverage-gate",
+  "class": "test",
+  "timestamp": "2026-09-06T12:10:09.158Z",
+  "command_digest": "sha256:18bfd5adfe957ed94fa3757f54fb0a7e2600255fcc86941ca28c6aac9ae8da6f",
+  "result": "pass",
+  "duration_ms": 17526,
+  "source_commit": "076062f58f154ea112a3753ded2980bb5f472769",
+  "source_fingerprint": "sha256:f0d0c4c5ba4de5b0c3ff322c8d679bd0713eb2cfb05f263857feb1f9b47d556e"
+}

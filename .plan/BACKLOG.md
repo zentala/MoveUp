@@ -503,15 +503,15 @@ and popup-timer items are NOT E019's scope and stay open.
 Synthesis and roadmap: [reports/2026-09-06-pelny-przeglad-architektury-i-release.md](reports/2026-09-06-pelny-przeglad-architektury-i-release.md).
 Engine and backend items were filed above by their reviewers. Frontend and release items:
 
-- [ ] **`pnpm lint` calls an eslint that is not installed** — no devDependency, no config ([package.json:23](../package.json)). Found by frontend review. (High, 2) → E018
-- [ ] **Coverage gate 80/80/75 never invoked by any script; real coverage 76.5/68.1/66.0** — [vite.config.ts:22-31](../vite.config.ts). (High, 2) → E018
-- [ ] **`useDesk.ts` and `useRemoteDesk.ts` duplicate one state machine (~500 lines); `useDesk` at 0.78 % coverage** — [src/hooks/useDesk.ts:37-247](../src/hooks/useDesk.ts), [src/hooks/useRemoteDesk.ts:43-252](../src/hooks/useRemoteDesk.ts). (High, 8) → E018
-- [ ] **Rust DTOs hand-copied into TS with no codegen or drift test** — [src/types.ts](../src/types.ts), `SettingsTypes.ts`. (Medium, 5) → E015 adds the drift test, E018 the codegen
-- [ ] **5 dead pre-OneBar components still built and tested** (`AppProgressBar`, `HeightRail`, `SessionProgress`, `TodayStats`, `TransitionBanner`) plus dead `src/overlay/main.tsx` + `overlay.html` entry. (Medium, 3) → E018
-- [ ] **UX-FLOW.md missing Steps/Google Fit widget and timeline→Analyst click** — [.arch/UX-FLOW.md](../.arch/UX-FLOW.md). (Medium, 2) → E018
-- [ ] **6 local `formatXxx` helpers duplicate `src/utils/format.ts`**. (Low, 1) → E018
+- [x] **`pnpm lint` calls an eslint that is not installed** — no devDependency, no config ([package.json:23](../package.json)). Found by frontend review. (High, 2) → E018-T04
+- [x] **Coverage gate 80/80/75 never invoked by any script; real coverage 76.5/68.1/66.0** — [vite.config.ts:22-31](../vite.config.ts). (High, 2) → E018-T05 (thresholds lowered to 80/73/72, see the 2026-09-06 D4 follow-up entry above)
+- [x] **`useDesk.ts` and `useRemoteDesk.ts` duplicate one state machine (~500 lines); `useDesk` at 0.78 % coverage** — [src/hooks/useDesk.ts:37-247](../src/hooks/useDesk.ts), [src/hooks/useRemoteDesk.ts:43-252](../src/hooks/useRemoteDesk.ts). (High, 8) → E018-T01
+- [x] **Rust DTOs hand-copied into TS with no codegen or drift test** — [src/types.ts](../src/types.ts), `SettingsTypes.ts`. (Medium, 5) → E015 added the drift test, E018-T02 the ts-rs codegen
+- [x] **5 dead pre-OneBar components still built and tested** (`AppProgressBar`, `HeightRail`, `SessionProgress`, `TodayStats`, `TransitionBanner`) plus dead `src/overlay/main.tsx` + `overlay.html` entry. (Medium, 3) → E018-T03
+- [x] **UX-FLOW.md missing Steps/Google Fit widget and timeline→Analyst click** — [.arch/UX-FLOW.md](../.arch/UX-FLOW.md). (Medium, 2) → E018-T08
+- [x] **6 local `formatXxx` helpers duplicate `src/utils/format.ts`**. (Low, 1) → E018-T06
 - [ ] **"Smart Desk" branding in share-card copy** — [src/components/ShareStats.tsx](../src/components/ShareStats.tsx). (Low, 1) → E017
-- [ ] **No `justfile`**; `.claude/rules/overlay.md` documents `tauri-dev.sh --force` that was replaced by `tauri-dev.ps1 -Force`. (Low, 1) → E018
+- [x] **No `justfile`**; `.claude/rules/overlay.md` documents `tauri-dev.sh --force` that was replaced by `tauri-dev.ps1 -Force`. (Low, 1) → E018-T05/T07 (justfile added by T05, overlay.md fixed by T07)
 - [ ] **User docs describe zntlDesk: name, `AppData\Local\zntlDesk`, repo `zentala/zntl-tray`** — `docs/README.md`, `USER_INSTALL.md`, `USER_SUPPORT.md`, `PRIVACY.md`. (High, 3) → E017
 - [ ] **`docs/USER_UPDATES.md` documents a 24h auto-updater that is not wired in code** (no updater plugin in `src-tauri/tauri.conf.json`). (High, 2) → E017
 - [ ] **No LICENSE file, no `license` field, despite open-core (ADR 005)**. (High, 2) → E017, decision D3

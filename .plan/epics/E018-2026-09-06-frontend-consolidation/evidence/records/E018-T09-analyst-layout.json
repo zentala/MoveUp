@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E018-T09",
+  "check_id": "analyst-layout",
+  "class": "test",
+  "timestamp": "2026-09-06T12:10:50.824Z",
+  "command_digest": "sha256:bc4155df1e75ea173658b466bf9187c765f9287bd22902ca244ae5ebcf7f658f",
+  "result": "pass",
+  "duration_ms": 2209,
+  "source_commit": "076062f58f154ea112a3753ded2980bb5f472769",
+  "source_fingerprint": "sha256:f0d0c4c5ba4de5b0c3ff322c8d679bd0713eb2cfb05f263857feb1f9b47d556e"
+}

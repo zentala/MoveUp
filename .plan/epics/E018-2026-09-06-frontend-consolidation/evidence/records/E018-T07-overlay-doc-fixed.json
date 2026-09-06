@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E018-T07",
+  "check_id": "overlay-doc-fixed",
+  "class": "manual",
+  "timestamp": "2026-09-06T12:10:30.783Z",
+  "command_digest": "sha256:0abd8b1f11a069f5ff2233dd4ae8c4504f8ba4680052eb14acd3b6666279f00f",
+  "result": "pass",
+  "duration_ms": 85,
+  "source_commit": "076062f58f154ea112a3753ded2980bb5f472769",
+  "source_fingerprint": "sha256:f0d0c4c5ba4de5b0c3ff322c8d679bd0713eb2cfb05f263857feb1f9b47d556e"
+}

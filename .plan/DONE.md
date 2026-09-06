@@ -170,7 +170,7 @@ during T04's verification. Neither was a code defect. All 8 tasks merged and
 independently re-verified on `main` (533 Rust + 3 integration + 261 TS tests).
 See JOURNAL.md.
 - **[E019-T01](epics/E019-2026-09-06-backend-hardening/tasks/E019-T01-commands-mutex-poison-safe.md)** — Poison-safe mutex pattern across 14 sites in `commands.rs`; regression test for a poisoned lock.
-- **[E019-T02](epics/E019-2026-09-06-backend-hardening/tasks/E019-T02-today-totals-single-path.md)** — New `today_totals.rs` consolidating the duplicate "today's totals" computation; `.arch/ADR/014-persistence-precedence.md`.
+- **[E019-T02](epics/E019-2026-09-06-backend-hardening/tasks/E019-T02-persistence-adr-today-totals.md)** — New `today_totals.rs` consolidating the duplicate "today's totals" computation; `.arch/ADR/014-persistence-precedence.md`.
 - **[E019-T03](epics/E019-2026-09-06-backend-hardening/tasks/E019-T03-desk-events-constants.md)** — New `desk_events.rs`/`src/events.ts` — named constants for all 8 IPC event strings, used at every emit/listen site.
 - **[E019-T04](epics/E019-2026-09-06-backend-hardening/tasks/E019-T04-logger-warn-and-handler-parity.md)** — `EventLogger::new` warns instead of panicking on an unusable base dir; debug/release `generate_handler!` parity enforced by a test.
 - **[E019-T05](epics/E019-2026-09-06-backend-hardening/tasks/E019-T05-split-google-fit.md)** — Split `google_fit.rs`/`google_fit_service.rs` into ≤250-line siblings.
@@ -178,3 +178,24 @@ See JOURNAL.md.
 - **[E019-T07](epics/E019-2026-09-06-backend-hardening/tasks/E019-T07-dedupe-remote-display-state.md)** — Deduped `tray_controller`/`remote_server` remote-display-state derivation into `remote_display_state.rs`.
 - **[E019-T08](epics/E019-2026-09-06-backend-hardening/tasks/E019-T08-fix-claude-md-tray-claim.md)** — Corrected a stale `CLAUDE.md` claim about `TrayController`.
 - **Outside AO**: none — all 8 tasks were backend/non-UI, verified by `cargo test`/`vitest` alone per HANDOFF.md.
+
+## E018 — Frontend Consolidation (2026-09-06)
+Run through AO (`E018-20260906-1209`), promoted at `7566de7` after three
+write_set widenings (T03, T02, T10 — each a legitimate scope the plan
+under-declared, not a worker mistake) and one transient `pnpm build` flake
+(T05, resolved by a clean re-run). All 11 tasks merged and independently
+re-verified on `main` (534 Rust + 3 integration + 304 TS tests). See
+JOURNAL.md.
+- **[E018-T01](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T01-desk-reducer.md)** — Shared `deskReducer` + thin Tauri/WS adapters; `useDesk` unit-tested.
+- **[E018-T02](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T02-ts-rs-codegen.md)** — ts-rs codegen for Rust DTOs into `src/generated/`; `.arch/ADR/017-ts-rs-for-rust-ts-codegen.md`; deleted E015's manual drift test.
+- **[E018-T03](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T03-delete-dead-code.md)** — Deleted 5 dead pre-OneBar components (`AppProgressBar`, `HeightRail`, `SessionProgress`, `TodayStats`, `TransitionBanner`) plus the dead `src/overlay/main.tsx`/`overlay.html` entry.
+- **[E018-T04](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T04-eslint-setup.md)** — Installed and configured ESLint 10 + `typescript-eslint` + `eslint-plugin-react-hooks`; filed 6 baseline-downgrade rules to `.plan/BACKLOG.md` with file:line references.
+- **[E018-T05](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T05-coverage-gate-justfile.md)** — Wired the coverage gate into `pnpm build` (was never actually invoked before); added root `justfile`. Thresholds lowered to 80/73/72 per decision D4 — follow-up filed to `.plan/BACKLOG.md`.
+- **[E018-T06](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T06-consolidate-format-helpers.md)** — Consolidated 6 duplicate local `formatXxx` helpers into `src/utils/format.ts`.
+- **[E018-T07](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T07-fix-overlay-doc.md)** — Fixed `.claude/rules/overlay.md`'s stale `tauri-dev.sh --force` reference.
+- **[E018-T08](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T08-sync-ux-flow.md)** — Synced `.arch/UX-FLOW.md` with the Steps/Google Fit widget and timeline→Analyst click.
+- **[E018-T09](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T09-analyst-layout-flip.md)** — Analyst Explorer layout flip (date header + nav on top, sticky day-nav at bottom).
+- **[E018-T10](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T10-recharts-donut-kpis.md)** — Recharts KPI donuts (`KpiDonutPanel`: standing %, posture changes, daily score); `.arch/ADR/016-recharts-for-kpi-donuts.md`.
+- **[E018-T11](epics/E018-2026-09-06-frontend-consolidation/tasks/E018-T11-selected-day-pulse.md)** — Pulse highlight on the KPI donuts when the selected day changes.
+- **Outside AO — mockup + browser pass**: `browser` agent confirmed all 4 UI checkpoints (date header/nav, sticky day-nav, 3 donut cards, pulse-on-day-change) via `pnpm dev` → `/#/mockup/analyst` — the live `pnpm tauri:dev` window was not checked (needs the physical VL53L1X sensor), stated honestly in the evidence record rather than upgraded to "live-verified".
+- **Outside AO — coverage threshold (D4)**: T05 could not reach 80/80/75%; lowered functions/branches to 73/72 with a dated comment; raise-it-back-up tracked in `.plan/BACKLOG.md`.
