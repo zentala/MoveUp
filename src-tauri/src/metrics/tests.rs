@@ -27,7 +27,6 @@ mod tests {
             standing_session_secs: 0,
             standing_session_started: None,
             lap_bonus_awarded_for_lap: 0,
-            current_session_secs: 0,
             continuous_computer_secs: 0,
             longest_computer_session_secs: 0,
             away_bout_secs: 0,

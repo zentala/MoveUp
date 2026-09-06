@@ -51,7 +51,6 @@ mod tests {
         assert_eq!(m.state.sitting_seconds, 1800);
         assert_eq!(m.state.standing_seconds, 600);
         assert_eq!(m.state.position_changes, 3);
-        assert_eq!(m.state.current_session_secs, 0);
 
         transition_to(&mut m, DeskState::Sitting, SIT_MM, true);
         simulate_elapsed(&mut m, 10 * 60);

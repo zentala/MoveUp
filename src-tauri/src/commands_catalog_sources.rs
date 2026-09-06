@@ -76,7 +76,7 @@ pub(super) fn snapshots_source() -> DataSource {
             f("idle_secs", "i64", "Seconds since last input."),
             f("away_bout_secs", "i64", "Current away bout length."),
             f("continuous_computer_secs", "i64", "Time at computer (sitting + standing)."),
-            f("current_session_secs", "i64", "Length of active session."),
+            f("secs_since_last_break", "i64", "Seconds since last position change (debug only)."),
             f("standing_session_secs", "i64", "Length of active standing session."),
             f("connected", "bool", "Sensor connected at sample time."),
             f("port", "string", "COM port name."),

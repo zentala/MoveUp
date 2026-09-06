@@ -127,7 +127,7 @@ mod tests {
                 limit_used_secs: 100,
                 daily_score: 10.0,
                 standing_session_secs: 0,
-                current_session_secs: 100,
+                secs_since_last_break: 100,
                 continuous_computer_secs: 150,
                 longest_computer_session_secs: 150,
                 sitting_seconds_total: 100,

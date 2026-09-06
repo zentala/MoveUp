@@ -54,11 +54,11 @@ mod timer_tests {
     }
 
     #[test]
-    fn t042_04_restart_from_db_seeds_sitting_session_zero() {
+    fn e015_t042_04_restart_from_db_seeds_credited_counter() {
         let mut m = SessionManager::new();
         m.load_today_totals(&crate::db_sessions::TodayTotals::from_secs(1800, 600));
         assert_eq!(m.state.sitting_seconds, 1800);
-        assert_eq!(m.state.current_session_secs, 0);
+        assert_eq!(m.snapshot().limit_used_secs, 1800);
     }
 
     #[test]
@@ -72,14 +72,19 @@ mod timer_tests {
     // ─── State Transitions (tests 6–11) ──────────────────────────────────
 
     #[test]
-    fn t042_06_sitting_to_standing_resets_session_starts_break() {
+    fn e015_t042_06_sitting_to_standing_keeps_credited_secs_starts_break() {
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
         m.state.sitting_seconds = 1200;
-        m.state.current_session_secs = 1200;
         m.state.sitting_started = Some(Utc::now());
         transition_to_standing(&mut m);
-        assert_eq!(m.state.current_session_secs, 0);
+        // Standing up does not zero the counter — only break credit reduces it,
+        // and that is applied when the user sits back down.
+        assert!(
+            m.state.sitting_seconds >= 1200,
+            "expected >= 1200, got {}",
+            m.state.sitting_seconds
+        );
         assert!(m.state.break_started.is_some());
     }
 
@@ -97,7 +102,7 @@ mod timer_tests {
     }
 
     #[test]
-    fn t042_08_short_standing_no_credit_session_zero() {
+    fn e015_t042_08_short_standing_no_credit_keeps_sitting_secs() {
         // Break must be < BREAK_MIN_SECS (60s) to get None. Use 30s.
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
@@ -106,7 +111,12 @@ mod timer_tests {
         transition_to_standing(&mut m);
         m.state.break_started = Some(Utc::now() - chrono::Duration::seconds(30));
         transition_to_sitting(&mut m);
-        assert_eq!(m.state.current_session_secs, 0);
+        // A 30 s break is under BREAK_MIN_SECS: no credit, and nothing resets.
+        assert!(
+            m.state.sitting_seconds >= 1500,
+            "expected >= 1500, got {}",
+            m.state.sitting_seconds
+        );
         assert_eq!(m.state.last_break_credit, BreakCredit::None);
     }
 
