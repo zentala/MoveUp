@@ -79,6 +79,74 @@ mod day_break_tests {
     }
 
     #[test]
+    fn day_break_reset_is_callable_on_its_own() {
+        // The reset was extracted out of `apply_break_credit` (E020-T03); it
+        // must stand alone, and it must NOT touch the sitting countdown that
+        // Session Break Credit owns.
+        let mut m = SessionManager::new();
+        m.state.sitting_seconds = 1234;
+        m.notify_posture_balance_fired = true;
+        m.state.daily_score = 42.0;
+
+        m.apply_day_break_reset(21600);
+
+        assert!(!m.notify_posture_balance_fired);
+        assert_eq!(m.state.daily_score, 0.0);
+        assert!(m.day_break_applied);
+        assert_eq!(
+            m.state.sitting_seconds, 1234,
+            "day break reset must not subtract sitting seconds"
+        );
+        assert_eq!(
+            m.state.last_break_credit,
+            BreakCredit::None,
+            "day break reset must not set a session credit verdict"
+        );
+    }
+
+    #[test]
+    fn day_break_reset_below_threshold_is_a_no_op() {
+        let mut m = SessionManager::new();
+        m.notify_posture_balance_fired = true;
+        m.state.daily_score = 42.0;
+
+        m.apply_day_break_reset(21599);
+
+        assert!(m.notify_posture_balance_fired);
+        assert_eq!(m.state.daily_score, 42.0);
+        assert!(!m.day_break_applied);
+    }
+
+    #[test]
+    fn session_credit_still_applies_alongside_day_break_reset() {
+        // Both must run for one long break: seconds subtracted AND flags reset.
+        let mut m = SessionManager::new();
+        m.state.sitting_seconds = 1800;
+        m.notify_posture_balance_fired = true;
+
+        m.apply_break_credit(21600);
+
+        assert_eq!(m.state.sitting_seconds, 0);
+        assert_eq!(m.state.last_break_credit, BreakCredit::Full);
+        assert!(!m.notify_posture_balance_fired);
+        assert!(m.day_break_applied);
+    }
+
+    #[test]
+    fn short_break_reaches_neither_credit_nor_day_reset() {
+        let mut m = SessionManager::new();
+        m.state.sitting_seconds = 1800;
+        m.notify_posture_balance_fired = true;
+
+        m.apply_break_credit(1); // below break_min_secs
+
+        assert_eq!(m.state.sitting_seconds, 1800);
+        assert_eq!(m.state.last_break_credit, BreakCredit::None);
+        assert!(m.notify_posture_balance_fired);
+        assert!(!m.day_break_applied);
+    }
+
+    #[test]
     fn posture_balance_requires_minimum_sitting_total() {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Sitting;
