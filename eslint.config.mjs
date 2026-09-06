@@ -49,7 +49,7 @@ export default tseslint.config(
     // .plan/BACKLOG.md ("ESLint baseline downgrades", E018-T04, 2026-09-06).
     files: ["src/**/*.{ts,tsx}"],
     rules: {
-      "react-hooks/rules-of-hooks": "warn",
+      "react-hooks/rules-of-hooks": "error",
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/immutability": "error",
       "react-hooks/purity": "error",

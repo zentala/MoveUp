@@ -800,13 +800,20 @@ because they flag pre-existing code in files that task could not touch. They
 are warnings, not disables — `pnpm lint` still prints all 27 of them. Tighten
 each back to `"error"` once its sites are fixed.
 
-- [ ] **`react-hooks/rules-of-hooks` → error** — 8 sites, 2 real patterns:
-  `src/App.tsx:53` (hooks called after `import.meta.env.DEV` hash-route early
-  returns at `src/App.tsx:31-52`) and `src/hooks/useDeskAuto.ts:21,23`
-  (`useDesk()` vs `useRemoteDesk()` chosen by a module-level `isTauri`
-  constant). The `useDeskAuto` case is stable in practice but the App.tsx one
-  is not — the hash can change without a reload. Fix: hoist the mockup routes
-  above `App`, and make `useDeskAuto` call both hooks or split the component.
+- [x] **`react-hooks/rules-of-hooks` → error** — fixed 2026-09-06.
+  `App.tsx`: split into a hookless `App()` router (the `#/analyst`,
+  `#/mockup/analyst`, `#/mockup` early returns) and a new `MainApp()` that
+  holds every hook, called unconditionally from the router's default branch
+  ([src/App.tsx:28-60](../src/App.tsx)) — no more hooks called after a
+  conditional early return. `useDeskAuto.ts`: left the two call sites as
+  conditional (deliberately, with an inline `eslint-disable-next-line` and a
+  comment) rather than calling both hooks unconditionally — `isTauri` is a
+  module-level constant fixed for the component's whole lifetime, so the hook
+  order never actually changes at runtime, while calling both would open a
+  real WebSocket (`useRemoteDesk`) inside the Tauri build or fire Tauri IPC
+  (`useDesk`) inside the browser build — a behavior change, not a lint fix
+  ([src/hooks/useDeskAuto.ts:19-32](../src/hooks/useDeskAuto.ts)). Rule is now
+  `"error"` in [eslint.config.mjs](../eslint.config.mjs).
   (Importance: Medium, Points: 3)
 - [ ] **`react-hooks/set-state-in-effect` → error** — 8 sites:
   `src/analyst/charts/TimelineDetail.tsx:118`,

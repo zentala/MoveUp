@@ -17,8 +17,17 @@ const isTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
  * - Browser/kiosk -> useRemoteDesk() (WebSocket)
  */
 export function useDeskAuto(): UseDeskResult {
+  // `isTauri` is a module-level constant resolved once at load time (see
+  // above) and never changes across renders, so this component's hook count
+  // and order are stable for its whole lifetime — the one case where a
+  // conditional hook call is safe. Calling both hooks unconditionally would
+  // open a real WebSocket connection (useRemoteDesk) even in the Tauri build,
+  // or issue Tauri IPC calls (useDesk) in the browser build, which is a
+  // behavior change, not a lint fix.
   if (isTauri) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     return useDesk();
   }
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   return useRemoteDesk();
 }

@@ -25,6 +25,11 @@ const MockupGallery = lazy(() => import("@/pages/MockupGallery"));
 const AnalystMockup = lazy(() => import("@/pages/AnalystMockup"));
 const AnalystLive = lazy(() => import("@/pages/AnalystLive"));
 
+/**
+ * Root router — decides which page to render based on `window.location.hash`.
+ * Calls no hooks itself, so it never risks changing the hook count of a
+ * conditional branch across renders (react-hooks/rules-of-hooks).
+ */
 export default function App() {
   // PROD/DEV: /#/analyst — live Analyst window backed by Tauri commands
   if (window.location.hash === "#/analyst") {
@@ -50,6 +55,11 @@ export default function App() {
       </Suspense>
     );
   }
+  return <MainApp />;
+}
+
+/** The main desk-tracker UI — all hooks live here, called unconditionally. */
+function MainApp() {
   const [showSettings, setShowSettings] = useState(false);
   const { widgetProps, wsConnected, sensorConnected } = useWidgetData(() => setShowSettings(true));
   const isRemote = !isTauri;
