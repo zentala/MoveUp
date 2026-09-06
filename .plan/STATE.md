@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-06T07:40:00
+updated: 2026-09-06T08:03:55
 active_epic: none (E011, E012, E016, E017 code complete; E015 code-complete, T05 browser evidence gap open — see below)
 planning_epic: none
 planning_epic_path: null
