@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-06T02:30:52
+updated: 2026-09-06T04:07:09
 active_epic: none (E011 and E012 code complete; E011 close-out ceremony pending, see E016 in reports/2026-09-06-pelny-przeglad-architektury-i-release.md)
 planning_epic: E015
 planning_epic_path: .plan/epics/E015-2026-09-06-engine-single-truth
