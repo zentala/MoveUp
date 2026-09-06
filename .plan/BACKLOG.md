@@ -815,7 +815,16 @@ each back to `"error"` once its sites are fixed.
   ([src/hooks/useDeskAuto.ts:19-32](../src/hooks/useDeskAuto.ts)). Rule is now
   `"error"` in [eslint.config.mjs](../eslint.config.mjs).
   (Importance: Medium, Points: 3)
-- [ ] **`react-hooks/set-state-in-effect` → error** — 8 sites:
+- [ ] **`react-hooks/set-state-in-effect` → error** — left as `"warn"`
+  2026-09-06 (session that closed the other 5 rules in this list): checked
+  all 8 sites and every one is the ordinary "fetch/poll in an effect, setState
+  on the result" pattern — Tauri `invoke()` results, WS connection status, a
+  1-minute UI tick — not a bug. This React-Compiler-era rule flags that whole
+  category, so "fixing" it means restructuring 8 independent components
+  around a different async-data-loading convention (e.g. a shared `useAsync`
+  hook) app-wide, which is a real architectural change, not a lint fix — out
+  of scope for a "close 4 backlog items" session per the confidence/points
+  gate in `~/.claude/rules/todo-format.md`. 8 sites:
   `src/analyst/charts/TimelineDetail.tsx:118`,
   `src/analyst/hooks/useDataCatalog.ts:43`,
   `src/analyst/hooks/useRangeQuery.ts:54`,
