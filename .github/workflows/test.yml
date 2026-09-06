@@ -24,55 +24,48 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10.12.1
+          run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "pnpm"
-          cache-dependency-path: "apps/desk/pnpm-lock.yaml"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Install dependencies (Frontend)
-        working-directory: apps/desk
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck (TypeScript)
-        working-directory: apps/desk
         run: pnpm typecheck
 
       - name: Lint (ESLint)
-        working-directory: apps/desk
         run: pnpm lint
 
       - name: Frontend Unit Tests
-        working-directory: apps/desk
         run: pnpm test:unit
 
       - name: Frontend Coverage Check
-        working-directory: apps/desk
         run: pnpm test:coverage
         continue-on-error: false
 
       - name: Rust Unit Tests
-        working-directory: apps/desk
         run: pnpm test:unit:rust
 
       - name: Build Frontend
-        working-directory: apps/desk
         run: pnpm build
 
       - name: Build Tauri (Debug)
-        working-directory: apps/desk
         run: pnpm tauri build --debug
         if: runner.os == 'Windows'
 
       - name: Upload Coverage Reports
         uses: codecov/codecov-action@v3
         with:
-          files: ./apps/desk/coverage/coverage-final.json
+          files: ./coverage/coverage-final.json
           flags: frontend
           name: desk-frontend
           fail_ci_if_error: false
@@ -88,9 +81,9 @@ jobs:
 
       - name: Check Integration Test Structure
         run: |
-          test -f apps/desk/tests/integration/session-flow.test.ts
-          test -f apps/desk/tests/integration/device-reconnect.test.ts
-          test -f apps/desk/tests/integration/setup.ts
+          test -f tests/integration/session-flow.test.ts
+          test -f tests/integration/device-reconnect.test.ts
+          test -f tests/integration/setup.ts
           echo "✓ Integration tests structure verified"
 
       - name: Note on Integration Tests
@@ -106,7 +99,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run cargo audit
-        working-directory: apps/desk
+        working-directory: src-tauri
         run: |
           cargo install cargo-audit
           cargo audit
@@ -114,7 +107,7 @@ jobs:
 
       - name: Check for hardcoded secrets
         run: |
-          if grep -r "password\|token\|secret\|api_key" apps/desk/src --include="*.rs" --include="*.tsx" --include="*.ts" \
+          if grep -r "password\|token\|secret\|api_key" src src-tauri/src --include="*.rs" --include="*.tsx" --include="*.ts" \
             --exclude-dir=node_modules --exclude-dir=.git | grep -v "test\|mock\|example"; then
             echo "⚠️ Possible hardcoded credentials found"
             exit 1
@@ -133,7 +126,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run Benchmarks
-        working-directory: apps/desk
+        working-directory: src-tauri
         run: cargo bench --bench session_state_machine -- --verbose
         continue-on-error: true
 
@@ -141,10 +134,10 @@ jobs:
         if: always()
         run: |
           mkdir -p benchmark-results
-          cp -r apps/desk/target/criterion benchmark-results/ || true
+          cp -r src-tauri/target/criterion benchmark-results/ || true
 
       - name: Upload Benchmark Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: benchmark-results
@@ -166,14 +159,14 @@ jobs:
         run: cargo install cargo-mutants
 
       - name: Run Mutation Tests
-        working-directory: apps/desk
+        working-directory: src-tauri
         run: |
           cargo mutants --tests --timeout 10 --jobs 4 2>&1 | tee mutation-results.txt || true
         continue-on-error: true
 
       - name: Parse Mutation Results
         if: always()
-        working-directory: apps/desk
+        working-directory: src-tauri
         run: |
           echo "## Mutation Testing Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -184,11 +177,11 @@ jobs:
           fi
 
       - name: Upload Mutation Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: mutation-results
-          path: apps/desk/mutation-results.txt
+          path: src-tauri/mutation-results.txt
           retention-days: 7
 
   status:
