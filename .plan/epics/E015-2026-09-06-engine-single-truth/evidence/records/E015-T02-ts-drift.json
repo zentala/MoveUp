@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E015-T02",
+  "check_id": "ts-drift",
+  "class": "test",
+  "timestamp": "2026-09-06T03:23:31.886Z",
+  "command_digest": "sha256:2b503f2a5668775827f51800b24e5e4343a1c00979bbdbbdf1adf58d1e0bbb80",
+  "result": "pass",
+  "duration_ms": 1710,
+  "source_commit": "7a8bbf31057189f911baf26298893020d5376c53",
+  "source_fingerprint": "sha256:fd00c871029a7ceb823a8e47a0fbc2f6847809808b148015017e6fcf35611275"
+}

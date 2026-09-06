@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E015-T01",
+  "check_id": "credit-dto",
+  "class": "test",
+  "timestamp": "2026-09-06T03:22:29.890Z",
+  "command_digest": "sha256:4fdc4e0732ef6c1ecb4241237d37fb8e43b8cda4a9678d1f530be2ad5dd39fdb",
+  "result": "pass",
+  "duration_ms": 14430,
+  "source_commit": "7a8bbf31057189f911baf26298893020d5376c53",
+  "source_fingerprint": "sha256:fd00c871029a7ceb823a8e47a0fbc2f6847809808b148015017e6fcf35611275"
+}

@@ -8,3 +8,4 @@ src-tauri/target/
 .build-sizes.json
 .build-log.txt
 .plan/sessions/
+.plan/epics/*/evidence/.local/
