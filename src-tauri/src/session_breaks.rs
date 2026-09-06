@@ -177,8 +177,12 @@ impl SessionManager {
         if pn.posture_balance_enabled
             && !self.notify_posture_balance_fired
         {
+            // Both sides raw (E015-T03). `sitting_seconds` is credited: a user
+            // who takes breaks drives it down, so comparing it against raw
+            // standing time made the notification unreachable for exactly the
+            // people whose balance it reports.
             if self.state.sitting_seconds_total >= self.state.posture_balance_min_sitting_secs
-                && self.state.sitting_seconds > self.state.standing_seconds * 2
+                && self.state.sitting_seconds_total > self.state.standing_seconds * 2
             {
                 self.notify_posture_balance_fired = true;
                 events.push(NotificationEvent::PostureBalance);
