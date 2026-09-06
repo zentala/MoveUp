@@ -119,10 +119,13 @@ impl SessionManager {
     /// Each second of break cancels `break_credit_multiplier` seconds of sitting.
     /// E.g., with multiplier 2.0: 10 min break cancels 20 min sitting.
     /// Breaks under `break_min_secs` get no credit.
-    /// Parameters come from the ergonomic profile (configurable per profile).
+    ///
+    /// Thresholds are read from [`SessionManager::limits`] — the live ergonomic
+    /// profile, refreshed every tick — not from `SessionState`, so a profile
+    /// edited on disk applies to the next credit without an app restart.
     pub fn apply_break_credit(&mut self, break_secs: i64) {
-        let min_secs = self.state.break_min_secs;
-        let multiplier = self.state.break_credit_multiplier.clamp(0.0, 10.0);
+        let min_secs = self.limits.break_min_secs as i64;
+        let multiplier = self.limits.break_credit_multiplier.clamp(0.0, 10.0);
         if break_secs < min_secs {
             self.state.last_break_credit = BreakCredit::None;
             return;
@@ -139,7 +142,7 @@ impl SessionManager {
         // Day Break Credit: long breaks (e.g. sleep) reset notification flags
         // and daily_score for a fresh motivational start.
         // Does NOT reset daily KPI counters (sitting_seconds_total, standing_seconds, etc.).
-        let day_min = self.state.day_break_min_secs;
+        let day_min = self.limits.day_break_min_secs as i64;
         if day_min > 0 && break_secs >= day_min {
             log::info!(
                 "Day break credit: {}s break >= {}s threshold — resetting flags and score",
@@ -192,7 +195,8 @@ impl SessionManager {
             // who takes breaks drives it down, so comparing it against raw
             // standing time made the notification unreachable for exactly the
             // people whose balance it reports.
-            if self.state.sitting_seconds_total >= self.state.posture_balance_min_sitting_secs
+            if self.state.sitting_seconds_total
+                >= self.limits.posture_balance_min_sitting_secs as i64
                 && self.state.sitting_seconds_total > self.state.standing_seconds * 2
             {
                 self.notify_posture_balance_fired = true;

@@ -1,6 +1,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use log::info;
 
+use crate::ergonomic_profile::{ErgonomicProfile, Limits};
 use crate::height_stabilizer::HeightStabilizer;
 use crate::hourly_break_tracker::HourlyBreakTracker;
 use crate::session_types::*;
@@ -8,6 +9,15 @@ use crate::session_types::*;
 /// Owns `SessionState` and drives state transitions.
 pub struct SessionManager {
     pub state: SessionState,
+    /// Ergonomic limits currently in force — configuration, never state.
+    ///
+    /// Every engine function that needs a threshold reads it from here rather
+    /// than from [`SessionState`], and adapters refresh it from the active
+    /// profile on each tick ([`SessionManager::set_limits`]). Before E020-T02
+    /// these values were copied into `SessionState` at construction and never
+    /// re-read, so editing an ergonomic profile on disk changed nothing until
+    /// the app restarted.
+    pub limits: Limits,
     pub(crate) pending_state: Option<DeskState>,
     pub(crate) pending_count: u8,
     pub sitting_height_cm: f32,
@@ -67,14 +77,9 @@ impl SessionManager {
                 hourly_breaks_covered: 0,
                 hourly_breaks_active: 0,
                 sitting_seconds_total: 0,
-                break_min_secs: BREAK_MIN_SECS,
-                break_credit_multiplier: BREAK_CREDIT_MULTIPLIER as f32,
-                day_break_min_secs: DAY_BREAK_MIN_SECS,
-                posture_balance_min_sitting_secs: POSTURE_BALANCE_MIN_SITTING_SECS,
-                max_continuous_computer_secs: 3600,
-                computer_break_reset_secs: 300,
                 idle_secs: 0,
             },
+            limits: Limits::default(),
             pending_state: None,
             pending_count: 0,
             sitting_height_cm: 72.0,
@@ -131,14 +136,9 @@ impl SessionManager {
                 hourly_breaks_covered: 0,
                 hourly_breaks_active: 0,
                 sitting_seconds_total: 0,
-                break_min_secs: ergo.limits.break_min_secs as i64,
-                break_credit_multiplier: ergo.limits.break_credit_multiplier,
-                day_break_min_secs: ergo.limits.day_break_min_secs as i64,
-                posture_balance_min_sitting_secs: ergo.limits.posture_balance_min_sitting_secs as i64,
-                max_continuous_computer_secs: ergo.limits.max_continuous_computer_secs as i64,
-                computer_break_reset_secs: ergo.limits.computer_break_reset_secs as i64,
                 idle_secs: 0,
             },
+            limits: ergo.limits.clone(),
             pending_state: None,
             pending_count: 0,
             sitting_height_cm: config.sitting_mm as f32 / 10.0,
@@ -169,6 +169,23 @@ impl SessionManager {
             "seeded today totals: sitting={}s standing={}s changes={}",
             totals.sitting_secs, totals.standing_secs, totals.position_changes
         );
+    }
+
+    /// Replaces the ergonomic limits in force, taking effect on the next tick.
+    ///
+    /// Adapters call this with the profile they already loaded for the tick
+    /// (`serial_periodic.rs`) or right after a hot-reload
+    /// (`profile_reload.rs`), so a profile edited on disk changes break credit,
+    /// PostureBalance and the computer-time reset without an app restart.
+    /// `session_limit_secs`/`stand_limit_secs` are deliberately untouched — the
+    /// user can override those at runtime through settings.
+    pub fn set_limits(&mut self, limits: &Limits) {
+        self.limits = limits.clone();
+    }
+
+    /// Replaces the ergonomic limits from a whole profile.
+    pub fn set_ergo_profile(&mut self, ergo: &ErgonomicProfile) {
+        self.set_limits(&ergo.limits);
     }
 
     /// Updates the sitting session limit (minutes -> seconds).
@@ -203,7 +220,7 @@ impl SessionManager {
             sitting_seconds_total: self.get_live_sitting_seconds_total(now),
             idle_secs: self.state.idle_secs,
             away_bout_secs: self.state.away_bout_secs,
-            max_continuous_computer_secs: self.state.max_continuous_computer_secs,
+            max_continuous_computer_secs: self.limits.max_continuous_computer_secs as i64,
         }
     }
 

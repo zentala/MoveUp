@@ -9,20 +9,8 @@ use serde::{Deserialize, Serialize};
 pub const DEBOUNCE_COUNT: u8 = 5;
 /// Default session sitting limit (45 minutes in seconds).
 pub const DEFAULT_SESSION_LIMIT_SECS: i64 = 2700;
-/// Default minimum break duration before any credit applies (1 minute).
-/// Overridden by ergonomic profile `limits.break_min_secs`.
-pub const BREAK_MIN_SECS: i64 = 60;
-/// Default break credit multiplier: 1 sec break cancels this many secs sitting.
-/// Overridden by ergonomic profile `limits.break_credit_multiplier`.
-pub const BREAK_CREDIT_MULTIPLIER: f64 = 2.0;
 /// Gap between sensor readings that indicates machine sleep/suspend (5 minutes).
 pub const SLEEP_GAP_THRESHOLD_SECS: i64 = 300;
-/// Default minimum break to trigger day-level reset (6 hours).
-/// Overridden by ergonomic profile `limits.day_break_min_secs`.
-pub const DAY_BREAK_MIN_SECS: i64 = 21600;
-/// Default minimum sitting_seconds_total before PostureBalance fires (6 hours).
-/// Overridden by ergonomic profile `limits.posture_balance_min_sitting_secs`.
-pub const POSTURE_BALANCE_MIN_SITTING_SECS: i64 = 21600;
 /// Maximum reasonable session duration (3 hours). Longer durations indicate
 /// the app survived a sleep/suspend without the rewind in on_reading() firing.
 pub const MAX_REASONABLE_SESSION_SECS: i64 = 3 * 3600;
@@ -76,6 +64,14 @@ pub enum NotificationEvent {
 // ─── Structs ─────────────────────────────────────────────────────────────────
 
 /// Full session state, managed by `SessionManager`.
+///
+/// **State only — never configuration.** Ergonomic limits
+/// (`break_min_secs`, `break_credit_multiplier`, `day_break_min_secs`,
+/// `posture_balance_min_sitting_secs`, `max_continuous_computer_secs`,
+/// `computer_break_reset_secs`) used to be copied in here at construction and
+/// never refreshed, which silently disabled ergonomic-profile hot-reload. They
+/// now live in [`crate::session_manager::SessionManager::limits`], refreshed
+/// from the active profile every tick. Do not add a config field here.
 #[derive(Debug, Clone)]
 pub struct SessionState {
     pub state: DeskState,
@@ -135,18 +131,6 @@ pub struct SessionState {
     /// Raw total sitting seconds today — never reduced by break credit.
     /// Used by standing_pct metric for accurate KPI (sitting_seconds is modified by break credit).
     pub sitting_seconds_total: i64,
-    /// Minimum break duration (seconds) before credit applies. From ergonomic profile.
-    pub break_min_secs: i64,
-    /// Break credit multiplier. Each sec of break cancels this many secs of sitting.
-    pub break_credit_multiplier: f32,
-    /// Minimum break to trigger day-level reset (seconds). From ergonomic profile.
-    pub day_break_min_secs: i64,
-    /// Minimum sitting_seconds_total before PostureBalance notification fires.
-    pub posture_balance_min_sitting_secs: i64,
-    /// Maximum continuous computer time (from ergonomic profile).
-    pub max_continuous_computer_secs: i64,
-    /// Away duration to reset continuous computer timer (from ergonomic profile).
-    pub computer_break_reset_secs: i64,
     /// Current system idle time in seconds (refreshed every tick from activity.rs).
     pub idle_secs: i64,
 }
