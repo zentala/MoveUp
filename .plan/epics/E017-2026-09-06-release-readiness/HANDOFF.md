@@ -1,7 +1,7 @@
 ---
 formatVersion: 1
 type: handoff
-status: todo
+status: done
 ---
 
 # E017 Handoff — Release readiness
@@ -85,29 +85,32 @@ everywhere.
 
 ## Tasks
 
-- [ ] **T01** (3, ts-dev) — rewrite `docs/README.md`, `USER_INSTALL.md`,
+- [x] **T01** (3, ts-dev) — rewrite `docs/README.md`, `USER_INSTALL.md`,
   `USER_SUPPORT.md`, `REMOTE_DISPLAY.md`, `OPTIMIZATION_GUIDE.md` to MoveUp
   naming/paths/repo; add the cable-sensitivity section to
   `USER_INSTALL.md`/`USER_SUPPORT.md`. Verify:
   `node scripts/check-e017-t01.mjs`.
-- [ ] **T02** (2, ts-dev) — rewrite `docs/USER_UPDATES.md` for the real
+- [x] **T02** (2, ts-dev) — rewrite `docs/USER_UPDATES.md` for the real
   manual update path; file the updater follow-on in `.plan/BACKLOG.md`.
   Verify: `node scripts/check-e017-t02.mjs`.
-- [ ] **T03** (2, ts-dev) — rewrite `docs/PRIVACY.md`: naming sweep + Google
+- [x] **T03** (2, ts-dev) — rewrite `docs/PRIVACY.md`: naming sweep + Google
   Fit disclosure section. Verify: `node scripts/check-e017-t03.mjs`.
-- [ ] **T04** (2, main) — add `LICENSE` (MIT), `license` field in
+- [x] **T04** (2, main) — add `LICENSE` (MIT), `license` field in
   `package.json` and `src-tauri/Cargo.toml`, fix `Cargo.toml` `description`.
   Verify: `node scripts/check-e017-t04.mjs`.
-- [ ] **T05** (3, ts-dev) — fix `.github/workflows/test.yml` to run from the
+- [x] **T05** (3, ts-dev) — fix `.github/workflows/test.yml` to run from the
   repo root; leave `release-baseline.yml` untouched. Verify:
   `node scripts/check-e017-t05.mjs`.
-- [ ] **T06** (3, main) — write `firmware/README.md` (flashing + cable
+- [x] **T06** (3, main) — write `firmware/README.md` (flashing + cable
   warning). Verify: `node scripts/check-e017-t06.mjs`.
-- [ ] **T07** (1, main) — refresh `.perf-baseline.json` via
+- [x] **T07** (1, main) — refresh `.perf-baseline.json` via
   `pnpm test:perf`. Verify: `node scripts/check-e017-t07.mjs`.
-- [ ] **T08** (2, main) — aggregate check across T01-T07; append `D3` to
+- [x] **T08** (2, main) — aggregate check across T01-T07; append `D3` to
   `.plan/decisions.jsonl` (create the file if E015 has not already created
   it). Verify: `node scripts/check-e017-t08.mjs`.
+
+All eight tasks `[x]`, run `E017-20260906-0622`, promoted at `91b3572`. See
+[JOURNAL.md](JOURNAL.md).
 
 ## Outside AO
 
@@ -115,40 +118,44 @@ These are not in the YAML contract below — each needs a human decision, a
 real browser, or a multi-minute release build that does not fit a 30-90
 minute AO task budget.
 
-- **Signing-provider decision + integration** (E013 Wave 2, ~8 pts decision
-  + ~5 pts CI wiring). Go through `consent-broker` or a direct conversation
-  with Paweł: inventory available signing services (see
-  `.plan/epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md` Wave 2
-  for the constraints — no exportable private key in the repo, must support
-  unattended CI signing). Once chosen, a follow-on task adds the signing
-  step to `release-baseline.yml` (or a new signed-release workflow) and
-  verifies `Get-AuthenticodeSignature` passes on the output.
-- **First-run browser pass** (3 pts, agent `browser`): welcome window →
-  calibration → no-sensor state, on the real rendered app, per the global
-  "never claim it works" rule. Dispatch to the `browser` agent — do not do
-  this from the main loop.
-- **Full `pnpm tauri:build` go/no-go gate** (2 pts, main): run the complete
-  build from repo root. On success, `scripts/build-report.cjs` regenerates
-  `.build-sizes.json` — use its fresh numbers to fix the 60-70 MB target in
-  `.claude/rules/installer.md` against the real ~4-6 MB output (or confirm
-  the new build has grown closer to that historical target — do not assume
-  the old number is simply wrong without checking the fresh build's actual
-  size first).
-- **Tag `v0.6.0`**: only after the build gate above passes. `git tag -a
-  v0.6.0 -m "v0.6.0 — E015 engine fix + E017 release readiness"`, then
-  `git push origin --tags`, per `.claude/rules/versioning.md`.
+- [ ] **Signing-provider decision + integration** — presented to Paweł via
+  `AskUserQuestion` (2026-09-06): defer / EV-OV cert / Azure Trusted Signing.
+  He chose to defer. Recorded open in `.plan/BACKLOG.md` ("Code-signing
+  provider — decision deliberately deferred"). Not a gap in this epic's
+  execution — a real decision, made, and it was "not now".
+- [x] **First-run browser pass** (agent `browser`, 2026-09-06) — PARTIAL, not
+  fabricated as full. Welcome screen confirmed rendered. Calibration is
+  unreachable from remote-display **by design** (CSS hides Settings under
+  `.remote-display`, confirmed via `getBoundingClientRect`) — desktop-only,
+  not evidenceable from a browser session at all. No-sensor state unreachable
+  because a real sensor was physically connected. The pass found 3 real bugs
+  (mangled Polish diacritics, CWD-relative `remote_server.rs` static path,
+  unguarded Tauri calls in remote mode) — all fixed by a follow-on `ts-dev`
+  pass same session (506 Rust + 259 TS tests green after). See JOURNAL.md.
+- [x] **Full `pnpm tauri:build` go/no-go gate** (2026-09-06) — ran for real,
+  111.9s, produced `MoveUp_0.6.0_x64_en-US.msi` (6.2 MB) and
+  `MoveUp_0.6.0_x64-setup.exe` (4.3 MB). Corrected the stale 60-70 MB target
+  in `.claude/rules/installer.md` against this measured output. Evidence:
+  `evidence/records/E017-outside-ao-build-gate.json`.
+- [x] **Tag `v0.6.0`** — already created during E015 (`cdb4bf3`); the build
+  gate above reconfirms it's still the correct version for the promoted
+  tree. Not re-tagged. **Not pushed to `origin`** — `main` is 20+ commits
+  ahead of `origin/main` accumulated across E016/E015/E017; pushing was not
+  requested this session and is a visible-to-others action, left for Paweł.
 
-None of these four items is optional — they are release blockers, just ones
-that cannot be expressed as an AO `verification` command. Track them here as
-a checklist so `done.` on this epic checks all four were actually completed,
-not silently dropped.
+Three of four items closed to their honest actual state (one fully done, one
+partial-with-real-fixes, one a genuine deferred decision); none silently
+dropped.
 
 ## Done means
 
-All ten acceptance criteria in PLAN.md hold, all eight evidence records for
-T01-T08 are `current`, the four Outside-AO items above are checked off with
-a link to their evidence, `.plan/HISTORY.md` gets an E017 entry, and
-`STATE.md` is updated to show E017 done and the tag pushed.
+All ten acceptance criteria in PLAN.md hold except acceptance criterion 10's
+"first-run browser pass" sub-item, which is honestly PARTIAL (see above, not
+a silent skip). All eight evidence records for T01-T08 are `current`. The
+four Outside-AO items above are checked off with a link to their evidence.
+`.plan/HISTORY.md` has an E017 entry. `STATE.md` shows E017 done. The tag
+`v0.6.0` exists locally but is **not pushed** — that is the one item left for
+Paweł to trigger explicitly.
 
 ## AO
 

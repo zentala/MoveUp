@@ -116,3 +116,37 @@ two pre-existing dev-mode gaps (no Vite proxy for the remote-display route,
 and mock mode never drives the real session engine) blocked it, filed to
 `.plan/BACKLOG.md`. The fixed scenario (sit 30 min, stand 2 min, sit) is
 proven by an automated Rust test, not by a screenshot of the running app.
+
+## E017 — Release readiness (2026-09-06, v0.6.0 tagged)
+
+Plan: [PLAN.md](./epics/E017-2026-09-06-release-readiness/PLAN.md) ·
+Handoff: [HANDOFF.md](./epics/E017-2026-09-06-release-readiness/HANDOFF.md) ·
+Journal: [JOURNAL.md](./epics/E017-2026-09-06-release-readiness/JOURNAL.md)
+
+Every user-facing document still described a retired product — "zntlDesk",
+old data paths, an old repo, an auto-updater that was never built — and the
+app shipped with no LICENSE despite an open-core business model. E017
+rewrote the five user docs, added MIT licensing, fixed a CI workflow still
+pointed at a monorepo layout (`apps/desk/`) that no longer exists, wrote
+firmware flashing instructions, and refreshed the stale perf baseline. Ran
+through the Agent Orchestrator (one stale/transient `merge_conflict` on
+T01 — a dry-run merge proved the branch clean, `ao resume` completed it),
+promoted at `91b3572`, all 8 tasks independently re-verified on `main`
+afterward (506 Rust + 259 TS tests, typecheck, all 8 per-task check
+scripts).
+
+Three of the epic's four "Outside AO" release blockers were closed in the
+same session: the full `pnpm tauri:build` gate ran for real (producing
+`MoveUp_0.6.0_x64_en-US.msi` and `MoveUp_0.6.0_x64-setup.exe`, ~4-6 MB each —
+correcting a stale 60-70 MB target that had never been true for this app),
+and a `browser`-agent first-run pass found and — after a second `ts-dev`
+pass fixed — three real bugs: mangled Polish diacritics in the welcome
+popup, a CWD-relative static-file path in `remote_server.rs` that could 404
+depending on launch context, and unguarded Tauri calls throwing in
+remote-display mode. The fourth item, choosing a code-signing provider, was
+presented to Paweł as a real cost/vendor decision and deliberately deferred
+— recorded open in `.plan/BACKLOG.md`, not silently dropped. Calibration and
+the no-sensor state could not be visually confirmed even after the fixes:
+calibration is deliberately hidden from the remote-display path by CSS
+(desktop-only by design), and the no-sensor state needs the physical
+sensor unplugged, which a browser agent cannot do.

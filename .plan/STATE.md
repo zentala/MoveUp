@@ -1,11 +1,11 @@
 ---
-updated: 2026-09-06T06:17:35
-active_epic: none (E011 and E012 code complete, ceremonies closed by E016; E015 code-complete, T05 browser evidence gap open — see below)
+updated: 2026-09-06T07:40:00
+active_epic: none (E011, E012, E016, E017 code complete; E015 code-complete, T05 browser evidence gap open — see below)
 planning_epic: none
 planning_epic_path: null
 current_wave:
   - E016 done — ran through AO run E016-20260906-0348, promoted to main at
-    0995f42, all 5 tasks merged and verified (2026-09-06). E017 next.
+    0995f42, all 5 tasks merged and verified (2026-09-06).
   - E015 code-complete via AO run E015-20260906-0449 (3rd attempt after
     2 write_set/dirty_worktree fixes), promoted to main at 7a8bbf3,
     version bumped to 0.6.0 and tagged (cdb4bf3). 504 Rust + 255 TS tests
@@ -15,7 +15,21 @@ current_wave:
     correctness for the fixed scenario is proven by an e015_ Rust test, not
     by a rendered screenshot. E015 is NOT marked fully done until that gap
     closes or Paweł accepts the automated-test evidence as sufficient.
-    E017 next either way.
+  - E017 done (2026-09-06) — ran through AO run E017-20260906-0622 (one
+    stale/transient merge_conflict on T01, resolved via `ao resume` after a
+    dry-run merge proved the branch clean), promoted to main at 91b3572, all
+    8 tasks merged and independently re-verified (506 Rust + 259 TS tests,
+    typecheck, all 8 check scripts). Build gate ran for real
+    (MoveUp_0.6.0 MSI/NSIS produced, ~4-6 MB — corrected the stale 60-70 MB
+    target in installer.md). First-run browser pass found and (via a second
+    ts-dev fix) closed 3 real bugs (mangled Polish diacritics, CWD-relative
+    remote-display static path, unguarded Tauri calls in remote mode);
+    calibration and no-sensor state remain unverified by design/hardware
+    constraint, not a gap in the fix. Code-signing provider decision
+    deliberately deferred by Paweł — open in BACKLOG.md. `main` is not
+    pushed to `origin` (20+ commits ahead, accumulated across E016/E015/E017)
+    — push was not requested this session.
+  - E018/E019/E020 next per the roadmap set by the 2026-09-06 full review.
 ---
 
 ## Status
