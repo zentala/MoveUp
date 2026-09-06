@@ -32,7 +32,7 @@
 - [x] **Duplicate notifications on sit limit** — fixed: removed `notify: "popup"` from second escalation step in all profiles. Now only one toast fires at limit, visual-only escalation (blink+pulse) at +5 min.
 - [x] **Notification spam when ignored** — fixed: escalating cooldown (0→5m→15m→30m→silence), configurable per profile via `snooze.notify_cooldowns_secs`. Max 4 reminders, then silence until position change.
 - [x] **3 conflicting autostart registry entries** — removed `zntlDesk`, `Smart Desk`, `SmartDesk` from HKCU Run.
-- [ ] **`welcome.html` shows raw `\uXXXX` escapes instead of Polish diacritics**
+- [x] **`welcome.html` shows raw `\uXXXX` escapes instead of Polish diacritics**
   — the first-run welcome popup title renders literally as
   `Cześć! Jestem Twoim osobistym asystentem biurkowym.` instead of
   `Cześć! …` in the real rendered UI (verified via browser at
@@ -45,7 +45,14 @@
   Found 2026-09-06, E017 `first-run-browser` evidence check
   (`.plan/epics/E017-2026-09-06-release-readiness/PLAN.md:202`).
   (Importance: High, Points: 2)
-- [ ] **`remote_server.rs` frontend static path is CWD-relative and breaks
+  Fixed 2026-09-06: `WelcomePopup.tsx`'s JSX text nodes carried literal
+  `\uXXXX` byte sequences instead of decoded UTF-8 (only the curly-brace
+  `{"\uXXXX"}` emoji were real JS string escapes; plain JSX text like
+  `Cześć!` is never interpreted by JS, so it rendered as-is).
+  Rewrote the file with real UTF-8 Polish characters; added a test asserting
+  the rendered text contains `ś`/`ć` and no `\uXXXX` pattern
+  (`src/components/WelcomePopup.test.tsx`).
+- [x] **`remote_server.rs` frontend static path is CWD-relative and breaks
   outside one specific launch context** — `frontend_service()` in
   `src-tauri/src/remote_server.rs:205-209` defaults `DESK_REMOTE_DIST` to the
   literal string `"../../dist"`, resolved against the **process's current
@@ -60,7 +67,12 @@
   should not be relied on — this needs an absolute path derived from
   `std::env::current_exe()` (or a Tauri resource dir), not a relative guess.
   (Importance: High, Points: 3)
-- [ ] **`App.tsx` calls Tauri's `listen()` unconditionally — throws on every
+  Fixed 2026-09-06: added `default_dist_path()` in `remote_server.rs`, a pure
+  function deriving `<exe-parent>/dist` from `std::env::current_exe()`, used
+  only when `DESK_REMOTE_DIST` is unset (override still works). Tests in
+  `remote_server_tests.rs` assert the result is independent of
+  `std::env::current_dir()`.
+- [x] **`App.tsx` calls Tauri's `listen()` unconditionally — throws on every
   browser/remote-display load** — `src/App.tsx`'s
   `useEffect(() => { const unWidget = listen("desk:show-widget", ...); const
   unSettings = listen("desk:show-settings", ...); ... }, [])` is not gated by
@@ -76,6 +88,15 @@
   still renders), but both are unhandled exceptions on every phone/remote
   page load and should be guarded with `if (!isTauri) return;`.
   (Importance: Medium, Points: 3)
+  Fixed 2026-09-06: `App.tsx`'s tray-command `useEffect` now returns early
+  when `!isTauri` before calling `listen()`. `StepsWidget.tsx` gained its own
+  `isTauri` check (same `window.__TAURI_INTERNALS__` pattern as
+  `useDeskAuto.ts`), guards `invoke()` in both `loadCached` and `refresh`,
+  and renders a "Steps … not available" badge in remote mode instead of
+  attempting the call. Tests: `src/App.test.tsx` (new) asserts `listen()` is
+  not called without `__TAURI_INTERNALS__`; `StepsWidget.test.tsx` gained a
+  remote-mode describe block asserting the clean unavailable state and zero
+  `invoke()` calls.
 - [ ] **No `.gitattributes` — line endings depend on local `core.autocrlf`** — a
   fresh `git worktree add` checkout on this machine converted LF blobs to
   CRLF, which made 3 unrelated files (`.plan/.../HANDOFF.md`, its task file,
