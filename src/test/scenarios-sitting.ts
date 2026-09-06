@@ -12,7 +12,7 @@ export const S01_FRESH_START: Scenario = {
   context: "Morning, first launch of the day.",
   props: {
     connected: true, port: "COM3", state: "Sitting", deskHeightCm: 72,
-    currentSessionSecs: 0, limitSecs: 2400, standLimitSecs: 900,
+    limitUsedSecs: 0, limitSecs: 2400, standLimitSecs: 900,
     limitRemaining: 2400, limitRatio: 0, breakSecs: 0,
     breakResetThreshold: 600, breakResetProgress: 0,
     previousSession: null, todaySessions: [], todayChanges: 0,
@@ -29,7 +29,7 @@ export const S02_SITTING_GREEN: Scenario = {
   context: "Mid-morning, focused work.",
   props: {
     connected: true, port: "COM3", state: "Sitting", deskHeightCm: 72,
-    currentSessionSecs: 1200, limitSecs: 2400, standLimitSecs: 900,
+    limitUsedSecs: 1200, limitSecs: 2400, standLimitSecs: 900,
     limitRemaining: 1200, limitRatio: 0.5, breakSecs: 0,
     breakResetThreshold: 600, breakResetProgress: 0,
     previousSession: null,
@@ -53,7 +53,7 @@ export const S03_SITTING_YELLOW: Scenario = {
   context: "User should think about standing soon.",
   props: {
     connected: true, port: "COM3", state: "Sitting", deskHeightCm: 72,
-    currentSessionSecs: 2100, limitSecs: 2400, standLimitSecs: 900,
+    limitUsedSecs: 2100, limitSecs: 2400, standLimitSecs: 900,
     limitRemaining: 300, limitRatio: 0.875, breakSecs: 0,
     breakResetThreshold: 600, breakResetProgress: 0,
     previousSession: { state: "Standing", durationSecs: 600, wasEffective: true },
@@ -80,7 +80,7 @@ export const S04_SITTING_OVERTIME: Scenario = {
   context: "User should stand NOW. Alert popup may be showing.",
   props: {
     connected: true, port: "COM3", state: "Sitting", deskHeightCm: 72,
-    currentSessionSecs: 2700, limitSecs: 2400, standLimitSecs: 900,
+    limitUsedSecs: 2700, limitSecs: 2400, standLimitSecs: 900,
     limitRemaining: -300, limitRatio: 1.125, breakSecs: 0,
     breakResetThreshold: 600, breakResetProgress: 0,
     previousSession: { state: "Standing", durationSecs: 300, wasEffective: true },

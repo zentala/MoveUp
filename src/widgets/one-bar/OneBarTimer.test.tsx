@@ -15,7 +15,7 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     port: "COM3",
     state: "Sitting",
     deskHeightCm: 72.5,
-    currentSessionSecs: 600,
+    limitUsedSecs: 600,
     limitSecs: 2400,
     standLimitSecs: 900,
     limitRemaining: 1800,
@@ -46,7 +46,7 @@ describe("OneBarTimer — standing timer regression", () => {
           state: "Standing",
           breakSecs: 300,
           standLimitSecs: 900,
-          currentSessionSecs: 1500,
+          limitUsedSecs: 1500,
           limitSecs: 2700,
         })}
       />,
@@ -60,12 +60,12 @@ describe("OneBarTimer — standing timer regression", () => {
     expect(bigNum.textContent).not.toContain("45:00");
   });
 
-  it("sitting state shows currentSessionSecs / limitSecs", () => {
+  it("sitting state shows limitUsedSecs / limitSecs", () => {
     render(
       <OneBarTimer
         {...props({
           state: "Sitting",
-          currentSessionSecs: 1500,
+          limitUsedSecs: 1500,
           limitSecs: 2700,
           breakSecs: 300,
           standLimitSecs: 900,
@@ -111,7 +111,7 @@ describe("OneBarTimer — standing timer regression", () => {
           state: "Away",
           breakSecs: 720,
           standLimitSecs: 900,
-          currentSessionSecs: 1800,
+          limitUsedSecs: 1800,
           limitSecs: 2400,
         })}
       />,
@@ -142,7 +142,7 @@ describe("OneBarTimer — standing timer regression", () => {
           state: "Walking",
           breakSecs: 600,
           standLimitSecs: 900,
-          currentSessionSecs: 2000,
+          limitUsedSecs: 2000,
           limitSecs: 2400,
         })}
       />,
@@ -172,7 +172,7 @@ describe("OneBarTimer — standing timer regression", () => {
         {...props({
           state: "Sitting",
           limitRemaining: -300,
-          currentSessionSecs: 2700,
+          limitUsedSecs: 2700,
           limitSecs: 2400,
         })}
       />,

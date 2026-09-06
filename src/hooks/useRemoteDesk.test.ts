@@ -25,7 +25,7 @@ describe("useRemoteDesk", () => {
 
     expect(result.current.state).toBe("Sitting");
     expect(result.current.deskHeightCm).toBe(72.5);
-    expect(result.current.sittingSeconds).toBe(120);
+    expect(result.current.secsSinceLastBreak).toBe(120);
     expect(result.current.standingSeconds).toBe(60);
     expect(result.current.sessionLimitSecs).toBe(2700);
     expect(result.current.positionChanges).toBe(2);
@@ -50,6 +50,25 @@ describe("useRemoteDesk", () => {
     expect(result.current.breakSeconds).toBe(10);
     expect(result.current.positionChanges).toBe(3);
     expect(result.current.transition).not.toBeNull();
+  });
+
+  it("state-changed carries the credited counter, it never resets to 0", async () => {
+    const useRemoteDesk = await importHook();
+    const { result } = renderHook(() => useRemoteDesk());
+
+    const ws = MockWebSocket.latest();
+    ws.simulateOpen();
+
+    act(() => { ws.simulateMessage(makeSnapshot()); });
+    expect(result.current.limitUsedSecs).toBe(120);
+
+    act(() => {
+      ws.simulateMessage(
+        makeStateChanged({ state: "Sitting", limit_used_secs: 1500 }),
+      );
+    });
+
+    expect(result.current.limitUsedSecs).toBe(1500);
   });
 
   it("handles desk:device-connected and desk:device-lost", async () => {
@@ -124,12 +143,12 @@ describe("useRemoteDesk", () => {
     ws.simulateOpen();
 
     act(() => { ws.simulateMessage(makeSnapshot()); });
-    expect(result.current.sittingSeconds).toBe(120);
+    expect(result.current.secsSinceLastBreak).toBe(120);
     expect(result.current.dailyScore).toBe(5);
 
     act(() => { ws.simulateMessage({ event: "desk:daily-reset", payload: null }); });
 
-    expect(result.current.sittingSeconds).toBe(0);
+    expect(result.current.secsSinceLastBreak).toBe(0);
     expect(result.current.standingSeconds).toBe(0);
     expect(result.current.breakSeconds).toBe(0);
     expect(result.current.positionChanges).toBe(0);

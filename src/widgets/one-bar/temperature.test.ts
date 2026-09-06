@@ -11,7 +11,7 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     port: "COM3",
     state: "Sitting",
     deskHeightCm: 72.5,
-    currentSessionSecs: 600,
+    limitUsedSecs: 600,
     limitSecs: 2400,
     standLimitSecs: 900,
     limitRemaining: 1800,

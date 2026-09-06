@@ -25,7 +25,7 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
   const isSitting = props.state === "Sitting";
 
   // Standing/Walking/Away: show break duration & standing target
-  const elapsed = isSitting ? props.currentSessionSecs : props.breakSecs;
+  const elapsed = isSitting ? props.limitUsedSecs : props.breakSecs;
   const total = isSitting ? props.limitSecs : props.standLimitSecs;
 
   const elapsedStr = formatDuration(elapsed);
