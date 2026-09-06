@@ -3,9 +3,14 @@
 // logic, and the replacement text matches what the code actually does.
 //
 // The old sentence ("TrayController only executes signals — no decision logic")
-// was false: tray_controller.rs computes the policy inputs (elapsed seconds,
+// was false: tray_controller.rs computed the policy inputs (elapsed seconds,
 // standing laps, tooltip, sensor connectivity) and decides when to dismiss the
 // alert popup. tray_signal_exec.rs is the part that only executes.
+//
+// E020-T05 moved the derived values (elapsed seconds, the standing-lap trio)
+// into the engine — SessionManager::policy_input — so the code grounding below
+// now checks that the controller CALLS policy_input rather than computing the
+// laps itself. The doc claims stay the same: the controller is not the executor.
 import { existsSync, readFileSync } from "node:fs";
 
 const DOC = "CLAUDE.md";
@@ -49,9 +54,14 @@ if (!existsSync(CONTROLLER)) {
 } else {
   const src = readFileSync(CONTROLLER, "utf8");
   check(
-    "controller still computes inputs",
-    /fn compute_standing_lap/.test(src),
-    `${CONTROLLER} no longer defines compute_standing_lap`,
+    "controller still gathers this tick's inputs",
+    /session\.policy_input\(/.test(src),
+    `${CONTROLLER} no longer builds this tick's PolicyInput via session.policy_input()`,
+  );
+  check(
+    "controller no longer re-derives the standing lap",
+    !/fn compute_standing_lap/.test(src),
+    `${CONTROLLER} defines compute_standing_lap again — E020-T05 moved that into the engine`,
   );
   check(
     "controller still delegates to the executor",

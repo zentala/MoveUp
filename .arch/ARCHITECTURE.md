@@ -25,7 +25,8 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 │    ├── session_manager.rs  (state machine, score)            │
 │    ├── session_reading.rs  (reading processing)              │
 │    ├── session_breaks.rs   (break credit rules)              │
-│    └── session_persistence.rs (flag+credit store persist)    │
+│    ├── session_daily.rs    (local-day reset, score tick)     │
+│    └── session_persistence.rs (versioned engine snapshot)    │
 │       │                                                      │
 │       ├──→ db.rs / db_sessions.rs / db_queries.rs (SQLite)   │
 │       │                                                      │
@@ -144,6 +145,34 @@ Source: `session_types.rs`, `session_breaks.rs`,
 [ADR 008](ADR/008-proportional-break-credit.md) revision 2026-09-06,
 [E015](../.plan/epics/E015-2026-09-06-engine-single-truth/PLAN.md).
 
+## Session Engine (pure core)
+
+`SessionManager` and the `session_*.rs` modules are a pure core: they hold
+what happened, and take everything else as an argument. Four rules, recorded
+in [ADR 015](ADR/015-pure-ergo-engine.md):
+
+| Rule | In code |
+|------|---------|
+| **The caller owns the clock** | every stepping function has an `_at` variant taking `now: DateTime<Utc>` — `on_reading_at`, `check_daily_reset_at`, `needs_daily_reset_at`, `check_notification_conditions_at`, `accumulate_ongoing`, `handle_state_exit`, `policy_input`. The zero-argument names are one-line wrappers that read `Utc::now()` once and delegate; they and the adapters (`serial_periodic.rs`, `commands.rs::inject_reading`) are the only impure boundary. Tests call the `_at` form, so a midnight or DST instant is constructed, not waited for |
+| **A day is a local day** | the daily reset takes the local calendar date as an explicit argument, matching `session_persistence.rs` and `db_sessions.rs`. It used to compare UTC days, so the in-memory reset fired hours away from the persisted "today" |
+| **Config is borrowed, not copied into state** | `SessionState` holds no profile fields. `SessionManager.limits: Limits` is the one copy in force, refreshed each tick from the profile the serial loop already reloads (`set_limits`). A profile edit applies on the next tick; before this it silently needed a restart |
+| **The engine computes every derived value a UI reads** | `policy_input(now, sensor_connected)` fills the whole `PolicyInput`, standing-lap trio and `elapsed_secs` included. `tray_controller.rs` recomputes nothing — it passes the input to `CommunicationPolicy` and hands the returned `Signals` to `tray_signal_exec.rs` |
+
+Persistence follows from the same rule: one versioned
+`PersistedEngineState { schema_version, .. }` wraps `SessionState` plus the
+manager-level flags and `HourlyBreakTracker`, migrating a v0 (unversioned)
+file on load, instead of a second struct kept in sync by hand.
+
+"Break" names three unrelated things, kept apart and labelled — Session Break
+Credit (`[break:credit]`, [ADR 008](ADR/008-proportional-break-credit.md)),
+Day Break Credit (`[break:day]`, [ADR 009](ADR/009-day-break-credit.md)), and
+hourly break coverage (`[break:hourly]`, a KPI in `hourly_break_tracker.rs`).
+The table in `session_breaks.rs`'s module doc comment is the map.
+
+Source: `session_manager.rs`, `session_reading.rs`, `session_daily.rs`,
+`session_breaks.rs`, `session_persistence.rs`,
+[E020](../.plan/epics/E020-2026-09-06-engine-pure-core/PLAN.md).
+
 ## Key Architectural Decisions
 
 | Decision | Rationale | Reference |
@@ -157,6 +186,7 @@ Source: `session_types.rs`, `session_breaks.rs`,
 | **One credited session counter** | A second, uncredited counter let timer and colour disagree; deleting it makes the compiler enforce the rule | E015, ADR 008 |
 | **One composition point for today's totals** | Three stores each hold part of today; composing them per call site let the startup cache seed `position_changes: 0` | E019, ADR 014 |
 | **Rust generates the TypeScript DTOs** | Hand-typed mirrors of the wire format drifted silently; ts-rs turns a renamed Rust field into a `pnpm typecheck` failure | E018, ADR 017 |
+| **Pure engine, impure adapters** | The engine reading its own clock made midnight and DST untestable; config copied into state made profile hot-reload a no-op; tray re-derivation let two consumers disagree | E020, ADR 015 |
 
 ## Native UI Elements (WinAPI, outside Tauri)
 
