@@ -40,6 +40,8 @@ mod today_totals;
 mod desk_events;
 pub mod event_logger;
 mod height_stabilizer;
+pub mod last_known_good;
+#[cfg(test)] mod last_known_good_tests;
 mod hourly_break_tracker;
 mod metrics;
 mod notification_service;
