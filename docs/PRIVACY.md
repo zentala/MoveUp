@@ -1,151 +1,186 @@
 # Privacy Policy
 
-Your privacy is important. zntlDesk is designed to keep all your data local and private.
+MoveUp keeps your data on your computer. There is one exception — the optional
+Google Fit step-count integration — and this document describes it in full,
+along with every other place data can leave the app.
 
-## Data We Collect
+**Applies to:** MoveUp 0.6.0.
 
-### What is Stored Locally
+## Summary
 
-zntlDesk stores the following data on **your computer only**:
+| Data | Where it goes |
+|---|---|
+| Session history, desk heights, settings, logs | Your computer only |
+| Step counts (Google Fit) | Requested from Google over the internet — **only if you set it up** |
+| Remote display (phone dashboard) | Served to devices on your local network |
+| Telemetry | Off by default; nothing is transmitted in 0.6.0 (see below) |
+| Update checks | None — the app never contacts an update server |
 
-- **Session history** — Times you were sitting, standing, or away
-- **Desk height readings** — Data from your sensor
-- **User preferences** — Your settings (break interval, notification preferences)
-- **Activity logs** — Application events and errors for troubleshooting
+## What is stored locally
 
-**All data is stored in:** `C:\Users\[YourUsername]\AppData\Local\zntlDesk\`
+MoveUp stores the following on your computer:
 
-### What We Don't Collect
+- **Session history** — times you were sitting, standing, walking, or away
+- **Desk height readings** — distances reported by your sensor
+- **User preferences** — session limits, notification and profile settings
+- **Logs** — application events, state transitions, and minute snapshots
 
-zntlDesk **does NOT:**
-- Send any data to servers (cloud, analytics, telemetry)
-- Track your activity outside the app
-- Log your work content or browsing
-- Collect personal information
-- Use ads or third-party trackers
-- Create user profiles or accounts
-- Monitor your keyboard or mouse input beyond idle detection
+Locations on Windows:
 
-## Data Security
+- **Application data:** `%APPDATA%\io.zntl.desk\`
+  (`C:\Users\<you>\AppData\Roaming\io.zntl.desk\`)
+  - `desk.db` — SQLite database with session history
+  - `logs\YYYY-MM-DD\` — event log and per-minute snapshots, deleted after 7 days
+  - `backups\` — automatic copies of `desk.db` made at startup, last 30 kept
+  - `profiles\` — ergonomic and communication profiles
+- **Installed program files:** `%LOCALAPPDATA%\MoveUp\`
 
-### Local-Only
+## What MoveUp does not do
 
-All your data stays on your computer. No information leaves your machine unless **you** explicitly export it.
+MoveUp does **not**:
 
-### Database Protection
+- Log what you type or which windows you open
+- Read your files, work content, or browsing history
+- Show ads or embed third-party trackers
+- Create an account or ask you to sign in to MoveUp
+- Contact any MoveUp-operated server (there is none)
 
-Your session data is stored in an SQLite database (`zntlDesk.db`). This file is:
-- Created only on your computer
-- Protected by Windows file permissions
-- Not sent anywhere
+Keyboard and mouse hooks are used for one thing: deciding whether you are at
+the computer. The app records "active" or "idle for N seconds" — never which
+keys were pressed.
 
-### Logs
+## Google Fit — the one integration that sends data off your machine
 
-Application logs are stored in `AppData\Local\zntlDesk\logs\`:
-- Contains app events, errors, and sensor readings
-- Does **not** contain personal files, browsing history, or work content
-- Only used for troubleshooting
+MoveUp can show your daily step count next to your desk stats. This feature
+talks to Google's servers. It is **opt-in and off by default**: with no
+credentials configured the code never makes a network call and the widget only
+shows a "connect Google Fit" hint.
 
-## Automatic Updates
+**How you turn it on.** You create your own Google Cloud OAuth client, run
+`node scripts/google-fit-auth.cjs`, and set three values — `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` — in the `.env` file at the
+repository root, or as environment variables for the running app. Nothing
+happens until all three exist. The credentials stay on your machine; MoveUp
+never uploads them anywhere except to Google's own token endpoint below.
 
-When checking for updates, zntlDesk:
-- Connects to GitHub to check version numbers
-- Checks your current version
-- GitHub may log the IP address (standard web server practice)
-- **No personal data is sent**
+**What is sent to Google**, once configured:
 
-To disable this:
-1. Open zntlDesk
-2. Go to **Settings** → **General**
-3. Turn off **Check for updates automatically**
+- Your OAuth client ID, client secret, and refresh token, to
+  `https://oauth2.googleapis.com/token`, to obtain a short-lived access token
+- The access token plus the start and end timestamps of the current day, to
+  `https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate`
+- A request for your available step data sources, to
+  `https://www.googleapis.com/fitness/v1/users/me/dataSources` (once per
+  session, to pick which source to read; skipped if you pin one with
+  `GOOGLE_FIT_STEPS_SOURCE`)
 
-## Exporting Your Data
+**What comes back:** a step count for today. Nothing else is stored or
+displayed.
 
-You own your data. You can export it anytime:
+**What is never sent:** your desk height, session history, sitting or standing
+times, scores, logs, or any MoveUp data at all. The traffic is one-way — the
+app reads from Google and writes nothing back.
 
-1. Open zntlDesk
-2. Go to **Settings** → **Data Management**
-3. Click **Export All Data**
-4. Choose a location to save the file
+**Scope:** `https://www.googleapis.com/auth/fitness.activity.read` — read-only
+access to activity data. MoveUp cannot modify or delete anything in your Google
+account.
 
-**Exported file format:** JSON (readable in any text editor)
-**Includes:** All session history, sensor readings, preferences
+**How often:** while the steps widget is on screen, roughly every 5 minutes,
+with backoff after failures. Requests stop entirely when the token is revoked.
 
-## Deleting Your Data
+**Google's own handling** of these requests is governed by
+[Google's Privacy Policy](https://policies.google.com/privacy), not this one.
 
-To permanently delete all zntlDesk data:
+**How to turn it off:** delete the `GOOGLE_*` keys from `.env` and restart the
+app, and/or revoke MoveUp's access in your
+[Google account permissions](https://myaccount.google.com/permissions). The
+feature then no-ops; nothing else in the app changes.
 
-1. **Close zntlDesk completely**
-2. **Open File Explorer**
-3. **Type in the address bar:** `%APPDATA%\Local\zntlDesk\`
-4. **Delete the entire zntlDesk folder**
-5. **Empty Recycle Bin**
+## Remote display (phone dashboard)
 
-**Warning:** This cannot be undone. All session history will be lost.
+MoveUp runs a small HTTP and WebSocket server so you can open the same dashboard
+on a phone or tablet. It listens on **port 3390 on every network interface**
+(`0.0.0.0:3390`) and starts with the app.
 
-To reset the app but keep your install:
-1. Open zntlDesk
-2. Go to **Settings** → **Data Management**
-3. Click **Reset App Data**
-4. Confirm the warning
+- It serves your current desk state and today's session totals.
+- There is **no password**. Anyone who can reach your computer on port 3390 —
+  that is, anyone on the same local network — can view that dashboard.
+- At most 10 clients may connect at once.
+- Nothing is sent out to the internet; the server only answers requests that
+  reach it.
 
-## Sensor Data Privacy
+If your machine sits on a network you do not trust, block port 3390 in Windows
+Firewall. See [`REMOTE_DISPLAY.md`](REMOTE_DISPLAY.md) for setup details.
 
-Your desk sensor (VL53L1X) communicates directly with zntlDesk via USB:
-- **No network connection** from the sensor
-- **No cloud storage** of readings
-- **All readings stay on your computer**
+## Telemetry
 
-## Windows Activity Access
+Settings → Telemetry has a "Share anonymized usage data" toggle. It is **off by
+default**.
 
-zntlDesk detects keyboard/mouse activity to determine if you're away. This:
-- Checks if you've moved your mouse or pressed keys in the last few minutes
-- **Does NOT log what keys you pressed**
-- **Does NOT record what windows are open**
-- **Does NOT access file contents**
-- Is only used to tag sessions as "away" if idle for 10+ minutes
+In version 0.6.0 the toggle transmits nothing. The receiving service is not
+deployed, so when the switch is on, the daily summary (a random device ID, app
+version, OS name, date, standing percentage, position changes, longest session,
+daily score, active minutes) is written to the local debug log and goes no
+further. No name, no email, no raw sensor data, no session detail is included
+in that summary.
 
-## Third-Party Libraries
+If a telemetry endpoint is ever activated, it will remain opt-in and this
+document will be updated before the code ships.
 
-zntlDesk uses open-source libraries. All are vetted for:
-- No telemetry or tracking
-- No external network calls (except GitHub updates)
-- No personal data collection
+## Updates
 
-**Key libraries:**
-- Tauri — Application framework (local execution only)
-- React — UI library (no tracking)
-- Rust — Backend (no external calls)
+MoveUp has **no auto-updater**. The app never checks a server for a new version,
+so no update request — and no IP address — is sent anywhere. You update by
+downloading a new installer yourself; see [`USER_UPDATES.md`](USER_UPDATES.md).
 
-See `package.json` and `Cargo.toml` for full dependency list.
+## Sensor data
 
-## Changes to This Policy
+The VL53L1X sensor talks to MoveUp over USB only. It has no network connection
+and no cloud component. Readings go straight into the local database.
 
-We may update this privacy policy. You will be notified:
-- In-app notification of changes
-- Release notes on [GitHub Releases](https://github.com/zentala/zntl-tray/releases)
+## Getting your data out
 
-Your use of zntlDesk after changes constitutes acceptance.
+There is no in-app export button in 0.6.0. Your data is in open formats and you
+can take it directly:
 
-## Questions?
+- **Sessions:** `%APPDATA%\io.zntl.desk\desk.db` — SQLite, readable with any
+  SQLite browser or `sqlite3`
+- **Snapshots and events:** `%APPDATA%\io.zntl.desk\logs\` — JSON and plain text
 
-If you have concerns about privacy:
-1. Review your data export (see above)
-2. Check the logs for unexpected activity
-3. Open an issue on [GitHub](https://github.com/zentala/zntl-tray/issues)
+Copy the folder anywhere you like; nothing in it is encrypted or locked to this
+machine.
 
-## Compliance
+## Deleting your data
 
-zntlDesk is designed with privacy-by-default:
-- GDPR compliant (no personal data shared)
-- CCPA compliant (you control your data)
-- No tracking pixels or beacons
-- Open source (verify the code yourself)
+1. Close MoveUp (right-click the tray icon → Quit).
+2. Open File Explorer and go to `%APPDATA%\io.zntl.desk\`.
+3. Delete the folder. This removes the database, logs, backups, and settings.
+4. Empty the Recycle Bin.
 
-**Source code:** [github.com/zentala/zntl-tray](https://github.com/zentala/zntl-tray)
+To remove the program as well, uninstall MoveUp from Windows Settings → Apps.
+
+**This cannot be undone.** Note that step 3 also deletes `backups\`, so make a
+copy of `desk.db` first if you want to keep your history.
+
+## Third-party libraries
+
+MoveUp is built on Tauri, React, and Rust crates. None of them is configured to
+report usage or send analytics. The full list is in `package.json` and
+`src-tauri/Cargo.toml`; the source is public, so you can check any claim here
+against the code.
+
+## Changes to this policy
+
+Changes are recorded in the repository's git history and mentioned in release
+notes on [GitHub Releases](https://github.com/zentala/MoveUp/releases). There is
+no in-app notification of policy changes.
+
+## Questions
+
+Open an issue on [GitHub](https://github.com/zentala/MoveUp/issues).
+
+**Source code:** [github.com/zentala/MoveUp](https://github.com/zentala/MoveUp)
 
 ---
 
-**Last updated:** March 2026
-
-zntlDesk respects your privacy. All your data belongs to you.
+**Last updated:** September 2026 (MoveUp 0.6.0)
