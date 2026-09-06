@@ -18,13 +18,16 @@ pub const MAX_REASONABLE_SESSION_SECS: i64 = 3 * 3600;
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
 /// The ergonomic state the user is currently in.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
 #[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub enum DeskState {
     Sitting,
     Standing,
     Walking,
+    /// Default: a manager that has seen no reading yet is Away, and a
+    /// persisted snapshot missing this field deserializes to Away.
+    #[default]
     Away,
 }
 
@@ -72,7 +75,14 @@ pub enum NotificationEvent {
 /// never refreshed, which silently disabled ergonomic-profile hot-reload. They
 /// now live in [`crate::session_manager::SessionManager::limits`], refreshed
 /// from the active profile every tick. Do not add a config field here.
-#[derive(Debug, Clone)]
+///
+/// This struct is serialised verbatim into the persisted engine snapshot
+/// ([`crate::session_persistence::PersistedEngineState`]), so a new field here
+/// survives a restart without anyone remembering to mirror it. Every field is
+/// `#[serde(default)]` at the struct level, so an older snapshot that predates
+/// a field still loads — the missing field simply starts at its default.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SessionState {
     pub state: DeskState,
     pub sitting_started: Option<DateTime<Utc>>,
@@ -185,12 +195,13 @@ pub struct SessionStateDto {
 }
 
 /// Break credit type applied when returning from standing to sitting.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(test, derive(ts_rs::TS))]
 #[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub enum BreakCredit {
     /// Break too short — session continues unchanged.
+    #[default]
     None,
     /// Proportional credit — session reduced by break × multiplier.
     Partial,
