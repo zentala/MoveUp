@@ -818,8 +818,13 @@ each back to `"error"` once its sites are fixed.
 - [ ] **`react-hooks/immutability` → error** — `src/components/AutostartToggle.tsx:15`,
   `src/widgets/one-bar/OneBarTimeline.tsx:129` (running offset accumulated by
   reassignment inside `.map()`). (Importance: Low, Points: 2)
-- [ ] **`react-hooks/purity` → error** — `src/components/StepsWidget.tsx:167`
-  calls `Date.now()` during render to compute staleness. (Importance: Low, Points: 2)
+- [x] **`react-hooks/purity` → error** — fixed 2026-09-06: `StepsWidget` no
+  longer calls `Date.now()` in the render body. It tracks a `nowMs` state
+  seeded from `Date.now()` at mount and ticked every 60s by an effect
+  (`STALENESS_TICK_MS`); the staleness check reads `nowMs` instead
+  ([src/components/StepsWidget.tsx:60-121](../src/components/StepsWidget.tsx)).
+  Rule is now `"error"` in [eslint.config.mjs](../eslint.config.mjs).
+  (Importance: Low, Points: 2)
 - [x] **`no-useless-assignment` → error** — fixed 2026-09-06: `CatalogTab.tsx`'s
   sort comparator rewritten as a single ternary assigned once instead of a
   `let cmp = 0` always overwritten by both branches

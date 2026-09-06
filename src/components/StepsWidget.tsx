@@ -29,6 +29,8 @@ import { useExponentialPoll } from "@/hooks/useExponentialPoll";
 const INITIAL_KICK_DELAY_MS = 500;
 const SUCCESS_INTERVAL_MS = 5 * 60 * 1000;
 const STALE_THRESHOLD_MS = 60 * 60 * 1000;
+/** How often the staleness check re-evaluates against the current time. */
+const STALENESS_TICK_MS = 60 * 1000;
 const BACKOFF_LADDER_MS = [
   60 * 1000,
   2 * 60 * 1000,
@@ -60,6 +62,7 @@ interface StepsView {
 export const StepsWidget: FC = () => {
   const [view, setView] = useState<StepsView | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const inflightRef = useRef(false);
 
   const loadCached = useCallback(async () => {
@@ -107,6 +110,13 @@ export const StepsWidget: FC = () => {
   useEffect(() => {
     void loadCached();
   }, [loadCached]);
+
+  // Re-evaluate staleness periodically instead of reading Date.now() during
+  // render (which would make the render impure).
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), STALENESS_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
 
   // Exponential-backoff polling delegated to the shared hook.
   useExponentialPoll<StepsView | null>(refresh, {
@@ -164,7 +174,7 @@ export const StepsWidget: FC = () => {
   const snap = view?.snapshot ?? null;
   const count = snap ? NUMBER_FORMATTER.format(snap.steps_today) : "—";
   const isStale = snap
-    ? Date.now() - snap.fetched_at_ms > STALE_THRESHOLD_MS
+    ? nowMs - snap.fetched_at_ms > STALE_THRESHOLD_MS
     : false;
   const hasTransientError = view?.error_kind === "transient";
   const tooltip = hasTransientError
