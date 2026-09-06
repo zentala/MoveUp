@@ -478,10 +478,17 @@ and popup-timer items are NOT E019's scope and stay open.
   serde-tagged representation that isn't shared with the Tauri-event side. See the
   Event/IPC inventory in the linked report for the full 8×N call-site table.
   (Importance Low, 3 points) — closed by E019-T03 (`desk_events.rs`/`src/events.ts` named constants).
-- [ ] **`cargo-clippy` is not installed for this toolchain** (`stable-x86_64-pc-windows-msvc`)
-  — the architecture review could not get a clippy warning count; `rustup component add
-  clippy` was intentionally not run by the reviewing agent (out of scope to modify the
-  toolchain). (Importance Low, 1 point)
+- [x] **`cargo-clippy` is not installed for this toolchain** (`stable-x86_64-pc-windows-msvc`)
+  — installed 2026-09-06 via `rustup component add clippy`. `cargo clippy --manifest-path
+  src-tauri/Cargo.toml --lib` reports **34 warnings** (0 errors), e.g. `unnecessary_sort_by`
+  ([src-tauri/src/release_store.rs:96](../src-tauri/src/release_store.rs)),
+  `too_many_arguments` on `reader_loop`
+  ([src-tauri/src/serial.rs:70](../src-tauri/src/serial.rs)) and `set_pixel`
+  ([src-tauri/src/tray_icon.rs:95](../src-tauri/src/tray_icon.rs)), and
+  `new_without_default` on `SessionManager`
+  ([src-tauri/src/session_manager.rs:49](../src-tauri/src/session_manager.rs)). Fixing the
+  34 warnings is left as a separate follow-up (Importance Low, Points 3) — not done here,
+  out of scope for "unblock visibility". (Importance Low, 1 point)
 - [ ] **Popup's main timer/progress bar reads the wrong field and hard-resets on every
   break, contradicting ADR-008's proportional break credit** — `OneBarTimer.tsx:28`
   binds its big number and progress-bar fill to `current_session_secs`, which is
