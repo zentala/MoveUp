@@ -12,6 +12,7 @@ mod ergonomic_profile;
 mod profile_loader;
 mod profile_reload;
 mod commands;
+#[cfg(test)] mod commands_tests;
 mod commands_analyst;
 #[cfg(test)] mod commands_analyst_tests;
 mod commands_backup;
