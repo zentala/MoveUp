@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { act, render } from "@testing-library/react";
 import { KpiDonut } from "./KpiDonut";
 import { KpiDonutPanel } from "./KpiDonutPanel";
 import { aggregateDayKpis } from "../explorer-day-kpis";
@@ -62,6 +62,75 @@ describe("KpiDonut", () => {
   });
 });
 
+describe("KpiDonut pulse", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("mirrors the pulse key on the card", () => {
+    const { getByTestId } = renderDonut({ pulseKey: "2026-09-05" });
+    expect(getByTestId("kpi-donut").getAttribute("data-pulse-key")).toBe("2026-09-05");
+  });
+
+  it("does not pulse on the first render", () => {
+    const { getByTestId } = renderDonut({ pulseKey: "2026-09-05" });
+    expect(getByTestId("kpi-donut").className).not.toContain("kpi-donut-pulse");
+  });
+
+  it("adds the pulse class when the key changes, then removes it", () => {
+    vi.useFakeTimers();
+    const { getByTestId, rerender } = render(
+      <KpiDonut
+        label="Standing %"
+        valuePct={0.62}
+        centerPrimary="62%"
+        animate={false}
+        pulseKey="2026-09-05"
+      />,
+    );
+
+    rerender(
+      <KpiDonut
+        label="Standing %"
+        valuePct={0.62}
+        centerPrimary="62%"
+        animate={false}
+        pulseKey="2026-09-06"
+      />,
+    );
+    const card = getByTestId("kpi-donut");
+    expect(card.className).toContain("kpi-donut-pulse");
+    expect(card.getAttribute("data-pulse-key")).toBe("2026-09-06");
+
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+    expect(getByTestId("kpi-donut").className).not.toContain("kpi-donut-pulse");
+  });
+
+  it("does not pulse when the key is unchanged", () => {
+    const { getByTestId, rerender } = render(
+      <KpiDonut
+        label="Standing %"
+        valuePct={0.62}
+        centerPrimary="62%"
+        animate={false}
+        pulseKey="2026-09-05"
+      />,
+    );
+    rerender(
+      <KpiDonut
+        label="Standing %"
+        valuePct={0.7}
+        centerPrimary="70%"
+        animate={false}
+        pulseKey="2026-09-05"
+      />,
+    );
+    expect(getByTestId("kpi-donut").className).not.toContain("kpi-donut-pulse");
+  });
+});
+
 describe("KpiDonutPanel", () => {
   const day = analystSnapshotsFixture[analystSnapshotsFixture.length - 1].ts.slice(0, 10);
   const kpis = aggregateDayKpis(analystSnapshotsFixture, analystSessionsFixture, day);
@@ -92,6 +161,30 @@ describe("KpiDonutPanel", () => {
     const after = getAllByTestId("kpi-donut")[0].getAttribute("data-pct");
     expect(otherDay).not.toBe(day);
     expect(after).not.toBe(before);
+  });
+
+  it("pulses every donut when the selected day changes", () => {
+    const otherDay = analystSnapshotsFixture[0].ts.slice(0, 10);
+    const otherKpis = aggregateDayKpis(
+      analystSnapshotsFixture,
+      analystSessionsFixture,
+      otherDay,
+    );
+    const { getAllByTestId, rerender } = render(
+      <KpiDonutPanel kpis={kpis} animate={false} />,
+    );
+    expect(
+      getAllByTestId("kpi-donut").map((n) => n.getAttribute("data-pulse-key")),
+    ).toEqual([day, day, day]);
+
+    rerender(<KpiDonutPanel kpis={otherKpis} animate={false} />);
+    const cards = getAllByTestId("kpi-donut");
+    expect(cards.map((n) => n.getAttribute("data-pulse-key"))).toEqual([
+      otherDay,
+      otherDay,
+      otherDay,
+    ]);
+    expect(cards.every((n) => n.className.includes("kpi-donut-pulse"))).toBe(true);
   });
 
   it("says so instead of drawing empty arcs when the day has no data", () => {
