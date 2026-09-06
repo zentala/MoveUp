@@ -69,6 +69,8 @@ mod ws_broadcaster;
 mod serial;
 mod serial_parser;
 mod serial_periodic;
+mod serial_periodic_reset;
+#[cfg(test)] mod serial_periodic_tests;
 mod setup_helpers;
 mod snapshot_logger;
 mod telemetry;

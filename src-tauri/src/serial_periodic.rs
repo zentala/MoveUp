@@ -2,18 +2,22 @@
 //!
 //! Extracted from the reader loop to keep serial.rs focused on I/O.
 //! Notification firing is delegated to [`NotificationService`] for central routing.
+//!
+//! The two public functions here are thin orchestrators: they own the
+//! [`AppHandle`] (profiles, event emission, store persistence) and call into
+//! [`crate::serial_periodic_reset`] for every step that does not need one.
 
 use std::sync::{Arc, Mutex};
 
-use log::{error, info};
+use log::info;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::activity::is_active;
 use crate::commands::AppState;
 use crate::desk_events::{DESK_DAILY_RESET, DESK_STATE_CHANGED};
 use crate::event_logger::EventLogger;
-use crate::metrics::MetricEngine;
 use crate::notification_service::NotificationService;
+use crate::serial_periodic_reset as steps;
 use crate::session::{DeskState, SessionManager};
 use crate::snapshot_logger::SnapshotLogger;
 
@@ -28,23 +32,9 @@ pub fn check_periodic(
     port_name: &str,
     alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
-    let state: tauri::State<'_, AppState> = app.state();
-    let policy = state.comm_policy.lock().unwrap();
-    let ergo = policy.ergo_profile().clone();
-    let comm = policy.comm_profile().clone();
-    drop(policy);
+    let (ergo, comm) = active_profiles(app);
 
-    // Send telemetry BEFORE daily reset so we capture the full day's data.
-    let daily_reset_occurred = {
-        let mut sess = session.lock().unwrap();
-        let will_reset = sess.needs_daily_reset();
-        if will_reset {
-            crate::telemetry::send_telemetry_if_enabled(config, &sess);
-        }
-        sess.check_daily_reset()
-    };
-
-    if daily_reset_occurred {
+    if steps::run_daily_reset(session, config) {
         info!("Daily reset occurred — in-memory counters cleared");
         let _ = app.emit(DESK_DAILY_RESET, ());
         event_logger.log("RESET daily");
@@ -54,47 +44,17 @@ pub fn check_periodic(
         }
     }
 
-    // Write per-minute snapshot with computed metrics.
-    {
-        let sess = session.lock().unwrap();
-        let now = chrono::Utc::now();
-        let snapshot = sess.snapshot();
-        let mut raw = sess.state.clone();
-        raw.sitting_seconds_total = sess.get_live_sitting_seconds_total(now);
-        raw.standing_seconds = sess.get_live_standing_seconds(now);
-        let metrics = MetricEngine::with_defaults().compute_all(&raw, &ergo);
-        snapshot_logger.log_snapshot(
-            &snapshot,
-            true,
-            Some(port_name.to_string()),
-            crate::APP_VERSION,
-            metrics,
-        );
-    }
+    steps::log_minute_snapshot(session, snapshot_logger, port_name, &ergo);
 
-    // Raw daily totals: the PostureBalance message compares sitting against
-    // standing, so both sides must be uncredited (E015-T03).
-    let (notification_events, sitting_secs_total, standing_secs) = {
-        let mut sess = session.lock().unwrap();
-        let events = sess.check_notification_conditions(&comm);
-        let snap = sess.snapshot();
-        (events, snap.sitting_seconds_total, snap.standing_seconds)
-    };
-
-    let intents = NotificationService::build_intents(
-        &notification_events,
-        sitting_secs_total,
-        standing_secs,
-    );
+    let tick = steps::collect_notification_intents(session, &comm);
     NotificationService::dispatch(
-        &intents,
+        &tick.intents,
         &comm.notification_backend,
         event_logger,
         alert_popup,
     );
-
     // Persist flags if any notifications were fired in this periodic check.
-    if !notification_events.is_empty() {
+    if tick.events_fired {
         save_session_state(app, session);
     }
 
@@ -113,11 +73,7 @@ pub fn handle_reading(
     event_logger: &Arc<EventLogger>,
     alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
-    let state: tauri::State<'_, AppState> = app.state();
-    let policy = state.comm_policy.lock().unwrap();
-    let ergo = policy.ergo_profile().clone();
-    let comm = policy.comm_profile().clone();
-    drop(policy);
+    let (ergo, comm) = active_profiles(app);
 
     let active = is_active();
     let idle_secs = crate::activity::get_idle_seconds();
@@ -140,10 +96,11 @@ pub fn handle_reading(
     }
 
     if let Some(ref payload) = result.state_change {
-        let height_cm = payload.desk_height_cm;
-        event_logger.log(&format!(
-            "STATE {:?}\u{2192}{:?} h={:.0}cm idle={}s",
-            state_before, payload.state, height_cm, idle_secs
+        event_logger.log(&steps::format_state_change_line(
+            &state_before,
+            &payload.state,
+            payload.desk_height_cm,
+            idle_secs,
         ));
         let _ = app.emit(DESK_STATE_CHANGED, payload);
 
@@ -168,17 +125,7 @@ pub fn handle_reading(
     }
 
     if let Some((ref credit, dur)) = result.break_credit {
-        let mut sess = session.lock().unwrap();
-        let sitting = sess.snapshot().sitting_seconds;
-        event_logger.log(&format!(
-            "CREDIT {:?} dur={}s sitting={}",
-            credit, dur, sitting
-        ));
-        if sess.day_break_applied {
-            event_logger.log(&format!("CREDIT day_break dur={}s", dur));
-            sess.day_break_applied = false;
-        }
-        drop(sess);
+        steps::log_break_credit(session, event_logger, credit, dur);
     }
 
     if let Some(ref completed) = result.completed_session {
@@ -186,19 +133,7 @@ pub fn handle_reading(
         // A break span that ended this tick carries the credit it earned; a
         // sitting span carries none, and the column stays NULL for it.
         let credit = result.break_credit.as_ref().map(|(c, _)| c);
-        let db_lock = db.lock().unwrap();
-        if let Some(ref conn) = *db_lock {
-            if let Err(e) = crate::db_sessions::insert_session_with_credit(
-                conn,
-                &completed.started_at,
-                &completed.ended_at,
-                &format!("{:?}", state_before),
-                completed.duration_secs,
-                credit,
-            ) {
-                error!("Failed to save completed session: {}", e);
-            }
-        }
+        steps::persist_completed_session(db, completed, &state_before, credit);
     }
 
     let alert = { session.lock().unwrap().should_alert() };
@@ -228,6 +163,20 @@ pub fn handle_reading(
         );
         save_session_state(app, session);
     }
+}
+
+/// Clones the currently active ergonomic and communication profiles.
+///
+/// Cloning releases the policy lock before any of the work below runs.
+fn active_profiles(
+    app: &AppHandle,
+) -> (
+    crate::ergonomic_profile::ErgonomicProfile,
+    crate::communication_profile::CommunicationProfile,
+) {
+    let state: tauri::State<'_, AppState> = app.state();
+    let policy = state.comm_policy.lock().unwrap();
+    (policy.ergo_profile().clone(), policy.comm_profile().clone())
 }
 
 /// Persists notification flags and credit-reduced sitting_seconds to the store.
