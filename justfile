@@ -31,12 +31,16 @@ test-rust:
 typecheck:
     pnpm typecheck
 
-# eslint over src/ — broken today (no eslint dependency/config), fixed in E018
+# eslint over src/ (config: eslint.config.mjs)
 lint:
     pnpm lint
 
-# pre-commit gate: same set as package.json's test:all, plus typecheck
-check: typecheck test test-rust
+# frontend unit tests with the coverage gate (the same gate `just build` runs)
+coverage:
+    pnpm test:coverage
+
+# pre-commit gate: types, lint, then both unit suites
+check: typecheck lint test test-rust
 
 # remove frontend build artifacts (src-tauri/target: use `cargo clean` deliberately)
 clean:
