@@ -16,17 +16,21 @@ tam niesie `path:line`. Ten dokument jest syntezą i rekomendacją.
    Overlay i powiadomienia czytają pole właściwe. Naprawa: 3 punkty.
 2. **Twój współczynnik 3:1 (45/15) to tylko konfiguracja.** Dziś domyślny
    mnożnik to 2.0 (`ergonomic_profile.rs:16`). Decyzja do podjęcia, patrz D1.
-3. **Aplikacja nie jest tak chaotyczna, jak zakładasz.** 492 testy Rust i
-   248 TS są zielone, moduły trzymają limit 250 linii, IPC jest cienkie i
-   spójnie nazwane. Prawdziwe problemy to **szwy**: dwa liczniki siedzenia
-   bez właściciela (przepisywane 9 razy w 15 dni w marcu), cztery mechanizmy
-   persystencji bez pierwszeństwa, dwa zduplikowane hooki stanu w TS, ręcznie
-   kopiowane typy Rust→TS, i dokumentacja, która w kilku miejscach opisuje
-   inny produkt niż kod.
-4. **Nie przepisuj.** Strangler: 4 epiki po kolei, razem ok. 100 punktów.
-   Pierwsze 25 punktów (E016 + E015) załatwiają Twoją skargę i przywracają
-   wiarygodność `.plan/`. Release publiczny blokują głównie dokumenty,
-   licencja, CI i podpis, nie kod.
+3. **Struktura jest lepsza niż zakładasz, ale testy nie są dowodem.** Moduły
+   trzymają limit 250 linii, IPC jest cienkie i spójnie nazwane. 740 testów
+   przechodzi, ale co najmniej jeden asertuje błąd jako poprawne zachowanie,
+   główny hook danych ma 0,8 % pokrycia, a ścieżka „siadam → wstaję → siadam
+   → co widzi UI" nie ma testu wcale. Zielony przebieg mówi, że kod robi to,
+   co autor testu myślał, nie że robi to, co Ty chcesz. Prawdziwe problemy to
+   **szwy**: dwa liczniki siedzenia bez właściciela (przepisywane 9 razy
+   w 15 dni w marcu), cztery mechanizmy persystencji bez pierwszeństwa, dwa
+   zduplikowane hooki stanu w TS, ręcznie kopiowane typy Rust→TS, dokumentacja
+   opisująca inny produkt niż kod.
+4. **Nie przepisuj, tylko wymieniaj kawałek po kawałku (strangler).**
+   Sześć epików po kolei, razem 179 punktów, każdy przechodzi `ao ready`
+   i ma pełne taski. Pierwsze 29 punktów (E016 + E015) załatwiają Twoją
+   skargę i przywracają wiarygodność `.plan/`. Release publiczny blokują
+   dokumenty, licencja, CI i podpis, nie kod.
 5. **Cztery pliki udają backlog** (`BACKLOG.md`, `.plan/BACKLOG.md`,
    `TASKS.md`, `ORCHESTRATOR.md`), a `STATE.md` kłamie o wersji i epikach.
    To pierwsza rzecz do sprzątnięcia, bo bez tego żaden plan nie jest
@@ -186,69 +190,46 @@ kroków: [`release.md`](_review-2026-09-06/release.md).
 
 ## 6. Plan: epiki i kolejność
 
-Kolejność jest sekwencyjna, każdy epik ma własną wartość, żaden nie wymaga
-kolejnego.
+Wszystkie sześć epików ma `PLAN.md`, `HANDOFF.md` z blokiem `## AO`,
+`PRES.md` (po polsku) i pliki zadań `tasks/E0NN-T0N-*.md`. Każdy przeszedł
+konwersję na manifest i `ao ready` → `status: ready` (2026-09-06). Zadania
+ręczne (przeglądarka, podpis, tag) stoją w sekcji `## Outside AO`
+danego handoffu, nie w YAML-u.
 
-### E016 — Higiena planów (3 pkt, 1 sesja, High) — NAJPIERW
+| Epik | Co | Pkt | Fale AO | Ważność | Zależy od |
+|---|---|---|---|---|---|
+| [E016 — Higiena planów i warunki AO](../epics/E016-2026-09-06-plan-hygiene-and-ao-readiness/PLAN.md) | STATE.md, scalenie 4 backlogów, zamknięcie E011, E003-T07 i E013 superseded, `coverage/` z gita, `.giter.yaml`, `justfile` | 8 | 2 | High | — |
+| [E015 — Jedna prawda o liczniku siedzenia](../epics/E015-2026-09-06-engine-single-truth/PLAN.md) | usunięcie `current_session_secs`, popup na polu kredytowanym, test odwrócony + test na realnej ścieżce, PostureBalance, `break_credit` w bazie, ADR 008 rev (mnożnik 3.0) | 21 | 3 | High | E016 |
+| [E017 — Gotowość do wydania](../epics/E017-2026-09-06-release-readiness/PLAN.md) | 7 docs na MoveUp, LICENSE MIT, PRIVACY + Google Fit, CI workflow, `firmware/README.md`; poza AO: podpis (8), przeglądarka, `tauri:build`, tag 0.6.0 | 18 (+8) | 2 | High | E015 |
+| [E018 — Konsolidacja frontendu](../epics/E018-2026-09-06-frontend-consolidation/PLAN.md) | jeden reducer + 2 adaptery, codegen `ts-rs` (ADR 017), usunięcie martwego kodu, ESLint, bramka pokrycia, `formatXxx`, UX-FLOW; fala 3 = resztki E012 (T09-T11, recharts ADR 016) | 45 | 4 | Medium | E015 |
+| [E019 — Utwardzenie backendu](../epics/E019-2026-09-06-backend-hardening/PLAN.md) | mutexy poison-safe, ADR 014 pierwszeństwo persystencji + jedna ścieżka „dzisiejsze sumy", stałe zdarzeń, EventLogger bez paniki, parytet handlerów, split google_fit i serial_periodic, poprawka opisów w CLAUDE.md | 28 | 7 | Medium | E015 |
+| [E020 — Silnik: czysty rdzeń](../epics/E020-2026-09-06-engine-pure-core/PLAN.md) | wstrzyknięty zegar, config poza stanem, jeden model przerwy, jeden snapshot, sygnały z `step()` (ADR 015), tabela scenariuszy jako siatka regresji; przy okazji dwa nowe bugi: hot-reload profilu nie dociera do silnika, reset dzienny liczony po UTC | 59 | 7 | Medium | E015, E019 |
 
-| Task | Pkt | Agent |
+Razem 179 punktów (+8 podpis). Kolejność: E016 → E015 → E017 → E018 ∥ E019
+→ E020. E018 i E019 nie dzielą plików, mogą iść równolegle.
+
+### Stare epiki — co z nimi
+
+| Epik | Stan | Decyzja |
 |---|---|---|
-| Popraw `STATE.md` (v0.5.0, E011/E012 done, E015 planned) | 1 | main |
-| Scal root `BACKLOG.md` + `TASKS.md` do `.plan/BACKLOG.md`; usuń `ORCHESTRATOR.md` root; przenieś każdy wpis, nie streszczaj | 1 | main |
-| Domknij E011: HISTORY, IMPRO triage, oznacz E003-T07 superseded | 1 | main |
-| `git rm --cached coverage test-performance-report` + gitignore | 1 | main |
+| E011 autostart | kod gotowy, ceremonia nie | zamyka E016-T03 |
+| E012 Analyst | rdzeń gotowy, T09-T11 nietknięte | wchłonięte jako fala 3 E018 |
+| E013 signed release + PM3 | utknął w planowaniu | superseded: fale 1-2 → E017, fale 3-5 → E014 (E016-T03 oznacza) |
+| E014 rollback pod PM3 | fale 1-2 odblokowane, 3-4 czekają na `pm3-mcp` | zostaje; HANDOFF nie ma jeszcze bloku `## AO` — do dopisania przed dispatchem (wpis w backlogu) |
+| E004 alerty T017-T019 | pomysły bez plików zadań | zostają w backlogu jako kandydat na E021 „gamifikacja", nie planowane teraz |
+| E010 marketing | 3 albo 10 zadań ludzkich (sprzeczność) | E016-T02 rozstrzyga przy scalaniu backlogów; to nie jest robota agenta |
 
-### E015 — Jedna prawda o liczniku siedzenia (21 pkt, High)
+### Co znaczy „strangler"
 
-Plan: [`epics/E015-2026-09-06-engine-single-truth/PLAN.md`](../epics/E015-2026-09-06-engine-single-truth/PLAN.md).
-Zakres: kroki 1-3 migracji silnika + PostureBalance + `break_credit` na
-`SessionRow` + test na realnej ścieżce + ADR 008 rev + UX-FLOW.
-
-### E017 — Gotowość do wydania (21 pkt + 8 podpis, High)
-
-| Task | Pkt | Agent |
-|---|---|---|
-| Przepisz 5 docs użytkownika na MoveUp (nazwa, ścieżki, repo, kable USB) | 3 | ts-dev (docs) |
-| `USER_UPDATES.md` opisuje realny ręczny update albo wdrożenie updatera (decyzja w epiku) | 2 | main |
-| `PRIVACY.md` + ujawnienie Google Fit | 2 | main |
-| LICENSE + pole `license` w obu manifestach (D3) | 2 | main |
-| Napraw albo usuń `.github/workflows/test.yml` | 3 | ts-dev |
-| `firmware/README.md` z flashowaniem i ostrzeżeniem o kablach | 3 | main |
-| Cargo metadata, bump 0.6.0, tag | 1 | main |
-| Pierwsze uruchomienie w prawdziwej przeglądarce (welcome → kalibracja → brak czujnika) | 3 | browser |
-| Pełny `pnpm tauri:build` jako bramka go/no-go | 2 | main |
-| Podpis kodu (E013 fala 2) — osobna decyzja dostawcy | 8 | main |
-
-### E018 — Konsolidacja frontendu (21 pkt, Medium)
-
-| Task | Pkt | Agent |
-|---|---|---|
-| Jeden reducer stanu + dwa adaptery transportu (Tauri IPC, WS/REST) | 8 | ts-dev |
-| Codegen typów Rust→TS (`ts-rs` lub `specta`) + test dryfu | 5 | ts-dev |
-| Usuń 5 martwych komponentów i wejście `overlay.html` | 2 | ts-dev |
-| ESLint naprawdę zainstalowany; bramka pokrycia podpięta do `build` | 3 | ts-dev |
-| `justfile` + scal 6 lokalnych `formatXxx` do `utils/format.ts` | 2 | ts-dev |
-| UX-FLOW: Steps, Analyst, skiny — dosync | 1 | main |
-
-### E019 — Utwardzenie backendu (13 pkt, Medium)
-
-| Task | Pkt | Agent |
-|---|---|---|
-| Mutexy w `commands.rs` na wzorzec poison-safe | 2 | ts-dev (Rust) |
-| ADR: pierwszeństwo czterech mechanizmów persystencji; jedna ścieżka „dzisiejsze sumy" | 5 | main + Rust |
-| `desk_events.rs` ze stałymi nazw zdarzeń, użyte po obu stronach | 2 | Rust |
-| `EventLogger` ostrzega zamiast panikować; parytet `generate_handler!` | 1 | Rust |
-| Split `google_fit*.rs` wg konwencji `_client`/`_service` | 2 | Rust |
-| Split `serial_periodic::check_periodic` wg odpowiedzialności | 1 | Rust |
-
-### E020 — Silnik: kroki 4-8 (42 pkt, Medium, po E015 i E017)
-
-Wstrzyknięty zegar (8), jeden snapshot persystencji (8), config poza stanem
-(8), sygnały z `step()` zamiast re-derywacji w tray (13), jeden model
-„przerwy" (5). Szczegóły: `engine.md` §Target architecture.
-
-Razem: ok. 130 punktów, z czego pierwsze 24 (E016 + E015) zamykają problem,
-z którym przyszedłeś.
+Wzorzec strangler fig (Fowler): nowy kod owija stary i przejmuje po jednej
+odpowiedzialności naraz, a stary jest usuwany dopiero wtedy, gdy nowa część
+udowodniła, że działa. W praktyce tutaj: nie piszemy nowego silnika obok,
+tylko w każdym kroku E020 zmieniamy jedną rzecz (zegar, config, snapshot,
+sygnały), po każdym kroku `cargo test` jest zielony, a adapter do starego
+kształtu żyje, dopóki ostatni konsument nie przejdzie. Przepisanie od zera
+odtworzyłoby dokładnie ten błąd, od którego zacząłeś: ktoś w połowie
+migracji wymyśliłby trzeci licznik, a stara siatka testów nie łapałaby
+nowego kodu.
 
 ## 7. Co dalej — jedna rekomendacja
 

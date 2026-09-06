@@ -2,7 +2,9 @@
 
 ## Planned Epics
 
+- [ ] **[E016 — Plan hygiene and AO readiness](epics/E016-2026-09-06-plan-hygiene-and-ao-readiness/PLAN.md)** — fix `.plan/STATE.md` self-contradiction, consolidate four backlog files into `.plan/BACKLOG.md`, close E011's ceremony, untrack `coverage/`+`test-performance-report/`, add `.giter.yaml`+root `justfile` for AO. Handoff: [HANDOFF.md](epics/E016-2026-09-06-plan-hygiene-and-ao-readiness/HANDOFF.md). 8 points. Do FIRST, before E015.
 - [ ] **[E015 — One truth for the sitting counter](epics/E015-2026-09-06-engine-single-truth/PLAN.md)** — popup reads the uncredited `current_session_secs`; delete it, one credited counter, PostureBalance + `break_credit` row, ADR 008 rev. Handoff: [HANDOFF.md](epics/E015-2026-09-06-engine-single-truth/HANDOFF.md). 21 points. Do after E016 (plan hygiene, 3 points, defined in the review report).
+- [ ] **E014 HANDOFF.md has no `## AO` block** — waves 1-2 are unblocked but cannot be dispatched through AO until the block exists ([epics/E014-2026-09-05-supervised-release-rollback/HANDOFF.md](epics/E014-2026-09-05-supervised-release-rollback/HANDOFF.md)); write it in the E016 session using E015's block as the template. (Medium, 2)
 - [ ] **[E014 — Supervised release rollback](epics/E014-2026-09-05-supervised-release-rollback/PLAN.md)** — handoff: [HANDOFF.md](epics/E014-2026-09-05-supervised-release-rollback/HANDOFF.md). Keep several installed builds with a `last-known-good` marker so a bad release can be rolled back, and let PM3 fill the gap when nothing holds the app. Waves 1-2 are unblocked; waves 3-4 wait on two PM3 backlog items (`int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md`, section "2026-09-05 — Nadzór z powrotem do poprzedniego builda").
 - [ ] **[E013 — Signed Tauri release and PM3 deployment](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md)** — build signed Windows release, deploy the installed SmartDesk executable under PM3, and expose the remote display at `moveup.internal`. Prepare implementation tasks and execute in a new session.
 - [ ] **[E012 — Analyst Dashboard](epics/E012-2026-05-16-analyst-dashboard/PLAN.md)** — separate Tauri window with Data Catalog (8 sources, schema + samples) and Explorer (5 charts over last 7 days). Mockup-first per ux-design-flow rule. Research: [reports/2026-05-16-data-sources.md](epics/E012-2026-05-16-analyst-dashboard/reports/2026-05-16-data-sources.md). Version bump to 0.5.0 in epic setup.
@@ -275,7 +277,10 @@ Alert: max continuous work at computer. Standing ≠ break from screen.
 Full findings, module map, persistence/config/event inventories, and a
 recommended target structure: [reports/_review-2026-09-06/backend.md](reports/_review-2026-09-06/backend.md).
 Not implemented (review task explicitly did not modify source). Top items,
-low-confidence-to-fix-alone so filed here rather than auto-applied:
+low-confidence-to-fix-alone so filed here rather than auto-applied. **Planned
+as [E019 — backend hardening](epics/E019-2026-09-06-backend-hardening/PLAN.md)
+(2026-09-06, 28 points, 8 tasks)** — items below stay checked `[ ]` until
+that epic actually lands:
 
 - [ ] **`commands.rs` uses plain `.unwrap()` on every mutex lock (14 sites)** — a panic
   elsewhere while holding `session`/`db`/`config`/`comm_policy` poisons the mutex and

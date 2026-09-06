@@ -37,10 +37,15 @@ tasks plus one sequential closing task.
 - ADR 009 (day break credit) — unchanged.
 - ADR 011 (unified cycle) — unchanged.
 - `.plan/decisions.jsonl` — none exists; T04 creates it with D1 and D2.
-- Pending decisions from the review report §5: **D1** default multiplier
-  (recommend 3.0 in `standard`), **D2** delete `current_session_secs`
-  entirely (recommend yes). The implementing session applies the
-  recommendations unless Paweł overrides them in the handoff.
+- Decided by Paweł 2026-09-06: **D1** default multiplier 3.0 in `standard`;
+  **D2** delete `current_session_secs`, add `secs_since_last_break` for the
+  Debug tab only; **D4** E015 before the public release. Recorded in
+  HANDOFF.md and, by T04, in `.plan/decisions.jsonl`.
+
+On tests: the owner's criticism stands. Today's suite asserts what its
+author believed, reset included. This epic deletes or inverts those tests
+and adds tests on the user-visible path (the DTO the UI reads), not on
+helpers. New Rust tests carry the `e015_` prefix so AO can run exactly them.
 
 ## Alternatives
 

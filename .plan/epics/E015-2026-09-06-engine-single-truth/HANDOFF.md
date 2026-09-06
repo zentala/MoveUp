@@ -9,14 +9,23 @@ T05 verification. Work in a worktree via `wt-add`, branch
 (`.claude/rules/versioning.md`). Do not touch clock injection, persistence
 unification or the frontend reducer merge (E018/E020).
 
-## Decisions already made (apply unless Paweł overrides)
+## Decisions made by Paweł (2026-09-06, final)
 
-- D1: default `break_credit_multiplier` = 3.0 in `standard`, 2.0 in
-  `relaxed`, `strict` unchanged. Update ADR 008 in the same commit.
-- D2: `current_session_secs` is deleted, not renamed. If Debug tab wants
-  "seconds since last position change", add `secs_since_last_break` as a
-  clearly separate field never used by the limit bar.
-- Approach B from PLAN.md (no rewrite).
+- D1: default `break_credit_multiplier` = 3.0 in `standard` (45 min sit :
+  15 min break), 2.0 in `relaxed`, `strict` unchanged. Update ADR 008 in the
+  same commit.
+- D2: `current_session_secs` is deleted from state, DTO and payload. The
+  Debug tab (and only Debug) gets a new, honestly named field
+  `secs_since_last_break` (seconds since the last position change). No
+  timer, bar, colour or notification may read it; the DTO doc comment says so.
+- D4: E015 ships before the public release (E017).
+- Approach B from PLAN.md (strangler, no rewrite).
+
+## Test naming for AO
+
+Every new or inverted Rust test in this epic is named with the prefix
+`e015_`; TS tests live under the paths listed in `verification`. Each task's
+verification runs exactly its own tests. Zero matched tests is a failure.
 
 ## Mental model
 
@@ -61,6 +70,59 @@ unification or the frontend reducer merge (E018/E020).
   green; browser agent on the popup with `pnpm tauri:dev:mock` (mock sim
   passes through stand phases): timer after a stand is non-zero and its
   band matches the bar colour. Evidence records per PLAN.md.
+
+## Outside AO
+
+- T05 browser pass (browser agent, once, after wave 2 merges).
+- Version bump to 0.6.0 and tag: main loop, after `ao promote`.
+
+## AO
+
+```yaml
+project: MoveUp
+epic: E015
+base_ref: main
+tasks:
+  - id: E015-T01
+    repo: MoveUp
+    executor: ts-dev
+    depends_on: []
+    write_set: ["src-tauri/src/session_types.rs", "src-tauri/src/session_breaks.rs", "src-tauri/src/session_live.rs", "src-tauri/src/session_reading.rs", "src-tauri/src/session_persistence.rs", "src-tauri/src/session_tests_*.rs", "src-tauri/src/lib.rs", "src-tauri/src/tray_controller.rs", "src-tauri/src/remote_server.rs", "src-tauri/src/ergonomic_profile.rs", "src-tauri/profiles/**"]
+    claims: ["src-tauri/src/session_types.rs", "src-tauri/src/session_breaks.rs", "src-tauri/src/session_live.rs", "src-tauri/src/session_reading.rs", "src-tauri/src/session_tests_timers_live.rs", "src-tauri/src/session_tests_scenarios.rs", "src-tauri/src/ergonomic_profile.rs"]
+    verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- e015_"
+    budget_minutes: 90
+  - id: E015-T02
+    repo: MoveUp
+    executor: ts-dev
+    depends_on: ["E015-T01"]
+    write_set: ["src/types.ts", "src/hooks/**", "src/widgets/one-bar/**", "src/components/settings/DebugSection.tsx", "src/components/SessionProgress.floating.test.tsx", "src/test/**", "src-tauri/src/session_dto_fixture_tests.rs", "src-tauri/src/lib.rs"]
+    claims: ["src/types.ts", "src/hooks/useDesk.ts", "src/hooks/useRemoteDesk.ts", "src/hooks/remoteDesk.test-helpers.ts", "src/widgets/one-bar/OneBarTimer.tsx", "src/widgets/one-bar/OneBarTimeline.tsx", "src/widgets/one-bar/useWidgetData.ts", "src/components/settings/DebugSection.tsx", "src/test/dto-drift.test.ts"]
+    verification: "npx vitest run --config vite.config.ts src/hooks src/widgets/one-bar src/test/dto-drift.test.ts"
+    budget_minutes: 60
+  - id: E015-T03
+    repo: MoveUp
+    executor: ts-dev
+    depends_on: []
+    write_set: ["src-tauri/src/notification_service.rs", "src-tauri/src/db.rs", "src-tauri/src/db_sessions.rs", "src-tauri/src/db_queries.rs", "src-tauri/src/db_tests.rs", "src-tauri/src/commands_analyst.rs", "src-tauri/src/commands_analyst_tests.rs", "src-tauri/src/session_daily.rs"]
+    claims: ["src-tauri/src/notification_service.rs", "src-tauri/src/db.rs", "src-tauri/src/db_sessions.rs", "src-tauri/src/db_tests.rs", "src-tauri/src/commands_analyst.rs"]
+    verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- e015_"
+    budget_minutes: 60
+  - id: E015-T04
+    repo: MoveUp
+    executor: main
+    depends_on: ["E015-T01", "E015-T02", "E015-T03"]
+    write_set: [".arch/ADR/008-proportional-break-credit.md", ".arch/UX-FLOW.md", ".arch/ARCHITECTURE.md", "CLAUDE.md", ".plan/decisions.jsonl", "scripts/check-e015-docs.mjs"]
+    claims: [".arch/ADR/008-proportional-break-credit.md", ".arch/UX-FLOW.md", ".arch/ARCHITECTURE.md", "CLAUDE.md", ".plan/decisions.jsonl", "scripts/check-e015-docs.mjs"]
+    verification: "node scripts/check-e015-docs.mjs"
+    budget_minutes: 30
+```
+
+`scripts/check-e015-docs.mjs` (written by T04 itself, in its write set):
+exits 1 if `.arch/UX-FLOW.md` still mentions `current_session_secs`, if
+ADR 008 lacks `3.0`, or if `.plan/decisions.jsonl` is missing.
+
+Wave 1 = T01 and T03 in parallel (disjoint claims), then T02 after T01.
+Wave 2 = T04.
 
 ## Done means
 
