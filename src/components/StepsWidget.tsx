@@ -40,6 +40,9 @@ const NUMBER_FORMATTER = new Intl.NumberFormat(
   typeof navigator !== "undefined" ? navigator.language : "en-US",
 );
 
+/** Whether we are running inside Tauri (desktop) vs. a browser (remote display). */
+const isTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
+
 type ErrorKind = "transient" | "auth_revoked";
 
 interface StepsSnapshot {
@@ -60,6 +63,7 @@ export const StepsWidget: FC = () => {
   const inflightRef = useRef(false);
 
   const loadCached = useCallback(async () => {
+    if (!isTauri) return;
     try {
       const v = await invoke<StepsView>("get_steps_today");
       setView(v);
@@ -75,6 +79,7 @@ export const StepsWidget: FC = () => {
   }, []);
 
   const refresh = useCallback(async (): Promise<StepsView | null> => {
+    if (!isTauri) return null;
     if (inflightRef.current) return null;
     inflightRef.current = true;
     setRefreshing(true);
@@ -114,6 +119,19 @@ export const StepsWidget: FC = () => {
   });
 
   // ─── Render branches ────────────────────────────────────────────────
+
+  if (!isTauri) {
+    return (
+      <span
+        className="kpi-strip__badge steps-widget steps-widget--unavailable"
+        data-testid="steps-widget"
+        title="Steps aren't available in remote-display mode."
+      >
+        <span className="kpi-strip__label">Steps</span>
+        <span className="kpi-strip__value">not available</span>
+      </span>
+    );
+  }
 
   if (view && !view.configured) {
     return (

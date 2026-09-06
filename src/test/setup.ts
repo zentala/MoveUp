@@ -79,3 +79,11 @@ vi.mock("@tauri-apps/api/event", () => ({
   }),
   unlisten: vi.fn(),
 }));
+
+/**
+ * Default the test environment to "running inside Tauri" so components
+ * gated on `window.__TAURI_INTERNALS__` (isTauri checks) exercise their
+ * desktop code path by default. Tests covering remote-display (browser)
+ * behavior delete this before importing the component under test.
+ */
+(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};

@@ -62,8 +62,10 @@ export default function App() {
     }
   }, []);
 
-  // Listen for tray commands: show-widget resets to main, show-settings opens settings
+  // Listen for tray commands: show-widget resets to main, show-settings opens settings.
+  // Tauri's event bridge doesn't exist in remote-display (plain browser) mode.
   useEffect(() => {
+    if (!isTauri) return;
     const unWidget = listen("desk:show-widget", () => setShowSettings(false));
     const unSettings = listen("desk:show-settings", () => setShowSettings(true));
     return () => {

@@ -8,7 +8,7 @@
  * test queues at least one extra mock response for `refresh_steps_now`
  * to keep the rejection log clean.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { StepsWidget } from "./StepsWidget";
@@ -123,5 +123,27 @@ describe("StepsWidget", () => {
     render(<StepsWidget />);
     const badge = await screen.findByTestId("steps-widget");
     await waitFor(() => expect(badge.className).toMatch(/steps-widget--stale/));
+  });
+});
+
+describe("StepsWidget in remote-display mode (no Tauri)", () => {
+  afterEach(() => {
+    // Restore the "running inside Tauri" default set by test/setup.ts.
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+  });
+
+  it("renders a clean 'not available' state instead of throwing/invoking Tauri", async () => {
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+    vi.resetModules();
+    vi.clearAllMocks();
+    const { invoke: freshInvoke } = await import("@tauri-apps/api/core");
+    const { StepsWidget: FreshStepsWidget } = await import("./StepsWidget");
+
+    render(<FreshStepsWidget />);
+
+    expect(screen.getByTestId("steps-widget")).toHaveTextContent(
+      "not available",
+    );
+    expect(freshInvoke).not.toHaveBeenCalled();
   });
 });
