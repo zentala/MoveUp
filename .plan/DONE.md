@@ -127,3 +127,19 @@ ew() never created ase_dir. Fix: eager create_dir_all + panic on fail, log::err
 - **[E012-T04](epics/E012-2026-05-16-analyst-dashboard/tasks/E012-T04-window.md)** — Analyst Tauri window (1280x800, decorated) + tray "Open Analyst" entry; capabilities registered; 9 icon tests relocated to tray_tests.rs. +11 tests. Commit 292952e.
 - **[E012-T05](epics/E012-2026-05-16-analyst-dashboard/tasks/E012-T05-catalog-live.md)** — useDataCatalog() hook + CatalogTab live wiring; mockup keeps fixtures via explicit data prop. +6 tests. Commit fb77066.
 - **[E012-T06](epics/E012-2026-05-16-analyst-dashboard/tasks/E012-T06-explorer-release.md)** — useRangeQuery + 3 wrappers (snapshots/events/sessions), Explorer live, /#/analyst route + window URL flip, UX-FLOW section 11, PROJECT.xml updated. +7 tests. Commit aab3e7c.
+
+## E016 — Plan Hygiene and AO Readiness (2026-09-06)
+Run through AO (`E016-20260906-0348`), promoted at `0995f42`. All 5 tasks merged and verified.
+- **[E016-T01](epics/E016-2026-09-06-plan-hygiene-and-ao-readiness/tasks/E016-T01-fix-state-md.md)** — Fixed `.plan/STATE.md` frontmatter/body self-contradiction; reconciled E010's 3-vs-10 human-task count discrepancy.
+- **[E016-T02](epics/E016-2026-09-06-plan-hygiene-and-ao-readiness/tasks/E016-T02-consolidate-backlog.md)** — Merged root `BACKLOG.md`+`TASKS.md` verbatim into `.plan/BACKLOG.md`; deleted the three root files; fixed README/CONTRIBUTING links.
+- **[E016-T03](epics/E016-2026-09-06-plan-hygiene-and-ao-readiness/tasks/E016-T03-close-e011-ceremony.md)** — Closed E011's ceremony (`.plan/HISTORY.md` entry, IMPRO triage); marked E003-T07 and E013 superseded.
+- **[E016-T04](epics/E016-2026-09-06-plan-hygiene-and-ao-readiness/tasks/E016-T04-untrack-build-artifacts.md)** — `git rm -r --cached coverage test-performance-report` + `.gitignore` entries.
+- **[E016-T05](epics/E016-2026-09-06-plan-hygiene-and-ao-readiness/tasks/E016-T05-ao-readiness.md)** — Created root `.giter.yaml` and `justfile` for AO readiness.
+
+## E015 — One Truth for the Sitting Counter (2026-09-06, v0.6.0)
+Run through AO (`E015-20260906-0449`, 3rd attempt), promoted at `7a8bbf3`. Tagged `v0.6.0`. 504 Rust + 255 TS tests green, typecheck clean.
+- **[E015-T01](epics/E015-2026-09-06-engine-single-truth/tasks/E015-T01-rust-delete-second-counter.md)** — Deleted `current_session_secs` from `SessionState`/DTO/payload across every consumer found (several beyond the original write_set — see JOURNAL.md); inverted the reset test; added the real-path scenario test (sit 30 min, stand 2 min, sit → DTO shows `1800 − 120·m`).
+- **[E015-T02](epics/E015-2026-09-06-engine-single-truth/tasks/E015-T02-ts-consumers-and-drift-test.md)** — TS consumers (hooks, `OneBarTimer`/`OneBarTimeline`, `DebugSection`) read the credited `limitUsedSecs` field; added a DTO drift test against a Rust-emitted JSON fixture.
+- **[E015-T03](epics/E015-2026-09-06-engine-single-truth/tasks/E015-T03-posture-balance-and-break-credit-row.md)** — PostureBalance now compares raw `sitting_seconds_total` vs `standing_seconds` (was comparing credited vs raw, making it unreachable for anyone who takes breaks); added a `break_credit` column on `sessions` with migration, written by `serial_periodic.rs`, read by `commands_analyst.rs`.
+- **[E015-T04](epics/E015-2026-09-06-engine-single-truth/tasks/E015-T04-docs-adr-uxflow-decisions.md)** — ADR 008 revised (multiplier 3.0 in `standard`), `.arch/UX-FLOW.md`, `.arch/ARCHITECTURE.md`, `CLAUDE.md` Session Logic, `.plan/decisions.jsonl` (D1/D2/D4).
+- **[E015-T05](epics/E015-2026-09-06-engine-single-truth/tasks/E015-T05-verify-and-browser-pass.md)** — NOT completed. `cargo test`/`pnpm test:unit` full-suite check done (green), but the browser/visual pass on the popup could not run: dev-mode gaps unrelated to E015 (no Vite proxy for `/display`, mock mode doesn't drive the real session engine) blocked it. See JOURNAL.md and `.plan/BACKLOG.md` "Dev-mode remote display" section.

@@ -108,6 +108,26 @@ UI at all in dev mode — two pre-existing gaps, neither caused by E015:
   dogfooding as the only route) so this class of check doesn't depend on
   hardware timing. (Importance: Medium, Points: 5)
 
+**Sposób ogarnięcia** (dla agenta, który to rozpisze na taski — nie
+rozstrzygam tu, tylko daję kierunek): trzy niezależne naprawy, można robić
+osobno lub razem.
+1. **Vite dev proxy** — dopisać w `vite.config.ts` `server.proxy` dla
+   `/display` → `http://localhost:3390` (REST + WS), tak jak każdy typowy
+   Vite+backend setup. Naprawia stronę `:1443`, nie rusza Rusta.
+2. **`dev_fallback()` w `remote_server.rs`** — w buildzie debug albo przekierować
+   na `:1443` (302), albo serwować to samo co (1) z drugiej strony. Wybór
+   między tym a (1) zależy, gdzie ma żyć prawda o porcie — jedno z nich
+   wystarczy, nie oba na raz.
+3. **Mock na poziomie silnika, nie tylko overlay-bara** — dodać ścieżkę typu
+   `SESSION_MOCK=1`, która wstrzykuje syntetyczne odczyty do `SessionManager`
+   przez ten sam mechanizm co `inject_reading` w `tests/emulator`, tylko
+   dostępny z przeglądarki (np. debug-only Tauri command albo REST endpoint
+   pod `/display`). To jedyna z trzech napraw, która realnie odblokowuje
+   zautomatyzowaną weryfikację wizualną bez stania przy biurku 2 minuty za
+   każdym razem.
+Punkt 3 jest tym, co faktycznie rozwiązuje problem E015-T05; punkty 1-2 są
+warunkiem wstępnym (bez proxy i tak nie ma czego oglądać w przeglądarce).
+
 ## UX Issues — High Priority
 
 - [x] **Timeline readability** — fixed: implemented timeline skin system with 3 switchable themes (Semantic, Amber, Clinical). Each skin defines distinct `--tl-*` CSS vars. Dropdown in Settings → More → Timeline Theme. Default: Semantic (burgundy/green/blue/gray).

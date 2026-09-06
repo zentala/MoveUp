@@ -92,3 +92,27 @@ and `justfile` the Agent Orchestrator needs to dispatch work here. E016 closed
 all of it, each task verified by its own `scripts/check-e016-t0N.mjs`.
 
 This file is one of its outputs.
+
+## E015 — One truth for the sitting counter (2026-09-06, v0.6.0) — code-complete, T05 open
+
+Plan: [PLAN.md](./epics/E015-2026-09-06-engine-single-truth/PLAN.md) ·
+Handoff: [HANDOFF.md](./epics/E015-2026-09-06-engine-single-truth/HANDOFF.md)
+
+The popup timer read `current_session_secs`, which hard-reset to 0 on every
+return to sitting — the credited counter the engine actually maintained
+(`sitting_seconds`) was never surfaced. E015 deleted the wrong field
+entirely, renamed the Debug-only field honestly to `secs_since_last_break`,
+fixed PostureBalance to compare two raw counters instead of a credited one
+against a raw one, added a `break_credit` column so the Analyst reads what
+the engine decided instead of guessing from duration, and raised the
+`standard` profile's break-credit multiplier to 3.0. Ran through the Agent
+Orchestrator (3rd attempt — two earlier ones caught real `write_set` gaps
+and a `dirty_worktree` caused by this machine's `core.autocrlf`, see the
+epic's `JOURNAL.md`), promoted at `7a8bbf3`, version bumped to 0.6.0 and
+tagged. 504 Rust + 255 TS tests pass, typecheck clean.
+
+**Not fully closed**: T05's browser/visual pass on the popup could not run —
+two pre-existing dev-mode gaps (no Vite proxy for the remote-display route,
+and mock mode never drives the real session engine) blocked it, filed to
+`.plan/BACKLOG.md`. The fixed scenario (sit 30 min, stand 2 min, sit) is
+proven by an automated Rust test, not by a screenshot of the running app.
