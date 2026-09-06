@@ -25,6 +25,7 @@ vi.mock("@tauri-apps/api/core", () => ({
         limit_used_secs: 0,
         daily_score: 0,
         standing_session_secs: 0,
+        secs_since_last_break: 0,
         continuous_computer_secs: 0,
         longest_computer_session_secs: 0,
         sitting_seconds_total: 0,

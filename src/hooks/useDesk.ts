@@ -39,7 +39,7 @@ export function useDesk(): UseDeskResult {
   const [port, setPort] = useState<string | null>(null);
   const [state, setState] = useState<DeskState>("Away");
   const [deskHeightCm, setDeskHeightCm] = useState(0);
-  const [sittingSeconds, setSittingSeconds] = useState(0);
+  const [secsSinceLastBreak, setSecsSinceLastBreak] = useState(0);
   const [standingSeconds, setStandingSeconds] = useState(0);
   const [breakSeconds, setBreakSeconds] = useState(0);
   const [sessionLimitSecs, setSessionLimitSecs] = useState(0);
@@ -103,7 +103,7 @@ export function useDesk(): UseDeskResult {
         setMetrics(dashboard.metrics);
         setState(dto.state);
         setDeskHeightCm(dto.desk_height_cm);
-        setSittingSeconds(dto.current_session_secs);
+        setSecsSinceLastBreak(dto.secs_since_last_break);
         setStandingSeconds(dto.standing_seconds);
         setBreakSeconds(dto.break_seconds);
         setSessionLimitSecs(dto.session_limit_secs);
@@ -167,7 +167,7 @@ export function useDesk(): UseDeskResult {
           setConnected(true);
           setState(payload.state);
           setDeskHeightCm(payload.desk_height_cm);
-          setSittingSeconds(payload.current_session_secs);
+          setLimitUsedSecs(payload.limit_used_secs);
           setStandingSeconds(payload.standing_seconds);
           setBreakSeconds(payload.break_seconds);
           setPositionChanges(payload.position_changes);
@@ -231,7 +231,7 @@ export function useDesk(): UseDeskResult {
 
   return {
     connected, port, state, deskHeightCm,
-    sittingSeconds, standingSeconds, breakSeconds,
+    secsSinceLastBreak, standingSeconds, breakSeconds,
     sessionLimitSecs, standLimitSecs, positionChanges,
     limitUsedSecs,
     limitRemaining: sessionLimitSecs - limitUsedSecs,

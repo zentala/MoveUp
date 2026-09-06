@@ -72,7 +72,7 @@ export function makeSnapshot(overrides: Record<string, unknown> = {}) {
         limit_used_secs: 120,
         daily_score: 5,
         standing_session_secs: 0,
-        current_session_secs: 120,
+        secs_since_last_break: 120,
         continuous_computer_secs: 120,
         longest_computer_session_secs: 120,
         sitting_seconds_total: 120,
@@ -93,7 +93,6 @@ export function makeStateChanged(overrides: Record<string, unknown> = {}) {
     event: "desk:state-changed",
     payload: {
       state: "Standing",
-      sitting_seconds: 120,
       standing_seconds: 60,
       break_seconds: 10,
       desk_height_cm: 110.0,
@@ -101,7 +100,7 @@ export function makeStateChanged(overrides: Record<string, unknown> = {}) {
       last_break_secs: 0,
       last_sitting_secs: 120,
       break_credit: "none",
-      current_session_secs: 0,
+      limit_used_secs: 0,
       ...overrides,
     },
   };

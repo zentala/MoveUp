@@ -19,8 +19,11 @@ export interface UseDeskResult {
   port: string | null;
   state: DeskState;
   deskHeightCm: number;
-  /** Current sitting session seconds (resets after break credit). */
-  sittingSeconds: number;
+  /**
+   * Seconds since the last position change, uncredited.
+   * **Debug tab only** — never a timer, bar, colour band or notification.
+   */
+  secsSinceLastBreak: number;
   standingSeconds: number;
   breakSeconds: number;
   sessionLimitSecs: number;

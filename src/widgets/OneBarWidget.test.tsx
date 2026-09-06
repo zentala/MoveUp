@@ -13,7 +13,7 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     port: "COM3",
     state: "Sitting",
     deskHeightCm: 72.5,
-    currentSessionSecs: 600,
+    limitUsedSecs: 600,
     limitSecs: 2400,
     standLimitSecs: 900,
     limitRemaining: 1800,
@@ -116,7 +116,7 @@ describe("OneBarWidget", () => {
   it("shows elapsed/total as big number", () => {
     render(
       <OneBarWidget
-        {...props({ currentSessionSecs: 600, limitSecs: 2400 })}
+        {...props({ limitUsedSecs: 600, limitSecs: 2400 })}
       />,
     );
     const bigNum = screen.getByTestId("one-bar-big-number");
@@ -183,7 +183,7 @@ describe("OneBarWidget", () => {
       <OneBarWidget
         {...props({
           state: "Away",
-          currentSessionSecs: 120,
+          limitUsedSecs: 120,
           limitSecs: 600,
         })}
       />,

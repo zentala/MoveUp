@@ -15,7 +15,7 @@ function baseProps(overrides: Partial<WidgetProps> = {}): WidgetProps {
     port: "COM3",
     state: "Sitting",
     deskHeightCm: 72,
-    currentSessionSecs: 600,
+    limitUsedSecs: 600,
     limitSecs: 2400,
     standLimitSecs: 900,
     limitRemaining: 1800,
@@ -58,7 +58,7 @@ function makeSessions(count: number, hoursAgo = 2): SessionEntry[] {
 
 describe("OneBarTimeline", () => {
   it("shows empty message when no sessions and no live time", () => {
-    render(<OneBarTimeline {...baseProps({ currentSessionSecs: 0, todaySessions: [] })} />);
+    render(<OneBarTimeline {...baseProps({ limitUsedSecs: 0, todaySessions: [] })} />);
     expect(screen.getByText("No sessions yet")).toBeInTheDocument();
   });
 
@@ -71,9 +71,9 @@ describe("OneBarTimeline", () => {
     expect(blocks.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("renders live block when currentSessionSecs > 0", () => {
+  it("renders live block when limitUsedSecs > 0", () => {
     const sessions = makeSessions(1);
-    render(<OneBarTimeline {...baseProps({ todaySessions: sessions, currentSessionSecs: 300 })} />);
+    render(<OneBarTimeline {...baseProps({ todaySessions: sessions, limitUsedSecs: 300 })} />);
     expect(screen.getByTestId("timeline-live-block")).toBeInTheDocument();
   });
 
