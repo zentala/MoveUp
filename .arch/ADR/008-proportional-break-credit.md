@@ -1,8 +1,8 @@
 # ADR 008: Proportional Break Credit
 
-- **Status**: accepted
+- **Status**: accepted (revised 2026-09-06, E015)
 - **Date**: 2026-03-30
-- **Epic**: E000 (maintenance)
+- **Epic**: E000 (maintenance); revised by [E015](../../.plan/epics/E015-2026-09-06-engine-single-truth/PLAN.md)
 
 ## Context
 
@@ -39,3 +39,43 @@ Sleep gaps (machine suspend/resume) now apply break credit using the gap duratio
 - Configurable per profile: users can set multiplier 1.0 (slow reset) to 3.0 (fast reset)
 - Sleep gap now properly resets sitting timer (2h sleep × 2.0 = 4h credit → full reset)
 - Break credit is no longer "all or nothing" — users see gradual improvement
+
+## Revision 2026-09-06 (E015)
+
+Two changes. The decision above stands; what follows makes it enforceable.
+
+### One credited counter — no second "session" timer
+
+The credited counter `SessionState.sitting_seconds`, exposed to every UI as
+`SessionStateDto.limit_used_secs` (`limitUsedSecs` in TypeScript), is **the
+only number a timer, progress bar, colour band or notification may read.**
+It is reduced by the formula above and is never reset by a return to sitting.
+
+Until E015 the popup timer and the overlay read `current_session_secs`, a
+second counter zeroed on every entry into Sitting. The user saw the timer
+drop to zero after a short break while the engine had credited only part of
+it, and the same widget took its number from one field and its colour from
+the other. That field is deleted from the state, the DTO and the payload
+(E015 decision D2). The Debug tab — and nothing else — keeps
+`secs_since_last_break`, named for what it actually measures.
+
+Raw daily counters (`sitting_seconds_total`, `standing_seconds`) are for KPI
+and reporting only. Compare a raw counter with another raw counter; never mix
+a credited value with a raw one. The PostureBalance notification broke that
+rule and could not fire for anyone who took breaks (E015-T03).
+
+### Default multiplier per profile
+
+`break_credit_multiplier` is per ergonomic profile, not one global default:
+
+| Profile | Multiplier | Meaning |
+|---------|-----------|---------|
+| `standard` | **3.0** | 15 min break cancels 45 min of sitting |
+| `default` | 2.0 | 10 min break cancels 20 min of sitting |
+| `relaxed` | 2.0 | as `default` |
+| `strict` | 2.0 | unchanged by E015 |
+| `demo` | 2.0 | unchanged by E015 |
+
+The struct fallback for a profile that omits the key stays 2.0
+(`ergonomic_profile.rs`). Decision D1, Paweł, 2026-09-06 — recorded in
+[`.plan/decisions.jsonl`](../../.plan/decisions.jsonl).
