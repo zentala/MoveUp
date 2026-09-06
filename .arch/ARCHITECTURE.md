@@ -116,6 +116,27 @@ Remote display path (parallel to IPC):
         → Widget renders (same components, phone viewport)
 ```
 
+## Session Counters (one credited value)
+
+`SessionManager` keeps two kinds of counter, and mixing them is the bug class
+E015 closed:
+
+| Counter | Kind | Who reads it |
+|---------|------|--------------|
+| `sitting_seconds` → DTO `limit_used_secs` (`limitUsedSecs`) | credited — reduced by break credit (ADR 008), never reset on a return to sitting | **everything the user reads as progress**: popup timer, overlay fill, colour band, sit-limit alert |
+| `sitting_seconds_total`, `standing_seconds` | raw daily totals | KPI, Analyst, PostureBalance — compared only against other raw counters |
+| `secs_since_last_break` | raw, restarts on every position change | Debug tab only |
+
+There is no separate "current session" counter. The field that used to serve
+that role (`current_session_secs`) is deleted from the state, the DTO and the
+`desk:state-changed` payload — a timer reading it dropped to zero on every
+return to sitting, contradicting the credit the engine had just applied. The
+rule is enforced by the type system: the wrong field no longer exists.
+
+Source: `session_types.rs`, `session_breaks.rs`,
+[ADR 008](ADR/008-proportional-break-credit.md) revision 2026-09-06,
+[E015](../.plan/epics/E015-2026-09-06-engine-single-truth/PLAN.md).
+
 ## Key Architectural Decisions
 
 | Decision | Rationale | Reference |
@@ -126,6 +147,7 @@ Remote display path (parallel to IPC):
 | **Widget architecture** | WidgetProps interface + registry — swap UI layouts without touching logic | E005 |
 | **Arc<Mutex<>> shared state** | Thread-safe state between Tauri thread and WinAPI overlay thread | E002 |
 | **DataSource enum** | Demo/Live/Mock modes — develop overlay without hardware | E002 |
+| **One credited session counter** | A second, uncredited counter let timer and colour disagree; deleting it makes the compiler enforce the rule | E015, ADR 008 |
 
 ## Native UI Elements (WinAPI, outside Tauri)
 
