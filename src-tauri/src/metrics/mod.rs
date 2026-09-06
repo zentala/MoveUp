@@ -15,6 +15,8 @@ use serde::Serialize;
 /// Severity level for a KPI metric.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub enum MetricLevel {
     Green,
     Yellow,
@@ -23,6 +25,8 @@ pub enum MetricLevel {
 
 /// Result of computing a single metric.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct MetricResult {
     pub value: f64,
     pub display: String,
@@ -32,6 +36,8 @@ pub struct MetricResult {
 
 /// A named metric snapshot for IPC transport.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct MetricSnapshot {
     pub id: String,
     pub label: String,
@@ -40,6 +46,8 @@ pub struct MetricSnapshot {
 
 /// Combined dashboard response: session state + computed KPI metrics.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct DashboardState {
     pub session: SessionStateDto,
     pub metrics: Vec<MetricSnapshot>,
