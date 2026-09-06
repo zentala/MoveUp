@@ -68,6 +68,46 @@
   Revised 2026-09-05: Paweł decided PM3 must be the ONLY daemonizer, so the `Run` key is
   retired by E014-T10 rather than kept. (Importance Medium, 5 points)
 
+## Dev-mode remote display — findings from E015-T05 (2026-09-06)
+
+The `browser` agent tried to visually verify E015's fix (popup timer after a
+2-min stand) via the Remote Display server and could not reach a rendered
+UI at all in dev mode — two pre-existing gaps, neither caused by E015:
+
+- [ ] **`vite.config.ts` has no dev proxy for `/display/*` → `localhost:3390`**
+  — in a debug build, `remote_server.rs:72-80`'s fallback route
+  (`dev_fallback()`) serves a static placeholder page literally reading
+  "Vite proxy not yet implemented (T05)" instead of the real app, so
+  `http://localhost:3390/display` never shows the actual UI in dev mode.
+  Loading the real Vite dev server at `:1443` instead fails differently:
+  `src/hooks/useRemoteDesk.ts:123` builds `ws://${window.location.host}/display/ws`,
+  which becomes `ws://localhost:1443/display/ws` — nothing answers there,
+  so the page is stuck on "Reconnecting...". Add the Vite proxy (or fix the
+  WS URL construction to target `:3390` explicitly in dev) so remote-display
+  QA doesn't require a full `pnpm tauri:build`. (Importance: Medium, Points: 3)
+- [ ] **`src/App.tsx:93-107` calls Tauri `invoke`/`transformCallback`
+  unconditionally**, not gated by `useDeskAuto`'s `isTauri` check — throws
+  `Cannot read properties of undefined` on every page load when the app runs
+  in a plain browser (confirmed on `:1443` during the above check). Gate
+  those calls the same way `useDeskAuto` already gates the hook choice.
+  (Importance: Low, Points: 1)
+- [ ] **No session-level mock/fixture path for the popup UI** — `OVERLAY_DATA=mock`
+  (`pnpm tauri:dev:mock`) only drives the disconnected native overlay bar
+  (`overlay_renderer.rs`); the actual `SessionManager` behind the popup and
+  remote display is always fed by the real serial sensor, so there is no way
+  to force a controlled sit→stand→sit cycle without physical hardware or a
+  production build + standing at the desk. This is why E015-T05's browser
+  acceptance check (`.plan/epics/E015-2026-09-06-engine-single-truth/PLAN.md`
+  evidence contract, `popup-visual`) could not be completed and has NO
+  evidence record — the engine-level fix is proven by the `e015_` Rust
+  scenario test (sit 30 min → stand 2 min → sit, asserts the DTO) and by the
+  live `limit_used_secs` field seen in the real `/display/api` payload during
+  this session, but nobody has watched the rendered `OneBarTimer` after a real
+  stand since the fix landed. Add a `tests/emulator`-style `inject_reading`
+  path reachable from a plain browser (or accept `pnpm tauri:build` + physical
+  dogfooding as the only route) so this class of check doesn't depend on
+  hardware timing. (Importance: Medium, Points: 5)
+
 ## UX Issues — High Priority
 
 - [x] **Timeline readability** — fixed: implemented timeline skin system with 3 switchable themes (Semantic, Amber, Clinical). Each skin defines distinct `--tl-*` CSS vars. Dropdown in Settings → More → Timeline Theme. Default: Semantic (burgundy/green/blue/gray).

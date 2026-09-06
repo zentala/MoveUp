@@ -84,3 +84,33 @@ not an AO defect): add `.gitattributes` with `* text=auto` and run
 `git add --renormalize .` once, so line-ending behavior is enforced by
 the repo instead of by a local `core.autocrlf` override that only this
 machine has. (Importance: Low, Points: 2)
+
+## 2026-09-06 — promoted, T05 browser check blocked (honest status)
+
+AO run `E015-20260906-0449` (third attempt) promoted clean to `main` at
+`7a8bbf3`: all 4 tasks merged, then full `cargo test --lib` (504 pass),
+`pnpm test:unit` (255 pass), `pnpm typecheck` and `node scripts/check-e015-docs.mjs`
+all green on the merged integration branch before promote. Version bumped
+to 0.6.0 (`cdb4bf3`) and tagged `v0.6.0`. Evidence records written for
+`E015-T01-credit-dto` and `E015-T02-ts-drift` (both `pass`, current at
+`cdb4bf3`).
+
+**`E015-T05`'s browser/visual check (`popup-visual` in PLAN.md's evidence
+contract) did NOT complete** — dispatched the `browser` agent to watch a
+sit→stand-2min→sit cycle render in the popup; it could not reach a live
+rendered UI at all (two pre-existing dev-mode gaps, both filed to
+`.plan/BACKLOG.md`: no Vite proxy for `/display`, and `OVERLAY_DATA=mock`
+never drives the real session engine, only the disconnected native overlay
+bar). It DID confirm, from the real `/display/api` endpoint, that the
+backend now serves `limit_used_secs` (not the deleted field) — real
+data-level evidence, but not the pixel-level "timer number matches bar
+colour" check the acceptance criteria call for.
+
+**No `popup-visual` evidence record exists — this is correctly `missing`,
+not fabricated as `pass`.** Per `rules/evidence.md` and the "never claim it
+works before you've seen it" rule, PLAN.md acceptance criterion 2 ("After a
+2-minute stand, the popup timer shows previous − 120·m, not 0") is proven
+at the engine level by the `e015_` Rust scenario test (exact sit-30min /
+stand-2min / sit-again path, asserting the DTO value) and by the live field
+name change, but is NOT visually confirmed in the running app. Reporting
+this as an open gap rather than closing the epic as fully verified.

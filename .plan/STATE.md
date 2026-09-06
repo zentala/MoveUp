@@ -1,12 +1,21 @@
 ---
-updated: 2026-09-06T04:07:09
-active_epic: none (E011 and E012 code complete; E011 close-out ceremony pending, see E016 in reports/2026-09-06-pelny-przeglad-architektury-i-release.md)
-planning_epic: E015
-planning_epic_path: .plan/epics/E015-2026-09-06-engine-single-truth
+updated: 2026-09-06T05:35:00
+active_epic: none (E011 and E012 code complete, ceremonies closed by E016; E015 code-complete, T05 browser evidence gap open — see below)
+planning_epic: none
+planning_epic_path: null
 current_wave:
-  - E015 wave 1 planned, not dispatched (handoff written 2026-09-06)
   - E016 done — ran through AO run E016-20260906-0348, promoted to main at
     0995f42, all 5 tasks merged and verified (2026-09-06). E017 next.
+  - E015 code-complete via AO run E015-20260906-0449 (3rd attempt after
+    2 write_set/dirty_worktree fixes), promoted to main at 7a8bbf3,
+    version bumped to 0.6.0 and tagged (cdb4bf3). 504 Rust + 255 TS tests
+    green, typecheck clean. T05's browser/visual check did NOT complete —
+    dev-mode gaps (no Vite proxy for /display, mock mode doesn't drive the
+    real session engine) blocked it; filed to BACKLOG.md. Engine
+    correctness for the fixed scenario is proven by an e015_ Rust test, not
+    by a rendered screenshot. E015 is NOT marked fully done until that gap
+    closes or Paweł accepts the automated-test evidence as sufficient.
+    E017 next either way.
 ---
 
 ## Status
