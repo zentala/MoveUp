@@ -16,6 +16,8 @@ use crate::serial::{BAUD_RATE, DEVICE_ID, DISTANCE_PREFIX, DISTANCE_SUFFIX, PROB
 
 /// Serialisable descriptor for an available serial port.
 #[derive(Debug, Serialize, Clone)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct PortInfo {
     pub name: String,
     pub description: Option<String>,

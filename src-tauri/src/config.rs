@@ -25,6 +25,8 @@ fn default_empty_string() -> String { String::new() }
 /// Ergonomic limits, scoring, KPI thresholds live in [`ErgonomicProfile`].
 /// Notification flags and backend live in [`CommunicationProfile`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct AppConfig {
     // Calibration
     #[serde(default = "default_sitting_mm")]

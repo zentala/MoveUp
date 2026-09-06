@@ -51,7 +51,7 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
   const sessions = props.todaySessions;
   const liveSecs = currentDuration(props);
 
-  const completedTotal = sessions.reduce((s, e) => s + e.duration_secs, 0);
+  const completedTotal = sessions.reduce((s, e) => s + (e.duration_secs ?? 0), 0);
   const totalSecs = completedTotal + liveSecs;
   const maxSecs = Math.max(totalSecs, 1);
 
@@ -89,7 +89,7 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
   ): void => {
     const label = entry.state.toLowerCase();
     const time = formatTime(entry.start);
-    const dur = formatDurationShort(entry.duration_secs);
+    const dur = formatDurationShort(entry.duration_secs ?? 0);
     setTooltip({
       text: `${time} \u2014 ${label} ${dur}`,
       leftPct: offsetPct + widthPct / 2,
@@ -116,7 +116,7 @@ export const OneBarTimeline: FC<WidgetProps> = (props) => {
     <div className="one-bar__timeline" data-testid="one-bar-timeline">
       <div className="one-bar__timeline-bar">
         {sessions.map((entry, i) => {
-          const widthPct = Math.max((entry.duration_secs / maxSecs) * 100, 0.5);
+          const widthPct = Math.max(((entry.duration_secs ?? 0) / maxSecs) * 100, 0.5);
           const currentOffset = offsetPct;
           offsetPct += widthPct;
           return (

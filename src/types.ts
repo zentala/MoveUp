@@ -1,8 +1,19 @@
 /**
  * types.ts — shared TypeScript types for the Desk application.
  *
- * Covers all Tauri event payloads, command return types, and domain enums.
+ * Two kinds of type live here, and the difference matters:
+ *
+ * - **Wire types** cross the Tauri IPC boundary. Rust owns their shape, so
+ *   they are re-exported from `src/generated/`, which `ts-rs` writes from the
+ *   real structs (ADR 017). Never hand-edit them — rename a field in Rust and
+ *   `pnpm typecheck` is what tells you.
+ *   Regenerate: `cargo test --manifest-path src-tauri/Cargo.toml --lib -- ts_export`.
+ * - **Frontend types** (`WidgetProps`, `PreviousSession`, `CalibrateParams`)
+ *   have no Rust counterpart and stay hand-written.
  */
+import type { DeskState } from "./generated/DeskState";
+import type { MetricSnapshot } from "./generated/MetricSnapshot";
+import type { SessionRow } from "./generated/SessionRow";
 
 declare global {
   interface Window {
@@ -10,8 +21,42 @@ declare global {
   }
 }
 
+// ─── Wire types — generated from Rust ───────────────────────────────────────
+
 /** Possible ergonomic states detected by the desk sensor. */
-export type DeskState = "Sitting" | "Standing" | "Walking" | "Away";
+export type { DeskState };
+/** Break credit type applied on a Standing->Sitting transition. */
+export type { BreakCredit } from "./generated/BreakCredit";
+/** Payload for the `desk:state-changed` event. */
+export type { StateChangedPayload } from "./generated/StateChangedPayload";
+/**
+ * Return type of `get_session_state()`. Reflects the live ergonomic session.
+ *
+ * `limit_used_secs` is the only counter a timer, progress bar, colour band or
+ * notification may read; `secs_since_last_break` is Debug-tab only (ADR 008).
+ */
+export type { SessionStateDto } from "./generated/SessionStateDto";
+/** Severity level for a KPI metric. */
+export type { MetricLevel } from "./generated/MetricLevel";
+/** Result of computing a single metric. */
+export type { MetricResult } from "./generated/MetricResult";
+/** A named metric snapshot for IPC transport. */
+export type { MetricSnapshot };
+/** Combined dashboard response from `get_dashboard_state`. */
+export type { DashboardState } from "./generated/DashboardState";
+/** Serial port info returned by the `list_ports` command. */
+export type { PortInfo } from "./generated/PortInfo";
+/**
+ * A single tracked session within a day.
+ *
+ * `duration_secs` and `break_credit` are nullable because a row may predate
+ * the column — null means unknown, never zero (ADR 008).
+ */
+export type { SessionRow as SessionEntry };
+/** Return type of the `get_today_summary()` Tauri command. */
+export type { TodaySummary as TodaySummaryDto } from "./generated/TodaySummary";
+
+// ─── Frontend-only types ────────────────────────────────────────────────────
 
 /** Payload for `desk:device-connected` event. */
 export interface DeviceConnectedPayload {
@@ -25,92 +70,10 @@ export interface DistancePayload {
   timestamp: string;
 }
 
-/** Break credit type applied on a Standing->Sitting transition. */
-export type BreakCredit = "none" | "partial" | "full";
-
-/** Payload for `desk:state-changed` event. */
-export interface StateChangedPayload {
-  state: DeskState;
-  standing_seconds: number;
-  break_seconds: number;
-  desk_height_cm: number;
-  position_changes: number;
-  /** Duration of the last standing/break session in seconds. */
-  last_break_secs: number;
-  /** Duration of the last sitting session in seconds. */
-  last_sitting_secs: number;
-  /** Break credit applied on this transition. */
-  break_credit: BreakCredit;
-  /** Seconds of sitting limit consumed (credited — see `SessionStateDto`). */
-  limit_used_secs: number;
-}
-
 /** Payload for `desk:sensor-error` event. */
 export interface SensorErrorPayload {
   message: string;
   timestamp: string;
-}
-
-/**
- * Return type of `get_session_state()` Tauri command.
- * Reflects the current live ergonomic session.
- */
-export interface SessionStateDto {
-  state: DeskState;
-  sitting_seconds: number;
-  standing_seconds: number;
-  break_seconds: number;
-  session_limit_secs: number;
-  /** Standing session limit in seconds. */
-  stand_limit_secs: number;
-  desk_height_cm: number;
-  position_changes: number;
-  /**
-   * Seconds of sitting limit consumed (accounts for break credits).
-   *
-   * **The only counter a timer, progress bar, colour band or notification
-   * may read.** A break reduces it proportionally (ADR 008); returning to
-   * sitting never resets it.
-   */
-  limit_used_secs: number;
-  /** Daily posture score (in-memory, resets at midnight). */
-  daily_score: number;
-  /** Current continuous standing session seconds (resets on sit). */
-  standing_session_secs: number;
-  /**
-   * Seconds since the last position change, uncredited.
-   *
-   * **Debug tab only.** It ignores break credit and restarts from zero on
-   * every position change — read `limit_used_secs` for session progress.
-   */
-  secs_since_last_break: number;
-  /** Continuous seconds at computer (Sitting+Standing). Resets after 5+ min Away. */
-  continuous_computer_secs: number;
-  /** Longest continuous computer session today (seconds). */
-  longest_computer_session_secs: number;
-  /** Raw total sitting seconds today (never reduced by break credit). */
-  sitting_seconds_total: number;
-  /** Current system idle time in seconds. */
-  idle_secs: number;
-  /** Current continuous Away duration in seconds. */
-  away_bout_secs: number;
-  /** Maximum continuous computer time limit from ergonomic profile. */
-  max_continuous_computer_secs: number;
-}
-
-/** A single tracked session within a day. */
-export interface SessionEntry {
-  start: string;
-  end: string | null;
-  state: DeskState;
-  duration_secs: number;
-}
-
-/** Return type of `get_today_summary()` Tauri command. */
-export interface TodaySummaryDto {
-  sitting_secs: number;
-  standing_secs: number;
-  sessions: SessionEntry[];
 }
 
 /** Parameters for the `calibrate()` Tauri command. All are optional. */
@@ -125,38 +88,6 @@ export interface DistanceReading {
   mm: number;
   cm: number;
   timestamp: string;
-}
-
-/** Serial port info returned by list_ports command. */
-export interface PortInfo {
-  name: string;
-  description: string | null;
-}
-
-// ─── Dashboard / Metrics Types ──────────────────────────────────────────────
-
-/** Severity level for a KPI metric. */
-export type MetricLevel = "green" | "yellow" | "red";
-
-/** Result of computing a single metric. */
-export interface MetricResult {
-  value: number;
-  display: string;
-  level: MetricLevel;
-  is_personal_best: boolean;
-}
-
-/** A named metric snapshot for IPC transport. */
-export interface MetricSnapshot {
-  id: string;
-  label: string;
-  result: MetricResult;
-}
-
-/** Combined dashboard response from get_dashboard_state. */
-export interface DashboardState {
-  session: SessionStateDto;
-  metrics: MetricSnapshot[];
 }
 
 // ─── Widget System Types ────────────────────────────────────────────────────
@@ -191,7 +122,7 @@ export interface WidgetProps {
   breakResetThreshold: number;
   breakResetProgress: number;
   previousSession: PreviousSession | null;
-  todaySessions: SessionEntry[];
+  todaySessions: SessionRow[];
   todayChanges: number;
   todayStandingSecs: number;
   todaySittingSecs: number;
@@ -208,4 +139,3 @@ export interface WidgetProps {
 
 /** A widget is a pure presentation component receiving WidgetProps. */
 export type DeskWidget = React.FC<WidgetProps>;
-

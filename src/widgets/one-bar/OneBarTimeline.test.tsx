@@ -51,6 +51,7 @@ function makeSessions(count: number, hoursAgo = 2): SessionEntry[] {
       end: new Date(start + gap * 0.8).toISOString(),
       state: i % 2 === 0 ? "Sitting" : "Standing",
       duration_secs: Math.floor((gap * 0.8) / 1000),
+      break_credit: null,
     });
   }
   return sessions;
@@ -112,6 +113,19 @@ describe("OneBarTimeline", () => {
     // Check that at least one label has ":00" (full hour boundary)
     const texts = Array.from(hourLabels).map((el) => el.textContent ?? "");
     expect(texts.some((t) => t.endsWith(":00"))).toBe(true);
+  });
+
+  it("nil — a row with no recorded duration still renders a block", () => {
+    // `duration_secs` is null for rows written before the column existed.
+    // The block must not vanish, and must not widen the bar as if it were long.
+    const sessions = makeSessions(2, 1);
+    sessions[0] = { ...sessions[0], duration_secs: null };
+    render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
+    const timeline = screen.getByTestId("one-bar-timeline");
+    const completed = timeline.querySelectorAll(
+      ".one-bar__timeline-block:not(.one-bar__timeline-block--current)",
+    );
+    expect(completed.length).toBe(2);
   });
 
   it("hour labels contain time format with colon", () => {

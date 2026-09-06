@@ -56,9 +56,12 @@ function makeStateChanged(overrides: Partial<StateChangedPayload> = {}): StateCh
 const summary: TodaySummaryDto = {
   sitting_secs: 300,
   standing_secs: 100,
+  yesterday_sitting_secs: 0,
+  yesterday_standing_secs: 0,
+  position_changes: 2,
   sessions: [
-    { start: "09:00", end: "09:20", state: "Standing", duration_secs: 600 },
-    { start: "09:20", end: null, state: "Sitting", duration_secs: 120 },
+    { start: "09:00", end: "09:20", state: "Standing", duration_secs: 600, break_credit: "full" },
+    { start: "09:20", end: null, state: "Sitting", duration_secs: 120, break_credit: null },
   ],
 };
 
@@ -136,7 +139,14 @@ describe("deskReducer — happy path", () => {
     expect(reset.standingSeconds).toBe(0);
     expect(reset.limitUsedSecs).toBe(0);
     expect(reset.dailyScore).toBe(0);
-    expect(reset.todaySummary).toEqual({ sitting_secs: 0, standing_secs: 0, sessions: [] });
+    expect(reset.todaySummary).toEqual({
+      sitting_secs: 0,
+      standing_secs: 0,
+      yesterday_sitting_secs: 0,
+      yesterday_standing_secs: 0,
+      position_changes: 0,
+      sessions: [],
+    });
   });
 
   it("keeps the previous stand limit when the backend reports 0", () => {
@@ -164,10 +174,41 @@ describe("deskReducer selectors", () => {
     expect(selectTodaySessions(initialDeskState)).toEqual([]);
   });
 
+  it("nil — a row with an unrecorded duration is not an effective break", () => {
+    const s: DeskReducerState = {
+      ...initialDeskState,
+      todaySummary: {
+        ...summary,
+        sessions: [
+          { start: "09:00", end: "09:20", state: "Standing", duration_secs: null, break_credit: null },
+          summary.sessions[1],
+        ],
+      },
+    };
+    const prev = selectPreviousSession(s);
+    // Unknown length cannot earn credit, and must not read as a long break.
+    expect(prev).toEqual({ state: "Standing", durationSecs: 0, wasEffective: false });
+  });
+
+  it("error — an unrecognised state column yields no previous session", () => {
+    const s: DeskReducerState = {
+      ...initialDeskState,
+      todaySummary: {
+        ...summary,
+        sessions: [
+          { start: "09:00", end: "09:20", state: "Levitating", duration_secs: 600, break_credit: null },
+          summary.sessions[1],
+        ],
+      },
+    };
+    // Mirrors Rust's DeskState::from_db_str — unknown, never coerced.
+    expect(selectPreviousSession(s)).toBeNull();
+  });
+
   it("empty — a summary with zero sessions yields an empty list, not null", () => {
     const s: DeskReducerState = {
       ...initialDeskState,
-      todaySummary: { sitting_secs: 0, standing_secs: 0, sessions: [] },
+      todaySummary: { ...summary, sitting_secs: 0, standing_secs: 0, sessions: [] },
     };
     expect(selectTodaySessions(s)).toEqual([]);
     expect(selectPreviousSession(s)).toBeNull();
@@ -196,7 +237,7 @@ describe("deskReducer selectors", () => {
       todaySummary: {
         ...summary,
         sessions: [
-          { start: "09:00", end: "09:01", state: "Standing", duration_secs: 60 },
+          { start: "09:00", end: "09:01", state: "Standing", duration_secs: 60, break_credit: "none" },
           summary.sessions[1],
         ],
       },

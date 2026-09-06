@@ -31,6 +31,8 @@ pub const MAX_REASONABLE_SESSION_SECS: i64 = 3 * 3600;
 
 /// The ergonomic state the user is currently in.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub enum DeskState {
     Sitting,
     Standing,
@@ -151,6 +153,8 @@ pub struct SessionState {
 
 /// Serialisable DTO emitted with state-change events.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct SessionStateDto {
     pub state: DeskState,
     pub sitting_seconds: i64,
@@ -199,6 +203,8 @@ pub struct SessionStateDto {
 /// Break credit type applied when returning from standing to sitting.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub enum BreakCredit {
     /// Break too short — session continues unchanged.
     None,
@@ -210,6 +216,8 @@ pub enum BreakCredit {
 
 /// Payload for the `desk:state-changed` event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct StateChangedPayload {
     pub state: DeskState,
     pub standing_seconds: i64,
