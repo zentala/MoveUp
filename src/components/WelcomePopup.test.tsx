@@ -24,6 +24,14 @@ describe("WelcomePopup", () => {
     expect(screen.getByText(/nagradzam/)).toBeTruthy();
   });
 
+  it("renders real Polish diacritic characters, not escape sequences", () => {
+    const { container } = render(<WelcomePopup />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("Cześć");
+    expect(text).toContain("działam");
+    expect(text).not.toMatch(/\\u[0-9a-fA-F]{4}/);
+  });
+
   it("dismiss button calls dismiss_welcome with dontShowAgain false", async () => {
     render(<WelcomePopup />);
     const dismissBtn = screen.getByText(/Gotowy! Zaczynamy!/);

@@ -119,40 +119,40 @@ export function WelcomePopup() {
   return (
     <div data-tauri-drag-region style={STYLES.container}>
       <h2 style={STYLES.heading}>
-        {"\uD83D\uDC4B"} Cze\u015B\u0107! Jestem Twoim osobistym asystentem
+        {"👋"} Cześć! Jestem Twoim osobistym asystentem
         biurkowym.
       </h2>
 
       <p style={STYLES.intro}>
-        Pomagam Ci zadba\u0107 o cia\u0142o podczas pracy &mdash;
-        {" \u017Ceby\u015B"} si\u0119 cz\u0119\u015Bciej rusza\u0142 i nie
-        zapomina\u0142 o przerwach na ruch.
+        Pomagam Ci zadbać o ciało podczas pracy &mdash;
+        {" żebyś"} się częściej ruszał i nie
+        zapominał o przerwach na ruch.
       </p>
 
-      <p style={{ ...STYLES.intro, fontWeight: 500 }}>Oto jak dzia\u0142am:</p>
+      <p style={{ ...STYLES.intro, fontWeight: 500 }}>Oto jak działam:</p>
 
       <ul style={STYLES.featureList}>
         <li style={STYLES.featureItem}>
-          {"\uD83D\uDFE2"} Pasek na g\u00F3rze ekranu pokazuje, jak
-          d\u0142ugo siedzisz. Kolor zmienia si\u0119: zielony &rarr;
-          {" \u017C\u00F3\u0142ty"} &rarr; czerwony.
+          {"🟢"} Pasek na górze ekranu pokazuje, jak
+          długo siedzisz. Kolor zmienia się: zielony &rarr;
+          {" żółty"} &rarr; czerwony.
         </li>
         <li style={STYLES.featureItem}>
-          {"\uD83D\uDD14"} Gdy przesiedzisz za d\u0142ugo, delikatnie
-          Ci\u0119 przypomn\u0119.
+          {"🔔"} Gdy przesiedzisz za długo, delikatnie
+          Cię przypomnę.
         </li>
         <li style={STYLES.featureItem}>
-          {"\uD83C\uDFC6"} Gdy wstajesz &mdash; nagradzam Ci\u0119
-          z\u0142otym paskiem i punktami.
+          {"🏆"} Gdy wstajesz &mdash; nagradzam Cię
+          złotym paskiem i punktami.
         </li>
       </ul>
 
       <hr style={STYLES.divider} />
 
       <p style={STYLES.hint}>
-        Mo\u017Cesz przeci\u0105gn\u0105\u0107 to okienko w dowolne miejsce na
-        ekranie. Kliknij ikon\u0119 w zasobniku systemowym, aby mnie
-        ukry\u0107 lub pokaza\u0107.
+        Możesz przeciągnąć to okienko w dowolne miejsce na
+        ekranie. Kliknij ikonę w zasobniku systemowym, aby mnie
+        ukryć lub pokazać.
       </p>
 
       <label style={STYLES.checkboxLabel}>
@@ -161,7 +161,7 @@ export function WelcomePopup() {
           checked={dontShowAgain}
           onChange={(e) => setDontShowAgain(e.target.checked)}
         />
-        Nie pokazuj przy nast\u0119pnym uruchomieniu
+        Nie pokazuj przy następnym uruchomieniu
       </label>
 
       <div style={STYLES.footer}>
@@ -175,7 +175,7 @@ export function WelcomePopup() {
             e.currentTarget.style.background = "transparent";
           }}
         >
-          {"\uD83D\uDD14"} Przetestuj powiadomienia
+          {"🔔"} Przetestuj powiadomienia
           {notifStatus ? ` (${notifStatus})` : ""}
         </button>
         <button
@@ -188,7 +188,7 @@ export function WelcomePopup() {
             e.currentTarget.style.background = "#4a6cf7";
           }}
         >
-          Gotowy! Zaczynamy! {"\u2728"}
+          Gotowy! Zaczynamy! {"✨"}
         </button>
       </div>
     </div>
