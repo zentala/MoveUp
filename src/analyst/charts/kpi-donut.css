@@ -1,0 +1,38 @@
+/**
+ * kpi-donut.css — Pulse highlight replayed on every KPI donut card when the
+ * Analyst's selected day changes.
+ *
+ * `outline` rather than `border`, so nothing reflows while the pulse runs.
+ * The colour is `chartColors.primary` (#DAA520) at 40% alpha.
+ */
+
+.kpi-donut {
+  border-radius: 8px;
+}
+
+@keyframes kpi-donut-pulse {
+  0% {
+    transform: scale(1);
+    outline-color: rgba(218, 165, 32, 0);
+  }
+  50% {
+    transform: scale(1.02);
+    outline-color: rgba(218, 165, 32, 0.4);
+  }
+  100% {
+    transform: scale(1);
+    outline-color: rgba(218, 165, 32, 0);
+  }
+}
+
+.kpi-donut-pulse {
+  outline: 2px solid transparent;
+  outline-offset: 4px;
+  animation: kpi-donut-pulse 350ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi-donut-pulse {
+    animation: none;
+  }
+}

@@ -44,6 +44,7 @@ export function KpiDonutPanel({ kpis, animate = true }: KpiDonutPanelProps) {
             centerSecondary={formatDurationShort(kpis.standingSecs)}
             color={chartColors.standing}
             animate={animate}
+            pulseKey={kpis.dateLocal}
           />
           <KpiDonut
             label="Posture changes"
@@ -52,6 +53,7 @@ export function KpiDonutPanel({ kpis, animate = true }: KpiDonutPanelProps) {
             centerSecondary={`of ${POSITION_CHANGE_GOAL} goal`}
             color={chartColors.walking}
             animate={animate}
+            pulseKey={kpis.dateLocal}
           />
           <KpiDonut
             label="Daily score"
@@ -60,6 +62,7 @@ export function KpiDonutPanel({ kpis, animate = true }: KpiDonutPanelProps) {
             centerSecondary={`of ${SCORE_MAX}`}
             color={chartColors.score}
             animate={animate}
+            pulseKey={kpis.dateLocal}
           />
         </div>
       ) : (

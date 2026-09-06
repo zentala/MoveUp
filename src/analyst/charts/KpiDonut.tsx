@@ -6,8 +6,13 @@
  * pixel dimensions rather than a `ResponsiveContainer` so it also renders
  * under jsdom, where a container has zero measured size.
  */
+import { useEffect, useRef, useState } from "react";
 import { Cell, Label, Pie, PieChart } from "recharts";
 import { chartColors } from "./chart-utils";
+import "./kpi-donut.css";
+
+/** Must match the animation duration in `kpi-donut.css`. */
+const PULSE_MS = 350;
 
 export interface KpiDonutProps {
   /** Caption under the donut. */
@@ -24,6 +29,30 @@ export interface KpiDonutProps {
   size?: number;
   /** Disable the arc's entry/transition animation (tests, reduced motion). */
   animate?: boolean;
+  /**
+   * Changing this replays the highlight pulse once. Usually the selected day.
+   * The donut is NOT remounted, so the arc keeps its state.
+   */
+  pulseKey?: string;
+}
+
+/**
+ * Replays the pulse class for one animation cycle whenever `pulseKey` changes.
+ * The first render never pulses — only a change does.
+ */
+function usePulse(pulseKey: string | undefined): boolean {
+  const [pulsing, setPulsing] = useState(false);
+  const previousKey = useRef(pulseKey);
+
+  useEffect(() => {
+    if (previousKey.current === pulseKey) return;
+    previousKey.current = pulseKey;
+    setPulsing(true);
+    const timer = setTimeout(() => setPulsing(false), PULSE_MS);
+    return () => clearTimeout(timer);
+  }, [pulseKey]);
+
+  return pulsing;
 }
 
 const TRACK_COLOR = "#222230";
@@ -79,7 +108,9 @@ export function KpiDonut({
   color = chartColors.standing,
   size = 132,
   animate = true,
+  pulseKey,
 }: KpiDonutProps) {
+  const pulsing = usePulse(pulseKey);
   const pct = clamp01(valuePct);
   const data = [
     { name: label, value: pct },
@@ -93,6 +124,8 @@ export function KpiDonut({
       data-testid="kpi-donut"
       data-label={label}
       data-pct={pct.toFixed(4)}
+      data-pulse-key={pulseKey}
+      className={pulsing ? "kpi-donut kpi-donut-pulse" : "kpi-donut"}
       style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
     >
       <PieChart width={size} height={size} role="img" aria-label={`${label}: ${centerPrimary}`}>
