@@ -2,8 +2,8 @@
 
 ## TLDR
 
-Implementing session reads only this file plus [`PLAN.md`](PLAN.md). One
-wave of three parallel tasks (T01 Rust, T02 TS, T03 Rust), then T04 docs and
+Implementing session reads only this file plus [`PLAN.md`](PLAN.md). T01
+(Rust) first, then T02 (TS) and T03 (Rust) in parallel, then T04 docs and
 T05 verification. Work in a worktree via `wt-add`, branch
 `feat/E015-engine-single-truth`. Bump version to 0.6.0 first
 (`.claude/rules/versioning.md`). Do not touch clock injection, persistence
@@ -87,8 +87,8 @@ tasks:
     repo: MoveUp
     executor: ts-dev
     depends_on: []
-    write_set: ["src-tauri/src/session_types.rs", "src-tauri/src/session_breaks.rs", "src-tauri/src/session_live.rs", "src-tauri/src/session_reading.rs", "src-tauri/src/session_persistence.rs", "src-tauri/src/session_tests_*.rs", "src-tauri/src/lib.rs", "src-tauri/src/tray_controller.rs", "src-tauri/src/remote_server.rs", "src-tauri/src/ergonomic_profile.rs", "src-tauri/profiles/**"]
-    claims: ["src-tauri/src/session_types.rs", "src-tauri/src/session_breaks.rs", "src-tauri/src/session_live.rs", "src-tauri/src/session_reading.rs", "src-tauri/src/session_tests_timers_live.rs", "src-tauri/src/session_tests_scenarios.rs", "src-tauri/src/ergonomic_profile.rs"]
+    write_set: ["src-tauri/src/session_types.rs", "src-tauri/src/session_breaks.rs", "src-tauri/src/session_live.rs", "src-tauri/src/session_reading.rs", "src-tauri/src/session_persistence.rs", "src-tauri/src/session_tests_*.rs", "src-tauri/src/session_tests.rs", "src-tauri/src/session_daily.rs", "src-tauri/src/session_manager.rs", "src-tauri/src/commands_catalog_sources.rs", "src-tauri/src/ws_broadcaster.rs", "src-tauri/src/metrics/tests.rs", "src-tauri/src/lib.rs", "src-tauri/src/tray_controller.rs", "src-tauri/src/remote_server.rs", "src-tauri/src/ergonomic_profile.rs", "src-tauri/profiles/**"]
+    claims: ["src-tauri/src/session_types.rs", "src-tauri/src/session_breaks.rs", "src-tauri/src/session_live.rs", "src-tauri/src/session_reading.rs", "src-tauri/src/session_tests_timers_live.rs", "src-tauri/src/session_tests_scenarios.rs", "src-tauri/src/session_tests.rs", "src-tauri/src/session_daily.rs", "src-tauri/src/session_manager.rs", "src-tauri/src/commands_catalog_sources.rs", "src-tauri/src/ws_broadcaster.rs", "src-tauri/src/metrics/tests.rs", "src-tauri/src/ergonomic_profile.rs"]
     verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- e015_"
     budget_minutes: 90
   - id: E015-T02
@@ -102,9 +102,9 @@ tasks:
   - id: E015-T03
     repo: MoveUp
     executor: ts-dev
-    depends_on: []
-    write_set: ["src-tauri/src/notification_service.rs", "src-tauri/src/db.rs", "src-tauri/src/db_sessions.rs", "src-tauri/src/db_queries.rs", "src-tauri/src/db_tests.rs", "src-tauri/src/commands_analyst.rs", "src-tauri/src/commands_analyst_tests.rs", "src-tauri/src/session_daily.rs"]
-    claims: ["src-tauri/src/notification_service.rs", "src-tauri/src/db.rs", "src-tauri/src/db_sessions.rs", "src-tauri/src/db_tests.rs", "src-tauri/src/commands_analyst.rs"]
+    depends_on: ["E015-T01"]
+    write_set: ["src-tauri/src/notification_service.rs", "src-tauri/src/db.rs", "src-tauri/src/db_sessions.rs", "src-tauri/src/db_queries.rs", "src-tauri/src/db_tests.rs", "src-tauri/src/db_tests_break_credit.rs", "src-tauri/src/commands_analyst.rs", "src-tauri/src/commands_analyst_tests.rs", "src-tauri/src/session_breaks.rs", "src-tauri/src/serial_periodic.rs"]
+    claims: ["src-tauri/src/notification_service.rs", "src-tauri/src/db.rs", "src-tauri/src/db_sessions.rs", "src-tauri/src/db_tests.rs", "src-tauri/src/db_tests_break_credit.rs", "src-tauri/src/commands_analyst.rs", "src-tauri/src/session_breaks.rs", "src-tauri/src/serial_periodic.rs"]
     verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- e015_"
     budget_minutes: 60
   - id: E015-T04
@@ -121,7 +121,13 @@ tasks:
 exits 1 if `.arch/UX-FLOW.md` still mentions `current_session_secs`, if
 ADR 008 lacks `3.0`, or if `.plan/decisions.jsonl` is missing.
 
-Wave 1 = T01 and T03 in parallel (disjoint claims), then T02 after T01.
+Wave 1 = T01 alone, then T02 and T03 in parallel (disjoint claims once T01
+is merged — T01 and T03 both need to touch `session_breaks.rs`, T01 to drop
+the dead field write, T03 to fix the PostureBalance comparison, so T03 now
+depends on T01 instead of running alongside it; amended 2026-09-06 after
+AO run `E015-20260906-0408` hit `write_set_out_of_scope_write` on both T01
+and T03 — see the epic JOURNAL.md for the full list of files the original
+write_sets missed).
 Wave 2 = T04.
 
 ## Done means
