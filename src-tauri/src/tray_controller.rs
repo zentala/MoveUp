@@ -7,6 +7,10 @@ use crate::{
     colors::color_for_progress,
     commands::AppState,
     communication_policy::PolicyInput,
+    desk_events::{
+        DESK_DEVICE_CONNECTED, DESK_DEVICE_LOST, DESK_DEVICE_MISSING, DESK_DISTANCE,
+        DESK_STATE_CHANGED,
+    },
     session::{DeskState, StateChangedPayload},
     tray,
     tray_signal_exec,
@@ -19,29 +23,29 @@ use crate::{
 /// Call once from `lib.rs` setup.
 pub fn setup(app: &AppHandle) {
     let handle = app.clone();
-    app.listen("desk:state-changed", move |event| {
+    app.listen(DESK_STATE_CHANGED, move |event| {
         if let Ok(payload) = serde_json::from_str::<StateChangedPayload>(event.payload()) {
             on_state_changed(&handle, &payload);
         }
     });
 
     let handle2 = app.clone();
-    app.listen("desk:distance", move |_event| {
+    app.listen(DESK_DISTANCE, move |_event| {
         update_from_policy(&handle2);
     });
 
     let handle3 = app.clone();
-    app.listen("desk:device-lost", move |_event| {
+    app.listen(DESK_DEVICE_LOST, move |_event| {
         let _ = tray::update_tray(&handle3, "Desk \u{2014} sensor disconnected", DeskState::Away, 0.0);
     });
 
     let handle4 = app.clone();
-    app.listen("desk:device-missing", move |_event| {
+    app.listen(DESK_DEVICE_MISSING, move |_event| {
         let _ = tray::update_tray(&handle4, "Desk \u{2014} no sensor found", DeskState::Away, 0.0);
     });
 
     let handle5 = app.clone();
-    app.listen("desk:device-connected", move |_event| {
+    app.listen(DESK_DEVICE_CONNECTED, move |_event| {
         let app_state = handle5.state::<AppState>();
         app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).on_sensor_connected();
     });

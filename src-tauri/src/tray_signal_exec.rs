@@ -231,7 +231,7 @@ pub(crate) fn execute_popup(signal: &PopupSignal, app: &AppHandle) {
         PopupSignal::Red => "red",
         PopupSignal::Gray => "gray",
     };
-    let _ = app.emit("desk:popup-theme", theme);
+    let _ = app.emit(crate::desk_events::DESK_POPUP_THEME, theme);
 }
 
 /// Dispatches a [`NotifySignal`] to the appropriate notification backend.

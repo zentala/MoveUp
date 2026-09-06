@@ -22,6 +22,9 @@ pub struct RemoteDisplayState {
 
 /// Message types sent to remote display clients.
 #[derive(Clone, Debug, Serialize)]
+/// The `rename` values below are the same wire names as the constants in
+/// [`crate::desk_events`], but `serde` attributes need literals, so they cannot
+/// reference them. `desk_events`'s tests assert the two stay equal.
 #[serde(tag = "event", content = "payload")]
 #[allow(dead_code)] // Heartbeat variant used for serialization schema completeness
 pub enum DisplayEvent {
