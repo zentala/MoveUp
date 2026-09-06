@@ -5,6 +5,8 @@ planning_epic: E015
 planning_epic_path: .plan/epics/E015-2026-09-06-engine-single-truth
 current_wave:
   - E015 wave 1 planned, not dispatched (handoff written 2026-09-06)
+  - E016 done — ran through AO run E016-20260906-0348, promoted to main at
+    0995f42, all 5 tasks merged and verified (2026-09-06). E017 next.
 ---
 
 ## Status
