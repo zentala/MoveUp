@@ -142,3 +142,77 @@ Both assertions fail today because neither the probe nor the marker exists.
 Waves 3 and 4: see `PLAN.md` section `## Test strategy`. Wave 4 ends with a
 deliberately broken newest build that must roll back to `last-known-good`
 within two poll cycles.
+
+## Note added 2026-09-06 (before AO dispatch)
+
+- **Version is already 0.6.0.** T09's original brief included "version bump
+  to 0.6.0 per `.claude/rules/versioning.md`" — E015 already bumped and
+  tagged `v0.6.0` on 2026-09-06. T09 below does the two ADRs and the
+  `.arch/ARCHITECTURE.md` update only; skip the version bump, it is a no-op.
+  (This repo also uses `.arch/ARCHITECTURE.md` and `.arch/ADR/`, not
+  `.plan/ARCH.md`/`.plan/ADR/` — PLAN.md's references to the latter are
+  stale from before that convention was fixed in E016.)
+- **T01/T02 sequenced, not parallel**, unlike the wave table above. Every
+  epic run through AO since E018 hit the same collision: two tasks that both
+  need a `mod` line in `lib.rs` cannot run in the same wave without a
+  guaranteed `write_set_out_of_scope_write`/file-claim clash. T01 and T02
+  both add a new module, so T02 now `depends_on: ["E014-T01"]` below. Same
+  reasoning chains T03 and T04 after T02. The wave-1/wave-2 split above is
+  still accurate for POINTS bookkeeping; the AO block below is the real,
+  sequential execution order.
+- **Module names below are new choices**, not named in PLAN.md (which only
+  names test files): `release_store.rs` (T01), `last_known_good.rs` (T02),
+  `health_probe.rs` (T03), `candidate_list.rs` (T04) — each with its sibling
+  `_tests.rs`, per this repo's test-file convention.
+
+## AO
+
+```yaml
+project: MoveUp
+epic: E014
+base_ref: main
+tasks:
+  - id: E014-T09
+    repo: MoveUp
+    executor: main
+    depends_on: []
+    write_set: [".arch/ADR/018-pm3-app-ownership-split.md", ".arch/ADR/019-release-store-layout.md", ".arch/ARCHITECTURE.md", ".plan/sessions/**", ".plan/BACKLOG.md", ".plan/IMPRO.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/JOURNAL.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/IMPRO.md"]
+    claims: [".arch/ADR/018-pm3-app-ownership-split.md", ".arch/ADR/019-release-store-layout.md", ".arch/ARCHITECTURE.md"]
+    verification: "node -e \"const fs=require('fs');for (const f of ['.arch/ADR/018-pm3-app-ownership-split.md','.arch/ADR/019-release-store-layout.md']) { if (!fs.existsSync(f)) { console.error('missing '+f); process.exit(1); } } console.log('ok');\""
+    budget_minutes: 45
+  - id: E014-T01
+    repo: MoveUp
+    executor: ts-dev
+    depends_on: ["E014-T09"]
+    write_set: ["src-tauri/src/release_store.rs", "src-tauri/src/release_store_tests.rs", "src-tauri/src/lib.rs", ".plan/sessions/**", ".plan/BACKLOG.md", ".plan/IMPRO.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/JOURNAL.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/IMPRO.md"]
+    claims: ["src-tauri/src/release_store.rs", "src-tauri/src/release_store_tests.rs", "src-tauri/src/lib.rs"]
+    verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- release_store"
+    budget_minutes: 90
+  - id: E014-T02
+    repo: MoveUp
+    executor: ts-dev
+    depends_on: ["E014-T01"]
+    write_set: ["src-tauri/src/last_known_good.rs", "src-tauri/src/last_known_good_tests.rs", "src-tauri/src/release_store.rs", "src-tauri/src/lib.rs", ".plan/sessions/**", ".plan/BACKLOG.md", ".plan/IMPRO.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/JOURNAL.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/IMPRO.md"]
+    claims: ["src-tauri/src/last_known_good.rs", "src-tauri/src/last_known_good_tests.rs", "src-tauri/src/lib.rs"]
+    verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- last_known_good"
+    budget_minutes: 60
+  - id: E014-T03
+    repo: MoveUp
+    executor: ts-dev
+    depends_on: ["E014-T02"]
+    write_set: ["src-tauri/src/health_probe.rs", "src-tauri/src/health_probe_tests.rs", "src-tauri/src/lib.rs", ".plan/sessions/**", ".plan/BACKLOG.md", ".plan/IMPRO.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/JOURNAL.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/IMPRO.md"]
+    claims: ["src-tauri/src/health_probe.rs", "src-tauri/src/health_probe_tests.rs", "src-tauri/src/lib.rs"]
+    verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- health_probe"
+    budget_minutes: 60
+  - id: E014-T04
+    repo: MoveUp
+    executor: ts-dev
+    depends_on: ["E014-T03"]
+    write_set: ["src-tauri/src/candidate_list.rs", "src-tauri/src/candidate_list_tests.rs", "src-tauri/src/release_store.rs", "src-tauri/src/lib.rs", ".plan/sessions/**", ".plan/BACKLOG.md", ".plan/IMPRO.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/JOURNAL.md", ".plan/epics/E014-2026-09-05-supervised-release-rollback/IMPRO.md"]
+    claims: ["src-tauri/src/candidate_list.rs", "src-tauri/src/candidate_list_tests.rs", "src-tauri/src/release_store.rs", "src-tauri/src/lib.rs"]
+    verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- candidate_list"
+    budget_minutes: 60
+```
+
+Waves 3-4 (T05-T08, T10) stay out of this manifest — they are blocked on
+`pm3-mcp`'s backlog (see above) and are not dispatched by this block.
