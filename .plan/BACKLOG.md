@@ -870,15 +870,17 @@ Also left as warnings by the plugins' own defaults (not downgraded here):
 
 ## 2026-09-06 — E018-T05 lowered coverage thresholds (decision D4, follow-up)
 
-- [ ] **Coverage gate now actually runs (via `pnpm build`) but at 80/73/72
-  (lines/functions/branches), not the original 80/80/75** — [vite.config.ts:42-46](../vite.config.ts).
-  The 80/80/75 numbers were never enforced before E018-T05 (`build` ran
-  `test:unit`, not `test:coverage`), so nothing ever measured them; first
-  enforced run measured 84.96/82.81/73.07/72.04 (lines/statements/functions/branches).
-  Per HANDOFF.md's decision D4, lowering a threshold instead of raising
-  coverage is Paweł's call to confirm, not the implementing agent's to make
-  silently — surfaced here rather than in chat, per that same instruction.
-  Raising functions/branches back to 80/75 needs real test coverage added to
-  the lowest-covered files (see `just check` coverage table: `src/pages/*`,
-  `src/analyst/types/catalog.ts`, `DebugSection.tsx` are at or near 0%).
-  (Importance Medium, Points 5)
+- [x] **Coverage gate now actually runs (via `pnpm build`) but at 80/73/72
+  (lines/functions/branches), not the original 80/80/75** — resolved 2026-09-06:
+  added tests for the three files that were at 0% or near it —
+  [src/components/settings/DebugSection.test.tsx](../src/components/settings/DebugSection.test.tsx)
+  (0% → 96%), [src/components/ShareStats.test.tsx](../src/components/ShareStats.test.tsx)
+  (7.69% → 77%), and [src/pages/AnalystLive.test.tsx](../src/pages/AnalystLive.test.tsx)
+  (unmeasured → 100%, a smoke test for the `/#/analyst` route). Note:
+  `src/analyst/types/catalog.ts` carries only TypeScript interfaces (erased at
+  compile time, zero runtime statements) — it was never actually reachable by
+  a coverage percentage and needed no test. Coverage after: lines 89.57,
+  statements 87.56, functions 81.08, branches 79.23 — above the original
+  80/80/75 target. [vite.config.ts:42-52](../vite.config.ts) thresholds raised
+  to 85/78/76 (a few points below measured, to absorb ordinary drift, not
+  equal to it). (Importance Medium, Points 5)

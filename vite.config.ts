@@ -32,17 +32,17 @@ export default defineConfig({
         "**/*.css",
         "**/*.json",
       ],
-      // functions/branches lowered 2026-09-06 (E018-T05): the 80/80/75 numbers
-      // were never enforced — `build` ran `test:unit`, not `test:coverage`, so
-      // nothing ever measured them. Measured on the first enforced run:
-      // lines 84.96, statements 82.81, functions 73.07, branches 72.04.
-      // Raising functions/branches back to 80/75 is follow-up work; leaving the
-      // unreachable numbers in place would reproduce the exact bug this task
-      // fixes (a threshold nobody meets, silently never run).
+      // Raised 2026-09-06 after adding tests for DebugSection, ShareStats and
+      // AnalystLive (previously 0% or near-0%, per BACKLOG.md's "E018-T05
+      // lowered coverage thresholds" follow-up). Measured on that run: lines
+      // 89.57, statements 87.56, functions 81.08, branches 79.23 — back above
+      // the original 80/80/75 target. Thresholds are set a few points below
+      // the measured value, not equal to it, so ordinary test-count drift
+      // doesn't fail the gate.
       thresholds: {
-        lines: 80,
-        functions: 73,
-        branches: 72,
+        lines: 85,
+        functions: 78,
+        branches: 76,
       },
     },
   },
