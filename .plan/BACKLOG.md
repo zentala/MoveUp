@@ -18,6 +18,19 @@
 - [x] **Duplicate notifications on sit limit** — fixed: removed `notify: "popup"` from second escalation step in all profiles. Now only one toast fires at limit, visual-only escalation (blink+pulse) at +5 min.
 - [x] **Notification spam when ignored** — fixed: escalating cooldown (0→5m→15m→30m→silence), configurable per profile via `snooze.notify_cooldowns_secs`. Max 4 reminders, then silence until position change.
 - [x] **3 conflicting autostart registry entries** — removed `zntlDesk`, `Smart Desk`, `SmartDesk` from HKCU Run.
+- [ ] **No `.gitattributes` — line endings depend on local `core.autocrlf`** — a
+  fresh `git worktree add` checkout on this machine converted LF blobs to
+  CRLF, which made 3 unrelated files (`.plan/.../HANDOFF.md`, its task file,
+  `src-tauri/gen/schemas/*.json`) show as dirty with zero real diff lines,
+  and an Agent Orchestrator run refused to merge a clean worker over it
+  (`dirty_worktree`). Worked around locally with
+  `git config --local core.autocrlf false`, verified clean on a scratch
+  worktree — but that only protects worktrees created on THIS machine.
+  Fix properly: add `.gitattributes` with `* text=auto` (or pin `eol=lf`
+  for `.md`/`.json`/`.rs`/`.ts`), then `git add --renormalize .` once.
+  Found 2026-09-06 running E015 through AO
+  (`.plan/epics/E015-2026-09-06-engine-single-truth/JOURNAL.md`).
+  (Importance: Low, Points: 2)
 
 ---
 

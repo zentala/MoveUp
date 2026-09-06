@@ -43,3 +43,44 @@ Nothing had merged when this failure was found (status was `needs_attention`
 before any worker touched the integration branch), so no rollback was
 needed — cleaned up all 3 worktrees from the failed run
 (`E015-20260906-0408`) with `wt-remove` and restarted with a new run id.
+
+## 2026-09-06 — second AO run: T01 merged, T02/T03 hit two more gaps
+
+Run `E015-20260906-0425`. T01 merged clean this time. T02 and T03 both
+landed in `needs_attention`:
+
+- **T02 — another `write_set_out_of_scope_write`**: `src/widgets/OneBarWidget.test.tsx`
+  is one directory above `src/widgets/one-bar/**`, so the original glob
+  never matched it, even though it is exactly the test file that has to
+  change when the widget's data field is renamed. Widened
+  `src/widgets/one-bar/**` to `src/widgets/**` in both `write_set` and
+  `claims`.
+- **T03 — `dirty_worktree`, root cause is NOT a repo hook** (the AO skill's
+  recovery table assumes a hook; this repo genuinely has none — confirmed
+  again by absence of `.claude/settings.json`/`.husky/`). Real cause: the
+  user-level git config has `core.autocrlf=true`, so a *fresh* `git
+  worktree add` checkout converts LF blobs to CRLF on disk, while this
+  repo's main checkout (checked out earlier, before autocrlf normalization
+  applied) stayed LF — so T03's worker worktree showed `.plan/…/HANDOFF.md`,
+  its own task file, and both `src-tauri/gen/schemas/*.json` as modified
+  purely from line-ending churn (`git diff` showed 0 real lines changed;
+  `git status --porcelain` still flagged them dirty). Fixed at the repo
+  level: `git config --local core.autocrlf false` in the main checkout —
+  verified with a scratch detached worktree (`git status --porcelain`
+  empty after the config change, non-empty before). This is a config fix,
+  not a `.gitattributes` commit, so it only protects worktrees created on
+  this machine with this local config; a proper `.gitattributes` (`* text=auto`
+  + `git add --renormalize .`) would fix it for every clone and is filed
+  as a backlog item below instead of done inline mid-run.
+- Cleaned up all 4 worktrees from this run (T01's already-merged work
+  included — the dirty_worktree recovery path is "restart, not resume",
+  and the fix here is a repo-wide git config change that a fresh worktree
+  from a NEW run picks up automatically, so redoing T01 costs one Rust
+  test run, not more design work) and started a third run,
+  `E015-20260906-0508`.
+
+Backlog (this repo, not filed elsewhere — it's MoveUp's own git hygiene,
+not an AO defect): add `.gitattributes` with `* text=auto` and run
+`git add --renormalize .` once, so line-ending behavior is enforced by
+the repo instead of by a local `core.autocrlf` override that only this
+machine has. (Importance: Low, Points: 2)

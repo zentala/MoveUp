@@ -95,8 +95,8 @@ tasks:
     repo: MoveUp
     executor: ts-dev
     depends_on: ["E015-T01"]
-    write_set: ["src/types.ts", "src/hooks/**", "src/widgets/one-bar/**", "src/components/settings/DebugSection.tsx", "src/components/SessionProgress.floating.test.tsx", "src/test/**", "src-tauri/src/session_dto_fixture_tests.rs", "src-tauri/src/lib.rs"]
-    claims: ["src/types.ts", "src/hooks/useDesk.ts", "src/hooks/useRemoteDesk.ts", "src/hooks/remoteDesk.test-helpers.ts", "src/widgets/one-bar/OneBarTimer.tsx", "src/widgets/one-bar/OneBarTimeline.tsx", "src/widgets/one-bar/useWidgetData.ts", "src/components/settings/DebugSection.tsx", "src/test/dto-drift.test.ts"]
+    write_set: ["src/types.ts", "src/hooks/**", "src/widgets/**", "src/components/settings/DebugSection.tsx", "src/components/SessionProgress.floating.test.tsx", "src/test/**", "src-tauri/src/session_dto_fixture_tests.rs", "src-tauri/src/lib.rs"]
+    claims: ["src/types.ts", "src/hooks/useDesk.ts", "src/hooks/useRemoteDesk.ts", "src/hooks/remoteDesk.test-helpers.ts", "src/widgets/OneBarWidget.test.tsx", "src/widgets/one-bar/OneBarTimer.tsx", "src/widgets/one-bar/OneBarTimeline.tsx", "src/widgets/one-bar/useWidgetData.ts", "src/components/settings/DebugSection.tsx", "src/test/dto-drift.test.ts"]
     verification: "npx vitest run --config vite.config.ts src/hooks src/widgets/one-bar src/test/dto-drift.test.ts"
     budget_minutes: 60
   - id: E015-T03
