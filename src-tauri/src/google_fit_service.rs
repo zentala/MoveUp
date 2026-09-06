@@ -28,10 +28,8 @@ use tokio::sync::{broadcast, Mutex};
 /// timezone gives the correct boundary in all cases.
 ///
 /// Generic over `TimeZone` so tests can pin a specific zone
-/// (e.g. `Europe/Warsaw` via `chrono-tz`) independent of the host's TZ —
-/// the original `chrono::Local`-only variant skipped DST assertions on
-/// UTC CI hosts, defeating the test's purpose.
-fn local_day_window_ms<Tz>(now: chrono::DateTime<Tz>) -> (i64, i64)
+/// (e.g. `Europe/Warsaw` via `chrono-tz`) independent of the host's TZ.
+pub(crate) fn local_day_window_ms<Tz>(now: chrono::DateTime<Tz>) -> (i64, i64)
 where
     Tz: chrono::TimeZone,
 {
@@ -250,79 +248,3 @@ impl GoogleFitService {
 
 /// Type alias used by Tauri state.
 pub type GoogleFitState = Arc<GoogleFitService>;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn clear_env() {
-        std::env::remove_var("GOOGLE_CLIENT_ID");
-        std::env::remove_var("GOOGLE_CLIENT_SECRET");
-        std::env::remove_var("GOOGLE_REFRESH_TOKEN");
-        std::env::remove_var("GOOGLE_FIT_STEPS_SOURCE");
-    }
-
-    #[tokio::test]
-    async fn unconfigured_view_reports_not_configured() {
-        clear_env();
-        let svc = GoogleFitService::from_env();
-        let v = svc.view().await;
-        assert!(!v.configured);
-        assert!(v.snapshot.is_none());
-        assert!(v.error_kind.is_none());
-    }
-
-    #[tokio::test]
-    async fn unconfigured_refresh_does_not_error() {
-        // The new contract: refresh always returns a view; unconfigured
-        // is a state, not an error.
-        clear_env();
-        let svc = GoogleFitService::from_env();
-        let v = svc.refresh().await;
-        assert!(!v.configured);
-        assert!(v.snapshot.is_none());
-    }
-
-    #[test]
-    fn local_day_window_spans_24h_on_normal_day() {
-        use chrono::TimeZone;
-        // Pin to Europe/Warsaw via chrono-tz so the assertion is host-TZ
-        // independent (UTC CI would otherwise pass any test trivially).
-        let warsaw = chrono_tz::Europe::Warsaw;
-        let now = warsaw.with_ymd_and_hms(2026, 7, 15, 14, 30, 0).single().unwrap();
-        let (start, end) = local_day_window_ms(now);
-        assert_eq!(
-            end - start,
-            86_400_000,
-            "non-DST CEST summer day must span exactly 24h"
-        );
-    }
-
-    #[test]
-    fn local_day_window_is_exactly_23h_on_dst_spring_forward_in_warsaw() {
-        use chrono::TimeZone;
-        let warsaw = chrono_tz::Europe::Warsaw;
-        // Poland 2026 spring-forward: 2026-03-29 02:00 CET → 03:00 CEST.
-        let now = warsaw.with_ymd_and_hms(2026, 3, 29, 12, 0, 0).single().unwrap();
-        let (start, end) = local_day_window_ms(now);
-        assert_eq!(
-            (end - start) / 3_600_000,
-            23,
-            "spring-forward day in Warsaw must be exactly 23h"
-        );
-    }
-
-    #[test]
-    fn local_day_window_is_exactly_25h_on_dst_fall_back_in_warsaw() {
-        use chrono::TimeZone;
-        let warsaw = chrono_tz::Europe::Warsaw;
-        // Poland 2026 fall-back: 2026-10-25 03:00 CEST → 02:00 CET.
-        let now = warsaw.with_ymd_and_hms(2026, 10, 25, 12, 0, 0).single().unwrap();
-        let (start, end) = local_day_window_ms(now);
-        assert_eq!(
-            (end - start) / 3_600_000,
-            25,
-            "fall-back day in Warsaw must be exactly 25h"
-        );
-    }
-}
