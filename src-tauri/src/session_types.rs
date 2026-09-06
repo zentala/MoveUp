@@ -109,9 +109,6 @@ pub struct SessionState {
     pub standing_session_started: Option<DateTime<Utc>>,
     /// The last lap number for which the +5 bonus was awarded (resets per session).
     pub lap_bonus_awarded_for_lap: u32,
-    /// Seconds in the current sitting session only (resets on Sitting entry, after break credit).
-    /// Use this for the session progress timer in the UI.
-    pub current_session_secs: i64,
     /// Seconds the user has been at the computer continuously (Sitting + Standing + Walking).
     /// Resets after 5+ continuous minutes of Away.
     pub continuous_computer_secs: i64,
@@ -167,13 +164,24 @@ pub struct SessionStateDto {
     pub position_changes: u32,
     /// Seconds of sitting limit consumed (accounts for break credits).
     /// 0..limit_secs normally, >limit_secs when overtime.
+    ///
+    /// **This is the only counter any timer, progress bar, colour band or
+    /// notification may read.** It equals the credited `sitting_seconds`
+    /// (ADR 008): a break reduces it proportionally, it is never reset by a
+    /// return to sitting.
     pub limit_used_secs: i64,
     /// Daily posture score (in-memory, resets at midnight).
     pub daily_score: f32,
     /// Current continuous standing session seconds (resets on sit).
     pub standing_session_secs: i64,
-    /// Seconds in the current sitting session only (for UI timer).
-    pub current_session_secs: i64,
+    /// Seconds since the last position change, uncredited.
+    ///
+    /// **Debug tab only.** No timer, progress bar, colour band or
+    /// notification may read this — it ignores break credit entirely and
+    /// restarts from zero on every position change, which is exactly the
+    /// reset the user complained about (E015, decision D2). Use
+    /// `limit_used_secs` for anything the user reads as session progress.
+    pub secs_since_last_break: i64,
     /// Seconds at computer continuously (resets after 5+ min Away).
     pub continuous_computer_secs: i64,
     /// Longest continuous computer session today (seconds).
@@ -204,7 +212,6 @@ pub enum BreakCredit {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateChangedPayload {
     pub state: DeskState,
-    pub sitting_seconds: i64,
     pub standing_seconds: i64,
     pub break_seconds: i64,
     pub desk_height_cm: f32,
@@ -216,8 +223,8 @@ pub struct StateChangedPayload {
     pub last_sitting_secs: i64,
     /// Break credit applied on this transition ("none", "partial", "full").
     pub break_credit: BreakCredit,
-    /// Current sitting session seconds (for UI timer, resets after break credit).
-    pub current_session_secs: i64,
+    /// Seconds of sitting limit consumed (credited — see `SessionStateDto`).
+    pub limit_used_secs: i64,
 }
 
 /// Completed sitting session with timing information.

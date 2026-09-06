@@ -95,6 +95,7 @@ mod session_persistence;
 #[cfg(test)] mod session_tests_flush;
 #[cfg(test)] mod session_tests_persistence;
 #[cfg(test)] mod session_tests_break_tracker;
+#[cfg(test)] mod session_tests_e015_credited;
 mod tray;
 #[cfg(test)] mod tray_tests;
 mod tray_blink;

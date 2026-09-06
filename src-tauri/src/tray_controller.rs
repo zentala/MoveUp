@@ -59,7 +59,7 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
     let overlay = app_state.overlay.clone();
 
     let progress = if snapshot.session_limit_secs > 0 {
-        payload.sitting_seconds as f32 / snapshot.session_limit_secs as f32
+        payload.limit_used_secs as f32 / snapshot.session_limit_secs as f32
     } else {
         0.0
     };
@@ -67,7 +67,7 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
     let label = build_tooltip_label(
         payload.desk_height_cm,
         &payload.state,
-        payload.sitting_seconds,
+        payload.limit_used_secs,
         payload.standing_seconds,
         payload.break_seconds,
         snapshot.daily_score,

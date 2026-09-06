@@ -57,7 +57,6 @@ impl SessionManager {
                 standing_session_secs: 0,
                 standing_session_started: None,
                 lap_bonus_awarded_for_lap: 0,
-                current_session_secs: 0,
                 continuous_computer_secs: 0,
                 longest_computer_session_secs: 0,
                 away_bout_secs: 0,
@@ -122,7 +121,6 @@ impl SessionManager {
                 standing_session_secs: 0,
                 standing_session_started: None,
                 lap_bonus_awarded_for_lap: 0,
-                current_session_secs: 0,
                 continuous_computer_secs: 0,
                 longest_computer_session_secs: 0,
                 away_bout_secs: 0,
@@ -167,8 +165,6 @@ impl SessionManager {
         self.state.sitting_seconds_total = totals.sitting_secs;
         self.state.standing_seconds = totals.standing_secs;
         self.state.position_changes = totals.position_changes;
-        // current_session_secs stays 0: no active session after restart.
-        self.state.current_session_secs = 0;
         info!(
             "seeded today totals: sitting={}s standing={}s changes={}",
             totals.sitting_secs, totals.standing_secs, totals.position_changes
@@ -187,7 +183,6 @@ impl SessionManager {
     pub fn snapshot(&self) -> SessionStateDto {
         let now = Utc::now();
         let live_sitting = self.get_live_sitting_seconds(now);
-        let live_current = self.get_live_current_session_secs(now);
         let live_break = self.get_live_break_seconds(now);
         let live_standing = self.get_live_standing_seconds(now);
         SessionStateDto {
@@ -202,7 +197,7 @@ impl SessionManager {
             limit_used_secs: self.compute_limit_used(now),
             daily_score: self.state.daily_score,
             standing_session_secs: self.get_live_standing_session_secs(now),
-            current_session_secs: live_current,
+            secs_since_last_break: self.get_secs_since_last_break(now),
             continuous_computer_secs: self.state.continuous_computer_secs,
             longest_computer_session_secs: self.state.longest_computer_session_secs,
             sitting_seconds_total: self.get_live_sitting_seconds_total(now),
