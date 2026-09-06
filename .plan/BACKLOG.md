@@ -445,6 +445,22 @@ Engine and backend items were filed above by their reviewers. Frontend and relea
 
 ---
 
+## Follow-ons filed by E017
+
+- [ ] **Build the auto-updater that `USER_UPDATES.md` no longer promises** —
+  E017-T02 rewrote [docs/USER_UPDATES.md:1](../docs/USER_UPDATES.md) to describe the
+  real manual path (download the installer from GitHub Releases, run it over the
+  existing install) because no `tauri-plugin-updater` is wired anywhere:
+  [src-tauri/tauri.conf.json:1](../src-tauri/tauri.conf.json),
+  [src-tauri/Cargo.toml:1](../src-tauri/Cargo.toml) and
+  [package.json:1](../package.json) all lack it. Implementing it means adding
+  `tauri-plugin-updater`, an `updater` block with a public key and the GitHub
+  Releases endpoint, a signed `latest.json` per release in
+  [.github/workflows/release-baseline.yml:1](../.github/workflows/release-baseline.yml),
+  and an in-app update prompt. **Blocked on code signing** (E013 Wave 2, no
+  provider chosen) — an unsigned auto-update would install unverified binaries.
+  Rewrite `USER_UPDATES.md` back once it ships. (Importance: Medium, Points: 8)
+
 ## Merged from root `BACKLOG.md` (2026-09-06, E016-T02)
 
 Root `BACKLOG.md`, `TASKS.md` and `ORCHESTRATOR.md` were deleted; this file is the
