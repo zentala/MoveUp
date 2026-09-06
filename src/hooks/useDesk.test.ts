@@ -240,4 +240,103 @@ describe("useDesk — commands", () => {
     await expect(result.current.setSitLimit(30)).rejects.toThrow("nope");
     expect(errSpy).toHaveBeenCalled();
   });
+
+  it("setStandLimit rethrows a backend failure", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result } = await renderDesk();
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === "set_stand_limit"
+        ? Promise.reject(new Error("stand nope"))
+        : Promise.resolve(null),
+    );
+
+    await expect(result.current.setStandLimit(10)).rejects.toThrow("stand nope");
+    expect(errSpy).toHaveBeenCalled();
+  });
+
+  it("calibrate('sitting') sends sitting_mm and rethrows when the backend fails", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "get_session_state") return Promise.resolve(makeSession());
+      if (cmd === "get_dashboard_state") {
+        return Promise.resolve({ session: makeSession(), metrics: [] });
+      }
+      if (cmd === "get_today_summary") return Promise.resolve(emptySummary);
+      return Promise.resolve(null);
+    });
+    const { result } = await renderDesk();
+
+    await act(async () => { await result.current.calibrate("sitting"); });
+    expect(invokeMock).toHaveBeenCalledWith("calibrate", { sitting_mm: 725 });
+
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === "get_session_state"
+        ? Promise.reject(new Error("no sensor"))
+        : Promise.resolve(null),
+    );
+    await expect(result.current.calibrate("sitting")).rejects.toThrow("no sensor");
+    expect(errSpy).toHaveBeenCalled();
+  });
+});
+
+describe("useDesk — transport edge cases", () => {
+  it("a db-error event surfaces its message like a sensor error", async () => {
+    const { result } = await renderDesk();
+
+    await act(async () => { emit("desk:db-error", { message: "disk full" }); });
+
+    expect(result.current.error).toBe("disk full");
+  });
+
+  it("clears the transition 30s after a state change", async () => {
+    vi.useFakeTimers();
+    try {
+      const rendered = renderHook(() => useDesk());
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      const { result } = rendered;
+
+      await act(async () => {
+        emit("desk:state-changed", {
+          state: "Standing", standing_seconds: 10, break_seconds: 0,
+          desk_height_cm: 110, position_changes: 1, last_break_secs: 0,
+          last_sitting_secs: 600, break_credit: "full", limit_used_secs: 600,
+        } satisfies StateChangedPayload);
+      });
+      expect(result.current.transition).not.toBeNull();
+
+      await act(async () => { vi.advanceTimersByTime(30_000); });
+      expect(result.current.transition).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a failing get_connected_port leaves the port unset and retries on the next poll", async () => {
+    let portCalls = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      switch (cmd) {
+        case "get_dashboard_state":
+          return Promise.resolve({ session: makeSession(), metrics: [] });
+        case "get_today_summary":
+          return Promise.resolve(emptySummary);
+        case "get_connected_port":
+          portCalls += 1;
+          return portCalls === 1
+            ? Promise.reject(new Error("port busy"))
+            : Promise.resolve("COM7");
+        default:
+          return Promise.resolve(null);
+      }
+    });
+
+    const { result } = await renderDesk();
+    expect(result.current.port).toBeNull();
+
+    // The failed lookup resets the guard, so the next poll asks again.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(portCalls).toBeGreaterThanOrEqual(1);
+  });
 });

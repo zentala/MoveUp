@@ -23,7 +23,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:perf": "vitest run --config vitest.perf.config.ts tests/perf",
-    "test:all": "pnpm test:unit && pnpm test:unit:rust",
+    "test:all": "pnpm test:coverage && pnpm test:unit:rust",
     "test:all:with-integration": "pnpm test:unit && pnpm test:unit:rust && pnpm test:integration",
     "test:unit:rust": "cd src-tauri && cargo test",
     "lint": "eslint src/",
