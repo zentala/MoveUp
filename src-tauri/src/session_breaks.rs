@@ -154,17 +154,28 @@ impl SessionManager {
         }
     }
 
-    /// Checks notification conditions and returns events that should fire.
-    /// Suppresses all notifications when user is Away (no point nagging an empty desk).
+    /// Checks notification conditions using the system clock.
+    ///
+    /// Impure boundary; the logic lives in
+    /// [`SessionManager::check_notification_conditions_at`].
     pub fn check_notification_conditions(
         &mut self,
         comm: &crate::communication_profile::CommunicationProfile,
+    ) -> Vec<NotificationEvent> {
+        self.check_notification_conditions_at(comm, Utc::now())
+    }
+
+    /// Checks notification conditions at `now` and returns events that should fire.
+    /// Suppresses all notifications when user is Away (no point nagging an empty desk).
+    pub fn check_notification_conditions_at(
+        &mut self,
+        comm: &crate::communication_profile::CommunicationProfile,
+        now: DateTime<Utc>,
     ) -> Vec<NotificationEvent> {
         if self.state.state == DeskState::Away || self.state.state == DeskState::Walking {
             return Vec::new();
         }
         let pn = &comm.periodic_notifications;
-        let now = Utc::now();
         let mut events = Vec::new();
         if pn.inactivity_enabled && !self.notify_inactivity_fired {
             if let Some(last_change) = self.state.last_position_change_at {

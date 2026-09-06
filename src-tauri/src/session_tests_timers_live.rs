@@ -1,4 +1,12 @@
 //! session_tests_timers_live.rs — T042: Live time counting and snapshot tests.
+//!
+//! **These tests still read the system clock, on purpose.** Most of them assert
+//! on `SessionManager::snapshot()`, which calls `Utc::now()` internally.
+//! E020-T01 injected the clock into the reading path, not into `snapshot()` —
+//! that is E020-T05, which moves the derived fields into the engine. Until then
+//! an injected instant here would be compared against the real clock inside
+//! `snapshot()`, so every assertion would drift by the difference. Convert this
+//! file together with T05, not before it.
 
 #[cfg(test)]
 mod timer_live_tests {

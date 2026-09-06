@@ -77,12 +77,15 @@ pub fn handle_reading(
 
     let active = is_active();
     let idle_secs = crate::activity::get_idle_seconds();
+    // One clock read per tick: the state machine and the score accumulator must
+    // agree on the same instant, or a slow lock makes them disagree by a second.
+    let now = chrono::Utc::now();
     let (state_before, result) = {
         let mut sess = session.lock().unwrap();
         let before = sess.current_state();
-        let res = sess.on_reading(mm, active);
+        let res = sess.on_reading_at(mm, active, now);
         if sess.last_accumulate_ran {
-            sess.accumulate_score_tick(&ergo);
+            sess.accumulate_score_tick_at(&ergo, now);
         }
         (before, res)
     };

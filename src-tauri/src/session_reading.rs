@@ -7,10 +7,23 @@ use crate::session_types::*;
 use crate::session_manager::SessionManager;
 
 impl SessionManager {
-    /// Process a sensor reading. Returns state change and/or completed session.
+    /// Process a sensor reading using the system clock.
+    ///
+    /// This is the impure boundary: it reads `Utc::now()` once and hands it to
+    /// [`SessionManager::on_reading_at`], which holds all the logic. Production
+    /// callers that already own a `now` for the current tick should call
+    /// `on_reading_at` directly so every counter in that tick agrees on one
+    /// instant; tests should always call `on_reading_at`.
     pub fn on_reading(&mut self, mm: i32, active: bool) -> ReadingResult {
-        let now = Utc::now();
+        self.on_reading_at(mm, active, Utc::now())
+    }
 
+    /// Process a sensor reading at an explicit instant. Returns state change
+    /// and/or completed session.
+    ///
+    /// Pure with respect to the clock: `now` is the only source of time here,
+    /// so a caller can replay a whole day of readings deterministically.
+    pub fn on_reading_at(&mut self, mm: i32, active: bool, now: DateTime<Utc>) -> ReadingResult {
         if self.state.first_reading_at.is_none() {
             self.state.first_reading_at = Some(now);
         }
