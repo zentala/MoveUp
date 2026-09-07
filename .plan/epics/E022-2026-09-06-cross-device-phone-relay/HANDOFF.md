@@ -331,7 +331,7 @@ tasks:
     repo: MoveUp
     executor: ts-dev
     depends_on: ["E022-T06"]
-    write_set: ["src-tauri/src/relay_commands.rs", "src-tauri/src/relay_commands_tests.rs", "src-tauri/src/relay_client.rs", "src-tauri/src/commands_profiles.rs", "src-tauri/src/commands_profiles_tests.rs", "src-tauri/src/event_logger.rs", "src-tauri/src/lib.rs", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock", "PROJECT.xml"]
+    write_set: ["src-tauri/src/relay_commands.rs", "src-tauri/src/relay_commands_tests.rs", "src-tauri/src/relay_client.rs", "src-tauri/src/relay_client_tests.rs", "src-tauri/src/commands_profiles.rs", "src-tauri/src/commands_profiles_tests.rs", "src-tauri/src/event_logger.rs", "src-tauri/src/lib.rs", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock", "PROJECT.xml"]
     claims: ["src-tauri/src/relay_commands.rs", "src-tauri/src/relay_commands_tests.rs", "src-tauri/src/commands_profiles.rs", "src-tauri/src/commands_profiles_tests.rs"]
     verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- relay_commands commands_profiles"
     budget_minutes: 60
