@@ -188,6 +188,34 @@ pub(super) fn store_source() -> DataSource {
     }
 }
 
+pub(super) fn voice_notes_source() -> DataSource {
+    DataSource {
+        id: "voice_notes".into(),
+        name: "Voice notes".into(),
+        kind: "sqlite".into(),
+        location: "{app_data_dir}/desk.db (table: voice_notes)".into(),
+        retention: "no limit (manual backups in backups/)".into(),
+        fields: vec![
+            f("id", "i64", "Primary key."),
+            f("captured_at_ms", "i64", "Unix ms when the phone captured the dictation."),
+            f("recorded_at", "string", "RFC3339 UTC timestamp of the insert."),
+            f("date_local", "string", "Local YYYY-MM-DD bucket derived from captured_at_ms."),
+            f("transcript", "string", "The dictated text, trimmed."),
+            f("lang", "string", "BCP-47 tag reported by the phone (null when unknown)."),
+            f("intent", "string", "snooze | note | walk_start | walk_end."),
+            f("reply", "string", "Optional AI coaching reply (null when none was produced)."),
+        ],
+        sample_row: Some(
+            r#"{"id":7,"captured_at_ms":1757160000000,"recorded_at":"2026-09-06T12:00:00+00:00","date_local":"2026-09-06","transcript":"drzemka 5","lang":"pl-PL","intent":"snooze","reply":null}"#
+                .into(),
+        ),
+        description:
+            "Notes dictated on the phone via POST /display/voice. Only the snooze intent has a \
+             side effect; the session tables are never written from here (ADR 021)."
+                .into(),
+    }
+}
+
 pub(super) fn remote_ws_source() -> DataSource {
     DataSource {
         id: "remote_ws".into(),

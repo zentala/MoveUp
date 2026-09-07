@@ -113,7 +113,7 @@
       <file name="alert_popup.rs">AlertPopup — show/dismiss lifecycle</file>
       <file name="alert_popup_window.rs">WinAPI popup window thread</file>
       <file name="commands_analyst.rs">Analyst IPC: get_snapshots_range, get_events_range, get_sessions_range — read range-scoped history from disk + SQLite</file>
-      <file name="commands_health.rs">Health IPC: get_health_today, refresh_health_now — both return a symmetric HealthView merged across every registered source (E021-T02, replaces commands_google_fit.rs)</file>
+      <file name="commands_health.rs">Health IPC: get_health_today, refresh_health_now, list_voice_notes(day) — both return a symmetric HealthView merged across every registered source (E021-T02, replaces commands_google_fit.rs)</file>
       <file name="health_models.rs">Source-agnostic DTOs: HealthSnapshot (steps + optional heart_rate_bpm/hrv_rmssd_ms + source_id + fetched_at_ms), HealthView, HealthErrorKind (alias of google_fit ErrorKind). ts-rs exported</file>
       <file name="health_source.rs">HealthSource trait (id/view/refresh) + HealthAggregator: merges sources by freshest fetched_at_ms, passes errors through with AuthRevoked outranking Transient. The inlet the LAN push source (T03) registers into</file>
       <file name="health_source_tests.rs">Aggregator tests over the real trait — happy / nil / empty / error paths, freshness ordering, "a healthy source never hides another source's error"</file>
@@ -129,9 +129,15 @@
       <file name="notify_webhook.rs">Outbound ntfy/generic webhook push — fire-and-forget send, 5s per-attempt timeout, one retry on 5xx/timeout, JSON body {title, message, priority, tags}. URL from AppConfig or DESK_NOTIFY_WEBHOOK_URL, gated by the notify_webhook_enabled toggle</file>
       <file name="notify_webhook_tests.rs">9 wiremock-backed tests: happy body shape, nil/empty/disabled config, 5xx retry, retry ceiling, timeout retry, 4xx no-retry</file>
       <file name="voice_ai.rs">Optional AI reply to a dictated voice note — BYOK OpenRouter chat completion, key from OPENROUTER_API_KEY, model from AppConfig.voice_ai_model else google/gemini-2.5-flash-lite, fixed ergonomics-coach system prompt (max 60 words, PL/EN), 8s timeout, endpoint overridable for tests. Not wired to a route yet</file>
+      <file name="voice_intent.rs">Offline intent parser for dictated text — parse(&amp;str) -&gt; Intent (Snooze(u16) / Note / WalkStart / WalkEnd) over an ordered table of Polish+English regexes; WalkEnd is tested before WalkStart, snooze minutes clamped 1..180 with a 5-minute default, unrecognised text is always a Note (E021-T06)</file>
+      <file name="voice_intent_tests.rs">11 tests around a 12-phrase PL/EN acceptance table: every rule compiles (a dropped rule cannot silently shrink the parser), diacritic-free dictation, WalkEnd precedence, clamping, empty transcript, log truncation by characters</file>
+      <file name="remote_routes_voice.rs">Dictation inlet POST /display/voice — token required, 4 KiB body cap, {transcript(1..2000), lang?, captured_at_ms}; pipeline: EventLogger VOICE line -&gt; voice_notes insert -&gt; snooze side effect via CommunicationPolicy::snooze_for (Walk*/Note do nothing) -&gt; optional voice_ai reply -&gt; VoiceAck broadcast + webhook push. Every leg is independently optional (E021-T06)</file>
+      <file name="remote_routes_voice_tests.rs">17 tests driving the real seam route → parser → CommunicationPolicy → real SQLite via axum oneshot: snooze reaches the policy, walk intents change no session state, VOICE line written, ack broadcast, 401/413/422/400/503, and the degraded no-db / no-logger / no-AI paths</file>
+      <file name="db_voice_notes.rs">voice_notes table + insert/list/set_reply/get, local-day bucketing from captured_at_ms. Created by db::init_schema; nothing in session_*.rs reads it (E021-D3 / ADR 021)</file>
+      <file name="db_voice_notes_tests.rs">11 tests on a real SQLite connection migrated by db::init_schema — round-trip, idempotent schema, NULL lang stays unknown, day bucketing and ordering, empty/malformed day, stale set_reply reports zero rows</file>
       <file name="voice_ai_tests.rs">12 tests: from_env key/model resolution, wiremock happy path, request shape, blank transcript (no call), empty content, no choices, 401 rejected, 5xx, malformed 200, timeout</file>
       <file name="commands_catalog.rs">Analyst IPC: get_data_catalog — static metadata of every data source the app writes</file>
-      <file name="commands_catalog_sources.rs">Helper builders for individual catalog sources (snapshots, events, sessions, store, signals)</file>
+      <file name="commands_catalog_sources.rs">Helper builders for individual catalog sources (snapshots, events, sessions, store, signals, voice_notes)</file>
     </layer>
 
     <layer name="profiles" path="src-tauri/profiles/">

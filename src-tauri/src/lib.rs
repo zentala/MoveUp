@@ -39,6 +39,8 @@ mod db;
 mod db_backup;
 mod db_queries;
 mod db_sessions;
+mod db_voice_notes;
+#[cfg(test)] mod db_voice_notes_tests;
 mod today_totals;
 mod desk_events;
 pub mod event_logger;
@@ -57,6 +59,8 @@ mod notify_webhook;
 #[cfg(test)] mod notify_webhook_tests;
 mod voice_ai;
 #[cfg(test)] mod voice_ai_tests;
+mod voice_intent;
+#[cfg(test)] mod voice_intent_tests;
 mod screen_break_nudge;
 #[cfg(test)] mod notification_service_tests;
 #[cfg(test)] mod notification_service_tests_edge;
@@ -74,6 +78,8 @@ mod remote_auth;
 mod remote_display_state;
 mod remote_routes_health;
 #[cfg(test)] mod remote_routes_health_tests;
+mod remote_routes_voice;
+#[cfg(test)] mod remote_routes_voice_tests;
 mod remote_server;
 #[cfg(test)] mod remote_server_tests;
 mod ws_broadcaster;
@@ -234,6 +240,7 @@ pub fn run() {
                     commands_catalog::get_data_catalog,
                     commands_health::get_health_today,
                     commands_health::refresh_health_now,
+                    commands_health::list_voice_notes,
                     tray::open_analyst_window,
                 ]
             }
@@ -271,6 +278,7 @@ pub fn run() {
                     commands_catalog::get_data_catalog,
                     commands_health::get_health_today,
                     commands_health::refresh_health_now,
+                    commands_health::list_voice_notes,
                     tray::open_analyst_window,
                 ]
             }
@@ -387,6 +395,7 @@ mod ts_export {
         crate::db::TodaySummary::export_all(&cfg).expect("TodaySummary exports");
         crate::config::AppConfig::export_all(&cfg).expect("AppConfig exports");
         crate::health_models::HealthView::export_all(&cfg).expect("HealthView exports");
+        crate::db_voice_notes::VoiceNoteRow::export_all(&cfg).expect("VoiceNoteRow exports");
         crate::serial_parser::PortInfo::export_all(&cfg).expect("PortInfo exports");
     }
 

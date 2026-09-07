@@ -53,6 +53,18 @@ pub enum DisplayEvent {
     #[serde(rename = "desk:daily-reset")]
     DailyReset,
 
+    /// A dictated voice note was accepted (E021-T06).
+    ///
+    /// Broadcast rather than returned only to the poster, so a second display
+    /// — the desktop popup, a tablet on the desk — shows the same ack the
+    /// phone got.
+    #[serde(rename = "desk:voice-ack")]
+    VoiceAck {
+        transcript: String,
+        intent: String,
+        reply: Option<String>,
+    },
+
     /// Keep-alive ping.
     #[serde(rename = "heartbeat")]
     Heartbeat,

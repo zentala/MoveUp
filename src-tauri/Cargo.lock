@@ -1024,6 +1024,7 @@ dependencies = [
  "notify-rust",
  "proptest",
  "rand",
+ "regex",
  "reqwest 0.11.27",
  "rusqlite",
  "serde",
