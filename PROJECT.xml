@@ -263,6 +263,19 @@
       </dir>
     </layer>
 
+    <layer name="relay-worker" path="relay/">
+      <note>Standalone pnpm project (own pnpm-workspace.yaml, own lockfile) deployed to Cloudflare Workers — NOT a member of the app workspace. Imports the wire contract from the app through the `@app/*` alias so the protocol schema exists once. E022-T02 ships the room and the router; credentials/REST are T03, command routing is T04, so the Worker is not yet deployable.</note>
+      <file name="src/index.ts">Router: GET /healthz (version, for the deploy gate), /app/* (viewer build via the ASSETS binding; 503 assets_unavailable when ../dist has not been built, never 404), GET /v1/desks/:deskId/ws (upgrade forwarded to the DeskRoom named by desk_id — the token is never a URL component), and the six REST credential routes as 501 stubs</file>
+      <file name="src/room/desk-room.ts">DeskRoom Durable Object on the WebSocket Hibernation API: hello→welcome, one desk + N viewers, event fan-out, desk_status on arrival/departure, ping/pong, and a single alarm sweeping both the hello deadline (4401) and the idle deadline (1001). Holds the newest snapshot in memory only — it dies with the object, which is what lets the relay store nothing about a person's day</file>
+      <file name="src/room/messages.ts">Envelope building plus readFrame(), which turns a parse failure into a decision: close 4400 for an unparseable/wrong-version/non-envelope frame, a non-fatal error frame carrying the offending id for a bad payload or an unknown type</file>
+      <file name="src/room/sockets.ts">Per-socket state in the socket's attachment (survives hibernation) rather than in accept-time tags (fixed before the role is known, and taggable only by leaking the role into the upgrade URL)</file>
+      <file name="src/auth/tokens.ts">verifyToken — the seam T03 fills with a D1 lookup; today a shape check that already rejects with 4401, plus hashToken and a constant-time hex compare. Refuses outright once a DB is bound but unread, so a half-wired deployment cannot accept any well-formed string as a credential</file>
+      <file name="src/auth/licenses.ts">Entitlement lookup skeleton and the fixed REST error-code list; findLicense distinguishes "no such license" (null) from "could not ask" (throws)</file>
+      <file name="src/http/">responses.ts (one {error:{code,message}} shape), health.ts, assets.ts, rest.ts (the route table + a :param matcher; wrong verb on a real path answers 405, not 404)</file>
+      <file name="migrations/0001_init.sql">licenses / desks / viewers — SHA-256 hashes and metadata only. Read and written by T03</file>
+      <file name="scripts/mint-license.mjs">Mints a key and prints its hash; exits 3 until T03 stores it, because a key nobody stored entitles nobody</file>
+    </layer>
+
     <layer name="ipc-events">
       <event name="desk:distance" direction="rust-to-js">Raw sensor reading (mm, cm, timestamp)</event>
       <event name="desk:device-connected" direction="rust-to-js">Sensor identified on serial port</event>
@@ -316,6 +329,12 @@
 
     <layer name="integration" path="tests/integration/" runner="pnpm test:integration">
       <note>App must be running: pnpm tauri:dev</note>
+    </layer>
+
+    <layer name="relay-worker" path="relay/test/" runner="pnpm --dir relay exec vitest run">
+      <note>Runs inside workerd through @cloudflare/vitest-pool-workers, so the Durable Object under test is the real one. Miniflare options live in relay/vitest.config.ts (not read from wrangler.toml — the Worker's [assets] block points at ../dist, which only exists after a vite build) with HELLO_TIMEOUT_MS=250 and IDLE_TIMEOUT_MS=700 so the alarm-driven timeout tests finish inside a second.</note>
+      <files>test/room/{handshake,fanout,liveness}.test.ts, test/http/router.test.ts, test/auth/tokens.test.ts, test/commands/validation.test.ts</files>
+      <count>70 tests (25 room + 45 router/auth/allowlist) — E022-T02</count>
     </layer>
 
     <layer name="e2e" path="tests/e2e/" runner="pnpm test:e2e">
