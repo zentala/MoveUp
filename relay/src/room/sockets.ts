@@ -31,6 +31,13 @@ export interface AuthedState {
   lastSeen: number;
   /** Unix ms the socket was authenticated — `desk_status.since` for a desk. */
   since: number;
+  /**
+   * Unix ms of each command this socket sent inside the current rate-limit
+   * window (E022-T04). Absent on a socket that has sent none, and on every
+   * desk socket. It rides in the attachment rather than in Durable Object
+   * memory so an eviction cannot forgive a viewer's burst.
+   */
+  commandHits?: number[];
 }
 
 export type SocketState = PendingState | AuthedState;

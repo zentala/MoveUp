@@ -13,9 +13,10 @@
  * eviction gets `snapshot: null` until the desk sends the next one — which the
  * desk does on every `welcome`.
  *
- * Command routing (`command`, `command_result`) is T04. Until then both are
- * answered with a non-fatal `error{not_implemented}` rather than dropped, so a
- * viewer built ahead of the relay learns the truth instead of waiting forever.
+ * Command routing (`command`, `command_result`) lives in `commands.ts` (T04);
+ * this file only dispatches to it. Every command is answered — refused here,
+ * refused because the PC is off, or executed by the desk — because a viewer
+ * that gets nothing back cannot tell a slow command from a lost one.
  */
 import type { Role } from "@app/generated/Role";
 import type { Welcome } from "@app/generated/Welcome";
@@ -29,6 +30,13 @@ import {
   replaceExistingDesk,
   welcomeFor,
 } from "./fanout";
+import {
+  emptyPending,
+  routeCommand,
+  routeCommandResult,
+  type CommandBox,
+  type PendingMap,
+} from "./commands";
 import {
   CLOSE_CODES,
   encode,
@@ -68,7 +76,7 @@ const CLOSE_FOR: Record<AuthFailure, number> = {
   revoked: CLOSE_CODES.REVOKED,
 };
 
-export class DeskRoom implements DurableObject, RoomOps {
+export class DeskRoom implements DurableObject, RoomOps, CommandBox {
   /**
    * Newest `snapshot` event seen from the desk, verbatim. Memory only, and
    * public because `fanout.ts` writes it — see `SnapshotBox` there.
@@ -82,6 +90,13 @@ export class DeskRoom implements DurableObject, RoomOps {
    */
   pairing: PairingState = emptyPairing();
   readonly limits: PairingLimits;
+
+  /**
+   * Commands forwarded to the desk and still waiting for a `command_result`,
+   * keyed by the command's envelope id. Memory only, and public because
+   * `commands.ts` writes it — see `CommandBox` there.
+   */
+  pending: PendingMap = emptyPending();
 
   private readonly helloTimeoutMs: number;
   private readonly idleTimeoutMs: number;
@@ -160,8 +175,9 @@ export class DeskRoom implements DurableObject, RoomOps {
       return;
     }
 
-    writeState(ws, { ...state, lastSeen: Date.now() });
-    await this.handleAuthed(ws, state, parsed);
+    const refreshed: AuthedState = { ...state, lastSeen: Date.now() };
+    writeState(ws, refreshed);
+    await this.handleAuthed(ws, refreshed, parsed);
   }
 
   private async handleHello(ws: WebSocket, message: KnownMessage): Promise<void> {
@@ -227,16 +243,11 @@ export class DeskRoom implements DurableObject, RoomOps {
         return;
 
       case "command":
+        routeCommand(this, this.ctx.getWebSockets(), ws, state, message, Date.now());
+        return;
+
       case "command_result":
-        // T04. Answering is the point: a silent drop is indistinguishable from
-        // a delivered command that the desk chose to ignore.
-        ws.send(
-          errorFrame(
-            "not_implemented",
-            `${message.type} routing lands in E022-T04`,
-            message.id,
-          ),
-        );
+        routeCommandResult(this, this.ctx.getWebSockets(), ws, state, message, Date.now());
         return;
 
       default:
