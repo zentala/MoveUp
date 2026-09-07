@@ -55,7 +55,9 @@ import {
 } from "./pairing";
 import {
   closeAll,
+  closeForExpiredLicense,
   closeViewer,
+  isDeskLicenseActive,
   issueCode,
   onlineViewers,
   redeemCode,
@@ -67,7 +69,7 @@ import {
   type RedeemReply,
   type RoomOps,
 } from "./rpc";
-import { isAuthed, readState, writeState, type AuthedState } from "./sockets";
+import { isAuthed, readState, socketsInRole, writeState, type AuthedState } from "./sockets";
 import { MIN_SWEEP_MS, sweep } from "./sweep";
 
 const CLOSE_FOR: Record<AuthFailure, number> = {
@@ -100,6 +102,9 @@ export class DeskRoom implements DurableObject, RoomOps, CommandBox {
 
   private readonly helloTimeoutMs: number;
   private readonly idleTimeoutMs: number;
+  private readonly licenseRecheckMs: number;
+  /** Unix ms of the last D1 licence re-check; 0 forces one on the first alarm. */
+  private lastLicenseCheckAt = 0;
 
   constructor(
     private readonly ctx: DurableObjectState,
@@ -107,6 +112,7 @@ export class DeskRoom implements DurableObject, RoomOps, CommandBox {
   ) {
     this.helloTimeoutMs = numVar(env.HELLO_TIMEOUT_MS, 5_000);
     this.idleTimeoutMs = numVar(env.IDLE_TIMEOUT_MS, 60_000);
+    this.licenseRecheckMs = numVar(env.LICENSE_RECHECK_MS, 5 * 60_000);
     this.limits = {
       ttlMs: numVar(env.PAIRING_TTL_MS, DEFAULT_TTL_MS),
       lockoutMs: numVar(env.PAIRING_LOCKOUT_MS, DEFAULT_LOCKOUT_MS),
@@ -274,15 +280,40 @@ export class DeskRoom implements DurableObject, RoomOps, CommandBox {
   // ─── Alarm sweep ──────────────────────────────────────────────────────────
 
   /**
-   * One alarm serves both deadlines (`sweep.ts`). It closes what is overdue and
-   * re-arms itself only while something is still due, so an empty room costs
-   * nothing.
+   * One alarm serves all three deadlines (hello timeout and idle timeout via
+   * `sweep.ts`, licence expiry here). It closes what is overdue and re-arms
+   * itself only while something is still due, so an empty room costs nothing.
    */
   async alarm(): Promise<void> {
-    const nextIn = sweep(this.ctx.getWebSockets(), this.idleTimeoutMs, Date.now(), (ws) =>
+    const now = Date.now();
+    const licenseIn = await this.enforceLicenseIfDue(now);
+    const nextIn = sweep(this.ctx.getWebSockets(), this.idleTimeoutMs, now, (ws) =>
       this.announceDeskGone(ws),
     );
-    if (nextIn !== null) await this.scheduleSweep(nextIn);
+    const reschedule =
+      nextIn === null ? licenseIn : licenseIn === null ? nextIn : Math.min(nextIn, licenseIn);
+    if (reschedule !== null) await this.scheduleSweep(reschedule);
+  }
+
+  /**
+   * Re-checks the desk's licence against D1 no more often than
+   * `licenseRecheckMs`, closing every socket in the room with `4402` when it
+   * has expired (security review 2026-09-07, finding High #1). Returns
+   * milliseconds until the next check is due, so `alarm` can fold it into the
+   * same re-arm as the idle sweep instead of scheduling a second alarm.
+   */
+  private async enforceLicenseIfDue(now: number): Promise<number | null> {
+    const sockets = this.ctx.getWebSockets();
+    if (socketsInRole(sockets, "desk").length === 0) return null;
+
+    const dueIn = this.licenseRecheckMs - (now - this.lastLicenseCheckAt);
+    if (dueIn > 0) return dueIn;
+
+    this.lastLicenseCheckAt = now;
+    const deskId = this.ctx.id.name;
+    const active = deskId ? await isDeskLicenseActive(this.env, deskId) : null;
+    if (active === false) closeForExpiredLicense(sockets);
+    return this.licenseRecheckMs;
   }
 
   /** Arms the alarm for `inMs`, unless an earlier one is already pending. */

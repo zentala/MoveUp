@@ -6,7 +6,9 @@
  * socket list and a mutable pairing box, not methods, so each can be tested
  * without a Durable Object and `desk-room.ts` stays a protocol file.
  */
-import { sha256Hex } from "../auth/licenses";
+import { findLicense, isActive, sha256Hex } from "../auth/licenses";
+import { findDesk } from "../auth/tokens";
+import type { Env } from "../env";
 import { CLOSE_CODES } from "./messages";
 import {
   emptyPairing,
@@ -66,6 +68,36 @@ export function closeAll(box: PairingBox, sockets: WebSocket[]): number {
   let closed = 0;
   for (const ws of sockets) {
     ws.close(CLOSE_CODES.REVOKED, "relay disabled for this desk");
+    closed += 1;
+  }
+  return closed;
+}
+
+/**
+ * Re-checks the desk's licence against D1. `hello`-time verification alone
+ * cannot see a licence that expires under an already-open connection — pings
+ * refresh `lastSeen` without ever re-authenticating (security review 2026-09-07,
+ * finding High #1). `null` means the check itself failed (D1 unreachable) and
+ * must not be treated as "expired" — a transient outage must not close every
+ * live desk in the fleet.
+ */
+export async function isDeskLicenseActive(env: Env, deskId: string): Promise<boolean | null> {
+  try {
+    const desk = await findDesk(env, deskId);
+    if (!desk) return false;
+    const license = await findLicense(env, desk.license_key_hash);
+    if (!license) return false;
+    return isActive(license, Date.now());
+  } catch {
+    return null;
+  }
+}
+
+/** Closes every socket in the room because its licence has expired. */
+export function closeForExpiredLicense(sockets: WebSocket[]): number {
+  let closed = 0;
+  for (const ws of sockets) {
+    ws.close(CLOSE_CODES.UNENTITLED, "license expired");
     closed += 1;
   }
   return closed;
