@@ -255,7 +255,7 @@ tasks:
     repo: MoveUp
     executor: ts-dev
     depends_on: ["E021-T02"]
-    write_set: ["src-tauri/src/remote_auth.rs", "src-tauri/src/remote_auth_tests.rs", "src-tauri/src/remote_routes_health.rs", "src-tauri/src/remote_routes_health_tests.rs", "src-tauri/src/remote_server.rs", "src-tauri/src/remote_server_tests.rs", "src-tauri/src/ws_broadcaster.rs", "src-tauri/src/health_source.rs", "src-tauri/src/health_source_tests.rs", "src-tauri/src/health_models.rs", "docs/REMOTE_DISPLAY.md", "src-tauri/src/lib.rs", "src/generated/**", "PROJECT.xml", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock"]
+    write_set: ["src-tauri/src/remote_auth.rs", "src-tauri/src/remote_auth_tests.rs", "src-tauri/src/remote_routes_health.rs", "src-tauri/src/remote_routes_health_tests.rs", "src-tauri/src/remote_server.rs", "src-tauri/src/remote_server_tests.rs", "src-tauri/src/ws_broadcaster.rs", "src-tauri/src/remote_display_state.rs", "src-tauri/src/setup_helpers.rs", "src-tauri/src/tray_controller.rs", "src-tauri/src/health_source.rs", "src-tauri/src/health_source_tests.rs", "src-tauri/src/health_models.rs", "docs/REMOTE_DISPLAY.md", "src-tauri/src/lib.rs", "src/generated/**", "PROJECT.xml", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock"]
     claims: ["src-tauri/src/remote_auth.rs", "src-tauri/src/remote_auth_tests.rs", "src-tauri/src/remote_routes_health.rs", "src-tauri/src/remote_routes_health_tests.rs", "src-tauri/src/remote_server.rs", "src-tauri/src/remote_server_tests.rs", "src-tauri/src/ws_broadcaster.rs", "docs/REMOTE_DISPLAY.md"]
     verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- remote_routes_health remote_auth"
     budget_minutes: 90
