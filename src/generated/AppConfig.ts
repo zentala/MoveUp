@@ -40,4 +40,10 @@ notify_webhook_enabled: boolean,
  * the `DESK_NOTIFY_WEBHOOK_URL` environment variable. May carry a token,
  * so it is never logged.
  */
-notify_webhook_url: string | null, };
+notify_webhook_url: string | null, 
+/**
+ * OpenRouter model slug (`<org>/<model>`) for the voice AI reply. Empty
+ * or unset uses the cheap default in [`crate::voice_ai::DEFAULT_MODEL`].
+ * The API key itself is never stored here — it stays in the environment.
+ */
+voice_ai_model: string | null, };

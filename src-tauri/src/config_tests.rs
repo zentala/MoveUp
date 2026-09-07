@@ -53,6 +53,7 @@ mod tests {
             telemetry_device_id: "test-uuid".to_string(),
             notify_webhook_enabled: true,
             notify_webhook_url: Some("https://ntfy.sh/desk".to_string()),
+            voice_ai_model: Some("openai/gpt-4o-mini".to_string()),
         };
 
         let json = serde_json::to_value(&original).unwrap();
@@ -67,6 +68,20 @@ mod tests {
             restored.notify_webhook_url.as_deref(),
             Some("https://ntfy.sh/desk")
         );
+        assert_eq!(
+            restored.voice_ai_model.as_deref(),
+            Some("openai/gpt-4o-mini")
+        );
+    }
+
+    /// A config saved before E021 has no `voice_ai_model`; loading it must
+    /// leave the field unset so the cheap default applies, not fail the parse.
+    #[test]
+    fn test_voice_ai_model_defaults_to_none_when_absent() {
+        let json = serde_json::json!({ "sitting_mm": 750 });
+        let config: AppConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(config.voice_ai_model, None);
+        assert_eq!(AppConfig::default().voice_ai_model, None);
     }
 
     /// A config saved before E021 has neither webhook field; loading it must

@@ -61,6 +61,11 @@ pub struct AppConfig {
     /// so it is never logged.
     #[serde(default)]
     pub notify_webhook_url: Option<String>,
+    /// OpenRouter model slug (`<org>/<model>`) for the voice AI reply. Empty
+    /// or unset uses the cheap default in [`crate::voice_ai::DEFAULT_MODEL`].
+    /// The API key itself is never stored here — it stays in the environment.
+    #[serde(default)]
+    pub voice_ai_model: Option<String>,
 }
 
 impl AppConfig {
@@ -123,6 +128,7 @@ impl Default for AppConfig {
             telemetry_device_id: default_empty_string(),
             notify_webhook_enabled: bool_false(),
             notify_webhook_url: None,
+            voice_ai_model: None,
         }
     }
 }
