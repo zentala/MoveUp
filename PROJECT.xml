@@ -204,6 +204,7 @@
         <file name="WelcomePopup.tsx">First-launch onboarding popup</file>
         <file name="AppProgressBar.tsx">14px in-app progress bar (debug)</file>
         <file name="ScreenProgressBar.tsx">4px top-of-screen CSS overlay bar</file>
+        <file name="ConnectionOverlay.tsx">Four states for the remote display: all fine (nothing), sensor lost (banner), phone disconnected (Reconnecting…), and — E022 — relay up but desk asleep (last known state). deskOnline defaults to true so LAN and Tauri callers keep three</file>
         <file name="VoiceCapture.tsx">Phone-only dictation panel — token sheet, textarea, optional mic, POST /display/voice, renders the desk:voice-ack</file>
         <dir name="settings/">
           <file name="CalibrationSection.tsx">Calibration UI section</file>
@@ -216,7 +217,9 @@
       </dir>
 
       <dir name="hooks/">
-        <file name="useDesk.ts">Main data hook — desk:* events, IPC state</file>
+        <file name="useDesk.ts">Main data hook — desk:* events, IPC state. Reports deskOnline: true and control capability as constants: inside Tauri there is no wire to negotiate</file>
+        <file name="useRemoteDesk.ts">The browser half. Owns the reducer, NOT the socket: selectTransport() picks the wire and the hook only subscribes, so one phone build serves both the LAN and the relay. Adds capabilities + deskOnline to the result</file>
+        <file name="useDeskTypes.ts">UseDeskResult (the reducer-shaped contract deskReducer.DeskView is derived from) plus DeskTransportFacts and UseDeskConnection — the transport facts are separate on purpose, a pure reducer cannot know whether a socket is up</file>
         <file name="useTimer.ts">Tick hook — 1s interval counter</file>
       </dir>
 
@@ -264,7 +267,20 @@
       <dir name="remote/">
         <file name="protocol.ts">Runtime half of the E022 wire contract: zod schemas for every payload, envelopeSchema(), parseMessage() returning ok / unknown_type / error (an unknown type is ignorable, not an error), CLOSE_CODES + TERMINAL_CLOSE_CODES, and COMMAND_ALLOWLIST/validateCommand mirroring Rust. SCHEMAS_MATCH_RUST is a compile-time proof that each schema still matches the ts-rs type — rename a field in remote_protocol.rs and pnpm typecheck fails here. Imported by the relay Worker too (T02)</file>
         <file name="protocol.test.ts">31 tests over the shared fixtures plus envelope and allowlist edge cases</file>
-        <file name="index.ts">Barrel — transports, PairScreen and storage land here in T08/T09</file>
+        <file name="storage.ts">The phone's stored pairing record (localStorage key moveup.relay.v1): load/save/clear/has, every access wrapped because localStorage throws outright in private-mode Safari; a record that fails zod validation is treated as absent AND removed</file>
+        <file name="storage.test.ts">10 tests: round-trip, absent, empty string, non-JSON, missing field, getItem/setItem/removeItem throwing</file>
+        <file name="index.ts">Barrel — protocol, storage and transports; PairScreen lands here in T09</file>
+
+        <dir name="transports/">
+          <file name="types.ts">The Transport contract: connect/close/onMessage/onStatus, optional sendCommand, capabilities.control (LAN false, relay true), the normalised TransportMessage union (event, welcome, desk status, command result) and TransportStatus, whose connected and deskOnline are two separate facts on the relay</file>
+          <file name="emitter.ts">The listener set both transports share</file>
+          <file name="lan.ts">ws://host/display/ws — today's read-only LAN wire, backoff 1..10 s, REST /display/api poll every 2 s while down. Accepts BOTH a bare {event,payload} (pre-T11 desk) and a v1 envelope (post-T11), because phone and desk update on separate schedules</file>
+          <file name="relay.ts">wss://relay/v1/desks/{id}/ws — the token travels in the hello payload, never in the URL. hello, ping every 25 s, backoff 1..60 s with ±20 % jitter, sendCommand with a pending map keyed by envelope id (10 s timeout). Close 4402/4403/4409 stop the loop; 4403 also clears the stored pairing</file>
+          <file name="index.ts">Barrel + selectTransport(): a stored pairing picks the relay, otherwise the LAN socket</file>
+          <file name="lan.test.ts">11 tests: both frame shapes, unknown envelope type ignored, malformed JSON warned, liveness, backoff, REST fallback</file>
+          <file name="relay.test.ts">16 tests: hello contents, a desk that is offline while the phone stays connected, command round trip plus bad args, offline and timeout, revoked clears the record and stops retrying, unentitled stops without clearing, backoff jitter bounds</file>
+          <file name="transports.test.ts">The seam: one relay-protocol fixture fed through BOTH transports into the real useRemoteDesk must produce identical reducer state; plus a null welcome snapshot, capabilities exposure and selectTransport</file>
+        </dir>
       </dir>
     </layer>
 

@@ -253,6 +253,19 @@ describe("useRemoteDesk", () => {
     expect(result.current.port).toBeNull();
   });
 
+  it("defaults to the read-only LAN transport when nothing is paired", async () => {
+    const useRemoteDesk = await importHook();
+    const { result } = renderHook(() => useRemoteDesk());
+
+    expect(result.current.capabilities.control).toBe(false);
+    expect(result.current.deskOnline).toBe(false);
+
+    const ws = MockWebSocket.latest();
+    act(() => { ws.simulateOpen(); });
+    // On the LAN the server is the desk: one connection, one liveness fact.
+    expect(result.current.deskOnline).toBe(true);
+  });
+
   it("wsConnected tracks WebSocket connection state", async () => {
     const useRemoteDesk = await importHook();
     const { result } = renderHook(() => useRemoteDesk());
