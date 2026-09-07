@@ -1,12 +1,17 @@
 //! commands_profiles.rs — IPC commands for listing and switching profiles.
 
+use std::path::Path;
+use std::sync::Mutex;
+
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
 use crate::commands::{ensure_initialized, AppState};
+use crate::communication_policy::CommunicationPolicy;
 use crate::profile_loader::{list_profiles, load_profile, validate_communication_profile};
 use crate::communication_profile::CommunicationProfile;
 use crate::ergonomic_profile::ErgonomicProfile;
+use crate::session::SessionManager;
 
 // ── DTOs ────────────────────────────────────────────────────────────────────
 
@@ -87,11 +92,14 @@ pub(crate) fn slugify_profile_name(name: &str) -> Option<String> {
     if slug.is_empty() { None } else { Some(slug) }
 }
 
-fn profiles_dir(app: &AppHandle, subdir: &str) -> Result<std::path::PathBuf, String> {
+fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     app.path()
         .app_data_dir()
-        .map(|d| d.join("profiles").join(subdir))
         .map_err(|e| format!("Cannot get app data dir: {}", e))
+}
+
+fn profiles_dir(app: &AppHandle, subdir: &str) -> Result<std::path::PathBuf, String> {
+    Ok(app_data_dir(app)?.join("profiles").join(subdir))
 }
 
 fn build_profile_info<T>(path: &std::path::Path, id: &str, name: String, desc: String) -> ProfileInfo
@@ -103,6 +111,65 @@ where T: serde::de::DeserializeOwned + Default
         description: desc,
         path: path.to_string_lossy().into_owned(),
     }
+}
+
+// ── Switching, without an AppHandle (E022-T07) ───────────────────────────────
+//
+// The relay command path runs on a tokio task with no `AppHandle`, so the half
+// of a switch that touches the engine takes plain handles and lives here. The
+// `#[tauri::command]` wrappers add the half these cannot do: persisting the
+// active-profile ID. A remote switch is therefore live but not sticky.
+
+/// Locates a profile file and refuses an unsafe or uninstalled ID.
+///
+/// The existence check is the point: `load_profile` answers with `Default` for
+/// a file it cannot read, so without it a switch to a profile the desk does
+/// not have would report success and quietly reset the user to the defaults.
+fn profile_path(app_data_dir: &Path, subdir: &str, id: &str) -> Result<std::path::PathBuf, String> {
+    validate_profile_id(id)?;
+    let path = app_data_dir
+        .join("profiles")
+        .join(subdir)
+        .join(format!("{}.json", id));
+    if path.exists() {
+        Ok(path)
+    } else {
+        Err(format!("Profile '{}' not found", id))
+    }
+}
+
+/// Applies a communication profile by ID.
+pub(crate) fn switch_communication_profile_by_name(
+    app_data_dir: &Path,
+    policy: &Mutex<CommunicationPolicy>,
+    id: &str,
+) -> Result<(), String> {
+    let path = profile_path(app_data_dir, "communication", id)?;
+    let profile = load_profile::<CommunicationProfile>(&path);
+    policy.lock().unwrap_or_else(|e| e.into_inner()).set_comm_profile(profile);
+    log::info!("Switched communication profile to '{}'", id);
+    Ok(())
+}
+
+/// Applies an ergonomic profile by ID, including the two session limits the
+/// profile owns. Takes `session` as well as `policy` because those limits live
+/// on the engine; lock order is session first, then policy.
+pub(crate) fn switch_ergonomic_profile_by_name(
+    app_data_dir: &Path,
+    policy: &Mutex<CommunicationPolicy>,
+    session: &Mutex<SessionManager>,
+    id: &str,
+) -> Result<(), String> {
+    let path = profile_path(app_data_dir, "ergonomic", id)?;
+    let profile = load_profile::<ErgonomicProfile>(&path);
+    {
+        let mut session = session.lock().unwrap_or_else(|e| e.into_inner());
+        session.state.session_limit_secs = profile.limits.sitting_secs as i64;
+        session.state.stand_limit_secs = profile.limits.standing_target_secs as i64;
+    }
+    policy.lock().unwrap_or_else(|e| e.into_inner()).set_ergo_profile(profile);
+    log::info!("Switched ergonomic profile to '{}'", id);
+    Ok(())
 }
 
 // ── Commands ─────────────────────────────────────────────────────────────────
@@ -163,18 +230,10 @@ pub fn switch_communication_profile(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
-    validate_profile_id(&id)?;
     ensure_initialized(&app, &state)?;
-    let dir = profiles_dir(&app, "communication")?;
-    let path = dir.join(format!("{}.json", id));
-    if !path.exists() {
-        return Err(format!("Profile '{}' not found", id));
-    }
-    let profile = load_profile::<CommunicationProfile>(&path);
-    state.comm_policy.lock().unwrap().set_comm_profile(profile);
-    save_active_id(&app, KEY_ACTIVE_COMM, &id)?;
-    log::info!("Switched communication profile to '{}'", id);
-    Ok(())
+    let dir = app_data_dir(&app)?;
+    switch_communication_profile_by_name(&dir, &state.comm_policy, &id)?;
+    save_active_id(&app, KEY_ACTIVE_COMM, &id)
 }
 
 /// Switches the active ergonomic profile by ID.
@@ -184,24 +243,10 @@ pub fn switch_ergonomic_profile(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
-    validate_profile_id(&id)?;
     ensure_initialized(&app, &state)?;
-    let dir = profiles_dir(&app, "ergonomic")?;
-    let path = dir.join(format!("{}.json", id));
-    if !path.exists() {
-        return Err(format!("Profile '{}' not found", id));
-    }
-    let profile = load_profile::<ErgonomicProfile>(&path);
-    // Update session limits from new profile
-    {
-        let mut session = state.session.lock().unwrap();
-        session.state.session_limit_secs = profile.limits.sitting_secs as i64;
-        session.state.stand_limit_secs = profile.limits.standing_target_secs as i64;
-    }
-    state.comm_policy.lock().unwrap().set_ergo_profile(profile);
-    save_active_id(&app, KEY_ACTIVE_ERGO, &id)?;
-    log::info!("Switched ergonomic profile to '{}'", id);
-    Ok(())
+    let dir = app_data_dir(&app)?;
+    switch_ergonomic_profile_by_name(&dir, &state.comm_policy, &state.session, &id)?;
+    save_active_id(&app, KEY_ACTIVE_ERGO, &id)
 }
 
 /// Opens a profile JSON file in the system default editor.

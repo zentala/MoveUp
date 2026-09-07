@@ -77,6 +77,8 @@ pub mod relay_auth;
 #[cfg(test)] mod relay_auth_tests;
 pub mod relay_client;
 #[cfg(test)] mod relay_client_tests;
+pub mod relay_commands;
+#[cfg(test)] mod relay_commands_tests;
 pub mod relay_status;
 mod commands_relay;
 #[cfg(test)] mod commands_relay_tests;
