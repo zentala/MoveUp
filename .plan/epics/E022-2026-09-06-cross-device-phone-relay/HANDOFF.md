@@ -251,7 +251,16 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   ten acceptance criteria; ONE `browser` dispatch (three pages per PLAN.md
   evidence row `browser-visual`); write every evidence record as `current`
   via `bin/verify-evidence`. Manual — skipped in AO.
-- [ ] **T16** (2, main) — Deploy. `consent-broker consent -Reason "deploy
+- [ ] **T16** (2, main) — **Deferred indefinitely (decision E022-D6,
+  2026-09-08).** Cloudflare Durable Objects (`DeskRoom`, `RateLimiter`) require
+  the Workers Paid plan (5 USD/month, flat, not a usage overage) — the deploy
+  cannot happen on the account's current free plan without that recurring
+  cost. Presented three options (pay and deploy, self-host the relay on the
+  homelab instead of Cloudflare, or stay LAN-only); Paweł chose to stay
+  LAN-only for now. `relay/wrangler.toml`'s `database_id` stays the
+  `REPLACE_WITH_WRANGLER_D1_CREATE_OUTPUT` placeholder and
+  `relay.desk.zentala.io` has no DNS record. Original steps preserved below
+  for whenever this is revisited: `consent-broker consent -Reason "deploy
   MoveUp relay to relay.desk.zentala.io" -Action "wrangler deploy + d1
   migrate + mint 1 Founder license"`; on ALLOW: `just relay-deploy`, DNS
   record via the Cloudflare account, `/healthz`, e2e script against the live
@@ -260,10 +269,16 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
 
 ## Done means
 
-All ten acceptance criteria in PLAN.md hold; all 16 evidence records are
-`current` (T13's included — no skip); version bumped and tagged;
-`.plan/HISTORY.md` entry; `STATE.md` updated; the epic's `IMPRO.md` triaged;
-`epics/INDEX.md` row set to `done` in the closing commit.
+**Not done — stopped short of T16 by deliberate choice (decision E022-D6).**
+Nine of ten acceptance criteria in PLAN.md hold (#8's live-relay half and
+#1's browser-visual dashboard render are NOT_CHECKED — the latter blocked by
+the pre-existing E015-T05 Vite dev-proxy gap, see `.plan/BACKLOG.md`
+"Dev-mode remote display"); 2 of 16 evidence records are `current`
+(`T12-e2e-local`, `T13-security-review`) — the rest are `missing`, filed to
+`.plan/BACKLOG.md` "E022 evidence contract" for backfill; version bumped;
+`epics/INDEX.md` does not exist yet in this repo (tracked separately). When
+T16 is revisited: run it, then close out this section for real — version tag,
+`HISTORY.md` entry, `STATE.md`, `IMPRO.md` triage, evidence backfill.
 
 ## AO
 
