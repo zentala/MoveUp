@@ -63,5 +63,23 @@ export default defineConfig({
     host: host || false,
     hmr: host ? { protocol: "ws", host, port: 1444 } : undefined,
     watch: { ignored: ["**/src-tauri/**"] },
+    // The remote display in dev mode (E022-T12, closing the first "Dev-mode
+    // remote display" backlog entry from E015-T05).
+    //
+    // `useRemoteDesk` builds its socket URL from `window.location.host`, so on
+    // the Vite server it asks for `ws://localhost:1443/display/ws` — where
+    // nothing answered, leaving the page stuck on "Reconnecting…". Proxying
+    // `/display` to the desktop app's embedded axum server gives the real
+    // React app the real data over the dev server, with no `tauri build`.
+    //
+    // `127.0.0.1`, not `localhost`: Node resolves `localhost` to `::1` on
+    // Windows, and `remote_server.rs` binds IPv4 (rules/typescript.md).
+    proxy: {
+      "/display": {
+        target: `http://127.0.0.1:${process.env.DESK_REMOTE_PORT ?? 3390}`,
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
 });

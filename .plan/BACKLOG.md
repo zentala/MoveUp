@@ -156,7 +156,14 @@ The `browser` agent tried to visually verify E015's fix (popup timer after a
 2-min stand) via the Remote Display server and could not reach a rendered
 UI at all in dev mode — two pre-existing gaps, neither caused by E015:
 
-- [ ] **`vite.config.ts` has no dev proxy for `/display/*` → `localhost:3390`**
+- [x] **`vite.config.ts` has no dev proxy for `/display/*` → `localhost:3390`**
+  — **done in E022-T12**: `vite.config.ts` `server.proxy` now forwards
+  `/display` (REST and, with `ws: true`, the socket) to
+  `http://127.0.0.1:$DESK_REMOTE_PORT` (default 3390), so `:1443` serves the
+  real app against the real data with no `pnpm tauri:build`. `127.0.0.1`
+  rather than `localhost` because Node resolves `localhost` to `::1` on
+  Windows while `remote_server.rs` binds IPv4. The two entries below stay
+  open — this one closes only the proxy half.
   — in a debug build, `remote_server.rs:72-80`'s fallback route
   (`dev_fallback()`) serves a static placeholder page literally reading
   "Vite proxy not yet implemented (T05)" instead of the real app, so

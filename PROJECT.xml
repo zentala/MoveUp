@@ -318,6 +318,14 @@
       <file name="scripts/mint-license.mjs">Mints a key and stores its hash through `wrangler d1 execute`, printing the key on stdout ONLY after the insert succeeded — everything else goes to stderr, so `--license $(node scripts/mint-license.mjs --local)` works and a failed insert can never hand out a key that entitles nobody</file>
     </layer>
 
+    <layer name="tooling" path="./">
+      <note>E022-T12 wiring. `just` is the one command vocabulary (~/.claude/rules/just.md): the relay lives in its own pnpm project, so every relay recipe goes through `pnpm --dir relay` and stays runnable from the repo root.</note>
+      <file name="justfile">relay-dev (install + wrangler dev on :8787), relay-test (workerd suite), relay-e2e LICENSE [RELAY] (the full round trip), relay-deploy (pnpm build then wrangler deploy — build first because [assets] points at ../dist). The pre-existing setup/dev/build/test/check recipes are unchanged</file>
+      <file name="vite.config.ts">Vite + Vitest, 80% coverage gate, welcome entry. `server.proxy` forwards /display (REST and, with ws:true, the socket) to 127.0.0.1:$DESK_REMOTE_PORT (default 3390) so the remote display renders the real app on the dev server — closing the E015-T05 backlog entry where useRemoteDesk asked ws://localhost:1443/display/ws and nothing answered. 127.0.0.1 rather than localhost: Node resolves localhost to ::1 on Windows and the axum server binds IPv4</file>
+      <file name="scripts/relay-e2e.mjs">The only check that crosses every relay seam at once: register a desk over REST, open the desk socket, issue a pairing code, redeem it as a phone, open the viewer socket, fan an event out, run a viewer→desk→viewer command round trip, read the viewer list, revoke and disable. Ten named steps; a failure prints the step name, and a run that executed fewer steps than STEPS.length exits 1 even if nothing threw. No default relay URL — aimed at nothing must never look like aimed somewhere</file>
+      <file name="vitest.scripts.config.ts">Node-environment runner for tests/scripts (no jsdom, no setup file); include widened to *.test.{js,ts}</file>
+    </layer>
+
     <layer name="ipc-events">
       <event name="desk:distance" direction="rust-to-js">Raw sensor reading (mm, cm, timestamp)</event>
       <event name="desk:device-connected" direction="rust-to-js">Sensor identified on serial port</event>
@@ -377,6 +385,12 @@
       <note>Runs inside workerd through @cloudflare/vitest-pool-workers, so the Durable Object under test is the real one and the credential store is a real D1 with migrations/0001_init.sql applied by test/apply-migrations.ts before every file. Miniflare options live in relay/vitest.config.ts (not read from wrangler.toml — the Worker's [assets] block points at ../dist, which only exists after a vite build) with HELLO_TIMEOUT_MS=250, IDLE_TIMEOUT_MS=700, PAIRING_TTL_MS=1000 and PAIRING_LOCKOUT_MS=2000 so the alarm- and clock-driven tests finish in seconds. Nothing is stubbed between the REST routes and the socket authenticator: test/helpers.ts registers a desk and pairs a viewer through the real endpoints, so every room test also exercises verifyToken's D1 path.</note>
       <files>test/room/{handshake,fanout,liveness}.test.ts, test/http/{router,register,pair,viewers}.test.ts, test/auth/{tokens,pairing,licenses}.test.ts, test/commands/validation.test.ts</files>
       <count>140 tests (26 room + 14 allowlist + 100 credentials/REST) — E022-T02 and T03</count>
+    </layer>
+
+    <layer name="scripts" path="tests/scripts/" runner="pnpm test:scripts">
+      <note>Node environment, no jsdom and no setup file (vitest.scripts.config.ts) — these cover the repo's own tooling, which runs under plain node. relay-e2e.test.ts is a smoke test by design: it asserts what holds with no relay running (argument parsing, the refusal when no --relay was given, the ws:// scheme upgrade, and that STEPS is non-empty). The script's real proof is running it against a relay: `just relay-dev` in one shell, then `just relay-e2e "$(node relay/scripts/mint-license.mjs --local)"`.</note>
+      <files>build-report.test.js, relay-e2e.test.ts</files>
+      <count>20 tests (8 build-report + 12 relay-e2e)</count>
     </layer>
 
     <layer name="e2e" path="tests/e2e/" runner="pnpm test:e2e">
