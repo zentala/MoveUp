@@ -33,7 +33,12 @@ export {
   S07_BACK_FROM_AWAY,
   S08_GOOD_DAY,
   S09_DISCONNECTED,
+  voiceCaptureTokenSheet,
+  voiceCaptureIdle,
+  voiceCaptureAck,
+  VOICE_CAPTURE_SCENARIOS,
 } from "./scenarios-other";
+export type { VoiceCaptureScenario } from "./scenarios-other";
 
 // Import for array construction
 import {

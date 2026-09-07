@@ -11,6 +11,7 @@ import { useWidgetData } from "@/hooks/useWidgetData";
 import { ActiveWidget } from "@/widgets/registry";
 import SettingsPanel from "@/components/SettingsPanel";
 import { ConnectionOverlay } from "@/components/ConnectionOverlay";
+import { VoiceCapture } from "@/components/VoiceCapture";
 import "@/styles/globals.css";
 
 /** Whether we are running inside Tauri (desktop) or a browser (remote display). */
@@ -24,6 +25,7 @@ if (!isTauri) {
 const MockupGallery = lazy(() => import("@/pages/MockupGallery"));
 const AnalystMockup = lazy(() => import("@/pages/AnalystMockup"));
 const AnalystLive = lazy(() => import("@/pages/AnalystLive"));
+const VoiceCaptureGallery = lazy(() => import("@/mockup/VoiceCaptureGallery"));
 
 /**
  * Root router — decides which page to render based on `window.location.hash`.
@@ -44,6 +46,14 @@ export default function App() {
     return (
       <Suspense fallback={<div style={{ color: "#ccc", padding: 20 }}>Loading analyst...</div>}>
         <AnalystMockup />
+      </Suspense>
+    );
+  }
+  // DEV: /#/mockup/voice shows the phone dictation panel mockups
+  if (import.meta.env.DEV && window.location.hash === "#/mockup/voice") {
+    return (
+      <Suspense fallback={<div style={{ color: "#ccc", padding: 20 }}>Loading mockups...</div>}>
+        <VoiceCaptureGallery />
       </Suspense>
     );
   }
@@ -112,6 +122,9 @@ function MainApp() {
         <ConnectionOverlay wsConnected={wsConnected} sensorConnected={sensorConnected} />
       )}
       <ActiveWidget {...widgetProps} />
+
+      {/* Dictation is phone-only: the desktop popup already has a keyboard. */}
+      {isRemote && <VoiceCapture />}
 
       {/* Debug: overlay state — DEV only */}
       {import.meta.env.DEV && overlayDebug && (
