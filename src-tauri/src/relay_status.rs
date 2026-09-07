@@ -26,6 +26,8 @@ pub const BACKOFF_JITTER: f64 = 0.20;
 /// The state Settings and the Debug tab render.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub enum RelayState {
     /// Turned off, or no credential to connect with.
     Disabled,
@@ -57,6 +59,8 @@ impl RelayState {
 
 /// The payload `get_relay_status` returns (T06 exposes it over IPC).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct RelayStatus {
     pub enabled: bool,
     pub state: RelayState,

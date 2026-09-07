@@ -41,6 +41,10 @@ regex = "1"
 # OS trust store so `wss://` works the same on every Windows box.
 tokio-tungstenite = { version = "0.26", features = ["connect", "handshake", "rustls-tls-webpki-roots"] }
 futures-util = "0.3"
+# Desk token storage (E022-T06). `windows-native` puts the secret in Windows
+# Credential Manager; the crate's built-in `mock` store backs the tests, so no
+# test ever writes to the real credential store.
+keyring = { version = "3", features = ["windows-native"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_Foundation", "Win32_System_SystemInformation", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi"] }

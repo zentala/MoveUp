@@ -216,6 +216,9 @@ pub fn setup_device_notifications(app: &AppHandle) {
 /// subscribes to, so turning the LAN off must not silence the relay.
 pub fn setup_remote_display(app: &AppHandle) {
     let state: tauri::State<'_, AppState> = app.state();
+    // Before the LAN gate on purpose: the two transports are independent, and
+    // a desk with the LAN switched off must still reach the relay (E022-T06).
+    crate::commands_relay::sync_client(app);
     if !lan_enabled(&state) {
         info!("remote display: LAN server disabled ({}=false)", crate::remote_server::LAN_ENABLED_KEY);
         setup_broadcast_listeners(app);

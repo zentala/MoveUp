@@ -73,9 +73,13 @@ mod overlay_standing;
 mod overlay_variants;
 pub mod release_store;
 #[cfg(test)] mod release_store_tests;
+pub mod relay_auth;
+#[cfg(test)] mod relay_auth_tests;
 pub mod relay_client;
 #[cfg(test)] mod relay_client_tests;
 pub mod relay_status;
+mod commands_relay;
+#[cfg(test)] mod commands_relay_tests;
 mod remote_auth;
 #[cfg(test)] mod remote_auth_tests;
 mod remote_display_state;
@@ -203,6 +207,8 @@ pub fn run() {
             alert_popup: Arc::new(Mutex::new(AlertPopup::new())),
             ws_tx: ws_broadcaster::create_channel(),
             today_cache: Arc::new(Mutex::new(crate::db::TodaySummary::default())),
+            relay: Arc::new(Mutex::new(relay_status::RelayStatus::default())),
+            relay_handle: Arc::new(Mutex::new(None)),
         })
         .manage(BlinkState::new())
         .manage::<HealthState>(std::sync::Arc::new(HealthAggregator::new(vec![
@@ -246,6 +252,12 @@ pub fn run() {
                     commands_health::get_health_today,
                     commands_health::refresh_health_now,
                     commands_health::list_voice_notes,
+                    commands_relay::relay_register,
+                    commands_relay::relay_start_pairing,
+                    commands_relay::relay_list_viewers,
+                    commands_relay::relay_revoke_viewer,
+                    commands_relay::relay_disable,
+                    commands_relay::get_relay_status,
                     tray::open_analyst_window,
                 ]
             }
@@ -284,6 +296,12 @@ pub fn run() {
                     commands_health::get_health_today,
                     commands_health::refresh_health_now,
                     commands_health::list_voice_notes,
+                    commands_relay::relay_register,
+                    commands_relay::relay_start_pairing,
+                    commands_relay::relay_list_viewers,
+                    commands_relay::relay_revoke_viewer,
+                    commands_relay::relay_disable,
+                    commands_relay::get_relay_status,
                     tray::open_analyst_window,
                 ]
             }
@@ -410,6 +428,12 @@ mod ts_export {
         crate::remote_protocol::Command::export_all(&cfg).expect("Command exports");
         crate::remote_protocol::CommandResult::export_all(&cfg).expect("CommandResult exports");
         crate::remote_protocol::ErrorBody::export_all(&cfg).expect("ErrorBody exports");
+        // E022-T06 — what Settings renders: the connection status and the
+        // three payloads the relay commands return.
+        crate::relay_status::RelayStatus::export_all(&cfg).expect("RelayStatus exports");
+        crate::relay_auth::DeskRecord::export_all(&cfg).expect("DeskRecord exports");
+        crate::relay_auth::PairingCode::export_all(&cfg).expect("PairingCode exports");
+        crate::relay_auth::Viewer::export_all(&cfg).expect("Viewer exports");
     }
 
     /// The wire counters must not be `bigint` — arithmetic on the TS side

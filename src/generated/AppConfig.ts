@@ -46,4 +46,20 @@ notify_webhook_url: string | null,
  * or unset uses the cheap default in [`crate::voice_ai::DEFAULT_MODEL`].
  * The API key itself is never stored here — it stays in the environment.
  */
-voice_ai_model: string | null, };
+voice_ai_model: string | null, 
+/**
+ * Whether the desk connects to the cloud relay (E022). Default: false —
+ * nothing leaves the machine until the user registers a license.
+ */
+relay_enabled: boolean, 
+/**
+ * Relay base URL. Empty falls back to
+ * [`crate::relay_auth::RELAY_DEFAULT_URL`]; overridable so a staging
+ * relay can be pointed at without a rebuild.
+ */
+relay_url: string, 
+/**
+ * Whether the LAN display server runs. Default: true — the LAN path
+ * predates the relay and turning the relay on must not switch it off.
+ */
+remote_lan_enabled: boolean, };

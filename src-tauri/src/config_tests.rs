@@ -54,6 +54,9 @@ mod tests {
             notify_webhook_enabled: true,
             notify_webhook_url: Some("https://ntfy.sh/desk".to_string()),
             voice_ai_model: Some("openai/gpt-4o-mini".to_string()),
+            relay_enabled: false,
+            relay_url: crate::relay_auth::RELAY_DEFAULT_URL.to_string(),
+            remote_lan_enabled: true,
         };
 
         let json = serde_json::to_value(&original).unwrap();
@@ -105,5 +108,81 @@ mod tests {
         let json = serde_json::json!({ "sitting_mm": 750 });
         let config: AppConfig = serde_json::from_value(json).unwrap();
         assert!(config.show_welcome_on_startup);
+    }
+
+    /// A config written before E022 has none of the three relay fields.
+    /// Loading it must leave the relay off, the URL at the shipped default,
+    /// and — the one that would silently take a feature away — the LAN
+    /// display still ON.
+    #[test]
+    fn test_e022_relay_fields_default_when_absent() {
+        let json = serde_json::json!({ "sitting_mm": 750 });
+        let config: AppConfig = serde_json::from_value(json).unwrap();
+        assert!(!config.relay_enabled, "the relay is opt-in");
+        assert_eq!(config.relay_url, crate::relay_auth::RELAY_DEFAULT_URL);
+        assert!(
+            config.remote_lan_enabled,
+            "an older config must not read as 'LAN turned off'"
+        );
+    }
+
+    /// An empty URL is a cleared field, not an instruction to connect to
+    /// nothing — clamping restores the default rather than leaving the client
+    /// pointed at "".
+    #[test]
+    fn test_e022_empty_relay_url_clamps_to_the_default() {
+        let config = AppConfig {
+            relay_url: "   ".to_string(),
+            ..Default::default()
+        }
+        .clamped();
+        assert_eq!(config.relay_url, crate::relay_auth::RELAY_DEFAULT_URL);
+
+        let custom = AppConfig {
+            relay_url: "https://staging.example/".to_string(),
+            ..Default::default()
+        }
+        .clamped();
+        assert_eq!(custom.relay_url, "https://staging.example");
+    }
+
+    #[test]
+    fn test_e022_relay_fields_survive_a_save_load_round_trip() {
+        let config = AppConfig {
+            relay_enabled: true,
+            relay_url: "https://staging.example".to_string(),
+            remote_lan_enabled: false,
+            ..Default::default()
+        };
+        let restored: AppConfig =
+            serde_json::from_value(serde_json::to_value(&config).unwrap()).unwrap();
+        assert!(restored.relay_enabled);
+        assert_eq!(restored.relay_url, "https://staging.example");
+        assert!(!restored.remote_lan_enabled);
+    }
+
+    /// `save_settings` fires on every settings edit. Only the two fields the
+    /// relay client actually reads may restart it — reconnecting because the
+    /// overlay height moved would drop every live viewer for nothing.
+    #[test]
+    fn test_e022_only_relay_fields_restart_the_client() {
+        use crate::commands_config::relay_settings_changed;
+
+        let base = AppConfig::default();
+
+        assert!(
+            relay_settings_changed(None, &base),
+            "no previous config means sync, not skip"
+        );
+        assert!(!relay_settings_changed(Some(&base), &base));
+
+        let unrelated = AppConfig { sitting_mm: 700, ..base.clone() };
+        assert!(!relay_settings_changed(Some(&base), &unrelated));
+
+        let toggled = AppConfig { relay_enabled: true, ..base.clone() };
+        assert!(relay_settings_changed(Some(&base), &toggled));
+
+        let moved = AppConfig { relay_url: "https://staging.example".into(), ..base.clone() };
+        assert!(relay_settings_changed(Some(&base), &moved));
     }
 }

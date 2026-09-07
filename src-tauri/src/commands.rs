@@ -35,6 +35,12 @@ pub struct AppState {
     pub ws_tx: broadcast::Sender<String>,
     /// Cached today summary — refreshed on state transitions, not per-tick.
     pub today_cache: Arc<Mutex<TodaySummary>>,
+    /// What the relay connection is doing (E022). Written by the client task,
+    /// read by `get_relay_status`.
+    pub relay: Arc<Mutex<crate::relay_status::RelayStatus>>,
+    /// Control surface for the running relay client, if any. Only
+    /// [`crate::commands_relay::sync_client`] puts a handle here.
+    pub relay_handle: Arc<Mutex<Option<crate::relay_client::ClientHandle>>>,
 }
 
 // ─── Initialization ──────────────────────────────────────────────────────────
