@@ -37,9 +37,17 @@ pub trait HealthSource: Send + Sync {
 }
 
 /// Fan-in over every registered [`HealthSource`].
-#[derive(Default)]
 pub struct HealthAggregator {
     sources: RwLock<Vec<Arc<dyn HealthSource>>>,
+    /// Last merge produced by [`Self::view`] or [`Self::refresh`], readable
+    /// without `await` — see [`Self::last_view`].
+    last: std::sync::Mutex<HealthView>,
+}
+
+impl Default for HealthAggregator {
+    fn default() -> Self {
+        Self::new(Vec::new())
+    }
 }
 
 impl HealthAggregator {
@@ -47,12 +55,12 @@ impl HealthAggregator {
     pub fn new(sources: Vec<Arc<dyn HealthSource>>) -> Self {
         Self {
             sources: RwLock::new(sources),
+            last: std::sync::Mutex::new(HealthView::unconfigured()),
         }
     }
 
     /// Add a source after construction — used by the LAN push inlet, which
     /// only exists once the remote server is up (T03).
-    #[cfg_attr(not(test), allow(dead_code))]
     pub async fn register(&self, source: Arc<dyn HealthSource>) {
         self.sources.write().await.push(source);
     }
@@ -75,7 +83,7 @@ impl HealthAggregator {
         for s in &sources {
             views.push(s.view().await);
         }
-        Self::merge(views)
+        self.remember(Self::merge(views))
     }
 
     /// Refresh every source, then merge.
@@ -85,7 +93,31 @@ impl HealthAggregator {
         for s in &sources {
             views.push(s.refresh().await);
         }
-        Self::merge(views)
+        self.remember(Self::merge(views))
+    }
+
+    /// The most recent merge, without `await`.
+    ///
+    /// Exists for the ~1 s tray tick (E021-T03), which builds the phone
+    /// snapshot from a synchronous context and must not block on source
+    /// I/O. It is a cache, so it is only as fresh as the last [`Self::view`]
+    /// or [`Self::refresh`] — and both the desktop poll and the push inlet
+    /// call one of those, so a push reaches the phone on the next tick.
+    ///
+    /// Before any source has ever been read it reports
+    /// [`HealthView::unconfigured`] — "nothing read yet" renders as the setup
+    /// hint, never as a zeroed reading.
+    pub fn last_view(&self) -> HealthView {
+        self.last
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// Stores `view` as the cached merge and hands it back.
+    fn remember(&self, view: HealthView) -> HealthView {
+        *self.last.lock().unwrap_or_else(|e| e.into_inner()) = view.clone();
+        view
     }
 
     /// Collapse per-source views into the one the UI renders.

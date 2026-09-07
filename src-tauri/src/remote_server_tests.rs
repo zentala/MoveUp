@@ -7,21 +7,19 @@ use crate::db::TodaySummary;
 use crate::remote_server::{default_dist_path, RemoteState, MAX_WS_CLIENTS};
 use crate::session::SessionManager;
 
-#[test]
-fn remote_state_is_clone() {
-    let tx = crate::ws_broadcaster::create_channel();
-    let state = RemoteState {
-        ws_tx: tx,
-        session: Arc::new(Mutex::new(SessionManager::new())),
-        comm_policy: Arc::new(Mutex::new(
+#[tokio::test]
+async fn remote_state_is_clone() {
+    let state: RemoteState = crate::remote_routes_health_tests::remote_state(
+        Arc::new(Mutex::new(SessionManager::new())),
+        Arc::new(Mutex::new(
             crate::communication_policy::CommunicationPolicy::new(
                 Default::default(),
                 Default::default(),
             ),
         )),
-        today_cache: Arc::new(Mutex::new(empty_today_summary())),
-        active_clients: Arc::new(AtomicUsize::new(0)),
-    };
+        Arc::new(Mutex::new(empty_today_summary())),
+    )
+    .await;
     let _cloned = state.clone();
 }
 

@@ -14,6 +14,8 @@ use axum::{Json, Router};
 use tokio::sync::broadcast;
 use crate::communication_policy::CommunicationPolicy;
 use crate::db::TodaySummary;
+use crate::health_source::HealthState;
+use crate::remote_routes_health::PushHealthSource;
 use crate::session::SessionManager;
 use crate::ws_broadcaster::{DisplayEvent, RemoteDisplayState};
 
@@ -30,6 +32,14 @@ pub struct RemoteState {
     pub today_cache: Arc<Mutex<TodaySummary>>,
     /// Active WS client counter (max 10).
     pub active_clients: Arc<AtomicUsize>,
+    /// Merged health view, read by `/display/api` and the WS handshake.
+    pub health: HealthState,
+    /// Write handle of the LAN push inlet (E021-T03). Separate from `health`
+    /// because reading and writing are different privileges: every route may
+    /// read the merge, only the authenticated inlet may write a reading.
+    pub health_push: Arc<PushHealthSource>,
+    /// Shared secret the write endpoints require; `None` closes them.
+    pub remote_token: Option<String>,
 }
 
 /// Max simultaneous WS clients. Protects against accidental DoS on LAN.
@@ -67,10 +77,11 @@ pub async fn start(state: RemoteState, port: u16) {
 }
 
 /// Builds the axum router. Separated for testability.
-fn build_router(state: RemoteState) -> Router {
+pub(crate) fn build_router(state: RemoteState) -> Router {
     let router = Router::new()
         .route("/display/ws", get(ws_handler))
-        .route("/display/api", get(api_handler));
+        .route("/display/api", get(api_handler))
+        .merge(crate::remote_routes_health::routes());
 
     #[cfg(debug_assertions)]
     let router = router.fallback(get(dev_fallback));
@@ -103,7 +114,7 @@ async fn handle_ws_client(mut socket: ws::WebSocket, state: RemoteState) {
     log::info!("Remote display client connected ({} active)", count);
 
     // Send current state snapshot immediately on connect
-    let initial = build_remote_display_state(&state);
+    let initial = build_remote_display_state(&state).await;
     let event = DisplayEvent::Snapshot(initial);
     if let Ok(json) = serde_json::to_string(&event) {
         let _ = socket.send(ws::Message::Text(json.into())).await;
@@ -149,15 +160,26 @@ async fn handle_ws_client(mut socket: ws::WebSocket, state: RemoteState) {
 
 /// REST endpoint returning current session state as JSON.
 async fn api_handler(State(state): State<RemoteState>) -> Json<serde_json::Value> {
-    let display = build_remote_display_state(&state);
+    let display = build_remote_display_state(&state).await;
     Json(serde_json::to_value(&display).unwrap_or_default())
 }
 
 /// Builds the full [`RemoteDisplayState`] for initial WS handshake or REST.
 /// The derivation itself lives in [`crate::remote_display_state`], shared with
 /// the tray tick so the two paths cannot drift apart.
-pub(crate) fn build_remote_display_state(state: &RemoteState) -> RemoteDisplayState {
-    crate::remote_display_state::build(&state.session, &state.comm_policy, &state.today_cache)
+///
+/// Async because it reads the health aggregator through
+/// [`view`](crate::health_source::HealthAggregator::view) — the HTTP path can
+/// afford a merge across sources, and taking the freshest possible reading
+/// here is also what keeps the tray tick's cached read current.
+pub(crate) async fn build_remote_display_state(state: &RemoteState) -> RemoteDisplayState {
+    let health = state.health.view().await;
+    crate::remote_display_state::build(
+        &state.session,
+        &state.comm_policy,
+        &state.today_cache,
+        health,
+    )
 }
 
 /// Dev mode fallback — returns helpful HTML when Vite proxy not yet set up.
