@@ -323,7 +323,7 @@ tasks:
     repo: MoveUp
     executor: ts-dev
     depends_on: ["E022-T05"]
-    write_set: ["src-tauri/src/relay_auth.rs", "src-tauri/src/relay_auth_tests.rs", "src-tauri/src/commands_relay.rs", "src-tauri/src/commands_relay_tests.rs", "src-tauri/src/config.rs", "src-tauri/src/config_tests.rs", "src-tauri/src/commands.rs", "src-tauri/src/commands_config.rs", "src-tauri/src/setup_helpers.rs", "src-tauri/src/lib.rs", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock", "src-tauri/src/relay_client.rs", "src-tauri/src/relay_status.rs", "src/generated/**", "src/types.ts", "PROJECT.xml"]
+    write_set: ["src-tauri/src/relay_auth.rs", "src-tauri/src/relay_auth_tests.rs", "src-tauri/src/commands_relay.rs", "src-tauri/src/commands_relay_tests.rs", "src-tauri/src/config.rs", "src-tauri/src/config_tests.rs", "src-tauri/src/commands.rs", "src-tauri/src/commands_config.rs", "src-tauri/src/setup_helpers.rs", "src-tauri/src/lib.rs", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock", "src-tauri/src/relay_client.rs", "src-tauri/src/relay_status.rs", "src/components/settings/SettingsTypes.ts", "src/generated/**", "src/types.ts", "PROJECT.xml"]
     claims: ["src-tauri/src/relay_auth.rs", "src-tauri/src/relay_auth_tests.rs", "src-tauri/src/commands_relay.rs", "src-tauri/src/commands_relay_tests.rs", "src-tauri/src/config.rs", "src-tauri/src/config_tests.rs", "src-tauri/src/commands.rs"]
     verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- relay_auth commands_relay config"
     budget_minutes: 90
