@@ -12,6 +12,9 @@ import { ActiveWidget } from "@/widgets/registry";
 import SettingsPanel from "@/components/SettingsPanel";
 import { ConnectionOverlay } from "@/components/ConnectionOverlay";
 import { VoiceCapture } from "@/components/VoiceCapture";
+import { PairScreen } from "@/remote/PairScreen";
+import { RemoteControls } from "@/remote/RemoteControls";
+import { useControlCapability } from "@/remote/activeTransport";
 import "@/styles/globals.css";
 
 /** Whether we are running inside Tauri (desktop) or a browser (remote display). */
@@ -33,6 +36,12 @@ const VoiceCaptureGallery = lazy(() => import("@/mockup/VoiceCaptureGallery"));
  * conditional branch across renders (react-hooks/rules-of-hooks).
  */
 export default function App() {
+  // BROWSER: /#/pair[?d=…&c=…] — pair this phone with a desk through the relay.
+  // Browser-only: the desktop pairs from Settings → Remote, where it holds the
+  // desk token this screen exists to obtain.
+  if (!isTauri && window.location.hash.startsWith("#/pair")) {
+    return <PairScreen />;
+  }
   // PROD/DEV: /#/analyst — live Analyst window backed by Tauri commands
   if (window.location.hash === "#/analyst") {
     return (
@@ -73,6 +82,9 @@ function MainApp() {
   const [showSettings, setShowSettings] = useState(false);
   const { widgetProps, wsConnected, sensorConnected } = useWidgetData(() => setShowSettings(true));
   const isRemote = !isTauri;
+  // Only the relay transport is allowed to carry a write (D4); the LAN socket
+  // reports `control: false` and the controls never mount.
+  const canControl = useControlCapability();
 
   // Request Wake Lock in remote display mode to keep screen on
   useEffect(() => {
@@ -122,6 +134,13 @@ function MainApp() {
         <ConnectionOverlay wsConnected={wsConnected} sensorConnected={sensorConnected} />
       )}
       <ActiveWidget {...widgetProps} />
+
+      {isRemote && canControl && (
+        <RemoteControls
+          sitMin={Math.round((widgetProps.limitSecs ?? 0) / 60)}
+          standMin={Math.round((widgetProps.standLimitSecs ?? 0) / 60)}
+        />
+      )}
 
       {/* Dictation is phone-only: the desktop popup already has a keyboard. */}
       {isRemote && <VoiceCapture />}

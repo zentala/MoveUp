@@ -47,4 +47,10 @@ export const DEFAULT_SETTINGS: DeskSettings = {
   notify_webhook_enabled: false,
   notify_webhook_url: null,
   voice_ai_model: null,
+  // E022-T06 — these three mirror Rust's `AppConfig` defaults. The relay is
+  // opt-in; the LAN display stays on, because turning the relay on must not
+  // take the existing transport away.
+  relay_enabled: false,
+  relay_url: 'https://relay.desk.zentala.io',
+  remote_lan_enabled: true,
 };

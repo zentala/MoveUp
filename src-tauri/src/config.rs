@@ -17,6 +17,7 @@ fn default_active_widget() -> String { "one-bar".to_string() }
 fn default_timeline_skin() -> String { "semantic".to_string() }
 fn bool_false() -> bool { false }
 fn default_empty_string() -> String { String::new() }
+fn default_relay_url() -> String { crate::relay_auth::RELAY_DEFAULT_URL.to_string() }
 
 // ─── AppConfig ───────────────────────────────────────────────────────────────
 
@@ -66,6 +67,19 @@ pub struct AppConfig {
     /// The API key itself is never stored here — it stays in the environment.
     #[serde(default)]
     pub voice_ai_model: Option<String>,
+    /// Whether the desk connects to the cloud relay (E022). Default: false —
+    /// nothing leaves the machine until the user registers a license.
+    #[serde(default = "bool_false")]
+    pub relay_enabled: bool,
+    /// Relay base URL. Empty falls back to
+    /// [`crate::relay_auth::RELAY_DEFAULT_URL`]; overridable so a staging
+    /// relay can be pointed at without a rebuild.
+    #[serde(default = "default_relay_url")]
+    pub relay_url: String,
+    /// Whether the LAN display server runs. Default: true — the LAN path
+    /// predates the relay and turning the relay on must not switch it off.
+    #[serde(default = "bool_true")]
+    pub remote_lan_enabled: bool,
 }
 
 impl AppConfig {
@@ -110,6 +124,10 @@ impl AppConfig {
             self.standing_mm = default_standing_mm();
         }
 
+        // An empty or whitespace-only relay URL is a user who cleared the
+        // field, not a request to connect to nothing.
+        self.relay_url = crate::relay_auth::effective_url(&self.relay_url);
+
         self
     }
 }
@@ -129,6 +147,9 @@ impl Default for AppConfig {
             notify_webhook_enabled: bool_false(),
             notify_webhook_url: None,
             voice_ai_model: None,
+            relay_enabled: bool_false(),
+            relay_url: default_relay_url(),
+            remote_lan_enabled: bool_true(),
         }
     }
 }

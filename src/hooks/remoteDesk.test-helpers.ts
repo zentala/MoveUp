@@ -9,23 +9,27 @@ export class MockWebSocket {
   url: string;
   onopen: (() => void) | null = null;
   onmessage: ((e: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((e?: { code: number }) => void) | null = null;
   onerror: (() => void) | null = null;
   readyState = 0;
   closed = false;
+  /** Every frame the client sent, as written to the wire. */
+  sent: string[] = [];
 
   constructor(url: string) {
     this.url = url;
     MockWebSocket.instances.push(this);
   }
 
-  send() { /* no-op for tests */ }
+  send(data: string) {
+    this.sent.push(data);
+  }
 
-  close() {
+  close(code = 1000) {
     if (!this.closed) {
       this.closed = true;
       this.readyState = 3;
-      this.onclose?.();
+      this.onclose?.({ code });
     }
   }
 
@@ -42,8 +46,18 @@ export class MockWebSocket {
     this.onmessage?.({ data });
   }
 
-  simulateClose() {
-    this.close();
+  simulateClose(code = 1006) {
+    this.close(code);
+  }
+
+  /** Frames the client sent, parsed back into objects. */
+  sentFrames(): Array<Record<string, unknown>> {
+    return this.sent.map((raw) => JSON.parse(raw) as Record<string, unknown>);
+  }
+
+  /** The frames of one envelope `type` the client sent. */
+  sentOfType(type: string): Array<Record<string, unknown>> {
+    return this.sentFrames().filter((f) => f.type === type);
   }
 
   static reset() {
@@ -104,6 +118,11 @@ export function makeStateChanged(overrides: Record<string, unknown> = {}) {
       ...overrides,
     },
   };
+}
+
+/** Wraps a payload in the v1 envelope, as the relay and (from T11) the LAN do. */
+export function makeEnvelope(type: string, payload: unknown, id = "env-1") {
+  return { v: 1, type, id, ts: 1_757_170_000_000, payload };
 }
 
 /** Save original WebSocket. */

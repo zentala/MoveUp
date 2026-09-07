@@ -28,6 +28,7 @@ pub fn save_settings(
     ensure_initialized(&app, &state)?;
 
     let clamped = config.clamped();
+    let previous = state.config.lock().unwrap().clone();
 
     // Save to store
     let store_state = app
@@ -40,12 +41,33 @@ pub fn save_settings(
     *state.config.lock().unwrap() = Some(clamped.clone());
 
     // Update session manager with new calibration
-    let mut session = state.session.lock().unwrap();
-    session.sitting_height_cm = clamped.sitting_mm as f32 / 10.0;
-    session.standing_height_cm = clamped.standing_mm as f32 / 10.0;
-    session.desk_thickness_cm = clamped.desk_thickness_mm as f32 / 10.0;
+    {
+        let mut session = state.session.lock().unwrap();
+        session.sitting_height_cm = clamped.sitting_mm as f32 / 10.0;
+        session.standing_height_cm = clamped.standing_mm as f32 / 10.0;
+        session.desk_thickness_cm = clamped.desk_thickness_mm as f32 / 10.0;
+    }
+
+    // E022-T06 — the relay client reads its flag and URL from the config, so a
+    // save that changed either has to reach the socket. Gated on an actual
+    // change: `save_settings` fires on every settings edit, and reconnecting
+    // the relay because the overlay height moved would drop live viewers.
+    if relay_settings_changed(previous.as_ref(), &clamped) {
+        crate::commands_relay::sync_client(&app);
+    }
 
     Ok(())
+}
+
+/// Whether a config save touched anything the relay client depends on.
+///
+/// No previous config means first save after startup — treat it as changed so
+/// the client is synced rather than left in whatever state startup produced.
+pub(crate) fn relay_settings_changed(previous: Option<&AppConfig>, next: &AppConfig) -> bool {
+    match previous {
+        None => true,
+        Some(p) => p.relay_enabled != next.relay_enabled || p.relay_url != next.relay_url,
+    }
 }
 
 /// Updates height calibration values used by the session state machine.

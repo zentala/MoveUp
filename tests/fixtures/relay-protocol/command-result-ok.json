@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "type": "command_result",
+  "id": "b1a0f9e8-7d6c-4455-b687-021324354657",
+  "ts": 1757170009000,
+  "payload": {
+    "command_id": "9f8e7d6c-5b4a-4233-9465-809102132435",
+    "ok": true,
+    "error": null
+  }
+}

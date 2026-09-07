@@ -2,6 +2,11 @@
 //!
 //! Serves the React frontend as static files and provides a WebSocket
 //! endpoint for real-time event streaming to phone/browser clients.
+//!
+//! Outgoing messages travel in the v1 envelope from
+//! [`crate::remote_protocol`] — the one the relay uses too, so a single React
+//! client reads both transports. The socket is read-only: the LAN carries no
+//! authentication, so nothing a client sends is ever acted on.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -15,6 +20,7 @@ use tokio::sync::broadcast;
 use crate::communication_policy::CommunicationPolicy;
 use crate::db::TodaySummary;
 use crate::health_source::HealthState;
+use crate::remote_protocol::{Envelope, MessageType, PROTOCOL_VERSION};
 use crate::remote_routes_health::PushHealthSource;
 use crate::session::SessionManager;
 use crate::ws_broadcaster::{DisplayEvent, RemoteDisplayState};
@@ -66,6 +72,68 @@ pub struct VoiceState {
 
 /// Max simultaneous WS clients. Protects against accidental DoS on LAN.
 pub(crate) const MAX_WS_CLIENTS: usize = 10;
+
+/// Key in the persisted `AppConfig` that switches the LAN server off.
+pub(crate) const LAN_ENABLED_KEY: &str = "remote_lan_enabled";
+
+/// The keep-alive, pre-serialized as a [`DisplayEvent`] so the heartbeat and
+/// every other message share one payload contract.
+const HEARTBEAT_EVENT: &str = r#"{"event":"heartbeat","payload":null}"#;
+
+/// Reads the LAN toggle out of a serialized `AppConfig`.
+///
+/// Read through JSON rather than a typed field on purpose: the field lands
+/// with the rest of the remote settings (E022-T06), and a config written by an
+/// older build simply does not carry the key. An absent key must keep today's
+/// users working, so only an explicit `false` stops the server.
+pub(crate) fn lan_enabled_in(config: Option<&serde_json::Value>) -> bool {
+    config
+        .and_then(|c| c.get(LAN_ENABLED_KEY))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(true)
+}
+
+/// Wraps one already-serialized [`DisplayEvent`] in the v1 envelope.
+///
+/// The event's own `{event, payload}` shape travels unchanged as the
+/// envelope's `payload`, so a client receives byte-comparable `event` messages
+/// whether they arrived over the LAN or the relay.
+pub(crate) fn wrap_event(event_json: &str) -> String {
+    let payload = serde_json::from_str::<serde_json::Value>(event_json).unwrap_or_else(|e| {
+        log::warn!("Remote display: unparseable event forwarded as null: {}", e);
+        serde_json::Value::Null
+    });
+    let envelope = Envelope {
+        v: PROTOCOL_VERSION,
+        msg_type: MessageType::Event,
+        id: uuid::Uuid::new_v4().to_string(),
+        ts: chrono::Utc::now().timestamp_millis(),
+        payload,
+    };
+    serde_json::to_string(&envelope).unwrap_or_else(|_| event_json.to_string())
+}
+
+/// What a message from a LAN client leads to.
+///
+/// There is deliberately no `Execute` variant: the LAN listener is
+/// unauthenticated, so it stays read-only and commands travel over the relay,
+/// which authenticates every viewer.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Inbound {
+    Ignored,
+    Close,
+}
+
+/// Classifies an inbound frame. Anything that is not a close is dropped.
+pub(crate) fn classify_inbound(msg: &ws::Message) -> Inbound {
+    match msg {
+        ws::Message::Close(_) => Inbound::Close,
+        _ => {
+            log::debug!("Remote display: inbound frame ignored — the LAN transport is read-only");
+            Inbound::Ignored
+        }
+    }
+}
 
 /// Default port for the remote display server.
 pub const DEFAULT_PORT: u16 = 3390;
@@ -140,7 +208,9 @@ async fn handle_ws_client(mut socket: ws::WebSocket, state: RemoteState) {
     let initial = build_remote_display_state(&state).await;
     let event = DisplayEvent::Snapshot(initial);
     if let Ok(json) = serde_json::to_string(&event) {
-        let _ = socket.send(ws::Message::Text(json.into())).await;
+        let _ = socket
+            .send(ws::Message::Text(wrap_event(&json).into()))
+            .await;
     }
 
     // Subscribe to broadcast channel
@@ -152,7 +222,8 @@ async fn handle_ws_client(mut socket: ws::WebSocket, state: RemoteState) {
             result = rx.recv() => {
                 match result {
                     Ok(msg) => {
-                        if socket.send(ws::Message::Text(msg.into())).await.is_err() {
+                        let framed = wrap_event(&msg);
+                        if socket.send(ws::Message::Text(framed.into())).await.is_err() {
                             break;
                         }
                     }
@@ -163,14 +234,18 @@ async fn handle_ws_client(mut socket: ws::WebSocket, state: RemoteState) {
                 }
             }
             _ = heartbeat.tick() => {
-                let hb = r#"{"event":"heartbeat","payload":null}"#;
-                if socket.send(ws::Message::Text(hb.to_string().into())).await.is_err() {
+                let hb = wrap_event(HEARTBEAT_EVENT);
+                if socket.send(ws::Message::Text(hb.into())).await.is_err() {
                     break;
                 }
             }
             msg = socket.recv() => {
                 match msg {
-                    Some(Ok(_)) => {}
+                    Some(Ok(m)) => {
+                        if classify_inbound(&m) == Inbound::Close {
+                            break;
+                        }
+                    }
                     _ => break,
                 }
             }

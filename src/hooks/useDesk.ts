@@ -16,10 +16,20 @@ import type {
   SensorErrorPayload,
   TodaySummaryDto,
 } from "@/types";
-import type { UseDeskResult } from "./useDeskTypes";
+import type { TransportCapabilities } from "@/remote/transports";
+import type { UseDeskConnection } from "./useDeskTypes";
 import { deskReducer, initialDeskState, selectDeskView } from "./deskReducer";
 
-export type { TransitionInfo, UseDeskResult } from "./useDeskTypes";
+export type { TransitionInfo, UseDeskResult, UseDeskConnection } from "./useDeskTypes";
+
+/**
+ * Capabilities of the local IPC path.
+ *
+ * Constant, not a transport lookup: inside Tauri there is no wire to
+ * negotiate, so the same shape the remote transports report is filled in with
+ * the one answer that is always true here.
+ */
+const LOCAL_CAPABILITIES: TransportCapabilities = { control: true };
 
 /**
  * Subscribes to all Tauri `desk:*` events and exposes current desk state.
@@ -29,7 +39,7 @@ export type { TransitionInfo, UseDeskResult } from "./useDeskTypes";
  * - Starts auto-connect on mount
  * - Exposes calibration and settings commands
  */
-export function useDesk(): UseDeskResult {
+export function useDesk(): UseDeskConnection {
   const [state, dispatch] = useReducer(deskReducer, initialDeskState);
   const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const portFetched = useRef(false);
@@ -156,5 +166,14 @@ export function useDesk(): UseDeskResult {
 
   const view = useMemo(() => selectDeskView(state), [state]);
 
-  return { ...view, calibrate, setSitLimit, setStandLimit };
+  return {
+    ...view,
+    // The desktop app talks to its own backend over IPC: the desk is by
+    // definition present, and every command is already available locally.
+    deskOnline: true,
+    capabilities: LOCAL_CAPABILITIES,
+    calibrate,
+    setSitLimit,
+    setStandLimit,
+  };
 }

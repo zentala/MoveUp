@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "type": "command",
+  "id": "9f8e7d6c-5b4a-4233-9465-809102132435",
+  "ts": 1757170007000,
+  "payload": {
+    "name": "set_limits",
+    "args": {
+      "sit_min": 30
+    },
+    "viewer_id": null
+  }
+}

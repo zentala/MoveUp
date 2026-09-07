@@ -156,7 +156,14 @@ The `browser` agent tried to visually verify E015's fix (popup timer after a
 2-min stand) via the Remote Display server and could not reach a rendered
 UI at all in dev mode — two pre-existing gaps, neither caused by E015:
 
-- [ ] **`vite.config.ts` has no dev proxy for `/display/*` → `localhost:3390`**
+- [x] **`vite.config.ts` has no dev proxy for `/display/*` → `localhost:3390`**
+  — **done in E022-T12**: `vite.config.ts` `server.proxy` now forwards
+  `/display` (REST and, with `ws: true`, the socket) to
+  `http://127.0.0.1:$DESK_REMOTE_PORT` (default 3390), so `:1443` serves the
+  real app against the real data with no `pnpm tauri:build`. `127.0.0.1`
+  rather than `localhost` because Node resolves `localhost` to `::1` on
+  Windows while `remote_server.rs` binds IPv4. The two entries below stay
+  open — this one closes only the proxy half.
   — in a debug build, `remote_server.rs:72-80`'s fallback route
   (`dev_fallback()`) serves a static placeholder page literally reading
   "Vite proxy not yet implemented (T05)" instead of the real app, so
@@ -704,6 +711,22 @@ Phase 2 (future): Tauri Mobile native Android app.
 Phase 3 (future): Standalone — sensor communicates wirelessly (BLE/WiFi) with phone, no PC needed.
 
 See `.plan/vision/2026-03-15-desk-app-vision.md` → "Remote Display" section for full vision.
+
+- [ ] **LAN pairing — the local dashboard still has no authentication** — E022
+  gave the relay path a pairing code and per-device tokens
+  ([ADR 023](../.arch/ADR/023-pairing-code-device-token-auth.md)) and left the
+  LAN path exactly as it was: `ws_handler` in
+  [`src-tauri/src/remote_server.rs`](../src-tauri/src/remote_server.rs) checks
+  only the client count, so anyone already on the Wi-Fi can open the dashboard.
+  E022-D4 narrowed the gap with a toggle
+  (`AppConfig.remote_lan_enabled`, [`config.rs`](../src-tauri/src/config.rs))
+  rather than closing it, because the free tier is sold as "your own Wi-Fi,
+  view only" ([premium-tier-definition.md](vision/2026-03-25-premium-tier-definition.md)).
+  Closing it means reusing the pairing machinery locally: mint a viewer token
+  on the desk, check it in `ws_handler`, and list those devices in Settings
+  beside the relay's. Not urgent — the surface is read-only and local — but it
+  is the one place in the app where "on my network" still means "allowed".
+  (Importance: Low, Points: 5)
 
 ---
 

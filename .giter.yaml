@@ -13,9 +13,12 @@ worktree:
   # Directories in the MAIN checkout that wt-remove must assert survived a
   # worktree teardown. Both are gitignored and rebuilt by a build, so losing
   # them to a stray `rm -rf` is expensive and silent.
-  # A single root `node_modules` is sufficient: `.gitignore` declares one
-  # `node_modules/` line, and `pnpm-workspace.yaml` declares no `packages:`
-  # (only `allowBuilds`), so nothing splits the install into sub-packages.
+  # The root `node_modules` is no longer sufficient on its own: E022 added
+  # `relay/`, a STANDALONE pnpm project with its own `pnpm-workspace.yaml` and
+  # its own lockfile, deliberately kept out of the app workspace. Its install
+  # therefore lands in `relay/node_modules`, which the root guard does not
+  # cover — and reinstalling it costs a workerd download, not a symlink.
   guards:
     - node_modules
+    - relay/node_modules
     - src-tauri/target

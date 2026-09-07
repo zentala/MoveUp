@@ -17,6 +17,8 @@ export interface WidgetDataResult {
   wsConnected?: boolean;
   /** Whether the physical sensor is connected to the PC. */
   sensorConnected: boolean;
+  /** Whether the desk itself is reachable (false = relay up, desk asleep). */
+  deskOnline: boolean;
 }
 
 /**
@@ -58,5 +60,6 @@ export function useWidgetData(onOpenSettings: () => void): WidgetDataResult {
     },
     wsConnected: desk.wsConnected,
     sensorConnected: desk.connected,
+    deskOnline: desk.deskOnline,
   };
 }

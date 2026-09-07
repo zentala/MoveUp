@@ -1,8 +1,10 @@
 # Privacy Policy
 
-MoveUp keeps your data on your computer. There is one exception — the optional
-Google Fit step-count integration — and this document describes it in full,
-along with every other place data can leave the app.
+MoveUp keeps your data on your computer. Two optional features can send
+something off the machine — the Google Fit step-count integration and the relay
+that lets a paired phone reach your desk from anywhere. Both are off until you
+turn them on, and this document describes each in full, along with every other
+place data can leave the app.
 
 **Applies to:** MoveUp 0.6.0.
 
@@ -13,6 +15,7 @@ along with every other place data can leave the app.
 | Session history, desk heights, settings, logs | Your computer only |
 | Step counts (Google Fit) | Requested from Google over the internet — **only if you set it up** |
 | Remote display (phone dashboard) | Served to devices on your local network |
+| Paired phone over the relay | **Only if you turn it on**: the current state passes through our relay, which keeps no history |
 | Telemetry | Off by default; nothing is transmitted in 0.6.0 (see below) |
 | Update checks | None — the app never contacts an update server |
 
@@ -42,8 +45,9 @@ MoveUp does **not**:
 - Log what you type or which windows you open
 - Read your files, work content, or browsing history
 - Show ads or embed third-party trackers
-- Create an account or ask you to sign in to MoveUp
-- Contact any MoveUp-operated server (there is none)
+- Create an account, ask for your e-mail address, or ask you to sign in
+- Contact any MoveUp-operated server unless you turn the relay on yourself
+  (see [the relay](#pairing-a-phone-through-the-relay) below — off by default)
 
 Keyboard and mouse hooks are used for one thing: deciding whether you are at
 the computer. The app records "active" or "idle for N seconds" — never which
@@ -110,7 +114,41 @@ on a phone or tablet. It listens on **port 3390 on every network interface**
   reach it.
 
 If your machine sits on a network you do not trust, block port 3390 in Windows
-Firewall. See [`REMOTE_DISPLAY.md`](REMOTE_DISPLAY.md) for setup details.
+Firewall — or switch the whole thing off in **Settings → Remote access →
+"Serve the display on this network too"**, which stops the app from opening the
+port at all. See [`REMOTE_DISPLAY.md`](REMOTE_DISPLAY.md) for setup details.
+
+## Pairing a phone through the relay
+
+MoveUp can also show the dashboard on a phone that is **not** on your network.
+That path goes through a relay we operate at `relay.desk.zentala.io`. It is
+**off by default**: with no licence key entered, the app never contacts it.
+
+While it is on:
+
+- **What passes through:** the same live state the local dashboard shows —
+  current position, today's totals, sensor status — and the three commands a
+  paired phone may send back (dismiss an alert, change a limit, switch a
+  profile). The connection is TLS the whole way.
+- **What the relay keeps:** the **latest snapshot only, in memory**, so a phone
+  opened while your PC is off can show the last known state instead of a
+  spinner. It disappears when the connection does. There is no history table,
+  no database of readings, and no log of message contents in the cloud. Your
+  session history never leaves your computer.
+- **What is stored in the relay's database:** a hash of each device's token,
+  the desk and device names you chose, and timestamps. **No plaintext token, no
+  e-mail address, no password, no readings.** Your PC keeps its own token in the
+  Windows Credential Manager, not in a settings file.
+- **Who can connect:** only a device you paired with a code shown on your PC.
+  The code lasts five minutes and works once. Every paired phone is listed in
+  Settings, and removing one drops its connection within a second.
+- **Turning it off:** **Settings → Remote access → Turn off and forget this
+  desk** unregisters the desk and deletes the local credential — including when
+  the relay cannot be reached.
+
+Design and reasoning:
+[ADR 022](../.arch/ADR/022-relay-on-cloudflare-durable-objects.md) and
+[ADR 023](../.arch/ADR/023-pairing-code-device-token-auth.md).
 
 ## Telemetry
 

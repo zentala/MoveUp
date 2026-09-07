@@ -57,6 +57,8 @@ Do NOT hardcode prices — they may change or be A/B tested.
 | [009](.arch/ADR/009-day-break-credit.md) | Day break credit (6h+ resets flags/score) | Session logic, daily reset |
 | [010](.arch/ADR/010-notification-escalating-silence.md) | Escalating silence after repeated notifications | Notification UX |
 | [011](.arch/ADR/011-unified-sit-stand-walk-cycle.md) | Unified sit-stand-walk cycle (no separate screen timer) | Computer time, screen breaks, work cycle |
+| [022](../.arch/ADR/022-relay-on-cloudflare-durable-objects.md) | The Pro relay runs on Cloudflare Workers + Durable Objects and keeps no history — one snapshot in memory | Pro tier scoping, cloud cost, privacy claims, anything cross-device |
+| [023](../.arch/ADR/023-pairing-code-device-token-auth.md) | Pairing code → per-device tokens, no accounts; every remote write allowlisted and logged | Auth, entitlement/licensing, remote control scope, security review |
 
 ## Hardware Design
 

@@ -85,9 +85,9 @@
       <file name="lib.rs">App entry — plugins, AppState, setup hook (tray, blur, serial, welcome)</file>
       <file name="main.rs">Binary entry — calls lib::run()</file>
       <file name="commands.rs">IPC commands: list_ports, start_auto_connect, stop_reading, get_session_state, get_today_summary, inject_reading, trigger_test_notification, dismiss_welcome, show_welcome</file>
-      <file name="commands_config.rs">Config IPC: set_session_limit, set_stand_limit, calibrate, get_settings, save_settings, get_overlay_state</file>
-      <file name="commands_profiles.rs">Profile IPC: list_communication_profiles, list_ergonomic_profiles, get_active_profiles, switch_communication_profile, switch_ergonomic_profile, open_profile_in_editor, duplicate_profile</file>
-      <file name="commands_profiles_tests.rs">11 validation tests for profile commands</file>
+      <file name="commands_config.rs">Config IPC: set_session_limit, set_stand_limit, calibrate, get_settings, save_settings, get_overlay_state. save_settings resyncs the relay client, but only when relay_settings_changed says relay_enabled or relay_url actually moved — every settings edit calls it, and reconnecting over an unrelated field would drop live viewers (E022-T06)</file>
+      <file name="commands_profiles.rs">Profile IPC: list_communication_profiles, list_ergonomic_profiles, get_active_profiles, switch_communication_profile, switch_ergonomic_profile, open_profile_in_editor, duplicate_profile. The engine half of a switch is extracted as switch_communication_profile_by_name / switch_ergonomic_profile_by_name (app_data_dir + handles, no AppHandle) so the relay command path can call it; the IPC wrappers add store persistence of the active ID on top</file>
+      <file name="commands_profiles_tests.rs">16 tests for profile commands</file>
       <file name="session.rs">SessionManager constructor + re-exports</file>
       <file name="session_types.rs">Structs: SessionState, SessionStateDto, DeskState, StateChangedPayload, AppConfig fields</file>
       <file name="session_manager.rs">SessionManager impl: on_reading, state transitions, score accumulation</file>
@@ -100,7 +100,7 @@
       <file name="db.rs">SQLite connection + schema</file>
       <file name="db_sessions.rs">Session CRUD operations</file>
       <file name="db_queries.rs">TodaySummary + aggregate queries</file>
-      <file name="config.rs">AppConfig struct — tauri-plugin-store persistence (slimmed: 20 fields moved to profiles)</file>
+      <file name="config.rs">AppConfig struct — tauri-plugin-store persistence (slimmed: 20 fields moved to profiles). E022-T06 adds relay_enabled (default false — the relay is opt-in), relay_url (empty clamps back to RELAY_DEFAULT_URL) and remote_lan_enabled (default true, so an older config never reads as "LAN turned off")</file>
       <file name="tray.rs">System tray — icon, tooltip, context menu, left-click toggle</file>
       <file name="tray_controller.rs">Wires desk events to tray + overlay + communication policy signals</file>
       <file name="tray_icon.rs">Generates RGBA tray icons by state + progress (white base + colored dot)</file>
@@ -131,10 +131,23 @@
       <file name="health_models.rs">Source-agnostic DTOs: HealthSnapshot (steps + optional heart_rate_bpm/hrv_rmssd_ms + source_id + fetched_at_ms), HealthView, HealthErrorKind (alias of google_fit ErrorKind). ts-rs exported</file>
       <file name="health_source.rs">HealthSource trait (id/view/refresh) + HealthAggregator: merges sources by freshest fetched_at_ms, passes errors through with AuthRevoked outranking Transient. The inlet the LAN push source (T03) registers into</file>
       <file name="health_source_tests.rs">Aggregator tests over the real trait — happy / nil / empty / error paths, freshness ordering, "a healthy source never hides another source's error"</file>
+      <file name="remote_protocol.rs">E022 message contract shared by both remote transports: Envelope&lt;T&gt; {v,type,id,ts,payload}, MessageType (with an Unknown variant so a newer peer's type still parses), Hello/Welcome/DeskStatus/Command/CommandResult/ErrorBody payloads (ts-rs exported), the 4400..4503 close-code constants, and COMMAND_ALLOWLIST — the three v1 commands with their argument bounds as data, checked by validate_command on the relay AND again on the desk</file>
+      <file name="remote_protocol_tests.rs">17 tests: every tests/fixtures/relay-protocol/*.json parses into its typed payload and re-serializes equal (fixture count asserted, an empty glob fails), null-vs-missing payload, v:2 rejected, unknown type survives the envelope, allowlist bounds and unknown-argument rejection</file>
+      <file name="relay_status.rs">E022 relay connection state and reconnect policy: RelayState (disabled/connecting/online/unentitled/revoked/replaced/error), RelayStatus (the get_relay_status payload), state_for_close_code + should_reconnect — 4402/4403/4409 are terminal, everything else retries — and Backoff (1s→60s doubling, capped, ±20% jitter)</file>
+      <file name="relay_client.rs">E022-T05 desktop outbound relay socket: one tokio task per connection over tokio-tungstenite (rustls-webpki-roots), hello → welcome → snapshot → forwards the ws_tx broadcast verbatim inside an event envelope; ping every 25s, drops after 60s without a pong; reconnects with Backoff and stops dead on a terminal close code. Sleeper and SnapshotSource are injected so the task depends on no app state; ClientHandle exposes stop()/restart(). An inbound command is answered through the injected CommandExecutor (spawn_with_commands) and ALWAYS produces a command_result — an unreadable payload and a build with no executor both answer with an error rather than silence, and a refused command never drops the room</file>
+      <file name="relay_client_tests.rs">20 tests against a real in-process tokio-tungstenite server on port 0: handshake + snapshot + broadcast forwarding, no-reconnect-after-4403 (asserts zero retries AND zero backoff waits), retryable close backing off 1/2/4s within ±20%, drop mid-hello counting as one failed attempt, exactly one ping per idle interval, pong timeout, stop/restart, URL scheme upgrade</file>
+      <file name="relay_commands.rs">E022-T07 desk-side execution of a viewer's command. CommandCtx is an AppState-shaped subset (session, comm_policy, alert_popup, app_data_dir, optional EventLogger) so a command runs with no AppHandle and no Tauri runtime; execute() admits (protocol version, |ts - now| &lt;= 30s in BOTH directions, then remote_protocol::validate_command) before locking anything, runs ack_alert / set_limits / switch_profile, and writes REMOTE &lt;name&gt; viewer=&lt;id&gt; ok|err=&lt;code&gt; or REMOTE DENIED &lt;name&gt; to events.log with every network-supplied string sanitised so a hostile command name cannot forge a line. ack_alert calls CommunicationPolicy::dismiss then AlertPopup::dismiss and deliberately does NOT raise user_dismissed, which the tray polls — that would snooze twice for one ack</file>
+      <file name="relay_commands_tests.rs">23 tests on the real context (real SessionManager, CommunicationPolicy, EventLogger in a TempDir, profile JSON on disk): both limits and one-of-two, out-of-range and unknown-argument rejection leaving state untouched, ack_alert snoozing exactly once, profile switches applied from disk, a missing profile failing rather than silently defaulting, path traversal and unknown kind refused, the staleness window on both sides plus its exact edge, unsupported protocol version, all three log-line shapes, log-injection via a hostile name, running with no logger, and CommandCtx reached through dyn CommandExecutor</file>
+      <file name="relay_auth.rs">E022-T06 desk credentials and the relay's REST surface. The secret half (desk_token) goes to the OS credential store through the CredentialStore trait — KeyringStore holds ONE keyring::Entry and installs the mock builder under cfg(test), so no test can reach Windows Credential Manager; the public half (DeskRecord: desk_id, desk_name, plan, expires_at) sits in tauri-plugin-store. RelayApi wraps register / start_pairing / list_viewers / revoke_viewer / delete_desk over reqwest and returns the relay's own ErrorBody, so an error code like invalid_license survives to the UI instead of being flattened to prose</file>
+      <file name="relay_auth_tests.rs">13 tests: keyring round-trip and delete-when-absent-is-success, effective_url fallback, qr_payload deep link, and every REST call against a wiremock relay — success, the relay's own error body, an error body that is not the schema, a 200 with an unreadable body (an error, never an empty list), an empty viewer list, 204 on revoke, and an unreachable host</file>
+      <file name="commands_relay.rs">E022-T06 relay IPC plus the client supervisor. Six commands: relay_register (license key → identity + token, both stored, feature switched on), relay_start_pairing, relay_list_viewers, relay_revoke_viewer, relay_disable (clears local credentials even when the relay is unreachable — a desk switches itself off without the cloud's permission) and get_relay_status. sync_client is the ONLY caller of relay_client::spawn: it stops any running task, then starts one iff plan_action says the feature is on AND a token AND a registration exist. AppSnapshot builds the opening snapshot through remote_display_state::build, so a phone on the relay sees what a phone on the LAN sees</file>
+      <file name="commands_relay_tests.rs">4 tests: the supervisor's decision table (a socket opens only on all three conditions; "off", "no token" and "not registered" all stop it and none may look like reconnecting), the desk always names itself something, and the opening snapshot is a real snapshot event with a populated session and non-empty metrics</file>
       <file name="remote_auth.rs">Shared-secret guard for the remote server's write endpoints — require_token(headers, expected) with a hand-rolled constant-time compare; unset DESK_REMOTE_TOKEN answers 503 (closed), never 200 (E021-T03)</file>
       <file name="remote_auth_tests.rs">7 tests: match / wrong / missing header / unconfigured / non-ASCII header, and constant_time_eq agreeing with == including the 256-length-multiple case a naive u8 accumulator gets wrong</file>
       <file name="remote_routes_health.rs">LAN push inlet POST /display/health — token required, 1 KiB body cap, schema {steps_today, heart_rate_bpm?, hrv_rmssd_ms?, source_id(1..64), measured_at_ms} into PushHealthSource, registered in HealthAggregator, snapshot withdrawn after 1h (E021-T03)</file>
       <file name="remote_routes_health_tests.rs">12 tests driving the real seam route → PushHealthSource → HealthAggregator via axum oneshot: authenticated push merges, shows in /display/api and in last_view(), 401/413/422/400/503 paths, staleness boundary</file>
+      <file name="remote_server.rs">Embedded axum HTTP+WS server on :3390 (LAN). Wraps every outgoing DisplayEvent — snapshot, broadcast forward, heartbeat — in the shared v1 envelope from remote_protocol.rs, so the LAN and the relay hand the React client the same shape (E022-T11). Read-only by design: classify_inbound drops any frame a client sends, since the LAN has no authentication. lan_enabled_in reads the remote_lan_enabled toggle out of the serialized config — an absent key means on, only an explicit false closes the port</file>
+      <file name="remote_server_tests.rs">14 tests: envelope round-trip preserves the DisplayEvent payload, fresh UUID per message, unparseable input becomes an explicit null payload; an inbound command envelope classifies as Ignored (never executed), close ends the loop; the LAN toggle across nil / absent-key / true / false / non-bool</file>
       <file name="google_fit.rs">Low-level Fit layer — credentials, endpoints, error classification (AuthRevoked vs Transient), and SourceCache: per-data-type source discovery with a 1h failure TTL. Endpoints injectable for wiremock tests</file>
       <file name="google_fit_client.rs">Fit HTTP calls — OAuth refresh, list_step_sources / list_heart_rate_sources, fetch_steps, fetch_heart_rate (aggregate over com.google.heart_rate.bpm), rank_sources</file>
       <file name="google_fit_models.rs">Fit wire types (OAuthTokenResponse, AggregateResponse with total_steps / average_bpm) + ErrorKind</file>
@@ -197,6 +210,7 @@
         <file name="WelcomePopup.tsx">First-launch onboarding popup</file>
         <file name="AppProgressBar.tsx">14px in-app progress bar (debug)</file>
         <file name="ScreenProgressBar.tsx">4px top-of-screen CSS overlay bar</file>
+        <file name="ConnectionOverlay.tsx">Four states for the remote display: all fine (nothing), sensor lost (banner), phone disconnected (Reconnecting…), and — E022 — relay up but desk asleep (last known state). deskOnline defaults to true so LAN and Tauri callers keep three</file>
         <file name="VoiceCapture.tsx">Phone-only dictation panel — token sheet, textarea, optional mic, POST /display/voice, renders the desk:voice-ack</file>
         <dir name="settings/">
           <file name="CalibrationSection.tsx">Calibration UI section</file>
@@ -205,11 +219,17 @@
           <file name="WidgetPickerSection.tsx">Widget selection dropdown</file>
           <file name="ProfileSelector.tsx">Profile dropdown — switch communication and ergonomic profiles</file>
           <file name="SettingsTypes.ts">Settings type definitions</file>
+          <file name="RemoteSection.tsx">E022 — Settings → More → Remote access. Reads RelayStatus.state, not the enabled flag: "switched on" and "actually connected" are different facts. Unregistered shows only the licence form; registered shows Pair a phone (enabled only while online), the device list and a disable button. Also carries the remote_lan_enabled toggle — the relay never takes the LAN transport away</file>
+          <file name="PairingCodeCard.tsx">The pairing code, desk id, minutes left, and the QR as inline SVG (qrcode toString — the one output needing no canvas, so it draws the same in the app and under jsdom). Code and QR are both always shown: a phone that cannot scan must still be pairable by typing</file>
+          <file name="PairedDevicesList.tsx">One row per paired phone with its own Remove button. An empty list says so in words — blank pixels would be indistinguishable from "still loading" and from "the request failed"</file>
+          <file name="useRelaySettings.ts">The IPC half of the Remote section: get_relay_status + relay_list_viewers on mount, and the four actions (register, start pairing, revoke, disable), each refreshing afterwards. Viewers are only requested for a registered desk</file>
         </dir>
       </dir>
 
       <dir name="hooks/">
-        <file name="useDesk.ts">Main data hook — desk:* events, IPC state</file>
+        <file name="useDesk.ts">Main data hook — desk:* events, IPC state. Reports deskOnline: true and control capability as constants: inside Tauri there is no wire to negotiate</file>
+        <file name="useRemoteDesk.ts">The browser half. Owns the reducer, NOT the socket: selectTransport() picks the wire and the hook only subscribes, so one phone build serves both the LAN and the relay. Adds capabilities + deskOnline to the result</file>
+        <file name="useDeskTypes.ts">UseDeskResult (the reducer-shaped contract deskReducer.DeskView is derived from) plus DeskTransportFacts and UseDeskConnection — the transport facts are separate on purpose, a pure reducer cannot know whether a socket is up</file>
         <file name="useTimer.ts">Tick hook — 1s interval counter</file>
       </dir>
 
@@ -253,6 +273,57 @@
       <dir name="mockup/">
         <file name="VoiceCaptureGallery.tsx">DEV /#/mockup/voice — VoiceCapture scenarios (token sheet, ready, acknowledged)</file>
       </dir>
+
+      <dir name="remote/">
+        <file name="protocol.ts">Runtime half of the E022 wire contract: zod schemas for every payload, envelopeSchema(), parseMessage() returning ok / unknown_type / error (an unknown type is ignorable, not an error), CLOSE_CODES + TERMINAL_CLOSE_CODES, and COMMAND_ALLOWLIST/validateCommand mirroring Rust. SCHEMAS_MATCH_RUST is a compile-time proof that each schema still matches the ts-rs type — rename a field in remote_protocol.rs and pnpm typecheck fails here. Imported by the relay Worker too (T02)</file>
+        <file name="protocol.test.ts">31 tests over the shared fixtures plus envelope and allowlist edge cases</file>
+        <file name="storage.ts">The phone's stored pairing record (localStorage key moveup.relay.v1): load/save/clear/has, every access wrapped because localStorage throws outright in private-mode Safari; a record that fails zod validation is treated as absent AND removed</file>
+        <file name="storage.test.ts">10 tests: round-trip, absent, empty string, non-JSON, missing field, getItem/setItem/removeItem throwing</file>
+        <file name="index.ts">Barrel — protocol, storage, transports, pairing, the active-transport registry, PairScreen and RemoteControls</file>
+        <file name="pairing.ts">POST /v1/pair from the phone: parsePairLink() reads #/pair?d=&amp;c=&amp;r=, defaultRelayUrl() prefers the serving origin under /app and RELAY_DEFAULT_URL elsewhere, pairViewer() returns the record to store and throws PairFailed carrying the relay's error code (bad_code, code_expired, pairing_locked with retry_after_secs, viewer_limit, network, bad_response)</file>
+        <file name="activeTransport.ts">Registry of one: selectTransport() publishes the wire it picked, useActiveTransport()/useControlCapability() let the layout and the controls read it without threading a transport through useWidgetData. Constructs and closes nothing</file>
+        <file name="useRemoteCommand.ts">One command at a time over a transport: pending label while waiting for command_result, error message from a failed one. A transport without sendCommand (LAN) can never send</file>
+        <file name="PairScreen.tsx">#/pair on the phone. A complete deep link prefills and submits on its own; without one the same form is typed by hand. bad_code/code_expired clear the code field, pairing_locked names the retry time, success stores the record and reloads into the dashboard. Also offers "Forget this desk" — the phone drops its own credential; only the desk can revoke server-side</file>
+        <file name="RemoteControls.tsx">The three writes a phone may make (ack_alert, set_limits ±5 min clamped to the COMMAND_ALLOWLIST bounds, switch_profile). Renders null unless the transport reports capabilities.control, so the read-only LAN wire shows nothing rather than a dead panel. Profile names are the built-ins — the phone cannot enumerate custom profiles</file>
+        <file name="remote.css">Phone-only styles for both surfaces: single column, 44px tap targets, globals.css tokens with literal fallbacks (the pairing screen can render before any theme or desk data)</file>
+        <file name="PairScreen.test.tsx">9 tests: deep-link auto-submit and stored record, manual form sends nothing, empty code refused before the request, bad_code clears the field, pairing_locked names the minutes, unreachable relay, forget, no forget button when unpaired</file>
+        <file name="RemoteControls.test.tsx">8 tests: the capability gate (no control, no transport), each command's name and args, bound clamping, pending state and disabled siblings, the desk's error message</file>
+
+        <dir name="transports/">
+          <file name="types.ts">The Transport contract: connect/close/onMessage/onStatus, optional sendCommand, capabilities.control (LAN false, relay true), the normalised TransportMessage union (event, welcome, desk status, command result) and TransportStatus, whose connected and deskOnline are two separate facts on the relay</file>
+          <file name="emitter.ts">The listener set both transports share</file>
+          <file name="lan.ts">ws://host/display/ws — today's read-only LAN wire, backoff 1..10 s, REST /display/api poll every 2 s while down. Accepts BOTH a bare {event,payload} (pre-T11 desk) and a v1 envelope (post-T11), because phone and desk update on separate schedules</file>
+          <file name="relay.ts">wss://relay/v1/desks/{id}/ws — the token travels in the hello payload, never in the URL. hello, ping every 25 s, backoff 1..60 s with ±20 % jitter, sendCommand with a pending map keyed by envelope id (10 s timeout). Close 4402/4403/4409 stop the loop; 4403 also clears the stored pairing</file>
+          <file name="index.ts">Barrel + selectTransport(): a stored pairing picks the relay, otherwise the LAN socket</file>
+          <file name="lan.test.ts">11 tests: both frame shapes, unknown envelope type ignored, malformed JSON warned, liveness, backoff, REST fallback</file>
+          <file name="relay.test.ts">16 tests: hello contents, a desk that is offline while the phone stays connected, command round trip plus bad args, offline and timeout, revoked clears the record and stops retrying, unentitled stops without clearing, backoff jitter bounds</file>
+          <file name="transports.test.ts">The seam: one relay-protocol fixture fed through BOTH transports into the real useRemoteDesk must produce identical reducer state; plus a null welcome snapshot, capabilities exposure and selectTransport</file>
+        </dir>
+      </dir>
+    </layer>
+
+    <layer name="relay-worker" path="relay/">
+      <note>Standalone pnpm project (own pnpm-workspace.yaml, own lockfile) deployed to Cloudflare Workers — NOT a member of the app workspace. Imports the wire contract from the app through the `@app/*` alias so the protocol schema exists once. E022-T02 ships the room and the router, T03 the credentials, pairing and REST; command routing between a viewer and the desk is T04.</note>
+      <file name="src/index.ts">Router: GET /healthz (version, for the deploy gate), /app/* (viewer build via the ASSETS binding; 503 assets_unavailable when ../dist has not been built, never 404), GET /v1/desks/:deskId/ws (upgrade forwarded to the DeskRoom named by desk_id — the token is never a URL component), the six REST credential routes, and a 404 for /__room/* so the Worker never bridges the internet to the room's private channel</file>
+      <file name="src/room/desk-room.ts">DeskRoom Durable Object on the WebSocket Hibernation API: hello→welcome, one desk + N viewers, event fan-out, desk_status on arrival/departure, ping/pong, and a single alarm sweeping both the hello deadline (4401) and the idle deadline (1001). Holds the newest snapshot AND the pairing code in memory only — both die with the object, which is what lets the relay store nothing about a person's day and no live secret at all</file>
+      <file name="src/room/room-admin.ts">The room's non-protocol duties as plain functions over the socket list and a mutable pairing box: issue a code, redeem one, close a revoked viewer's sockets, close everything on "disable relay", list the viewer ids that are online</file>
+      <file name="src/room/pairing.ts">The pairing-code state machine with the clock injected: an 8-character code from a 32-symbol alphabet with no I/O/0/1, 5-minute ttl, single use, and a 15-minute lockout after 10 wrong codes that a freshly issued code does NOT clear. An expired code is not charged as an attempt, so a stale QR cannot lock a desk out</file>
+      <file name="src/room/rpc.ts">The private /__room/* channel between the REST layer (which owns D1) and the room (which owns the codes and the sockets), with the path constants and payload shapes in one module so caller and callee cannot drift</file>
+      <file name="src/room/messages.ts">Envelope building plus readFrame(), which turns a parse failure into a decision: close 4400 for an unparseable/wrong-version/non-envelope frame, a non-fatal error frame carrying the offending id for a bad payload or an unknown type</file>
+      <file name="src/room/sockets.ts">Per-socket state in the socket's attachment (survives hibernation) rather than in accept-time tags (fixed before the role is known, and taggable only by leaking the role into the upgrade URL)</file>
+      <file name="src/auth/tokens.ts">Minting (32 random bytes, base64url, mu_d_/mu_v_ prefix), SHA-256 hashing and verifyToken: rows are fetched by desk_id and their hashes compared in constant time — a hash is never a SQL selector, and the viewer scan does not break on a match. Distinguishes unauthorized / unentitled (licence gone or expired) / revoked, which the room maps to 4401 / 4402 / 4403. With no DB bound it refuses EVERY credential rather than falling back to a shape check</file>
+      <file name="src/auth/licenses.ts">Entitlement lookup and the fixed REST error-code list; findLicense distinguishes "no such license" (null) from "could not ask" (throws), and db(env) is the one place that turns a missing binding into a named error</file>
+      <file name="src/http/">responses.ts (one {error:{code,message}} shape), body.ts (bounded JSON reading; every stored string is length-capped), rate-limit.ts (the RateLimiter Durable Object, one instance per &lt;route&gt;:&lt;ip&gt; bucket — chosen over the platform binding because pairing brute-force protection has to be testable), health.ts, assets.ts, desks.ts (register, list viewers, revoke, disable), pairing.ts (issue and redeem a code), rest.ts (route table + :param matcher; wrong verb on a real path answers 405, an unexpected throw answers 503 internal)</file>
+      <file name="migrations/0001_init.sql">licenses / desks / viewers — SHA-256 hashes and metadata only. Applied to the real test D1 before every test file</file>
+      <file name="scripts/mint-license.mjs">Mints a key and stores its hash through `wrangler d1 execute`, printing the key on stdout ONLY after the insert succeeded — everything else goes to stderr, so `--license $(node scripts/mint-license.mjs --local)` works and a failed insert can never hand out a key that entitles nobody</file>
+    </layer>
+
+    <layer name="tooling" path="./">
+      <note>E022-T12 wiring. `just` is the one command vocabulary (~/.claude/rules/just.md): the relay lives in its own pnpm project, so every relay recipe goes through `pnpm --dir relay` and stays runnable from the repo root.</note>
+      <file name="justfile">relay-dev (install + wrangler dev on :8787), relay-test (workerd suite), relay-e2e LICENSE [RELAY] (the full round trip), relay-deploy (pnpm build then wrangler deploy — build first because [assets] points at ../dist). The pre-existing setup/dev/build/test/check recipes are unchanged</file>
+      <file name="vite.config.ts">Vite + Vitest, 80% coverage gate, welcome entry. `server.proxy` forwards /display (REST and, with ws:true, the socket) to 127.0.0.1:$DESK_REMOTE_PORT (default 3390) so the remote display renders the real app on the dev server — closing the E015-T05 backlog entry where useRemoteDesk asked ws://localhost:1443/display/ws and nothing answered. 127.0.0.1 rather than localhost: Node resolves localhost to ::1 on Windows and the axum server binds IPv4</file>
+      <file name="scripts/relay-e2e.mjs">The only check that crosses every relay seam at once: register a desk over REST, open the desk socket, issue a pairing code, redeem it as a phone, open the viewer socket, fan an event out, run a viewer→desk→viewer command round trip, read the viewer list, revoke and disable. Ten named steps; a failure prints the step name, and a run that executed fewer steps than STEPS.length exits 1 even if nothing threw. No default relay URL — aimed at nothing must never look like aimed somewhere</file>
+      <file name="vitest.scripts.config.ts">Node-environment runner for tests/scripts (no jsdom, no setup file); include widened to *.test.{js,ts}</file>
     </layer>
 
     <layer name="ipc-events">
@@ -310,6 +381,18 @@
       <note>App must be running: pnpm tauri:dev</note>
     </layer>
 
+    <layer name="relay-worker" path="relay/test/" runner="pnpm --dir relay exec vitest run">
+      <note>Runs inside workerd through @cloudflare/vitest-pool-workers, so the Durable Object under test is the real one and the credential store is a real D1 with migrations/0001_init.sql applied by test/apply-migrations.ts before every file. Miniflare options live in relay/vitest.config.ts (not read from wrangler.toml — the Worker's [assets] block points at ../dist, which only exists after a vite build) with HELLO_TIMEOUT_MS=250, IDLE_TIMEOUT_MS=700, PAIRING_TTL_MS=1000 and PAIRING_LOCKOUT_MS=2000 so the alarm- and clock-driven tests finish in seconds. Nothing is stubbed between the REST routes and the socket authenticator: test/helpers.ts registers a desk and pairs a viewer through the real endpoints, so every room test also exercises verifyToken's D1 path.</note>
+      <files>test/room/{handshake,fanout,liveness}.test.ts, test/http/{router,register,pair,viewers}.test.ts, test/auth/{tokens,pairing,licenses}.test.ts, test/commands/validation.test.ts</files>
+      <count>140 tests (26 room + 14 allowlist + 100 credentials/REST) — E022-T02 and T03</count>
+    </layer>
+
+    <layer name="scripts" path="tests/scripts/" runner="pnpm test:scripts">
+      <note>Node environment, no jsdom and no setup file (vitest.scripts.config.ts) — these cover the repo's own tooling, which runs under plain node. relay-e2e.test.ts is a smoke test by design: it asserts what holds with no relay running (argument parsing, the refusal when no --relay was given, the ws:// scheme upgrade, and that STEPS is non-empty). The script's real proof is running it against a relay: `just relay-dev` in one shell, then `just relay-e2e "$(node relay/scripts/mint-license.mjs --local)"`.</note>
+      <files>build-report.test.js, relay-e2e.test.ts</files>
+      <count>20 tests (8 build-report + 12 relay-e2e)</count>
+    </layer>
+
     <layer name="e2e" path="tests/e2e/" runner="pnpm test:e2e">
       <note>Requires: tauri-driver --compatibility-mode</note>
     </layer>
@@ -318,6 +401,7 @@
       <file path="tests/emulator/DeskDeviceEmulator.ts">Device serial emulator</file>
       <file path="tests/emulator/scenarios.ts">Multi-reading scenario helpers</file>
       <file path="tests/fixtures/builders.ts">Test data builders</file>
+      <dir path="tests/fixtures/relay-protocol/">14 JSON envelopes, one per E022 message type and case (hello-desk/viewer, welcome-online/offline, event-snapshot, event-state-changed, desk-status, command-ack/set-limits/switch-profile, command-result-ok/err, ping, error). Read by BOTH remote_protocol_tests.rs and src/remote/protocol.test.ts — this directory is the wire contract, so a field renamed on one side of the wire fails on the other</dir>
     </support>
   </testing>
 

@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "type": "desk_status",
+  "id": "7d6c5b4a-3f2e-4011-b243-6e7f80910213",
+  "ts": 1757170005000,
+  "payload": {
+    "online": false,
+    "since": 1757170004900
+  }
+}
