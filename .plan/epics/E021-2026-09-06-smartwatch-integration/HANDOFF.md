@@ -263,8 +263,8 @@ tasks:
     repo: MoveUp
     executor: ts-dev
     depends_on: []
-    write_set: ["src-tauri/src/voice_ai.rs", "src-tauri/src/voice_ai_tests.rs", "src-tauri/src/config.rs", "src-tauri/src/lib.rs", "src/generated/**", "PROJECT.xml", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock"]
-    claims: ["src-tauri/src/voice_ai.rs", "src-tauri/src/voice_ai_tests.rs"]
+    write_set: ["src-tauri/src/voice_ai.rs", "src-tauri/src/voice_ai_tests.rs", "src-tauri/src/config.rs", "src-tauri/src/config_tests.rs", "src-tauri/src/lib.rs", "src/components/settings/SettingsTypes.ts", "src/generated/**", "PROJECT.xml", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock"]
+    claims: ["src-tauri/src/voice_ai.rs", "src-tauri/src/voice_ai_tests.rs", "src-tauri/src/config_tests.rs"]
     verification: "cargo test --manifest-path src-tauri/Cargo.toml --lib -- voice_ai"
     budget_minutes: 60
   - id: E021-T04
