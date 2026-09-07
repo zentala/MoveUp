@@ -8,10 +8,9 @@ events out to the phones while keeping the newest snapshot in memory. Devices
 authenticate with tokens minted from a licence key; D1 stores their hashes and
 nothing else. No ergonomics history is ever stored here.
 
-**State: T02 (room, router, protocol) and T03 (credentials, pairing, REST) are
-in.** Command routing between a viewer and the desk lands in T04, so `command`
-and `command_result` are still answered with a non-fatal
-`error{not_implemented}`.
+**State: T02 (room, router, protocol), T03 (credentials, pairing, REST) and T04
+(command routing) are in.** A phone can pair, watch, and send the three
+allowlisted commands.
 
 ## Commands
 
@@ -40,6 +39,8 @@ the app ships to a desktop installer, and the trees have nothing in common.
 | `src/room/room-admin.ts` | pairing and socket revocation, as functions |
 | `src/room/pairing.ts` | the code/lockout state machine, clock injected |
 | `src/room/rpc.ts` | the private `/__room/*` channel between REST and the room |
+| `src/room/commands.ts` | viewer -> desk command routing and every refusal it can answer with |
+| `src/room/command-table.ts` | the reply table (`command_id` -> viewer, 30 s) and the per-viewer throttle |
 | `src/room/messages.ts` | envelope building and the parse-failure decision |
 | `src/room/sockets.ts` | per-socket state, kept in the socket's attachment |
 | `src/auth/tokens.ts` | minting, hashing and `verifyToken` |
@@ -95,6 +96,43 @@ storage write per request. The pairing **lockout** is different and deliberately
 so: it is held by the room for the whole of the room's life, and issuing a fresh
 code does not clear it.
 
+Commands are throttled separately, at **10 per minute per viewer**, and refused
+with a non-fatal `error{rate_limited}` rather than a close — a phone that taps
+too fast should slow down, not be logged out. That counter is a third mechanism
+again: it rides in the socket's own attachment (`src/room/commands.ts`), so a
+Durable Object eviction between two commands cannot forgive a burst. The check
+runs *before* the allowlist, so an invalid command name still costs a token.
+
+## Command routing
+
+A `command` from a viewer is validated against the shared allowlist, stamped
+with the sender's `viewer_id`, and forwarded to the desk socket **with its own
+`id` and `ts` untouched** — the id is what the reply is matched on, and the
+timestamp is what lets the desk refuse a command that sat in a tunnel for a
+minute.
+
+The room keeps a bounded table of forwarded commands, `command_id -> viewer_id`,
+for 30 seconds. A `command_result` from the desk is delivered to that one viewer
+and to nobody else; broadcasting it would tell every paired phone what another
+phone just did.
+
+Everything is answered, because a phone that gets nothing back cannot tell a
+slow command from a lost one:
+
+| Situation | Answer to the sender |
+|---|---|
+| no desk connected | `command_result{ok:false, error.code:"desk_offline"}` |
+| unknown name | `error{unknown_command}` |
+| bad or missing arguments | `error{bad_args}` |
+| over the per-viewer limit | `error{rate_limited}` |
+| a desk sending `command`, or a viewer sending `command_result` | `error{forbidden}` |
+| a result whose `command_id` expired or was already answered | `error{unknown_command_id}` to the desk |
+| a result whose viewer left first | `error{viewer_gone}` to the desk |
+
+Arguments are validated here **and** again on the desk. That is not redundancy:
+the relay's copy is what refuses a bad command without waking the PC, and the
+desk's copy is what keeps the relay untrusted (ADR 023).
+
 ## REST routes
 
 All JSON. Errors are `{ error: { code, message } }` with `code` from the list in
@@ -148,9 +186,8 @@ From `@app/remote/protocol`; never written as literals.
 | `4409` | replaced by a newer desk connection |
 | `1001` | idle past `IDLE_TIMEOUT_MS` — not the client's fault, so reconnecting is right |
 
-A bad payload, an unknown message type or a not-yet-routed `command` gets a
-non-fatal `error` frame carrying the offending frame's `id`, and the socket
-stays open.
+A bad payload, an unknown message type or a refused `command` gets a non-fatal
+`error` frame carrying the offending frame's `id`, and the socket stays open.
 
 ## Configuration
 
