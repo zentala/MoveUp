@@ -56,6 +56,28 @@ export type { SessionRow as SessionEntry };
 /** Return type of the `get_today_summary()` Tauri command. */
 export type { TodaySummary as TodaySummaryDto } from "./generated/TodaySummary";
 
+// ─── Remote protocol payloads (E022) ────────────────────────────────────────
+// The runtime schemas that validate these live in `src/remote/protocol.ts`;
+// only the shapes are generated. Import the schemas from there, not the bare
+// types, whenever the value arrived over a socket.
+
+/** Which end of a relay room a socket is. */
+export type { Role as RemoteRole } from "./generated/Role";
+/** Self-description a client sends in `hello`. */
+export type { ClientInfo as RemoteClientInfo } from "./generated/ClientInfo";
+/** First message on every remote socket. */
+export type { Hello as RemoteHello } from "./generated/Hello";
+/** The relay's answer to a valid `hello`. */
+export type { Welcome as RemoteWelcome } from "./generated/Welcome";
+/** Desk presence, pushed to viewers on connect and disconnect. */
+export type { DeskStatus as RemoteDeskStatus } from "./generated/DeskStatus";
+/** An allowlisted command a viewer sends to the desk. */
+export type { Command as RemoteCommand } from "./generated/Command";
+/** The desk's answer to one command. */
+export type { CommandResult as RemoteCommandResult } from "./generated/CommandResult";
+/** Error body of a failed remote message or REST call. */
+export type { ErrorBody as RemoteErrorBody } from "./generated/ErrorBody";
+
 // ─── Frontend-only types ────────────────────────────────────────────────────
 
 /** Payload for `desk:device-connected` event. */

@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "hello",
+  "id": "1d0c9b8a-7e6f-4a5b-9c8d-0e1f2a3b4c5d",
+  "ts": 1757170000123,
+  "payload": {
+    "role": "desk",
+    "desk_id": "b3f1c2d4-5e6a-4b7c-8d9e-0f1a2b3c4d5e",
+    "token": "mu_d_fixture_desk_token_not_a_real_credential_00",
+    "client": {
+      "app": "moveup-desktop",
+      "version": "0.7.0"
+    }
+  }
+}

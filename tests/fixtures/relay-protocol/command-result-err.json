@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "type": "command_result",
+  "id": "c2b1a0f9-8e7d-4566-8798-132435465768",
+  "ts": 1757170010000,
+  "payload": {
+    "command_id": "a0f9e8d7-6c5b-4344-a576-910213243546",
+    "ok": false,
+    "error": {
+      "code": "not_found",
+      "message": "no ergonomic profile named 'strict'"
+    }
+  }
+}

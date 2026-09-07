@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "type": "error",
+  "id": "e4d3c2b1-a0f9-4788-a9ba-354657687980",
+  "ts": 1757170012000,
+  "payload": {
+    "code": "rate_limited",
+    "message": "10 commands per minute per viewer"
+  }
+}

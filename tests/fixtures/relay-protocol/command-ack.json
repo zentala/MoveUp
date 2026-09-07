@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "type": "command",
+  "id": "8e7d6c5b-4a3f-4122-8354-7f8091021324",
+  "ts": 1757170006000,
+  "payload": {
+    "name": "ack_alert",
+    "args": {},
+    "viewer_id": null
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "type": "event",
+  "id": "5b4a3f2e-1d0c-4e9f-9021-4c5d6e7f8091",
+  "ts": 1757170003000,
+  "payload": {
+    "event": "snapshot",
+    "payload": {
+      "session": {
+        "state": "Standing",
+        "limit_used_secs": 900
+      },
+      "metrics": [],
+      "today": {
+        "sitting_secs": 900,
+        "standing_secs": 300
+      }
+    }
+  }
+}
