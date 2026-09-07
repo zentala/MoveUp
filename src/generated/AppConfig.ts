@@ -30,4 +30,14 @@ telemetry_enabled: boolean,
 /**
  * Random device ID for telemetry (UUID v4). Generated once on first load.
  */
-telemetry_device_id: string, };
+telemetry_device_id: string, 
+/**
+ * Mirror desk alerts to a webhook (ntfy or generic). Default: false.
+ */
+notify_webhook_enabled: boolean, 
+/**
+ * Webhook endpoint, e.g. `https://ntfy.sh/<topic>`. Empty falls back to
+ * the `DESK_NOTIFY_WEBHOOK_URL` environment variable. May carry a token,
+ * so it is never logged.
+ */
+notify_webhook_url: string | null, };

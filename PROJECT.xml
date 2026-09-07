@@ -117,6 +117,8 @@
       <file name="google_fit_models.rs">Wire types (OAuthTokenResponse, AggregateResponse) + UI types (StepsSnapshot, StepsView with optional error_kind)</file>
       <file name="google_fit_service.rs">Caching wrapper — single-call dedup via tokio broadcast, env override / discovery / fallback source resolution, DST-correct local-day window with injected clock</file>
       <file name="google_fit_http_tests.rs">6 wiremock-backed integration tests covering happy path + auth_revoked + 5xx + malformed JSON</file>
+      <file name="notify_webhook.rs">Outbound ntfy/generic webhook push — fire-and-forget send, 5s per-attempt timeout, one retry on 5xx/timeout, JSON body {title, message, priority, tags}. URL from AppConfig or DESK_NOTIFY_WEBHOOK_URL, gated by the notify_webhook_enabled toggle</file>
+      <file name="notify_webhook_tests.rs">9 wiremock-backed tests: happy body shape, nil/empty/disabled config, 5xx retry, retry ceiling, timeout retry, 4xx no-retry</file>
       <file name="commands_catalog.rs">Analyst IPC: get_data_catalog — static metadata of every data source the app writes</file>
       <file name="commands_catalog_sources.rs">Helper builders for individual catalog sources (snapshots, events, sessions, store, signals)</file>
     </layer>
@@ -167,6 +169,7 @@
         <dir name="settings/">
           <file name="CalibrationSection.tsx">Calibration UI section</file>
           <file name="NotificationsSection.tsx">Notification prefs section</file>
+          <file name="WebhookSection.tsx">Phone-notification section — toggle + webhook URL bound to AppConfig.notify_webhook_url</file>
           <file name="WidgetPickerSection.tsx">Widget selection dropdown</file>
           <file name="ProfileSelector.tsx">Profile dropdown — switch communication and ergonomic profiles</file>
           <file name="SettingsTypes.ts">Settings type definitions</file>

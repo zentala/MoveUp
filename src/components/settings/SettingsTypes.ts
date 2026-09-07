@@ -44,4 +44,6 @@ export const DEFAULT_SETTINGS: DeskSettings = {
   show_activity_status: true,
   telemetry_enabled: false,
   telemetry_device_id: '',
+  notify_webhook_enabled: false,
+  notify_webhook_url: null,
 };
