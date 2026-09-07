@@ -65,6 +65,20 @@ The remote display server listens on port **3390**. You may need to allow inboun
 | `OPENROUTER_API_KEY` | *(unset)* | Your own OpenRouter key for the optional AI reply to a dictated note. Unset = no reply, not an error. |
 | `DESK_NOTIFY_WEBHOOK_URL` | *(unset)* | Fallback for the phone-notification URL when Settings → More leaves it blank. |
 
+## Turning the LAN display off
+
+The LAN display is on by default and has no login: anyone already on your
+network can open it. If that is not what you want, switch it off — the toggle
+is `remote_lan_enabled` in the app config (Settings → Remote), default `true`.
+
+Set to `false`, the app does not open port 3390 at all: no dashboard, no
+WebSocket, no health or voice inlet. Nothing else changes — the desk keeps
+tracking, and a paired phone reached through the relay keeps working, because
+that path does not go through this server.
+
+A config written by an older version carries no such key, and a missing key
+counts as **on**. Only an explicit `false` closes the port.
+
 ## How It Works
 
 1. MoveUp starts an embedded HTTP server alongside the Tauri app
@@ -72,6 +86,15 @@ The remote display server listens on port **3390**. You may need to allow inboun
 3. The browser connects via WebSocket (`/display/ws`) for real-time updates
 4. Session state, metrics, today's summary, and health stream at ~1 event/sec
 5. If the connection drops, the phone auto-reconnects with exponential backoff
+
+Every message the socket sends is wrapped in the shared v1 envelope —
+`{v, type: "event", id, ts, payload}` — with the event itself untouched inside
+`payload`. The relay sends the same shape, so one browser client reads both.
+
+The socket is **read-only**: it never acts on anything a client sends. A frame
+that arrives is logged at debug level and dropped. Remote controls (dismiss an
+alert, change a limit, switch a profile) exist only over the relay, which
+authenticates each device.
 
 ## Health Push Inlet — `POST /display/health`
 
