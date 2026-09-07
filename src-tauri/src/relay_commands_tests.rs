@@ -47,6 +47,7 @@ impl Fx {
             alert_popup: Arc::new(Mutex::new(AlertPopup::new())),
             app_data_dir: data.path().to_path_buf(),
             events: Some(Arc::new(EventLogger::new(logs.path().to_path_buf()))),
+            seen_commands: Mutex::new(std::collections::VecDeque::new()),
         };
         let logs_path = logs.path().to_path_buf();
         Self {
@@ -306,6 +307,41 @@ fn accepts_a_command_at_the_edge_of_the_staleness_window() {
     let fx = Fx::new();
     let r = fx.run_at("set_limits", json!({ "sit_min": 45 }), NOW - MAX_COMMAND_AGE_MS);
     assert!(r.ok, "expected ok, got {:?}", r.error);
+}
+
+/// The relay is untrusted (ADR 023) and could resend the exact same envelope
+/// inside its own staleness window — the second copy must not run twice
+/// (security review 2026-09-07, finding Medium #2).
+#[test]
+fn rejects_a_replayed_command_id_inside_the_staleness_window() {
+    let fx = Fx::new();
+    let first = fx.run("set_limits", json!({ "sit_min": 45 }));
+    assert!(first.ok, "expected ok, got {:?}", first.error);
+
+    let replay = fx.run("set_limits", json!({ "sit_min": 50 }));
+
+    assert!(!replay.ok);
+    assert_eq!(err_code(&replay), "replayed_command");
+    assert_eq!(
+        fx.sit_limit_secs(),
+        45 * 60,
+        "the replayed command must not have run"
+    );
+}
+
+/// A denied command (failed allowlist validation) never reaches `remember`,
+/// so retrying the same id with corrected arguments is not itself a replay.
+#[test]
+fn a_denied_command_id_may_be_retried() {
+    let fx = Fx::new();
+    let denied = fx.run("set_limits", json!({ "sit_min": 9000 }));
+    assert!(!denied.ok);
+    assert_eq!(err_code(&denied), "bad_args");
+
+    let retried = fx.run("set_limits", json!({ "sit_min": 45 }));
+
+    assert!(retried.ok, "expected ok, got {:?}", retried.error);
+    assert_eq!(fx.sit_limit_secs(), 45 * 60);
 }
 
 #[test]

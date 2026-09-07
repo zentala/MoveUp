@@ -11,6 +11,7 @@
 //! command from its tokio task and the tests can execute one with no Tauri
 //! runtime at all.
 
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -44,6 +45,12 @@ pub struct CommandCtx {
     /// Where `REMOTE …` lines go. `None` means the app has no event log yet;
     /// the command still runs, it is just not written down.
     pub events: Option<Arc<EventLogger>>,
+    /// Command ids admitted in the last [`MAX_COMMAND_AGE_MS`], each paired
+    /// with the time it expires from this list. The relay is untrusted (ADR
+    /// 023 — "the desk never trusts the relay") and could resend the same
+    /// envelope inside its own staleness window; this stops that resend from
+    /// executing twice (security review 2026-09-07, finding Medium #2).
+    pub seen_commands: Mutex<VecDeque<(String, i64)>>,
 }
 
 /// What `relay_client.rs` calls. A trait so the client task keeps knowing
@@ -70,7 +77,7 @@ pub fn execute(env: &Envelope<Command>, ctx: &CommandCtx, now_ms: i64) -> Comman
     let name = sanitize(&env.payload.name);
     let viewer = sanitize(env.payload.viewer_id.as_deref().unwrap_or("unknown"));
 
-    if let Err(e) = admit(env, now_ms) {
+    if let Err(e) = admit(env, ctx, now_ms) {
         // A denial is logged under its own verb so `grep 'REMOTE DENIED'`
         // answers "was anything refused" without reading every ok line.
         log_event(ctx, &format!("REMOTE DENIED {}", name));
@@ -103,8 +110,8 @@ fn failed(command_id: &str, error: ErrorBody) -> CommandResult {
 }
 
 /// Everything checked before a single handle is locked: wire version,
-/// freshness, then the name and the arguments.
-fn admit(env: &Envelope<Command>, now_ms: i64) -> Result<(), ErrorBody> {
+/// freshness, replay, then the name and the arguments.
+fn admit(env: &Envelope<Command>, ctx: &CommandCtx, now_ms: i64) -> Result<(), ErrorBody> {
     check_version(env.v)?;
     if (now_ms - env.ts).abs() > MAX_COMMAND_AGE_MS {
         return Err(ErrorBody::new(
@@ -112,7 +119,31 @@ fn admit(env: &Envelope<Command>, now_ms: i64) -> Result<(), ErrorBody> {
             format!("command timestamp is more than {}s from now", MAX_COMMAND_AGE_MS / 1000),
         ));
     }
-    validate_command(&env.payload.name, &env.payload.args)
+    if already_seen(ctx, &env.id, now_ms) {
+        return Err(ErrorBody::new(
+            "replayed_command",
+            "this command id was already admitted".to_string(),
+        ));
+    }
+    validate_command(&env.payload.name, &env.payload.args)?;
+    remember(ctx, &env.id, now_ms);
+    Ok(())
+}
+
+/// True when `id` was admitted within the current staleness window. Also
+/// drops every entry that has aged out, so the list never grows unbounded.
+fn already_seen(ctx: &CommandCtx, id: &str, now_ms: i64) -> bool {
+    let mut seen = ctx.seen_commands.lock().unwrap_or_else(|e| e.into_inner());
+    while matches!(seen.front(), Some((_, expires_at)) if *expires_at <= now_ms) {
+        seen.pop_front();
+    }
+    seen.iter().any(|(seen_id, _)| seen_id == id)
+}
+
+/// Records `id` as admitted, to expire from the list after `MAX_COMMAND_AGE_MS`.
+fn remember(ctx: &CommandCtx, id: &str, now_ms: i64) {
+    let mut seen = ctx.seen_commands.lock().unwrap_or_else(|e| e.into_inner());
+    seen.push_back((id.to_string(), now_ms + MAX_COMMAND_AGE_MS));
 }
 
 /// Dispatches an already-admitted command.
