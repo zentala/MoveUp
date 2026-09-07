@@ -76,6 +76,8 @@ pub mod release_store;
 mod remote_auth;
 #[cfg(test)] mod remote_auth_tests;
 mod remote_display_state;
+pub mod remote_protocol;
+#[cfg(test)] mod remote_protocol_tests;
 mod remote_routes_health;
 #[cfg(test)] mod remote_routes_health_tests;
 mod remote_routes_voice;
@@ -397,6 +399,14 @@ mod ts_export {
         crate::health_models::HealthView::export_all(&cfg).expect("HealthView exports");
         crate::db_voice_notes::VoiceNoteRow::export_all(&cfg).expect("VoiceNoteRow exports");
         crate::serial_parser::PortInfo::export_all(&cfg).expect("PortInfo exports");
+        // E022 remote protocol payloads — the viewer and the relay import
+        // these so the envelope's shape is stated once, in Rust.
+        crate::remote_protocol::Hello::export_all(&cfg).expect("Hello exports");
+        crate::remote_protocol::Welcome::export_all(&cfg).expect("Welcome exports");
+        crate::remote_protocol::DeskStatus::export_all(&cfg).expect("DeskStatus exports");
+        crate::remote_protocol::Command::export_all(&cfg).expect("Command exports");
+        crate::remote_protocol::CommandResult::export_all(&cfg).expect("CommandResult exports");
+        crate::remote_protocol::ErrorBody::export_all(&cfg).expect("ErrorBody exports");
     }
 
     /// The wire counters must not be `bigint` — arithmetic on the TS side

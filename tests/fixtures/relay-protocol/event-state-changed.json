@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "type": "event",
+  "id": "6c5b4a3f-2e1d-4f00-a132-5d6e7f809102",
+  "ts": 1757170004000,
+  "payload": {
+    "event": "desk:state-changed",
+    "payload": {
+      "state": "Standing",
+      "sitting_seconds": 1500
+    }
+  }
+}

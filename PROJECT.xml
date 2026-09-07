@@ -131,6 +131,8 @@
       <file name="health_models.rs">Source-agnostic DTOs: HealthSnapshot (steps + optional heart_rate_bpm/hrv_rmssd_ms + source_id + fetched_at_ms), HealthView, HealthErrorKind (alias of google_fit ErrorKind). ts-rs exported</file>
       <file name="health_source.rs">HealthSource trait (id/view/refresh) + HealthAggregator: merges sources by freshest fetched_at_ms, passes errors through with AuthRevoked outranking Transient. The inlet the LAN push source (T03) registers into</file>
       <file name="health_source_tests.rs">Aggregator tests over the real trait — happy / nil / empty / error paths, freshness ordering, "a healthy source never hides another source's error"</file>
+      <file name="remote_protocol.rs">E022 message contract shared by both remote transports: Envelope&lt;T&gt; {v,type,id,ts,payload}, MessageType (with an Unknown variant so a newer peer's type still parses), Hello/Welcome/DeskStatus/Command/CommandResult/ErrorBody payloads (ts-rs exported), the 4400..4503 close-code constants, and COMMAND_ALLOWLIST — the three v1 commands with their argument bounds as data, checked by validate_command on the relay AND again on the desk</file>
+      <file name="remote_protocol_tests.rs">17 tests: every tests/fixtures/relay-protocol/*.json parses into its typed payload and re-serializes equal (fixture count asserted, an empty glob fails), null-vs-missing payload, v:2 rejected, unknown type survives the envelope, allowlist bounds and unknown-argument rejection</file>
       <file name="remote_auth.rs">Shared-secret guard for the remote server's write endpoints — require_token(headers, expected) with a hand-rolled constant-time compare; unset DESK_REMOTE_TOKEN answers 503 (closed), never 200 (E021-T03)</file>
       <file name="remote_auth_tests.rs">7 tests: match / wrong / missing header / unconfigured / non-ASCII header, and constant_time_eq agreeing with == including the 256-length-multiple case a naive u8 accumulator gets wrong</file>
       <file name="remote_routes_health.rs">LAN push inlet POST /display/health — token required, 1 KiB body cap, schema {steps_today, heart_rate_bpm?, hrv_rmssd_ms?, source_id(1..64), measured_at_ms} into PushHealthSource, registered in HealthAggregator, snapshot withdrawn after 1h (E021-T03)</file>
@@ -253,6 +255,12 @@
       <dir name="mockup/">
         <file name="VoiceCaptureGallery.tsx">DEV /#/mockup/voice — VoiceCapture scenarios (token sheet, ready, acknowledged)</file>
       </dir>
+
+      <dir name="remote/">
+        <file name="protocol.ts">Runtime half of the E022 wire contract: zod schemas for every payload, envelopeSchema(), parseMessage() returning ok / unknown_type / error (an unknown type is ignorable, not an error), CLOSE_CODES + TERMINAL_CLOSE_CODES, and COMMAND_ALLOWLIST/validateCommand mirroring Rust. SCHEMAS_MATCH_RUST is a compile-time proof that each schema still matches the ts-rs type — rename a field in remote_protocol.rs and pnpm typecheck fails here. Imported by the relay Worker too (T02)</file>
+        <file name="protocol.test.ts">31 tests over the shared fixtures plus envelope and allowlist edge cases</file>
+        <file name="index.ts">Barrel — transports, PairScreen and storage land here in T08/T09</file>
+      </dir>
     </layer>
 
     <layer name="ipc-events">
@@ -318,6 +326,7 @@
       <file path="tests/emulator/DeskDeviceEmulator.ts">Device serial emulator</file>
       <file path="tests/emulator/scenarios.ts">Multi-reading scenario helpers</file>
       <file path="tests/fixtures/builders.ts">Test data builders</file>
+      <dir path="tests/fixtures/relay-protocol/">14 JSON envelopes, one per E022 message type and case (hello-desk/viewer, welcome-online/offline, event-snapshot, event-state-changed, desk-status, command-ack/set-limits/switch-profile, command-result-ok/err, ping, error). Read by BOTH remote_protocol_tests.rs and src/remote/protocol.test.ts — this directory is the wire contract, so a field renamed on one side of the wire fails on the other</dir>
     </support>
   </testing>
 

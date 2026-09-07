@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "type": "command",
+  "id": "a0f9e8d7-6c5b-4344-a576-910213243546",
+  "ts": 1757170008000,
+  "payload": {
+    "name": "switch_profile",
+    "args": {
+      "kind": "ergonomic",
+      "name": "strict"
+    },
+    "viewer_id": "9a7e1f30-2c48-4d51-b6a2-7c5f0e8d3b19"
+  }
+}

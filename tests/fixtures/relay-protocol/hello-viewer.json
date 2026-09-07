@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "hello",
+  "id": "2e1d0c9b-8a7f-4b6c-ad9e-1f2a3b4c5d6e",
+  "ts": 1757170001456,
+  "payload": {
+    "role": "viewer",
+    "desk_id": "b3f1c2d4-5e6a-4b7c-8d9e-0f1a2b3c4d5e",
+    "token": "mu_v_fixture_viewer_token_not_a_real_credential0",
+    "client": {
+      "app": "moveup-viewer",
+      "version": "0.7.0"
+    }
+  }
+}

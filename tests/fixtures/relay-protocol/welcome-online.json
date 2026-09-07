@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "type": "welcome",
+  "id": "3f2e1d0c-9b8a-4c7d-be0f-2a3b4c5d6e7f",
+  "ts": 1757170001500,
+  "payload": {
+    "role": "viewer",
+    "desk_id": "b3f1c2d4-5e6a-4b7c-8d9e-0f1a2b3c4d5e",
+    "desk_online": true,
+    "viewer_count": 2,
+    "snapshot": {
+      "event": "snapshot",
+      "payload": {
+        "session": {
+          "state": "Sitting",
+          "limit_used_secs": 1234
+        }
+      }
+    },
+    "snapshot_ts": 1757170001000
+  }
+}
