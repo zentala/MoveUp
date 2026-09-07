@@ -371,8 +371,8 @@ tasks:
     repo: MoveUp
     executor: ts-dev
     depends_on: ["E022-T04", "E022-T07", "E022-T10", "E022-T11"]
-    write_set: ["justfile", ".giter.yaml", "vite.config.ts", "scripts/relay-e2e.mjs", "tests/scripts/relay-e2e.test.ts", "PROJECT.xml", ".plan/BACKLOG.md", "package.json", "pnpm-lock.yaml"]
-    claims: ["justfile", ".giter.yaml", "vite.config.ts", "scripts/relay-e2e.mjs", "tests/scripts/relay-e2e.test.ts", "PROJECT.xml"]
+    write_set: ["justfile", ".giter.yaml", "vite.config.ts", "vitest.scripts.config.ts", "scripts/relay-e2e.mjs", "tests/scripts/relay-e2e.test.ts", "PROJECT.xml", ".plan/BACKLOG.md", "package.json", "pnpm-lock.yaml"]
+    claims: ["justfile", ".giter.yaml", "vite.config.ts", "vitest.scripts.config.ts", "scripts/relay-e2e.mjs", "tests/scripts/relay-e2e.test.ts", "PROJECT.xml"]
     verification: "npx vitest run --config vitest.scripts.config.ts tests/scripts/relay-e2e.test.ts"
     budget_minutes: 60
   - id: E022-T14
