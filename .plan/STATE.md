@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-07T00:18:10
+updated: 2026-09-07T22:48:29
 active_epic: none (E011, E012, E016, E017, E018, E019, E020 code complete; E014 waves 1-2 code complete, waves 3-4 blocked on pm3-mcp; E015 code-complete, T05 browser evidence gap open — see below)
 planning_epic: none
 planning_epic_path: null
