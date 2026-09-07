@@ -120,19 +120,67 @@ Native WinAPI overlay at top of screen. Full docs: [`.claude/rules/overlay.md`](
 - **Activity tracking**: Rust (keyboard/mouse hooks via `rdev` or Windows API)
 
 ## Remote Display (Phone Dashboard)
-- Embedded HTTP+WS server on `:3390` (configurable via `DESK_REMOTE_PORT`)
-- Same React UI served to browsers; `useDeskAuto()` hook selects WS or Tauri IPC
-- Auto-reconnects with exponential backoff; REST polling fallback when WS is down
-- `ConnectionOverlay` component shows connection/sensor status in remote mode
+
+Two transports, one client. The React viewer, the envelope and the reducer are
+shared; only reach, auth and write privilege differ.
+[ADR 022](.arch/ADR/022-relay-on-cloudflare-durable-objects.md) (relay),
+[ADR 023](.arch/ADR/023-pairing-code-device-token-auth.md) (auth),
+[ADR 001](.arch/ADR/001-remote-display-web-kiosk.md) (the original LAN kiosk).
+
+| | LAN (free) | Relay (Pro) |
+|---|---|---|
+| Reach | same Wi-Fi, `:3390` | anywhere, outbound `wss` only |
+| Auth | none | pairing code → device tokens |
+| Writes | none — inbound frames dropped | `ack_alert`, `set_limits`, `switch_profile` |
+| Desk off | nothing | last snapshot, `desk_online: false` |
+
+**Shared envelope.** Every WS message on both transports is
+`{v, type, id, ts, payload}` — `remote_protocol.rs` (ts-rs exported) and
+`src/remote/protocol.ts` (zod), pinned by `tests/fixtures/relay-protocol/*.json`,
+which both suites glob and assert non-empty. A `DisplayEvent` rides unchanged
+inside `payload`.
+
+### LAN — `remote_server.rs`
+- Embedded HTTP+WS server on `:3390` (configurable via `DESK_REMOTE_PORT`),
+  gated on `AppConfig.remote_lan_enabled` (default true; `false` means the port
+  is never bound). Same React UI; `useDeskAuto()` selects WS or Tauri IPC.
+- **Read-only**: an inbound frame is logged at debug and dropped. Remote control
+  exists only over the relay, which authenticates each device.
 - **Reads are open on the LAN; writes need `X-Desk-Token`** — two inlets,
   `POST /display/health` and `POST /display/voice`, both guarded by
   `fn require_token`. An unset `DESK_REMOTE_TOKEN` answers `503` (closed),
   never `200`. See §Health sources for both contracts.
-- `VoiceCapture.tsx` renders on `/display` only; the desktop popup has a keyboard
-- See `docs/REMOTE_DISPLAY.md` for phone setup instructions
-- Key files: `remote_server.rs`, `remote_auth.rs`, `remote_routes_health.rs`,
-  `remote_routes_voice.rs`, `ws_broadcaster.rs`, `useRemoteDesk.ts`,
-  `ConnectionOverlay.tsx`, `VoiceCapture.tsx`
+- `VoiceCapture.tsx` renders on `/display` only; the desktop popup has a keyboard.
+
+### Relay — `relay/` (Cloudflare Worker) + `relay_*.rs`
+- One `DeskRoom` Durable Object per desk (WebSocket Hibernation API) fans desk
+  events to viewers and routes a `command` to the desk plus its
+  `command_result` back to the one viewer that asked. D1 holds `licenses`,
+  `desks`, `viewers` — **hashes and metadata only, no history, no readings**.
+  The room's only state is the latest snapshot, in memory.
+- The desktop connects **outbound only**: `relay_client.rs` is one more
+  `subscribe()` on `ws_tx`. Ping 25 s, pong timeout 60 s, backoff 1→60 s ±20 %.
+  Close codes `4402`/`4403`/`4409` are **terminal** — no silent retry against a
+  dead credential; Settings names the state.
+- Secrets: `desk_token` goes to the OS credential store via `keyring`
+  (`relay_auth.rs`); `tauri-plugin-store` holds `desk_id`, `relay_url`, flags.
+  Tokens are `mu_d_`/`mu_v_` + 43 base64url chars, SHA-256 at rest,
+  constant-time compare, **never in a URL**.
+- Commands are an allowlist with bounds as data (`COMMAND_ALLOWLIST`), checked
+  on the relay **and again** in `relay_commands.rs`, refused when `ts` is older
+  than 30 s, executed through the same functions the desktop UI calls, and
+  logged as `REMOTE <name> viewer=<id> ok|err=<code>` / `REMOTE DENIED <name>`.
+- Recipes: `just relay-dev`, `just relay-test`, `just relay-deploy`;
+  `scripts/relay-e2e.mjs` is the local end-to-end check. Deploying to
+  `relay.desk.zentala.io` is outward-facing — go through `consent-broker`.
+
+- See `docs/REMOTE_DISPLAY.md` for phone setup (pairing first, LAN second).
+- Key files: `remote_protocol.rs`, `remote_server.rs`, `remote_auth.rs`,
+  `remote_routes_health.rs`, `remote_routes_voice.rs`, `ws_broadcaster.rs`,
+  `relay_client.rs`, `relay_status.rs`, `relay_auth.rs`, `relay_commands.rs`,
+  `commands_relay.rs`, `relay/src/**`, `src/remote/**`, `useRemoteDesk.ts`,
+  `ConnectionOverlay.tsx`, `VoiceCapture.tsx`,
+  `src/components/settings/RemoteSection.tsx`
 
 ## Tauri Plugins
 - `tauri-plugin-notification` — native desktop notifications ("time to stand")

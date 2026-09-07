@@ -226,6 +226,70 @@ Both inlets cap their bodies before parsing (1 KiB health, 4 KiB voice) and
 answer `422` for a body that parses but carries an unusable value, so a
 malformed push is never mistaken for an empty one.
 
+The whole server is gated on `AppConfig.remote_lan_enabled` (default `true`, so
+an older config never reads as "LAN turned off"). Set to `false`,
+`setup_helpers.rs::setup_remote_display` never binds the port: no dashboard, no
+socket, no inlets. The relay path below is unaffected — it does not go through
+this server.
+
+## Remote Display: two transports, one contract
+
+The phone can reach the desk two ways, and they are the same client. E022 added
+a cloud relay ([ADR 022](ADR/022-relay-on-cloudflare-durable-objects.md)) beside
+the LAN server without forking the viewer.
+
+| | LAN transport | Relay transport |
+|---|---|---|
+| Path | phone → `ws://<pc-ip>:3390/display/ws` | phone → `wss://relay.desk.zentala.io` → desk (outbound only) |
+| Reach | same Wi-Fi | anywhere, mobile data included |
+| Auth | none | pairing code → per-device tokens ([ADR 023](ADR/023-pairing-code-device-token-auth.md)) |
+| Writes | none — inbound frames are logged at debug and dropped | three allowlisted commands |
+| Desk off | nothing to show | last snapshot, marked `desk_online: false` |
+| Tier | free | Pro (license key) |
+
+**One envelope on both.** `{v, type, id, ts, payload}` is defined once in
+`remote_protocol.rs` (ts-rs exported per ADR 017), mirrored as zod in
+`src/remote/protocol.ts`, and pinned by the JSON fixtures under
+`tests/fixtures/relay-protocol/` — which both the Rust and the TypeScript suite
+glob and assert non-empty, because an empty glob is a failure, not a pass. A
+`DisplayEvent` travels unchanged inside `payload`, so `deskReducer` cannot tell
+the transports apart.
+
+**Desktop side.** `relay_client.rs` is one more `subscribe()` on the existing
+`ws_tx` broadcast — no new producer, no new event type. It sends `hello`,
+expects `welcome` within 5 s, pushes one snapshot, then forwards. It pings every
+25 s and gives up after 60 s of silence. `relay_status.rs` owns the reconnect
+policy: `Backoff` (1 s → 60 s, ±20 % jitter) and `should_reconnect`, where
+`4402` (unentitled), `4403` (revoked) and `4409` (replaced) are **terminal** — a
+dead credential is surfaced in Settings, never retried in a loop.
+`relay_auth.rs` keeps `desk_token` in the OS credential store (`keyring`) and
+the REST calls (`register`, `start_pairing`, `list_viewers`, `revoke_viewer`,
+`delete_desk`) in one client; `commands_relay.rs` exposes them over IPC.
+`relay_commands.rs::execute` re-checks the allowlist and the argument bounds,
+refuses a command older than 30 s, calls the same functions the desktop UI
+calls, and writes one `events.log` line per command.
+
+**Relay side.** One `DeskRoom` Durable Object per desk (`relay/src/room/`),
+using the WebSocket Hibernation API; D1 (`relay/migrations/0001_init.sql`) holds
+`licenses`, `desks`, `viewers` — hashes and metadata only. The room's only state
+is the latest snapshot, in memory.
+
+**Phone side.** `src/remote/transports/{lan,relay}.ts` behind one `Transport`
+interface; `activeTransport.ts` picks by stored record or `#/pair`;
+`useRemoteDesk.ts` consumes whichever is chosen and reports `capabilities`
+and `deskOnline`. `RemoteControls.tsx` renders only when
+`capabilities.control` is true, so the LAN client cannot offer a button that
+would do nothing. `ConnectionOverlay.tsx` has a fourth state: relay up, desk
+down — "showing last known state", which is a different fact from
+"Reconnecting…".
+
+Source: `remote_protocol.rs`, `relay_client.rs`, `relay_status.rs`,
+`relay_auth.rs`, `relay_commands.rs`, `commands_relay.rs`, `remote_server.rs`,
+`relay/src/**`, `src/remote/**`,
+[ADR 022](ADR/022-relay-on-cloudflare-durable-objects.md),
+[ADR 023](ADR/023-pairing-code-device-token-auth.md),
+[E022](../.plan/epics/E022-2026-09-06-cross-device-phone-relay/PLAN.md).
+
 ## Health Sources and the LAN Inlet
 
 Health data is source-agnostic (ADR 020). Three pieces:
@@ -338,6 +402,8 @@ blocked on PM3 gaining candidate lists — see
 | **Health arrives through a trait and an inlet, not a vendor client** | Google Fit's name was in the command, DTO and component names, so its announced shutdown was a rewrite; the phone's Health Connect data can only be pushed, and pushing needs an endpoint | E021, ADR 020 |
 | **Open reads, authenticated writes on :3390** | The LAN routes were read-only, so no gate was needed; the moment anything writes app state, an unset token must mean closed (`503`), never open | E021, ADR 020 |
 | **Voice in on the phone, watch as glance; intents are events** | `SpeechRecognition` needs a secure context that plain-HTTP `/display` cannot give, and a spoken "I'm walking" reaching the engine would give it two sources of truth about position | E021, ADR 021 |
+| **The relay is a cloud room that holds one snapshot, not a server we run** | A paid feature cannot depend on a home box behind NAT with autosleep; hibernating Durable Objects make an idle desk free, and keeping no history means there is no cloud copy to leak | E022, ADR 022 |
+| **Pairing code → per-device tokens; every remote write allowlisted** | A shared secret cannot be revoked per phone, carries no identity to route a result or name in an audit line, and the first remote control path is the worst place for a generic write | E022, ADR 023 |
 
 ## Native UI Elements (WinAPI, outside Tauri)
 
