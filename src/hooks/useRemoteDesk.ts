@@ -11,6 +11,8 @@
 import { useState, useEffect, useRef, useCallback, useReducer, useMemo } from "react";
 import type { UseDeskResult } from "./useDeskTypes";
 import { deskReducer, initialDeskState, selectDeskView } from "./deskReducer";
+import { publishRemoteHealth } from "./useHealth";
+import type { HealthView } from "@/generated/HealthView";
 import type {
   SessionStateDto,
   MetricSnapshot,
@@ -73,6 +75,11 @@ interface RemoteDisplayState {
   session: SessionStateDto;
   metrics: MetricSnapshot[];
   today: TodaySummaryDto;
+  /**
+   * Merged health view (E021-T03). Optional on the wire only so an older
+   * backend cannot break the display; a current one always sends it.
+   */
+  health?: HealthView;
 }
 
 /**
@@ -94,7 +101,11 @@ export function useRemoteDesk(options: UseRemoteDeskOptions = {}): UseDeskResult
       session: data.session,
       metrics: data.metrics,
       today: data.today,
+      health: data.health,
     });
+    // The health widget lives outside this hook's subtree, so hand it the
+    // view directly rather than widening `UseDeskResult` for one consumer.
+    if (data.health) publishRemoteHealth(data.health);
   }, []);
 
   const applyStateChanged = useCallback((payload: StateChangedPayload) => {

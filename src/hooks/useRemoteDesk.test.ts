@@ -11,6 +11,20 @@ import {
 beforeEach(setupMocks);
 afterEach(teardownMocks);
 
+/** Snapshot frame carrying the health slice the display server sends (E021-T03). */
+function makeSnapshotWithHealth() {
+  const frame = makeSnapshot();
+  (frame.payload as Record<string, unknown>).health = {
+    configured: true,
+    snapshot: {
+      steps_today: 1234,
+      source_id: "google_fit",
+      fetched_at_ms: 1_715_000_000_000,
+    },
+  };
+  return frame;
+}
+
 describe("useRemoteDesk", () => {
   it("parses snapshot event and updates all state fields", async () => {
     const useRemoteDesk = await importHook();
@@ -189,6 +203,48 @@ describe("useRemoteDesk", () => {
     });
 
     expect(viaOption).not.toHaveBeenCalled();
+  });
+
+  it("publishes the snapshot's health view to health subscribers", async () => {
+    const useRemoteDesk = await importHook();
+    const { subscribeRemoteHealth, resetRemoteHealth } = await import("./useHealth");
+    resetRemoteHealth();
+    const seen = vi.fn();
+    const off = subscribeRemoteHealth(seen);
+
+    renderHook(() => useRemoteDesk());
+    const ws = MockWebSocket.latest();
+    ws.simulateOpen();
+    act(() => { ws.simulateMessage(makeSnapshotWithHealth()); });
+
+    expect(seen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configured: true,
+        snapshot: expect.objectContaining({
+          steps_today: 1234,
+          source_id: "google_fit",
+        }),
+      }),
+    );
+    off();
+  });
+
+  it("a snapshot without health leaves the last health view alone", async () => {
+    const useRemoteDesk = await importHook();
+    const { subscribeRemoteHealth, resetRemoteHealth } = await import("./useHealth");
+    resetRemoteHealth();
+    const seen = vi.fn();
+    const off = subscribeRemoteHealth(seen);
+
+    renderHook(() => useRemoteDesk());
+    const ws = MockWebSocket.latest();
+    ws.simulateOpen();
+
+    // A backend older than E021-T03 sends no `health` key at all.
+    act(() => { ws.simulateMessage(makeSnapshot()); });
+
+    expect(seen).not.toHaveBeenCalled();
+    off();
   });
 
   it("port is always null in remote mode", async () => {

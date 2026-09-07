@@ -14,6 +14,7 @@ import type {
   PreviousSession,
   SessionEntry,
 } from "@/types";
+import type { HealthView } from "@/generated/HealthView";
 import type { TransitionInfo, UseDeskResult } from "./useDeskTypes";
 
 /** Default break reset threshold in seconds (10 min for full reset). */
@@ -64,6 +65,14 @@ export interface DeskReducerState {
   continuousComputerSecs: number;
   transition: TransitionInfo | null;
   todaySummary: TodaySummaryDto | null;
+  /**
+   * Health view carried by the remote snapshot (E021-T03/T04).
+   *
+   * null means "no snapshot has arrived yet" — distinct from a snapshot
+   * that arrived saying `configured: false`. The desktop transport leaves
+   * it null and reads health over IPC instead.
+   */
+  health: HealthView | null;
 }
 
 export const initialDeskState: DeskReducerState = {
@@ -86,11 +95,18 @@ export const initialDeskState: DeskReducerState = {
   continuousComputerSecs: 0,
   transition: null,
   todaySummary: null,
+  health: null,
 };
 
 /** Every way a transport may move the desk state forward. */
 export type DeskAction =
-  | { type: "snapshot"; session: SessionStateDto; metrics: MetricSnapshot[]; today?: TodaySummaryDto }
+  | {
+      type: "snapshot";
+      session: SessionStateDto;
+      metrics: MetricSnapshot[];
+      today?: TodaySummaryDto;
+      health?: HealthView;
+    }
   | { type: "today-summary"; today: TodaySummaryDto }
   | { type: "state-changed"; payload: StateChangedPayload }
   | { type: "device-connected"; port: string | null }
@@ -128,6 +144,7 @@ export function deskReducer(state: DeskReducerState, action: DeskAction): DeskRe
         continuousComputerSecs: dto.continuous_computer_secs ?? 0,
         metrics: action.metrics,
         todaySummary: action.today ?? state.todaySummary,
+        health: action.health ?? state.health,
         connected: sensorAlive ? true : state.connected,
       };
     }
