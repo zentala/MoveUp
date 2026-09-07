@@ -123,11 +123,21 @@ fn update_from_policy(app: &AppHandle) {
     let input: PolicyInput = session.policy_input(Utc::now(), is_connected);
     drop(session);
 
+    // Cached read, not a merge: this runs every ~1 s on the tray thread and
+    // must not await source I/O. `try_state` because a test harness may build
+    // an app without the health aggregator managed — and "no aggregator" then
+    // renders as the setup hint, not as zeroed metrics.
+    let health = app
+        .try_state::<crate::health_source::HealthState>()
+        .map(|state| state.last_view())
+        .unwrap_or_else(crate::health_models::HealthView::unconfigured);
+
     remote_display_state::broadcast(
         &app_state.ws_tx,
         &app_state.session,
         &app_state.comm_policy,
         &app_state.today_cache,
+        health,
     );
     update_tooltip(app, &snapshot);
 

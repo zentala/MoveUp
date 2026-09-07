@@ -8,16 +8,21 @@ use serde::Serialize;
 use tokio::sync::broadcast;
 
 use crate::db::TodaySummary;
+use crate::health_models::HealthView;
 use crate::metrics::MetricSnapshot;
 use crate::session::SessionStateDto;
 
 /// Full state sent to remote display clients on every tick (~1/s).
-/// Includes session state + KPI metrics + today's session list.
+/// Includes session state + KPI metrics + today's session list + health.
 #[derive(Clone, Debug, Serialize)]
 pub struct RemoteDisplayState {
     pub session: SessionStateDto,
     pub metrics: Vec<MetricSnapshot>,
     pub today: TodaySummary,
+    /// Merged health view (E021-T03). Carried in the snapshot rather than
+    /// fetched separately so the phone — which has no Tauri IPC — gets steps
+    /// and heart rate on the same stream as everything else.
+    pub health: HealthView,
 }
 
 /// Message types sent to remote display clients.
@@ -147,6 +152,7 @@ mod tests {
                 position_changes: 3,
                 sessions: vec![],
             },
+            health: HealthView::unconfigured(),
         };
         let event = DisplayEvent::Snapshot(state);
         let json = serde_json::to_string(&event).expect("should serialize");
@@ -154,6 +160,7 @@ mod tests {
         assert!(json.contains("\"session\""));
         assert!(json.contains("\"metrics\""));
         assert!(json.contains("\"today\""));
+        assert!(json.contains("\"health\""));
     }
 
     #[test]

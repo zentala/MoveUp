@@ -16,6 +16,7 @@ use tokio::sync::broadcast;
 
 use crate::communication_policy::CommunicationPolicy;
 use crate::db::TodaySummary;
+use crate::health_models::HealthView;
 use crate::metrics::MetricEngine;
 use crate::session::SessionManager;
 use crate::ws_broadcaster::{self, DisplayEvent, RemoteDisplayState};
@@ -29,10 +30,17 @@ use crate::ws_broadcaster::{self, DisplayEvent, RemoteDisplayState};
 ///
 /// Every lock uses `unwrap_or_else(|e| e.into_inner())`: all three reads are
 /// read-only, so a poisoned mutex must not take the remote display down.
+///
+/// `health` arrives as a value rather than as a handle because the two
+/// callers obtain it differently and should say so: the HTTP/WS handlers are
+/// async and `await` a fresh merge, while the ~1 s tray tick is synchronous
+/// and reads the aggregator's cached
+/// [`last_view`](crate::health_source::HealthAggregator::last_view).
 pub fn build(
     session: &Arc<Mutex<SessionManager>>,
     comm_policy: &Arc<Mutex<CommunicationPolicy>>,
     today_cache: &Arc<Mutex<TodaySummary>>,
+    health: HealthView,
 ) -> RemoteDisplayState {
     let session_mgr = session.lock().unwrap_or_else(|e| e.into_inner());
     let snapshot = session_mgr.snapshot();
@@ -59,6 +67,7 @@ pub fn build(
         session: snapshot,
         metrics,
         today,
+        health,
     }
 }
 
@@ -69,8 +78,9 @@ pub fn broadcast(
     session: &Arc<Mutex<SessionManager>>,
     comm_policy: &Arc<Mutex<CommunicationPolicy>>,
     today_cache: &Arc<Mutex<TodaySummary>>,
+    health: HealthView,
 ) {
-    let state = build(session, comm_policy, today_cache);
+    let state = build(session, comm_policy, today_cache, health);
     ws_broadcaster::broadcast_event(ws_tx, &DisplayEvent::Snapshot(state));
 }
 
@@ -107,7 +117,7 @@ mod tests {
     #[test]
     fn e019_t07_remote_display_state_carries_session_metrics_and_today() {
         let (session, policy, today) = handles();
-        let built = build(&session, &policy, &today);
+        let built = build(&session, &policy, &today, HealthView::unconfigured());
 
         let expected = session
             .lock()
@@ -134,24 +144,20 @@ mod tests {
             lock.poison();
         }
 
-        let built = build(&session, &policy, &today);
+        let built = build(&session, &policy, &today, HealthView::unconfigured());
         assert_eq!(built.today.position_changes, 7);
         assert!(!built.metrics.is_empty());
     }
 
-    #[test]
-    fn e019_t07_remote_display_state_matches_the_remote_server_path() {
+    #[tokio::test]
+    async fn e019_t07_remote_display_state_matches_the_remote_server_path() {
         let (session, policy, today) = handles();
-        let state = crate::remote_server::RemoteState {
-            ws_tx: ws_broadcaster::create_channel(),
-            session: session.clone(),
-            comm_policy: policy.clone(),
-            today_cache: today.clone(),
-            active_clients: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
-        };
+        let state =
+            crate::remote_routes_health_tests::remote_state(session.clone(), policy.clone(), today.clone())
+                .await;
 
-        let via_server = crate::remote_server::build_remote_display_state(&state);
-        let direct = build(&session, &policy, &today);
+        let via_server = crate::remote_server::build_remote_display_state(&state).await;
+        let direct = build(&session, &policy, &today, state.health.view().await);
 
         assert_eq!(
             serde_json::to_value(&via_server).unwrap(),
@@ -161,12 +167,32 @@ mod tests {
     }
 
     #[test]
+    fn e021_t03_remote_display_state_carries_the_health_view_it_was_given() {
+        let (session, policy, today) = handles();
+        let health = HealthView {
+            configured: true,
+            snapshot: Some(crate::health_models::HealthSnapshot {
+                steps_today: 1234,
+                heart_rate_bpm: Some(61),
+                hrv_rmssd_ms: None,
+                source_id: "curl".into(),
+                fetched_at_ms: 1_700_000_000_000,
+            }),
+            error_kind: None,
+            error_message: None,
+        };
+
+        let built = build(&session, &policy, &today, health.clone());
+        assert_eq!(built.health, health);
+    }
+
+    #[test]
     fn e019_t07_remote_display_state_broadcasts_a_snapshot_event() {
         let (session, policy, today) = handles();
         let tx = ws_broadcaster::create_channel();
         let mut rx = tx.subscribe();
 
-        broadcast(&tx, &session, &policy, &today);
+        broadcast(&tx, &session, &policy, &today, HealthView::unconfigured());
 
         let msg = rx.try_recv().expect("a snapshot must be published");
         let parsed: serde_json::Value = serde_json::from_str(&msg).unwrap();
