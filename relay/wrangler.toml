@@ -9,9 +9,20 @@ compatibility_flags = ["nodejs_compat"]
 name = "DESK_ROOM"
 class_name = "DeskRoom"
 
+# One instance per rate-limit bucket (`<route>:<ip>`). A Durable Object rather
+# than the platform `RateLimiter` binding, because pairing brute-force
+# protection has to be provable in tests — see README §Rate limits.
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["DeskRoom"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["RateLimiter"]
 
 # The viewer build, served under /app. Same React bundle the desktop ships;
 # `vite build` writes it. Absent in a fresh checkout — the Worker answers
@@ -21,12 +32,15 @@ new_sqlite_classes = ["DeskRoom"]
 binding = "ASSETS"
 directory = "../dist"
 
-# D1 lands in T03 together with the migrations that populate it. Declared here,
-# commented, so the binding name is decided once:
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "moveup-relay"
-# database_id = "<filled at first `wrangler d1 create`>"
+# Credential storage: licence, desk and viewer rows — hashes and metadata only.
+# `database_id` is filled by `wrangler d1 create moveup-relay` at deploy time
+# (T16); until then the placeholder makes `wrangler deploy` fail loudly rather
+# than deploy a relay whose credentials cannot be checked.
+[[d1_databases]]
+binding = "DB"
+database_name = "moveup-relay"
+database_id = "REPLACE_WITH_WRANGLER_D1_CREATE_OUTPUT"
+migrations_dir = "migrations"
 
 [vars]
 RELAY_VERSION = "0.1.0"
@@ -35,3 +49,7 @@ RELAY_VERSION = "0.1.0"
 HELLO_TIMEOUT_MS = "5000"
 # A socket silent this long is closed 1001. Clients ping every 25 s.
 IDLE_TIMEOUT_MS = "60000"
+# Pairing: a code lives 5 minutes; 10 wrong ones lock the desk out for 15.
+PAIRING_TTL_MS = "300000"
+PAIRING_LOCKOUT_MS = "900000"
+PAIRING_MAX_ATTEMPTS = "10"

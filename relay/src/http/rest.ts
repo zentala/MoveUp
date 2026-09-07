@@ -1,58 +1,59 @@
 /**
  * rest.ts — the six credential routes from PLAN.md §Protocol — REST.
  *
- * **Bodies are T03's.** They exist here as 501 stubs on purpose: the desktop
- * client (T05/T06) is built in the same wave and needs the paths to resolve to
- * a documented answer rather than a 404 that reads like a typo in its own URL.
- * `501` also keeps the deploy gate honest — a relay deployed before T03 fails
- * every pairing loudly.
+ * The table is the contract: a path that matches with the wrong verb answers
+ * `405`, not `404`, so a client learns whether its URL or its method is wrong,
+ * and `REST_ROUTES` is what the router test asserts against.
  */
-import { notImplemented } from "./responses";
+import { deleteDesk, listViewers, register, revokeViewer } from "./desks";
+import { issuePairing, pair } from "./pairing";
+import { fail } from "./responses";
+import type { Env } from "../env";
 
 export interface RestRoute {
   method: string;
   /** URLPattern-style path with `:name` segments. */
   path: string;
-  task: string;
   summary: string;
+  handle: (request: Request, env: Env, params: Record<string, string>) => Promise<Response>;
 }
 
 export const REST_ROUTES: readonly RestRoute[] = [
   {
     method: "POST",
     path: "/v1/desks/register",
-    task: "E022-T03",
     summary: "license key -> desk_id + desk_token",
+    handle: (request, env) => register(request, env),
   },
   {
     method: "POST",
     path: "/v1/desks/:deskId/pairings",
-    task: "E022-T03",
     summary: "desk asks for a pairing code",
+    handle: (request, env, p) => issuePairing(request, env, p.deskId),
   },
   {
     method: "POST",
     path: "/v1/pair",
-    task: "E022-T03",
     summary: "phone redeems a pairing code -> viewer_token",
+    handle: (request, env) => pair(request, env),
   },
   {
     method: "GET",
     path: "/v1/desks/:deskId/viewers",
-    task: "E022-T03",
     summary: "paired devices, for the Settings list",
+    handle: (request, env, p) => listViewers(request, env, p.deskId),
   },
   {
     method: "DELETE",
     path: "/v1/desks/:deskId/viewers/:viewerId",
-    task: "E022-T03",
     summary: "revoke one viewer",
+    handle: (request, env, p) => revokeViewer(request, env, p.deskId, p.viewerId),
   },
   {
     method: "DELETE",
     path: "/v1/desks/:deskId",
-    task: "E022-T03",
     summary: "disable the relay for this desk",
+    handle: (request, env, p) => deleteDesk(request, env, p.deskId),
   },
 ];
 
@@ -77,15 +78,27 @@ export function matchPath(pattern: string, pathname: string): Record<string, str
 /**
  * Answers a declared REST route, or `null` when the path belongs to no route.
  *
- * A path that matches but with the wrong method answers 405 rather than 404 —
- * the difference tells a client whether its URL or its verb is wrong.
+ * An unexpected throw becomes `503 internal` rather than a runtime 500 with no
+ * body: the two states a relay must never confuse are "refused" and "could not
+ * ask", and `db()` throws precisely to keep them apart.
  */
-export function handleRest(request: Request, pathname: string): Response | null {
+export async function handleRest(
+  request: Request,
+  pathname: string,
+  env: Env,
+): Promise<Response | null> {
   let pathMatched = false;
   for (const route of REST_ROUTES) {
-    if (matchPath(route.path, pathname) === null) continue;
+    const params = matchPath(route.path, pathname);
+    if (params === null) continue;
     pathMatched = true;
-    if (route.method === request.method) return notImplemented(route.task);
+    if (route.method !== request.method) continue;
+    try {
+      return await route.handle(request, env, params);
+    } catch (cause) {
+      console.error(`relay: ${route.method} ${route.path} failed`, cause);
+      return fail("internal", "the relay could not complete this request", 503);
+    }
   }
   return pathMatched ? new Response("method not allowed", { status: 405 }) : null;
 }

@@ -16,8 +16,3 @@ export function json(body: unknown, status = 200): Response {
 export function fail(code: ErrorCode, message: string, status: number): Response {
   return json({ error: { code, message } }, status);
 }
-
-/** A route that exists in the contract but whose body is a later task's. */
-export function notImplemented(task: string): Response {
-  return fail("not_implemented", `this route lands in ${task}`, 501);
-}

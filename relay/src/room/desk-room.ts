@@ -23,18 +23,44 @@ import type { Welcome } from "@app/generated/Welcome";
 import { verifyToken, type AuthFailure } from "../auth/tokens";
 import { numVar, type Env } from "../env";
 import {
+  announceDeskGone,
+  broadcastToViewers,
+  rememberSnapshot,
+  replaceExistingDesk,
+  welcomeFor,
+} from "./fanout";
+import {
   CLOSE_CODES,
-  IDLE_CLOSE_CODE,
   encode,
   errorFrame,
   isFailure,
   readFrame,
   type KnownMessage,
 } from "./messages";
-import { isAuthed, readState, socketsInRole, writeState, type AuthedState } from "./sockets";
-
-/** How often the alarm sweeps for late `hello`s and silent sockets. */
-const MIN_SWEEP_MS = 50;
+import {
+  DEFAULT_LOCKOUT_MS,
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_TTL_MS,
+  emptyPairing,
+  type PairingLimits,
+  type PairingState,
+} from "./pairing";
+import {
+  closeAll,
+  closeViewer,
+  issueCode,
+  onlineViewers,
+  redeemCode,
+} from "./room-admin";
+import {
+  RPC_PREFIX,
+  handleRoomRpc,
+  type IssuedCode,
+  type RedeemReply,
+  type RoomOps,
+} from "./rpc";
+import { isAuthed, readState, writeState, type AuthedState } from "./sockets";
+import { MIN_SWEEP_MS, sweep } from "./sweep";
 
 const CLOSE_FOR: Record<AuthFailure, number> = {
   unauthorized: CLOSE_CODES.UNAUTHENTICATED,
@@ -42,10 +68,20 @@ const CLOSE_FOR: Record<AuthFailure, number> = {
   revoked: CLOSE_CODES.REVOKED,
 };
 
-export class DeskRoom implements DurableObject {
-  /** Newest `snapshot` event seen from the desk, verbatim. Memory only. */
-  private snapshot: unknown = null;
-  private snapshotTs: number | null = null;
+export class DeskRoom implements DurableObject, RoomOps {
+  /**
+   * Newest `snapshot` event seen from the desk, verbatim. Memory only, and
+   * public because `fanout.ts` writes it — see `SnapshotBox` there.
+   */
+  snapshot: unknown = null;
+  snapshotTs: number | null = null;
+
+  /**
+   * The outstanding pairing code and the brute-force lockout. Memory only, and
+   * public because `room-admin.ts` replaces it — see `PairingBox` there.
+   */
+  pairing: PairingState = emptyPairing();
+  readonly limits: PairingLimits;
 
   private readonly helloTimeoutMs: number;
   private readonly idleTimeoutMs: number;
@@ -56,11 +92,37 @@ export class DeskRoom implements DurableObject {
   ) {
     this.helloTimeoutMs = numVar(env.HELLO_TIMEOUT_MS, 5_000);
     this.idleTimeoutMs = numVar(env.IDLE_TIMEOUT_MS, 60_000);
+    this.limits = {
+      ttlMs: numVar(env.PAIRING_TTL_MS, DEFAULT_TTL_MS),
+      lockoutMs: numVar(env.PAIRING_LOCKOUT_MS, DEFAULT_LOCKOUT_MS),
+      maxAttempts: numVar(env.PAIRING_MAX_ATTEMPTS, DEFAULT_MAX_ATTEMPTS),
+    };
   }
+
+  // ─── Pairing and revocation (RoomOps) ─────────────────────────────────────
+  // Bodies live in `room-admin.ts`; this file stays about the protocol.
+
+  issuePairing = (): Promise<IssuedCode> => issueCode(this);
+
+  redeemPairing = (code: string): Promise<RedeemReply> => redeemCode(this, code);
+
+  revokeViewer = (viewerId: string): number =>
+    closeViewer(this.ctx.getWebSockets(), viewerId);
+
+  shutdown = (): number => closeAll(this, this.ctx.getWebSockets());
+
+  onlineViewerIds = (): string[] => onlineViewers(this.ctx.getWebSockets());
 
   // ─── Upgrade ──────────────────────────────────────────────────────────────
 
   async fetch(request: Request): Promise<Response> {
+    const pathname = new URL(request.url).pathname;
+    if (pathname.startsWith(RPC_PREFIX)) {
+      const answered = await handleRoomRpc(request, pathname, this);
+      if (answered !== null) return answered;
+      return new Response("no such room operation", { status: 404 });
+    }
+
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 });
     }
@@ -194,18 +256,6 @@ export class DeskRoom implements DurableObject {
     if (isAuthed(state) && state.role === "desk") this.announceDeskGone(ws);
   }
 
-  /**
-   * Tells the viewers the desk is gone — but only once the *last* desk socket
-   * has left. `ws` is excluded explicitly because a socket being closed may
-   * still appear in `getWebSockets()` while its handler runs, which would make
-   * a departing desk look like a desk that is still there.
-   */
-  private announceDeskGone(ws: WebSocket): void {
-    const remaining = socketsInRole(this.ctx.getWebSockets(), "desk").filter((d) => d.ws !== ws);
-    if (remaining.length > 0) return;
-    this.broadcastToViewers(encode("desk_status", { online: false, since: Date.now() }));
-  }
-
   async webSocketError(ws: WebSocket): Promise<void> {
     await this.webSocketClose(ws, 1011, "socket error");
   }
@@ -213,35 +263,15 @@ export class DeskRoom implements DurableObject {
   // ─── Alarm sweep ──────────────────────────────────────────────────────────
 
   /**
-   * One alarm serves both deadlines. It closes what is overdue and re-arms
-   * itself only while sockets remain, so an empty room costs nothing.
+   * One alarm serves both deadlines (`sweep.ts`). It closes what is overdue and
+   * re-arms itself only while something is still due, so an empty room costs
+   * nothing.
    */
   async alarm(): Promise<void> {
-    const now = Date.now();
-    let nextIn = Number.POSITIVE_INFINITY;
-
-    for (const ws of this.ctx.getWebSockets()) {
-      const state = readState(ws);
-      if (state === null) continue;
-
-      if (state.state === "pending") {
-        if (state.helloBy <= now) ws.close(CLOSE_CODES.UNAUTHENTICATED, "no hello in time");
-        else nextIn = Math.min(nextIn, state.helloBy - now);
-        continue;
-      }
-
-      const silentFor = now - state.lastSeen;
-      if (silentFor >= this.idleTimeoutMs) {
-        ws.close(IDLE_CLOSE_CODE, "idle");
-        // A close we initiate does not call `webSocketClose`, so the viewers
-        // would otherwise keep showing a desk that timed out.
-        if (state.role === "desk") this.announceDeskGone(ws);
-      } else {
-        nextIn = Math.min(nextIn, this.idleTimeoutMs - silentFor);
-      }
-    }
-
-    if (Number.isFinite(nextIn)) await this.scheduleSweep(nextIn);
+    const nextIn = sweep(this.ctx.getWebSockets(), this.idleTimeoutMs, Date.now(), (ws) =>
+      this.announceDeskGone(ws),
+    );
+    if (nextIn !== null) await this.scheduleSweep(nextIn);
   }
 
   /** Arms the alarm for `inMs`, unless an earlier one is already pending. */
@@ -251,62 +281,20 @@ export class DeskRoom implements DurableObject {
     if (existing === null || existing > at) await this.ctx.storage.setAlarm(at);
   }
 
-  // ─── Room state ───────────────────────────────────────────────────────────
+  // ─── Room state (bodies in `fanout.ts`) ───────────────────────────────────
 
-  private deskSocket(): WebSocket | null {
-    return socketsInRole(this.ctx.getWebSockets(), "desk")[0]?.ws ?? null;
-  }
+  private announceDeskGone = (ws: WebSocket): void =>
+    announceDeskGone(this.ctx.getWebSockets(), ws);
 
-  private viewerSockets(): WebSocket[] {
-    return socketsInRole(this.ctx.getWebSockets(), "viewer").map((v) => v.ws);
-  }
+  private replaceExistingDesk = (incoming: WebSocket): void =>
+    replaceExistingDesk(this.ctx.getWebSockets(), incoming);
 
-  /**
-   * A newer desk connection wins: the app was restarted or moved machines, and
-   * the old socket is a ghost the user cannot see or close.
-   */
-  private replaceExistingDesk(incoming: WebSocket): void {
-    for (const { ws } of socketsInRole(this.ctx.getWebSockets(), "desk")) {
-      if (ws === incoming) continue;
-      ws.close(CLOSE_CODES.REPLACED, "replaced by a newer desk connection");
-    }
-  }
+  private welcomeFor = (role: Role, deskId: string): Welcome =>
+    welcomeFor(this, this.ctx.getWebSockets(), role, deskId);
 
-  private welcomeFor(role: Role, deskId: string): Welcome {
-    const deskOnline = role === "desk" || this.deskSocket() !== null;
-    return {
-      role,
-      desk_id: deskId,
-      desk_online: deskOnline,
-      viewer_count: this.viewerSockets().length,
-      snapshot: (this.snapshot ?? null) as Welcome["snapshot"],
-      snapshot_ts: this.snapshotTs,
-    };
-  }
+  private rememberSnapshot = (payload: unknown, ts: number): void =>
+    rememberSnapshot(this, payload, ts);
 
-  /** Viewer capacity is enforced at pairing time by T03, not here. */
-
-  /**
-   * Caches the desk's `snapshot` event. Other event kinds pass through
-   * untouched — they are deltas, and replaying one to a late viewer would tell
-   * it about a change it never had the "before" for.
-   */
-  private rememberSnapshot(payload: unknown, ts: number): void {
-    const name = (payload as { event?: unknown } | null)?.event;
-    if (name !== "snapshot") return;
-    this.snapshot = payload;
-    this.snapshotTs = ts;
-  }
-
-  private broadcastToViewers(frame: string, except?: WebSocket): void {
-    for (const ws of this.viewerSockets()) {
-      if (ws === except) continue;
-      try {
-        ws.send(frame);
-      } catch {
-        // A socket that died between the scan and the send is closed by the
-        // runtime; the close handler cleans up.
-      }
-    }
-  }
+  private broadcastToViewers = (frame: string, except?: WebSocket): void =>
+    broadcastToViewers(this.ctx.getWebSockets(), frame, except);
 }
