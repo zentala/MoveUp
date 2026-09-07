@@ -23,11 +23,14 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{accept_async, WebSocketStream};
 
 use crate::relay_client::{
-    should_run, spawn, ws_url, ClientDeps, ClientHandle, RelayConfig, Sleeper, SnapshotSource,
+    should_run, spawn_with_commands, ws_url, ClientDeps, ClientHandle, RelayConfig, Sleeper,
+    SnapshotSource,
 };
+use crate::relay_commands::CommandExecutor;
 use crate::relay_status::{RelayState, RelayStatus};
 use crate::remote_protocol::{
-    Envelope, MessageType, CLOSE_REVOKED, CLOSE_SHEDDING, PROTOCOL_VERSION,
+    Command, CommandResult, Envelope, ErrorBody, MessageType, CLOSE_REVOKED, CLOSE_SHEDDING,
+    PROTOCOL_VERSION,
 };
 
 type ServerWs = WebSocketStream<TcpStream>;
@@ -58,6 +61,27 @@ struct FixedSnapshot;
 impl SnapshotSource for FixedSnapshot {
     fn snapshot(&self) -> Value {
         json!({ "event": "snapshot", "payload": { "session": { "state": "Sitting" } } })
+    }
+}
+
+/// Records every command it is handed and answers from a fixed script, so the
+/// client's framing is tested without dragging `SessionManager` in.
+struct ScriptedExecutor {
+    seen: Arc<Mutex<Vec<Command>>>,
+    ok: bool,
+}
+
+impl CommandExecutor for ScriptedExecutor {
+    fn execute(&self, env: &Envelope<Command>) -> CommandResult {
+        self.seen
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(env.payload.clone());
+        CommandResult {
+            command_id: env.id.clone(),
+            ok: self.ok,
+            error: (!self.ok).then(|| ErrorBody::new("exec_failed", "scripted failure")),
+        }
     }
 }
 
@@ -113,13 +137,22 @@ impl Fixture {
 }
 
 fn start(addr: SocketAddr, conns: Arc<AtomicUsize>, tune: impl FnOnce(&mut RelayConfig)) -> Fixture {
+    start_with(addr, conns, None, tune)
+}
+
+fn start_with(
+    addr: SocketAddr,
+    conns: Arc<AtomicUsize>,
+    commands: Option<Arc<dyn CommandExecutor>>,
+    tune: impl FnOnce(&mut RelayConfig),
+) -> Fixture {
     let mut cfg = RelayConfig::new(format!("http://{addr}"), "desk-1", "mu_d_test", "0.6.0");
     cfg.welcome_timeout = Duration::from_millis(500);
     tune(&mut cfg);
     let ws_tx = broadcast::channel::<String>(8).0;
     let status = Arc::new(Mutex::new(RelayStatus::default()));
     let slept = Arc::new(Mutex::new(Vec::new()));
-    let handle = spawn(
+    let handle = spawn_with_commands(
         cfg,
         ClientDeps {
             ws_tx: ws_tx.clone(),
@@ -130,6 +163,7 @@ fn start(addr: SocketAddr, conns: Arc<AtomicUsize>, tune: impl FnOnce(&mut Relay
             }),
             snapshot: Arc::new(FixedSnapshot),
         },
+        commands,
     );
     Fixture {
         handle,
@@ -439,4 +473,132 @@ fn ws_url_upgrades_browser_schemes_and_keeps_socket_ones() {
         ws_url("wss://relay.example/", "d2"),
         "wss://relay.example/v1/desks/d2/ws"
     );
+}
+
+// ─── Inbound commands (E022-T07) ────────────────────────────────────────────
+
+/// Serves one desk connection, sends a `command` after `welcome`, and hands
+/// back every envelope the client wrote.
+async fn serve_one_command(
+    payload: Value,
+) -> (SocketAddr, Arc<AtomicUsize>, tokio::sync::mpsc::UnboundedReceiver<Envelope<Value>>) {
+    let (seen_tx, seen_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (addr, conns) = serve(move |_n, mut ws| {
+        let seen = seen_tx.clone();
+        let payload = payload.clone();
+        async move {
+            let _ = recv(&mut ws).await;
+            send(&mut ws, MessageType::Welcome, welcome_payload(1)).await;
+            let _snapshot = recv(&mut ws).await;
+            send(&mut ws, MessageType::Command, payload).await;
+            while let Some(Ok(Message::Text(t))) = ws.next().await {
+                let _ = seen.send(serde_json::from_str(&t).expect("envelope"));
+            }
+        }
+    })
+    .await;
+    (addr, conns, seen_rx)
+}
+
+/// Reads envelopes until one of `want` shows up.
+async fn next_of(
+    rx: &mut tokio::sync::mpsc::UnboundedReceiver<Envelope<Value>>,
+    want: MessageType,
+) -> Envelope<Value> {
+    loop {
+        let env = tokio::time::timeout(Duration::from_secs(3), rx.recv())
+            .await
+            .expect("timed out waiting for a frame")
+            .expect("channel closed");
+        if env.msg_type == want {
+            return env;
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_command_reaches_the_executor_and_its_result_goes_back() {
+    let (addr, conns, mut rx) = serve_one_command(json!({
+        "name": "set_limits",
+        "args": { "sit_min": 45 },
+        "viewer_id": "v-7",
+    }))
+    .await;
+
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let exec = Arc::new(ScriptedExecutor {
+        seen: seen.clone(),
+        ok: true,
+    });
+    let fx = start_with(addr, conns, Some(exec), |_| {});
+
+    let result = next_of(&mut rx, MessageType::CommandResult).await;
+    assert_eq!(result.v, PROTOCOL_VERSION);
+    assert_eq!(result.payload["command_id"], "srv-1");
+    assert_eq!(result.payload["ok"], true);
+
+    let got = seen.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    assert_eq!(got.len(), 1, "the executor must be called exactly once");
+    assert_eq!(got[0].name, "set_limits");
+    assert_eq!(got[0].viewer_id.as_deref(), Some("v-7"));
+
+    assert_eq!(fx.state(), RelayState::Online, "a command must not drop the room");
+    fx.handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_refused_command_answers_with_its_error_and_keeps_the_connection() {
+    let (addr, conns, mut rx) = serve_one_command(json!({
+        "name": "set_limits",
+        "args": { "sit_min": 45 },
+        "viewer_id": "v-7",
+    }))
+    .await;
+
+    let exec = Arc::new(ScriptedExecutor {
+        seen: Arc::new(Mutex::new(Vec::new())),
+        ok: false,
+    });
+    let fx = start_with(addr, conns, Some(exec), |_| {});
+
+    let result = next_of(&mut rx, MessageType::CommandResult).await;
+    assert_eq!(result.payload["ok"], false);
+    assert_eq!(result.payload["error"]["code"], "exec_failed");
+
+    assert!(until(|| fx.state() == RelayState::Online).await);
+    fx.handle.shutdown().await;
+}
+
+/// Silence would be indistinguishable from a hung desk, so the viewer is told.
+#[tokio::test]
+async fn a_client_without_an_executor_still_answers_the_viewer() {
+    let (addr, conns, mut rx) = serve_one_command(json!({
+        "name": "ack_alert",
+        "args": {},
+        "viewer_id": "v-7",
+    }))
+    .await;
+
+    let fx = start(addr, conns, |_| {});
+
+    let result = next_of(&mut rx, MessageType::CommandResult).await;
+    assert_eq!(result.payload["ok"], false);
+    assert_eq!(result.payload["error"]["code"], "commands_unavailable");
+    fx.handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn an_unreadable_command_payload_is_answered_not_dropped() {
+    let (addr, conns, mut rx) = serve_one_command(json!({ "nonsense": true })).await;
+
+    let exec = Arc::new(ScriptedExecutor {
+        seen: Arc::new(Mutex::new(Vec::new())),
+        ok: true,
+    });
+    let fx = start_with(addr, conns, Some(exec), |_| {});
+
+    let result = next_of(&mut rx, MessageType::CommandResult).await;
+    assert_eq!(result.payload["ok"], false);
+    assert_eq!(result.payload["error"]["code"], "bad_args");
+    fx.handle.shutdown().await;
 }

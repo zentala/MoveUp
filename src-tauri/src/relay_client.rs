@@ -24,9 +24,11 @@ use tokio::sync::{broadcast, mpsc};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
+use crate::relay_commands::CommandExecutor;
 use crate::relay_status::{should_reconnect, state_for_close_code, Backoff, RelayState, RelayStatus};
 use crate::remote_protocol::{
-    check_version, ClientInfo, Envelope, Hello, MessageType, Role, Welcome, PROTOCOL_VERSION,
+    check_version, ClientInfo, Command, CommandResult, Envelope, ErrorBody, Hello, MessageType,
+    Role, Welcome, PROTOCOL_VERSION,
 };
 
 /// Sent while the connection is idle so a dead peer is noticed.
@@ -171,10 +173,24 @@ impl ClientHandle {
     }
 }
 
-/// Starts the client task. Returns immediately.
+/// Starts a client task that ignores every inbound `command`.
+///
+/// Refusing rather than silently dropping: a viewer that asks a build with no
+/// executor still gets a `command_result` saying so, instead of a button that
+/// looks like it worked.
 pub fn spawn(cfg: RelayConfig, deps: ClientDeps) -> ClientHandle {
+    spawn_with_commands(cfg, deps, None)
+}
+
+/// Starts the client task with a command executor wired in (E022-T07).
+/// Returns immediately.
+pub fn spawn_with_commands(
+    cfg: RelayConfig,
+    deps: ClientDeps,
+    commands: Option<Arc<dyn CommandExecutor>>,
+) -> ClientHandle {
     let (ctl, ctl_rx) = mpsc::unbounded_channel();
-    let task = tokio::spawn(run(cfg, deps, ctl_rx));
+    let task = tokio::spawn(run(cfg, deps, commands, ctl_rx));
     ClientHandle { ctl, task }
 }
 
@@ -188,11 +204,16 @@ fn enter(status: &Arc<Mutex<RelayStatus>>, state: RelayState, error: Option<Stri
 }
 
 /// Connect / fail / back off, until a terminal close code or a stop.
-async fn run(cfg: RelayConfig, deps: ClientDeps, mut ctl_rx: mpsc::UnboundedReceiver<Ctl>) {
+async fn run(
+    cfg: RelayConfig,
+    deps: ClientDeps,
+    commands: Option<Arc<dyn CommandExecutor>>,
+    mut ctl_rx: mpsc::UnboundedReceiver<Ctl>,
+) {
     let mut backoff = Backoff::new();
     loop {
         enter(&deps.status, RelayState::Connecting, None);
-        match session(&cfg, &deps, &mut ctl_rx, &mut backoff).await {
+        match session(&cfg, &deps, commands.as_ref(), &mut ctl_rx, &mut backoff).await {
             End::Stopped => {
                 enter(&deps.status, RelayState::Disabled, None);
                 return;
@@ -232,6 +253,7 @@ async fn run(cfg: RelayConfig, deps: ClientDeps, mut ctl_rx: mpsc::UnboundedRece
 async fn session(
     cfg: &RelayConfig,
     deps: &ClientDeps,
+    commands: Option<&Arc<dyn CommandExecutor>>,
     ctl_rx: &mut mpsc::UnboundedReceiver<Ctl>,
     backoff: &mut Backoff,
 ) -> End {
@@ -274,13 +296,14 @@ async fn session(
         return End::Failed(e);
     }
 
-    pump(cfg, deps, ctl_rx, &mut write, &mut read).await
+    pump(cfg, deps, commands, ctl_rx, &mut write, &mut read).await
 }
 
 /// Forwards broadcasts out, reads relay messages in, keeps the ping alive.
 async fn pump(
     cfg: &RelayConfig,
     deps: &ClientDeps,
+    commands: Option<&Arc<dyn CommandExecutor>>,
     ctl_rx: &mut mpsc::UnboundedReceiver<Ctl>,
     write: &mut WsWrite,
     read: &mut WsRead,
@@ -329,8 +352,11 @@ async fn pump(
                                 return End::Failed(e);
                             }
                         }
-                        // `command` is executed in T07; ignoring it here keeps
-                        // the connection alive instead of dropping the room.
+                        MessageType::Command => {
+                            if let Err(e) = answer_command(write, &env, commands).await {
+                                return End::Failed(e);
+                            }
+                        }
                         other => log::debug!("Relay: ignoring {}", other.as_str()),
                     },
                     Err(e) => log::debug!("Relay: unparseable frame: {e}"),
@@ -343,6 +369,47 @@ async fn pump(
                 None => return End::Closed(CLOSE_ABNORMAL),
             },
         }
+    }
+}
+
+/// Runs one inbound `command` and writes its `command_result` back.
+///
+/// Every path answers — an unparseable payload and a build with no executor
+/// both produce a failed result rather than silence, because a viewer waiting
+/// for an answer it will never get looks exactly like a hung desk.
+/// A refused command is never a reason to drop the connection; only a failed
+/// *write* is.
+async fn answer_command(
+    write: &mut WsWrite,
+    env: &Envelope<Value>,
+    commands: Option<&Arc<dyn CommandExecutor>>,
+) -> Result<(), String> {
+    let result = match (
+        serde_json::from_value::<Command>(env.payload.clone()),
+        commands,
+    ) {
+        (Ok(cmd), Some(exec)) => exec.execute(&Envelope {
+            v: env.v,
+            msg_type: MessageType::Command,
+            id: env.id.clone(),
+            ts: env.ts,
+            payload: cmd,
+        }),
+        (Ok(_), None) => failed_result(
+            &env.id,
+            "commands_unavailable",
+            "this desk does not execute remote commands",
+        ),
+        (Err(e), _) => failed_result(&env.id, "bad_args", format!("unreadable command: {e}")),
+    };
+    send(write, MessageType::CommandResult, &result).await
+}
+
+fn failed_result(command_id: &str, code: &str, message: impl Into<String>) -> CommandResult {
+    CommandResult {
+        command_id: command_id.to_string(),
+        ok: false,
+        error: Some(ErrorBody::new(code, message)),
     }
 }
 
