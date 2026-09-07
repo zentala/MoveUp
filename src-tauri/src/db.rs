@@ -77,6 +77,10 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         }
     }
 
+    // voice_notes (E021-T06) — dictated notes from the phone. Kept in its own
+    // module because nothing about it touches the session tables.
+    crate::db_voice_notes::init_schema(conn)?;
+
     Ok(())
 }
 

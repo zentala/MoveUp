@@ -252,4 +252,52 @@ mod tests {
         assert_eq!(sig.overlay, OverlaySignal::Hidden);
         assert!(sig.notify.is_none());
     }
+
+    // ── 15. Voice-driven snooze (E021-T06) ──────────────────────────────────
+
+    /// A dictated snooze must silence escalation the same way a dismiss does —
+    /// the sitting escalation is well past its limit here, so without the
+    /// snooze there would be a notification.
+    #[test]
+    fn e021_t06_snooze_for_silences_escalation() {
+        let mut reference = default_policy();
+        assert!(
+            reference.evaluate(&sitting_input(2400)).notify.is_some(),
+            "precondition: this input escalates without a snooze"
+        );
+
+        let mut p = default_policy();
+        p.snooze_for(5);
+        assert!(p.is_snoozed());
+        assert!(
+            p.evaluate(&sitting_input(2400)).notify.is_none(),
+            "a dictated snooze must silence the escalation"
+        );
+    }
+
+    /// `snooze_for` must not advance the dismissal ladder — the user set the
+    /// length themselves, so the next dismiss still gets the first duration.
+    #[test]
+    fn e021_t06_snooze_for_does_not_advance_the_dismiss_ladder() {
+        let mut p = default_policy();
+        p.snooze_for(60);
+        p.on_position_changed();
+        assert!(!p.is_snoozed(), "a position change clears any snooze");
+
+        let mut reference = default_policy();
+        reference.dismiss();
+        p.dismiss();
+        assert_eq!(
+            p.is_snoozed(),
+            reference.is_snoozed(),
+            "the first dismiss after a voice snooze behaves like any first dismiss"
+        );
+    }
+
+    #[test]
+    fn e021_t06_snooze_for_zero_is_ignored() {
+        let mut p = default_policy();
+        p.snooze_for(0);
+        assert!(!p.is_snoozed(), "zero minutes is not a snooze request");
+    }
 }

@@ -57,6 +57,10 @@ pub async fn remote_state(
         health,
         health_push,
         remote_token: Some(TOKEN.to_string()),
+        // The voice inlet's own wiring is exercised in
+        // `remote_routes_voice_tests`; here it stays at its degraded default so
+        // these tests keep asserting only the health path.
+        voice: crate::remote_server::VoiceState::default(),
     }
 }
 

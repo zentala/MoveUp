@@ -40,6 +40,28 @@ pub struct RemoteState {
     pub health_push: Arc<PushHealthSource>,
     /// Shared secret the write endpoints require; `None` closes them.
     pub remote_token: Option<String>,
+    /// Dependencies of the voice inlet (E021-T06). Every leg is optional; a
+    /// default value still leaves `POST /display/voice` parsing and
+    /// acknowledging intents.
+    pub voice: VoiceState,
+}
+
+/// Everything the voice inlet ([`crate::remote_routes_voice`]) needs that
+/// [`RemoteState`] does not already carry. Every leg is independently
+/// absent-able — no logger, no database, no AI key and no webhook still leaves
+/// a route that parses an intent and acknowledges it — which is why these are
+/// `Option`s rather than required fields.
+#[derive(Clone, Default)]
+pub struct VoiceState {
+    /// Writes the `VOICE` line to `logs/YYYY-MM-DD/events.log`.
+    pub event_logger: Option<Arc<crate::event_logger::EventLogger>>,
+    /// The app database handle — `None` before `ensure_initialized` has run.
+    pub db: Option<Arc<Mutex<Option<rusqlite::Connection>>>>,
+    /// BYOK OpenRouter client, when the user brought a key.
+    pub ai: Option<Arc<crate::voice_ai::VoiceAi>>,
+    /// Mirrors [`crate::notify_webhook`]'s configuration.
+    pub webhook_enabled: bool,
+    pub webhook_url: Option<String>,
 }
 
 /// Max simultaneous WS clients. Protects against accidental DoS on LAN.
@@ -81,7 +103,8 @@ pub(crate) fn build_router(state: RemoteState) -> Router {
     let router = Router::new()
         .route("/display/ws", get(ws_handler))
         .route("/display/api", get(api_handler))
-        .merge(crate::remote_routes_health::routes());
+        .merge(crate::remote_routes_health::routes())
+        .merge(crate::remote_routes_voice::routes());
 
     #[cfg(debug_assertions)]
     let router = router.fallback(get(dev_fallback));

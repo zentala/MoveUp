@@ -41,6 +41,9 @@ pub const DESK_SHOW_SETTINGS: &str = "desk:show-settings";
 /// Popup colour scheme changed (neutral / yellow / red / gray).
 pub const DESK_POPUP_THEME: &str = "desk:popup-theme";
 
+/// A dictated voice note was accepted and acknowledged (E021-T06).
+pub const DESK_VOICE_ACK: &str = "desk:voice-ack";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -58,6 +61,7 @@ mod tests {
         assert_eq!(DESK_SHOW_WIDGET, "desk:show-widget");
         assert_eq!(DESK_SHOW_SETTINGS, "desk:show-settings");
         assert_eq!(DESK_POPUP_THEME, "desk:popup-theme");
+        assert_eq!(DESK_VOICE_ACK, "desk:voice-ack");
     }
 
     #[test]
@@ -73,6 +77,7 @@ mod tests {
             DESK_SHOW_WIDGET,
             DESK_SHOW_SETTINGS,
             DESK_POPUP_THEME,
+            DESK_VOICE_ACK,
         ];
         for name in all {
             assert!(name.starts_with("desk:"), "{name} is not namespaced");
@@ -100,6 +105,14 @@ mod tests {
             ),
             (DisplayEvent::DeviceLost, DESK_DEVICE_LOST),
             (DisplayEvent::DailyReset, DESK_DAILY_RESET),
+            (
+                DisplayEvent::VoiceAck {
+                    transcript: "drzemka 5".into(),
+                    intent: "snooze".into(),
+                    reply: None,
+                },
+                DESK_VOICE_ACK,
+            ),
         ];
         for (event, expected) in cases {
             let json = serde_json::to_value(&event).expect("should serialize");

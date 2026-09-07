@@ -15,6 +15,7 @@ export const DESK_DAILY_RESET = 'desk:daily-reset';
 export const DESK_SHOW_WIDGET = 'desk:show-widget';
 export const DESK_SHOW_SETTINGS = 'desk:show-settings';
 export const DESK_POPUP_THEME = 'desk:popup-theme';
+export const DESK_VOICE_ACK = 'desk:voice-ack';
 
 /** Every event name above, keyed by the same identifier the Rust module uses. */
 export const DESK_EVENTS = {
@@ -28,6 +29,7 @@ export const DESK_EVENTS = {
   DESK_SHOW_WIDGET,
   DESK_SHOW_SETTINGS,
   DESK_POPUP_THEME,
+  DESK_VOICE_ACK,
 } as const;
 
 /** Union of all desk event names. */
