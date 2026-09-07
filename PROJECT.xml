@@ -53,9 +53,10 @@
     <feature name="notifications">
       <description>Native desktop notifications with trigger_test_notification command, configurable backend</description>
     </feature>
-    <feature name="google-fit-steps">
-      <description>Opt-in walking-steps badge in OneBarWidget — fetches today's step count from Google Fit REST API. OAuth2 offline access with one-time consent (helper script: apps/desk/scripts/google-fit-auth.cjs). Configured via GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN in apps/desk/.env (gitignored). Optional GOOGLE_FIT_STEPS_SOURCE overrides auto-discovered data source. See ADR 012.</description>
-      <commands>get_steps_today, refresh_steps_now</commands>
+    <feature name="health-badge">
+      <description>Source-agnostic health badge (HealthWidget, formerly StepsWidget) in OneBarWidget — today's steps, optional heart rate, and the producing source_id. Google Fit is one source (OAuth2 offline access, helper script apps/desk/scripts/google-fit-auth.cjs, GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN in apps/desk/.env, optional GOOGLE_FIT_STEPS_SOURCE); the LAN push inlet POST /display/health is another. A Google-Fit-only view carries a "Google Fit ends late 2026" tooltip. See ADR 012 and E021-T02/T03/T04.</description>
+      <commands>get_health_today, refresh_health_now</commands>
+      <transports>Desktop reads over Tauri IPC with a 5-min success interval and a 1/2/5/10/30-min backoff ladder; the remote display reads `health` out of the RemoteDisplayState WS snapshot and never polls (src/hooks/useHealth.ts owns both).</transports>
       <error-model>Backend classifies failures as auth_revoked (invalid_grant / 401 → re-run OAuth helper) or transient (network / 5xx / parse → exponential backoff)</error-model>
     </feature>
   </functionality>
