@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "E022-T12",
+  "check_id": "e2e-local",
+  "class": "test",
+  "timestamp": "2026-09-07T21:43:44.814Z",
+  "command_digest": "sha256:f2e8e4fdd7bcf4a7cbf79ae7e8f8f7a7fbae8f845843cefe058720cf1349322b",
+  "result": "pass",
+  "duration_ms": 2786,
+  "source_commit": "27582163ba042eaf10835ba716177e5b5e41cdaa",
+  "source_fingerprint": "sha256:a1ae520e13dbbf69923acb9f1ab20f1667ee53a3a8c884a3d90ed0b4205d94e9"
+}

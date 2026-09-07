@@ -263,6 +263,31 @@ export const STEPS = [
     },
   },
   {
+    name: "latency-100-events",
+    async run(ctx) {
+      // PLAN.md's `e2e-local` evidence check requires this exact measurement:
+      // p95 desk->viewer latency over 100 events, asserted under 500ms. Every
+      // event is awaited before the next is sent, so `viewer.expect("event")`
+      // cannot pick up a later marker out of order.
+      const eventCount = 100;
+      const budgetMs = 500;
+      const samples = [];
+      for (let i = 0; i < eventCount; i += 1) {
+        const marker = crypto.randomUUID();
+        const sentAt = Date.now();
+        ctx.desk.send("event", { event: "desk:e2e-latency", payload: { marker, i } });
+        const seen = await ctx.viewer.expect("event");
+        assert.equal(seen.payload.payload.marker, marker, `event ${i}: viewer got a different event`);
+        samples.push(Date.now() - sentAt);
+      }
+      samples.sort((a, b) => a - b);
+      const p95 = samples[Math.ceil(samples.length * 0.95) - 1];
+      const max = samples[samples.length - 1];
+      assert.ok(p95 < budgetMs, `p95 latency ${p95}ms exceeds the ${budgetMs}ms budget`);
+      return `${eventCount} events, p95 ${p95}ms, max ${max}ms (budget ${budgetMs}ms)`;
+    },
+  },
+  {
     name: "command-round-trip",
     async run(ctx) {
       const id = ctx.viewer.send("command", { name: "set_limits", args: { sit_min: 45 } });
