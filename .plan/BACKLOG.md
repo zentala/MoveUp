@@ -60,6 +60,41 @@ does not block deploying `relay.desk.zentala.io`. Full report:
   256-bit-entropy key, inconsistent with `requireDesk`'s deliberate silence
   elsewhere. `relay/src/http/desks.ts:56-64`. Cosmetic, low priority. (Low, 1)
 
+## E022 evidence contract — most records still missing (2026-09-07)
+
+Agent `verify` (T15) found `.plan/epics/E022-2026-09-06-cross-device-phone-relay/evidence/records/`
+holds only `E022-T13-security-review.json` and `E022-T12-e2e-local.json`
+(added same session), even though the underlying tests for T01-T11 and T14
+all pass — the checks ran, the proof was just never written per
+`rules/evidence.md`. Per the contract a missing record is `missing`, not a
+silent pass.
+
+- [ ] **`#task`** Backfill `evidence/records/E022-T0{1,2,3,4,5,6,7,8,9}.json`,
+  `T10`, `T11`, `T14.json` by re-running each check named in
+  [PLAN.md's evidence contract table](epics/E022-2026-09-06-cross-device-phone-relay/PLAN.md#evidence-contract)
+  through `verify-evidence run --task <id> --check <id> --class <class> -- <procedure>`
+  (see the two examples already committed: `E022-T13-security-review.json`,
+  `E022-T12-e2e-local.json`). (Medium, 3)
+
+## Friction — orphaned `wrangler dev` blocked local e2e for ~20 minutes (2026-09-07)
+
+Running `node scripts/relay-e2e.mjs` against a fresh `wrangler dev --port 8787`
+hung on every request (TCP handshake completed, zero HTTP response, target
+CPU idle) — turned out to be a **second, orphaned** `wrangler dev` left
+running by the earlier `verify` subagent from the same session (parent
+`node.exe` PID surviving after the agent believed its own `taskkill` had
+cleaned it up; the child `workerd.exe` outlived it and kept re-listening on
+the same port). Diagnosed via `Get-WmiObject Win32_Process -Filter
+"ProcessId=<pid>" | Select ParentProcessId` chained up to the surviving
+`wrangler` node process, then `Stop-Process` on that PID (not the child) —
+matches the pre-existing pattern in `.claude/rules/testing.md` ("Running
+tests inside a worktree" — orphaned test-runner processes surviving their
+owner) but for a **manually-run dev server outside AO/pm3**, which has no
+owner tracking at all. (Medium, 2) — worth a `just relay-dev` recipe (or a
+`scripts/relay-e2e-local.mjs` wrapper) that starts `wrangler dev`, waits for
+readiness, runs the e2e script, and always tears the server down in a
+`finally`, so a manual two-terminal dance is never required again.
+
 ---
 
 ## Bugs — Fix Now
