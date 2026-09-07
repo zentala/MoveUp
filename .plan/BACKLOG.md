@@ -884,3 +884,46 @@ Also left as warnings by the plugins' own defaults (not downgraded here):
   80/80/75 target. [vite.config.ts:42-52](../vite.config.ts) thresholds raised
   to 85/78/76 (a few points below measured, to absorb ordinary drift, not
   equal to it). (Importance Medium, Points 5)
+
+## 2026-09-06 — E021 follow-ups (filed by T09)
+
+- [ ] **Candidate epic E023 — Android Health Connect companion app.**
+  E021 built the *interface* on purpose and deferred the producer: the watch's
+  step, heart-rate and HRV readings land in Health Connect on the phone, which
+  is an on-device API no Windows process can pull. A small Android app reading
+  Health Connect and posting to
+  [`POST /display/health`](../docs/REMOTE_DISPLAY.md) closes that loop with
+  **no MoveUp-side change at all** — it is just another `source_id` to
+  [`HealthAggregator`](../src-tauri/src/health_source.rs). The push contract is
+  the integration surface and it already exists and is tested
+  ([remote_routes_health.rs:139-172](../src-tauri/src/remote_routes_health.rs),
+  [remote_routes_health_tests.rs](../src-tauri/src/remote_routes_health_tests.rs)).
+  Scope to decide when planning: Kotlin + Health Connect read permissions, a
+  foreground sync worker (cadence vs. battery), token storage on the phone, and
+  whether it also becomes the voice-capture surface (replacing the browser
+  panel) or stays data-only. Prerequisite fact to check first: whether Mi
+  Fitness / the Galaxy Watch actually writes HR and HRV into Health Connect on
+  Paweł's phone — E021-T01's spike answered the steps half only.
+  **Numbering note:** the handoff called this "E022", but
+  `.plan/epics/E022-2026-09-06-cross-device-phone-relay/` was already taken by
+  the Pro cross-device relay epic, so this candidate takes the next free
+  integer. Confirm against the epic folder list before creating it.
+  (Importance: Medium, Points: 13)
+
+- [ ] **Create `.plan/epics/INDEX.md` — the status table this repo has no
+  substitute for.** 24 epic folders exist under
+  [`.plan/epics/`](epics/) and the only statement of what is done lives in
+  each epic's own `PLAN.md` header and task frontmatter — fields written at
+  planning time and almost never updated after a merge. The global rule
+  (`~/.claude/rules/plan-arch-structure.md` § "Status epiku mieszka w
+  `epics/INDEX.md`") makes that table the single source of truth, and the
+  `epic-index-guard.mjs` PreToolUse hook is supposed to block a commit that
+  touches an epic's `PLAN.md`/`HANDOFF.md`/`tasks/*.md` without touching
+  `INDEX.md`. **The guard cannot enforce anything here until the file
+  exists**, so every epic edit in this repo currently passes unchecked.
+  Work: run `epic-index --fix` to seed a row per folder at status `unknown`,
+  then set the ~20 known-real statuses by hand (E001–E020 are merged; E021 is
+  this epic; E022 is `planned`; E013/E014 are partly blocked) — never let
+  `--fix` guess `done`. Measured cost of not having it: a status review on
+  2026-09-06 burned ~40 minutes reconstructing the truth from `git log --all`
+  because the headers lie. (Importance: Medium, Points: 3)

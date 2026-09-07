@@ -8,6 +8,8 @@ use crate::{
     colors::color_for_progress,
     commands::AppState,
     communication_policy::PolicyInput,
+    communication_types::NotifySignal,
+    notify_webhook::{Notification, WebhookNotifier},
     desk_events::{
         DESK_DEVICE_CONNECTED, DESK_DEVICE_LOST, DESK_DEVICE_MISSING, DESK_DISTANCE,
         DESK_STATE_CHANGED,
@@ -121,11 +123,21 @@ fn update_from_policy(app: &AppHandle) {
     let input: PolicyInput = session.policy_input(Utc::now(), is_connected);
     drop(session);
 
+    // Cached read, not a merge: this runs every ~1 s on the tray thread and
+    // must not await source I/O. `try_state` because a test harness may build
+    // an app without the health aggregator managed — and "no aggregator" then
+    // renders as the setup hint, not as zeroed metrics.
+    let health = app
+        .try_state::<crate::health_source::HealthState>()
+        .map(|state| state.last_view())
+        .unwrap_or_else(crate::health_models::HealthView::unconfigured);
+
     remote_display_state::broadcast(
         &app_state.ws_tx,
         &app_state.session,
         &app_state.comm_policy,
         &app_state.today_cache,
+        health,
     );
     update_tooltip(app, &snapshot);
 
@@ -139,6 +151,31 @@ fn update_from_policy(app: &AppHandle) {
 
     if let Some(ref notify) = signals.notify {
         tray_signal_exec::execute_notify(notify, &app_state);
+        push_to_webhook(&app_state, notify);
+    }
+}
+
+/// Mirrors a toast to the user's webhook so a phone or watch sees it too.
+///
+/// Only [`NotifySignal::Toast`] is mirrored: `Popup` is the on-screen
+/// escalation of a toast that already went out, and pushing both would send
+/// the same alert twice. Sending is fire-and-forget — see
+/// [`crate::notify_webhook`] — so a dead receiver cannot stall this tick.
+fn push_to_webhook(app_state: &AppState, notify: &NotifySignal) {
+    let NotifySignal::Toast(message) = notify else {
+        return;
+    };
+    let config = app_state
+        .config
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+        .unwrap_or_default();
+    if let Some(notifier) = WebhookNotifier::from_env_or_config(
+        config.notify_webhook_enabled,
+        config.notify_webhook_url.as_deref(),
+    ) {
+        notifier.send(Notification::alert("MoveUp", message));
     }
 }
 

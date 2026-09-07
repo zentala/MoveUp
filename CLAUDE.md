@@ -124,8 +124,15 @@ Native WinAPI overlay at top of screen. Full docs: [`.claude/rules/overlay.md`](
 - Same React UI served to browsers; `useDeskAuto()` hook selects WS or Tauri IPC
 - Auto-reconnects with exponential backoff; REST polling fallback when WS is down
 - `ConnectionOverlay` component shows connection/sensor status in remote mode
+- **Reads are open on the LAN; writes need `X-Desk-Token`** — two inlets,
+  `POST /display/health` and `POST /display/voice`, both guarded by
+  `fn require_token`. An unset `DESK_REMOTE_TOKEN` answers `503` (closed),
+  never `200`. See §Health sources for both contracts.
+- `VoiceCapture.tsx` renders on `/display` only; the desktop popup has a keyboard
 - See `docs/REMOTE_DISPLAY.md` for phone setup instructions
-- Key files: `remote_server.rs`, `ws_broadcaster.rs`, `useRemoteDesk.ts`, `ConnectionOverlay.tsx`
+- Key files: `remote_server.rs`, `remote_auth.rs`, `remote_routes_health.rs`,
+  `remote_routes_voice.rs`, `ws_broadcaster.rs`, `useRemoteDesk.ts`,
+  `ConnectionOverlay.tsx`, `VoiceCapture.tsx`
 
 ## Tauri Plugins
 - `tauri-plugin-notification` — native desktop notifications ("time to stand")
@@ -281,6 +288,8 @@ Do NOT hardcode prices in markdown — they may change or be A/B tested.
 | [007](.arch/ADR/007-plexi-mount-dev-kit-enclosure.md) | Plexi/PCB carrier mount for dev kit |
 | [011](.arch/ADR/011-unified-sit-stand-walk-cycle.md) | Unified sit-stand-walk cycle (no separate screen timer) |
 | [016](.arch/ADR/016-recharts-for-kpi-donuts.md) | Recharts for the Analyst KPI donuts |
+| [020](.arch/ADR/020-health-source-inlet.md) | Health arrives through a `HealthSource` trait + authenticated LAN inlet, not a vendor client; open reads, authenticated writes on `:3390` |
+| [021](.arch/ADR/021-voice-in-on-phone-watch-as-glance.md) | Voice goes in on the phone, the watch is a glance surface, and a parsed intent is an event — never an engine input |
 
 ### Hardware Design
 
@@ -299,21 +308,101 @@ See [`.arch/hardware/HARDWARE-OPTIONS.md`](.arch/hardware/HARDWARE-OPTIONS.md) f
 - New or removed test files or layers
 - Dependency changes (Cargo.toml / package.json)
 
-## Google Fit Integration
+## Health sources
 
-Walking-steps integration uses Google OAuth2 with the
-`https://www.googleapis.com/auth/fitness.activity.read` scope.
+Health data is **source-agnostic**. `trait HealthSource` (`health_source.rs`)
+has three methods — `id()`, `view()` (cache-only), `refresh()` (may hit the
+network) — and `HealthAggregator` merges every registered source by the
+freshest `fetched_at_ms`, passing errors through with `auth_revoked`
+outranking `transient`. Two sources ship today: Google Fit (pull) and the LAN
+push inlet. Google Fit's announced shutdown (late 2026) is therefore a source
+that stops registering, not a rewrite —
+[ADR 020](.arch/ADR/020-health-source-inlet.md).
 
-### Required `.env` keys (in `apps/desk/.env`)
+IPC: `get_health_today`, `refresh_health_now` — both return a `HealthView`.
+Frontend: `useHealth.ts` (IPC poll on desktop, WS snapshot on the phone) →
+`HealthWidget.tsx`. `commands_google_fit.rs` and `StepsWidget.tsx` are gone.
+
+### `.env` keys — all optional, absence is never an error
+
+| Key | Feature | Absent means |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REFRESH_TOKEN` | Google Fit source | the source no-ops; the widget shows "connect health source" |
+| `GOOGLE_FIT_STEPS_SOURCE` | pins a Fit data source (below) | auto-discovery |
+| `DESK_REMOTE_TOKEN` | the write gate for **both** LAN inlets | the inlets are **closed** — every push gets `503`, never `200` |
+| `OPENROUTER_API_KEY` | BYOK voice AI reply | acknowledgements carry no `reply`; the feature is off, not broken |
+| `DESK_NOTIFY_WEBHOOK_URL` | outbound phone push (fallback for `AppConfig.notify_webhook_url`) | nothing is pushed |
+
+Secrets stay in `.env` and never enter `AppConfig`, which carries only the
+derived `remote_token_set` boolean plus `notify_webhook_enabled`,
+`notify_webhook_url` and `voice_ai_model`.
+
+### Push contract — `POST /display/health`
+
+Anything on the LAN — the phone, a script, a future Health Connect companion —
+can push today's readings in. Guarded by `fn require_token`
+(`remote_auth.rs`, constant-time compare against `DESK_REMOTE_TOKEN`), body
+capped at **1 KiB**:
 
 ```
-GOOGLE_CLIENT_ID=...        # from Google Cloud Console
-GOOGLE_CLIENT_SECRET=...    # from Google Cloud Console
-GOOGLE_REFRESH_TOKEN=...    # obtained via the auth helper script below
+{"steps_today": 1234, "heart_rate_bpm": 61, "hrv_rmssd_ms": 42.0,
+ "source_id": "phone", "measured_at_ms": 1757160000000}
 ```
 
-When any of these is missing, the StepsWidget renders a "connect google fit"
-hint and the backend service no-ops (no errors).
+`steps_today`, `source_id` (1–64 chars) and `measured_at_ms` are required; the
+other two are optional — omit them rather than sending `0`. A pushed snapshot
+is **withdrawn after 1 hour** (`STALE_AFTER_MS`) so the app falls back to
+another source instead of presenting stale steps as current. Responses:
+`200` merged view · `401` bad token · `413` oversize · `422` unusable value ·
+`400` not the schema · `503` no token configured on the PC.
+Full table with a `curl` example: [`docs/REMOTE_DISPLAY.md`](docs/REMOTE_DISPLAY.md).
+
+### Voice dictation — `POST /display/voice`
+
+Same token gate, 4 KiB cap, `{transcript(1..2000), lang?, captured_at_ms}`.
+`enum Intent` (`voice_intent.rs`) parses the text **offline** into
+`Snooze(u16)` / `Note` / `WalkStart` / `WalkEnd` from an ordered table of
+Polish + English regexes; unrecognised text is always a `Note`.
+
+The pipeline writes events, never engine state: `EventLogger` `VOICE` line →
+`voice_notes` row → side effect → optional AI reply → `desk:voice-ack`
+broadcast → webhook push. **`Snooze` is the only intent with a side effect**,
+and it sets `CommunicationPolicy`'s existing snooze fields. Nothing here
+touches `session_*.rs` — [ADR 015](.arch/ADR/015-pure-ergo-engine.md) keeps
+the engine pure, [ADR 021](.arch/ADR/021-voice-in-on-phone-watch-as-glance.md)
+records why a spoken "I'm walking" may not set `DeskState`.
+
+Input happens on the phone at `/display` (`VoiceCapture.tsx`): the keyboard's
+own mic dictating into a textarea is the primary path; the
+`SpeechRecognition` button is progressive enhancement, shown only when the API
+exists and the mic permission is not `denied`. The watch runs no code — it
+mirrors the phone's notification.
+
+### Outbound webhook — `struct WebhookNotifier`
+
+`notify_webhook.rs` pushes `{title, message, priority, tags}` to an
+ntfy-shaped endpoint (`POST <base>/<topic>`, `Content-Type: application/json`)
+for the sit-limit alert and every voice acknowledgement. Fire-and-forget:
+spawned on tokio, never awaited, 5 s per attempt, one retry on 5xx or timeout,
+no retry on 4xx. Gated by `notify_webhook_enabled` (default off) — nothing
+leaves the machine until the user turns it on.
+
+### BYOK line
+
+Everything local ships in the open app: the inlets, the intent parser, the
+capture UI, the webhook. The AI reply (`fn reply` in `voice_ai.rs`) is
+**bring-your-own-key** — the user's OpenRouter key, their model
+(`AppConfig.voice_ai_model`, default `google/gemini-2.5-flash-lite`), 8 s
+timeout, ≤60-word ergonomics-coaching prompt. Hosted AI coaching and cloud
+relay stay behind the Pro line of
+[ADR 005](.arch/ADR/005-open-core-software-model.md).
+
+### Google Fit — still here, with a dated warning
+
+Google OAuth2 with the `fitness.activity.read` scope; heart rate additionally
+via the `com.google.heart_rate.bpm` aggregate. The source is **not** being
+removed (E021-D6): while it is the only registered source, the widget's
+tooltip carries "Google Fit ends late 2026".
 
 ### Optional — pin a specific steps data source
 
@@ -348,10 +437,23 @@ and prints `GOOGLE_REFRESH_TOKEN=...` to the terminal. Paste that line
 into `apps/desk/.env` and restart `pnpm tauri:dev`.
 
 ### Source map
+- `src-tauri/src/health_source.rs` — `trait HealthSource` + `HealthAggregator` (merge by freshness)
+- `src-tauri/src/health_models.rs` — `HealthSnapshot`, `HealthView`, `HealthErrorKind` (ts-rs exported)
+- `src-tauri/src/remote_auth.rs` — `fn require_token` + constant-time compare; unset token = `503`
+- `src-tauri/src/remote_routes_health.rs` — `POST /display/health`, `PushHealthSource`, 1 h staleness
+- `src-tauri/src/remote_routes_voice.rs` — `POST /display/voice`, the five-step pipeline, `VoiceAck`
+- `src-tauri/src/voice_intent.rs` — `enum Intent` + the PL/EN regex table
+- `src-tauri/src/db_voice_notes.rs` — `voice_notes` table, local-day bucketing
+- `src-tauri/src/voice_ai.rs` — `fn reply`, BYOK OpenRouter, endpoint injectable for tests
+- `src-tauri/src/notify_webhook.rs` — `struct WebhookNotifier`, fire-and-forget ntfy push
 - `src-tauri/src/google_fit.rs` — OAuth + Fitness API client (endpoints injectable for tests)
-- `src-tauri/src/google_fit_models.rs` — wire types + `StepsView` with `error_kind`
-- `src-tauri/src/google_fit_service.rs` — cache, dedup, DST-correct day window
+- `src-tauri/src/google_fit_models.rs` — Fit wire types + `ErrorKind`
+- `src-tauri/src/google_fit_service.rs` — implements `HealthSource`; cache, dedup, DST-correct day window
 - `src-tauri/src/google_fit_http_tests.rs` — wiremock-backed integration tests
-- `src-tauri/src/commands_google_fit.rs` — `get_steps_today`, `refresh_steps_now` (both return `StepsView`)
-- `src/components/StepsWidget.tsx` — KPI-style badge in `OneBarWidget`, with reconnect CTA + stale detection + exponential backoff
-- `.arch/ADR/012-google-fit-integration.md` — decision record
+- `src-tauri/src/commands_health.rs` — `get_health_today`, `refresh_health_now`, `list_voice_notes`
+- `src/hooks/useHealth.ts` — IPC poll on desktop, WS snapshot on the phone
+- `src/components/HealthWidget.tsx` — KPI-style badge in `OneBarWidget`, reconnect CTA + stale detection + backoff
+- `src/components/VoiceCapture.tsx` — phone-only dictation panel (`/display`)
+- `.arch/ADR/012-google-fit-integration.md` — the Fit client (partially superseded)
+- `.arch/ADR/020-health-source-inlet.md` — the trait, the aggregator, the LAN inlet
+- `.arch/ADR/021-voice-in-on-phone-watch-as-glance.md` — voice in, watch as glance, intents as events

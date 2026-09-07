@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "T01",
+  "check_id": "spike-results",
+  "class": "manual",
+  "timestamp": "2026-09-07T02:08:30.141Z",
+  "command_digest": "sha256:1b50c200002d3b039b7270bdb37a456f0fbb0fca1167fdf5f3c7bfcc86f05cb5",
+  "result": "fail",
+  "duration_ms": 121,
+  "source_commit": "c8b379730e35350cc608ea8eb86de0488bb81d53",
+  "source_fingerprint": "sha256:eeea138000c437f9a372a4f5cb690ac79d624629f7890fa8b87b93b030ee0172"
+}

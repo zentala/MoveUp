@@ -140,8 +140,8 @@ The popup widget renders top-to-bottom (reordered in E002-T08):
 │ ████████████████████░░░░░░░░░░░░░░░░░░░ │  stood 12m ✓
 ├──────────────────────────────────────────┤
 │ Today                                    │  KpiStrip ("Today" + 4 badges
-│ ↕ Standing 12%  ⇄ Changes 1.2/h  ...    │   + StepsWidget, see 2.9)
-│ Steps 8,412 ↻                            │
+│ ↕ Standing 12%  ⇄ Changes 1.2/h  ...    │   + HealthWidget, see 2.9)
+│ Steps 8,412 ♥ 61 phone ↻                 │
 ├──────────────────────────────────────────┤
 │ ▓▓▓▓░░▓▓▓▓▓▓▓▓░░▓▓▓▓▓▓▓▓▓▓▓▓▓▓░▓▓▓▓▓▓│  OneBarTimeline (+ live block)
 │  8         9        10        11         │  (hour markers; click → Analyst)
@@ -240,40 +240,49 @@ changes.
 
 Source: `OneBarTimeline.tsx:13-17,66-86,124`
 
-### 2.9 Steps Widget (Google Fit)
+### 2.9 Health Widget (steps + optional heart rate)
 
-A compact "steps today" badge slotted **inside** the KPI strip (2.5), so it
+A compact "health today" badge slotted **inside** the KPI strip (2.5), so it
 wraps in the same flex flow as the four metric badges and reads as a fifth
-badge. Unlike those four, its number does not come from the app's own engine:
-it comes from **Google Fit**, over the `fitness.activity.read` OAuth scope,
-fetched by the Rust backend and read by the UI through the
-`get_steps_today` / `refresh_steps_now` commands.
+badge. Unlike those four, its numbers do not come from the app's own engine —
+they come from whichever health source is registered, merged by
+`HealthAggregator` and read through `get_health_today` / `refresh_health_now`.
+
+Renamed from **Steps Widget (Google Fit)** in E021-T04: the source is no
+longer Google Fit specifically, so the badge names the metric, not the vendor
+([ADR 020](ADR/020-health-source-inlet.md)).
 
 | Situation | What the user sees |
 |---|---|
-| Google Fit not configured (no `GOOGLE_REFRESH_TOKEN`) | `Steps  connect google fit` — muted hint; tooltip names the `.env` key |
-| Configured, no snapshot fetched yet | `Steps  —` |
-| Fresh snapshot (< 1 h old) | `Steps  8,412` plus a `↻` refresh button; count uses the OS locale's thousands separator |
-| Stale snapshot (> 1 h old) | same count, dimmed; tooltip says "Last successful refresh > 1h ago (stale)" |
-| Refresh token revoked (`auth_revoked`) | `Steps  reconnect google fit` — tooltip gives the exact repair command, `node apps/desk/scripts/google-fit-auth.cjs` |
-| Transient error (network, API) | last known count, plus a small red dot; tooltip carries the error message |
-| Remote display (browser, no Tauri) | `Steps  not available` — steps are desktop-only |
+| No source configured | `Health  connect health source` — muted; tooltip names both routes in: `GOOGLE_REFRESH_TOKEN` in `.env`, or `POST /display/health` |
+| Configured, no snapshot yet | `Steps  —` |
+| Fresh snapshot (< 1 h) | `Steps  8,412` + the source label (`Google Fit`, `phone`, or the raw `source_id`) + a `↻` refresh button. Count uses the OS locale's thousands separator |
+| Source supplies heart rate | an extra `♥ 61` badge; absent when no source sent one — never `0` |
+| Stale snapshot (> 1 h) | same count, dimmed; tooltip: "Last successful refresh > 1h ago (stale)" |
+| Refresh token revoked (`auth_revoked`) | `Health  reconnect google fit` — tooltip gives the exact repair command, `node apps/desk/scripts/google-fit-auth.cjs` |
+| Transient error (network, API) | last known count plus a small red dot; tooltip carries the error message |
+| Google Fit is the source | the tooltip appends **"Google Fit ends late 2026"** — a dated warning, not a removal (E021-D6) |
+| Remote display (phone browser) | **the same data as the desktop**, minus the `↻` button. Before E021 the widget bailed out whenever it was not running under Tauri, so the phone showed nothing |
 
-**Refresh cadence.** First fetch ~500 ms after the popup mounts, then every
-5 minutes on success. A transient failure backs off 1 → 2 → 5 → 10 → 30 min
-and stays at 30. `auth_revoked` stops the polling entirely — retrying without
-the user re-consenting cannot succeed. The `↻` button forces a refresh at any
-time and is disabled while one is in flight.
+**Transports.** One hook, `useHealth.ts`, two behaviours: on the desktop it
+polls over IPC (first fetch ~500 ms after mount, then 5 min on success, with a
+1 → 2 → 5 → 10 → 30 min backoff on transient failure that stays at 30); on the
+phone it reads `health` out of the WS snapshot and **never polls**.
+`auth_revoked` stops the desktop polling entirely — retrying without the user
+re-consenting cannot succeed. The `↻` button forces a refresh and is disabled
+while one is in flight.
 
 **Why it is here.** Standing at the desk and walking are both breaks, but the
-app's own sensor only sees the desk. Google Fit steps are the one signal that
+app's own sensor only sees the desk. Steps are the one signal that
 distinguishes "stood still" from "actually moved", so the badge sits next to
 the ergonomic KPIs rather than in the Analyst window.
 
-Setup and the three `.env` keys: root `CLAUDE.md` §Google Fit Integration.
+Setup, the `.env` keys and the push contract: root `CLAUDE.md` §Health
+sources, and [`docs/REMOTE_DISPLAY.md`](../docs/REMOTE_DISPLAY.md).
 
-Source: `StepsWidget.tsx`, `OneBarWidget.tsx:69-71`, `KpiStrip.tsx:14`,
-`google_fit_service.rs`, `commands_google_fit.rs`
+Source: `HealthWidget.tsx`, `useHealth.ts`, `OneBarWidget.tsx:69-71`,
+`KpiStrip.tsx:14`, `health_source.rs`, `google_fit_service.rs`,
+`remote_routes_health.rs`, `commands_health.rs`
 
 ---
 
@@ -722,6 +731,9 @@ Validation: if `sitting_mm >= standing_mm`, both reset to defaults with a warnin
 | `notify_inactivity` | true | Alert when no position change for 60 minutes. |
 | `notify_daily_posture_balance` | true | Alert when sitting > 2x standing time today. |
 | `notify_praise_halfway` | true | Praise when standing reaches 50% of `stand_limit_secs`. |
+| `notify_webhook_enabled` | false | Master switch for the outbound phone push (Settings → More → Phone notifications). Off means `WebhookNotifier::from_env_or_config` returns `None` and nothing is sent, whatever the URL says. |
+| `notify_webhook_url` | *(unset)* | Endpoint the push goes to, ntfy-shaped (`POST <base>/<topic>`, JSON `{title, message, priority, tags}`). Falls back to `DESK_NOTIFY_WEBHOOK_URL` from `.env` when the field is empty. |
+| `voice_ai_model` | *(unset)* | OpenRouter model for the voice reply. Empty = `google/gemini-2.5-flash-lite`. Ignored entirely when `OPENROUTER_API_KEY` is unset — no key means no reply, not an error. |
 
 ### Overlay (Environment Variables, read at startup)
 
@@ -758,6 +770,20 @@ Beyond the alert escalation system, these one-shot notifications fire:
 | Standing target reached | Standing reaches 100% of standing target | "Standing target reached!" | "Great break! You stood for the full target duration." |
 
 Source: `serial_periodic.rs:36-141`, `session_breaks.rs:98-157`
+
+### Off-screen mirror (E021, opt-in)
+
+These are desktop toasts. When `notify_webhook_enabled` is on and a URL is
+configured, `notify_webhook.rs` also pushes the sit-limit alert — and every
+voice acknowledgement — to the user's own ntfy-shaped endpoint. Android shows
+that as a phone notification and mirrors it to a paired watch, which is the
+whole of the watch integration: **the watch shows, it never runs our code**
+([ADR 021](ADR/021-voice-in-on-phone-watch-as-glance.md)).
+
+The push is fire-and-forget: spawned on tokio, never awaited by the caller,
+5 s per attempt, one retry on 5xx or timeout, no retry on 4xx. A dead webhook
+delays no toast and fails no request. Default is **off** — nothing leaves the
+machine until the user configures it.
 
 ---
 
@@ -830,3 +856,70 @@ the Gantt is the source of truth.
   full input list is never rendered as SVG path commands.
 - Chart inputs are memoised on `(from, to, data.length)` so identical data
   does not re-trigger React renders.
+
+---
+
+## 12. Voice Dictation (phone display only)
+
+`VoiceCapture.tsx` renders on `/display` — the phone dashboard — and **never
+in the desktop popup**, which already has a keyboard. It is how the user
+answers the app from across the room.
+Decision record: [ADR 021](ADR/021-voice-in-on-phone-watch-as-glance.md).
+
+### What the user sees
+
+| Element | When | Behaviour |
+|---------|------|-----------|
+| Token sheet | No `desk_token` in `localStorage` | Asks for the shared secret once. Stored in `localStorage` (wrapped in try/catch — private mode throws), sent as `X-Desk-Token` on every post. Without it the inlet answers `401`. |
+| Textarea + Send | Always | **The primary path.** The user taps the phone keyboard's own mic (Gboard / Samsung) and dictates into the field — OS dictation, which works on any origin. |
+| Mic button | Only when `window.SpeechRecognition` exists **and** `navigator.permissions.query({name:"microphone"})` is not `denied` | Progressive enhancement. Where the browser cannot do it the button is **absent**, never present-and-broken. `/display` is plain HTTP, and Chrome wants a secure context for this API. |
+| Acknowledgement | After the post | Arrives asynchronously on the WebSocket as `desk:voice-ack`, not in the POST response. Shows the parsed intent and the AI reply when there is one. |
+
+Double-clicking Send is guarded — the second click while a post is in flight
+does nothing.
+
+### What a sentence does
+
+`voice_intent.rs::parse` maps the transcript offline (Polish + English
+regexes, no API key, no network):
+
+| Intent | Example phrases | Effect on the app |
+|--------|-----------------|-------------------|
+| `snooze` | "drzemka 5", "odłóż o 10 minut", "snooze", "remind me in 20" | Sets `CommunicationPolicy`'s existing snooze fields — the same ones the alert popup's snooze button sets. Minutes clamped to **1–180**, default **5**. |
+| `walk_start` | "idę na spacer", "wychodzę", "going for a walk" | **Nothing but the record.** Does not change `DeskState`, does not touch the session engine. |
+| `walk_end` | "wracam", "koniec spaceru", "I'm back" | Same — recorded only. Matched *before* `walk_start`, because "wracam ze spaceru" contains a walk. |
+| `note` | anything unrecognised | The fallback, by design: no transcript is ever dropped for not matching a rule. |
+
+A spoken "I'm walking" is deliberately **not** allowed to set the state.
+[ADR 015](ADR/015-pure-ergo-engine.md) keeps the session engine a pure core;
+letting a sentence set position would give it two contradictory sources of
+truth. A manual override is a future engine feature with its own ADR.
+
+### Where a dictation ends up
+
+Every sentence lands in three places, in this order:
+
+1. **`events.log`** — a `VOICE <intent> <transcript truncated to 80 chars>`
+   line, written *first*, so a later failure still leaves the record
+   (`.claude/rules/logging.md`);
+2. **`voice_notes`** in SQLite — transcript, intent, language, optional AI
+   reply, bucketed by the local day of `captured_at_ms`. Listed by
+   `list_voice_notes(day)` and visible in Analyst → Catalog as the
+   `voice_notes` source;
+3. **the acknowledgement** — broadcast as `desk:voice-ack`, then pushed to the
+   webhook (§9) so the reply reaches the phone and the watch.
+
+### Degraded paths
+
+Each leg is independently optional, and the request still returns `200` with
+the parsed intent when one is missing:
+
+| Missing | Result |
+|---------|--------|
+| `DESK_REMOTE_TOKEN` unset on the PC | `503` — the inlet is **closed**, not open. This is the only case where nothing is recorded. |
+| Wrong / missing `X-Desk-Token` | `401` |
+| Body over 4 KiB | `413` |
+| Transcript empty or over 2000 chars | `422` |
+| No database open | Note is logged and acknowledged; `note_id` is absent |
+| No `OPENROUTER_API_KEY` | Acknowledged with no `reply` — the AI is off, not broken |
+| Webhook off or unreachable | Everything else still happens; the ack still shows on the phone |

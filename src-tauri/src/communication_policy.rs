@@ -113,6 +113,32 @@ impl CommunicationPolicy {
         self.notify_count = 0;
     }
 
+    /// Snooze for an explicit number of minutes (voice intent, E021-T06).
+    ///
+    /// Differs from [`dismiss`](Self::dismiss) in two ways, both deliberate:
+    /// the length comes from the user rather than from the profile's
+    /// escalation ladder, and `snooze_index` is left alone — a dictated
+    /// "drzemka 5" is not an escalation step, so it must not push the next
+    /// dismissal further out.
+    ///
+    /// A request of zero minutes is ignored rather than treated as "unsnooze",
+    /// because the two are different asks and the parser never produces zero.
+    pub fn snooze_for(&mut self, minutes: u16) {
+        if minutes == 0 {
+            return;
+        }
+        self.snoozed_until = Some(Instant::now() + Duration::from_secs(u64::from(minutes) * 60));
+        self.last_notify_step = None;
+        self.last_notify_time = None;
+        self.notify_count = 0;
+    }
+
+    /// Whether escalation is currently silenced. An expired snooze reads as
+    /// `false` without needing an [`evaluate`](Self::evaluate) tick first.
+    pub fn is_snoozed(&self) -> bool {
+        self.snoozed_until.is_some_and(|until| Instant::now() < until)
+    }
+
     /// Reset snooze state and notification tracking on position change.
     pub fn on_position_changed(&mut self) {
         self.snoozed_until = None;

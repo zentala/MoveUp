@@ -9,7 +9,7 @@
 use crate::google_fit::{
     Credentials, Endpoints, ErrorKind, GoogleFitClient,
 };
-use wiremock::matchers::{header, method, path, query_param};
+use wiremock::matchers::{body_string_contains, header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn fake_creds() -> Credentials {
@@ -174,4 +174,104 @@ async fn aggregate_malformed_json_classified_as_transient() {
         .await
         .expect_err("should fail to parse");
     assert_eq!(err.kind, ErrorKind::Transient);
+}
+
+#[tokio::test]
+async fn fetch_heart_rate_averages_fp_vals() {
+    let server = MockServer::start().await;
+
+    mount_token_ok(&server, "fake-access").await;
+
+    Mock::given(method("POST"))
+        .and(path("/aggregate"))
+        .and(body_string_contains("com.google.heart_rate.bpm"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "bucket": [{
+                "dataset": [{
+                    "point": [
+                        {"value": [{"fpVal": 71.0}]},
+                        {"value": [{"fpVal": 73.0}]}
+                    ]
+                }]
+            }]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let client = client_for(&server).await;
+    let bpm = client
+        .fetch_heart_rate(0, 86_400_000, "derived:hr:source")
+        .await
+        .expect("fetch_heart_rate should succeed");
+    assert_eq!(bpm, Some(72));
+}
+
+#[tokio::test]
+async fn fetch_heart_rate_returns_none_when_no_points() {
+    let server = MockServer::start().await;
+
+    mount_token_ok(&server, "fake-access").await;
+
+    // An account with no heart-rate data gets an empty bucket list, not an
+    // error — and must not be reported as 0 bpm.
+    Mock::given(method("POST"))
+        .and(path("/aggregate"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"bucket": []})))
+        .mount(&server)
+        .await;
+
+    let client = client_for(&server).await;
+    let bpm = client
+        .fetch_heart_rate(0, 86_400_000, "derived:hr:source")
+        .await
+        .expect("empty data is not an error");
+    assert_eq!(bpm, None);
+}
+
+#[tokio::test]
+async fn list_heart_rate_sources_queries_the_heart_rate_data_type() {
+    let server = MockServer::start().await;
+
+    mount_token_ok(&server, "fake-access").await;
+
+    Mock::given(method("GET"))
+        .and(path("/dataSources"))
+        .and(query_param("dataTypeName", "com.google.heart_rate.bpm"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "dataSource": [
+                {"dataStreamId": "derived:com.google.heart_rate.bpm:com.google.android.gms:merge_heart_rate_bpm"}
+            ]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let client = client_for(&server).await;
+    let sources = client
+        .list_heart_rate_sources()
+        .await
+        .expect("list_heart_rate_sources");
+    assert_eq!(sources.len(), 1);
+    assert!(sources[0].contains("merge_heart_rate_bpm"));
+}
+
+#[tokio::test]
+async fn heart_rate_401_classified_as_auth_revoked() {
+    let server = MockServer::start().await;
+
+    mount_token_ok(&server, "fake-access").await;
+
+    Mock::given(method("POST"))
+        .and(path("/aggregate"))
+        .respond_with(ResponseTemplate::new(401).set_body_string("Unauthorized"))
+        .mount(&server)
+        .await;
+
+    let client = client_for(&server).await;
+    let err = client
+        .fetch_heart_rate(0, 86_400_000, "derived:hr:source")
+        .await
+        .expect_err("should fail");
+    assert_eq!(err.kind, ErrorKind::AuthRevoked);
 }

@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use crate::commands_catalog_sources::{
     events_log_source, profiles_communication_source, profiles_ergonomic_source, remote_ws_source,
-    sensor_source, snapshots_source, sqlite_sessions_source, store_source,
+    sensor_source, snapshots_source, sqlite_sessions_source, store_source, voice_notes_source,
 };
 
 /// Top-level catalog payload returned to the frontend.
@@ -52,6 +52,7 @@ pub fn build_catalog() -> DataCatalog {
             profiles_communication_source(),
             store_source(),
             remote_ws_source(),
+            voice_notes_source(),
         ],
         generated_at: chrono::Utc::now().to_rfc3339(),
     }

@@ -1,19 +1,25 @@
-//! Data structures for the Google Fit walking-steps integration.
+//! Wire types for the Google Fit integration.
 //!
-//! Three categories of types live here:
+//! Two categories live here:
 //! 1. **OAuth wire types** — what the Google token endpoint returns.
-//! 2. **Fit API wire types** — the minimal subset of the aggregate response.
-//! 3. **Public snapshot + view types** — cached values exposed to the UI.
+//! 2. **Fit API wire types** — the minimal subset of the aggregate
+//!    response, for steps (`intVal`) and heart rate (`fpVal`).
+//!
+//! The UI-facing snapshot and view types are source-agnostic and live in
+//! [`crate::health_models`].
 
 use serde::{Deserialize, Serialize};
 
 /// Classification of API failures the frontend cares about.
 ///
 /// Lives here (with the other wire types) rather than in `google_fit.rs`
-/// because it is serialized as part of `StepsView` — and keeping it next
-/// to the type it embeds avoids the otherwise circular `google_fit.rs`
-/// ↔ `google_fit_models.rs` import.
+/// because it is serialized as part of `HealthView` — keeping it next to
+/// the type it embeds avoids the otherwise circular `google_fit.rs`
+/// ↔ `google_fit_models.rs` import. Re-exported as
+/// [`HealthErrorKind`](crate::health_models::HealthErrorKind).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorKind {
     /// Token revoked, expired beyond recovery, or scope missing. User
@@ -61,43 +67,14 @@ pub struct AggregatePoint {
     pub value: Vec<AggregateValue>,
 }
 
-/// A single value entry; for step counts only `int_val` is populated.
+/// A single value entry. Step counts populate `int_val`; heart rate is a
+/// floating-point average and populates `fp_val`.
 #[derive(Debug, Deserialize)]
 pub struct AggregateValue {
     #[serde(default, rename = "intVal")]
     pub int_val: Option<i64>,
-}
-
-/// Cached, UI-ready representation of "steps today".
-///
-/// `fetched_at_ms` is wall-clock unix-milliseconds at the moment the snapshot
-/// was produced, allowing the frontend to render a relative "5 minutes ago"
-/// and detect stale data.
-#[derive(Debug, Clone, Serialize)]
-pub struct StepsSnapshot {
-    pub steps_today: i64,
-    pub fetched_at_ms: i64,
-}
-
-/// Full view returned by both `get_steps_today` and `refresh_steps_now` IPC
-/// commands — symmetric shape so the frontend handles one type.
-///
-/// Semantics:
-/// - `configured = false` → user has not set up OAuth; show setup hint
-/// - `configured = true, snapshot = None, error_kind = None` → loading
-/// - `configured = true, snapshot = Some(_), error_kind = None` → fresh data
-/// - `configured = true, error_kind = Some(AuthRevoked)` → show reconnect CTA
-/// - `configured = true, error_kind = Some(Transient)` → keep last snapshot,
-///   show subtle indicator that the latest refresh failed
-#[derive(Debug, Clone, Serialize)]
-pub struct StepsView {
-    pub configured: bool,
-    pub snapshot: Option<StepsSnapshot>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error_kind: Option<ErrorKind>,
-    /// Optional human-readable error message (sanitized — no secrets).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error_message: Option<String>,
+    #[serde(default, rename = "fpVal")]
+    pub fp_val: Option<f64>,
 }
 
 impl AggregateResponse {
@@ -115,6 +92,30 @@ impl AggregateResponse {
             .flat_map(|p| &p.value)
             .filter_map(|v| v.int_val)
             .sum()
+    }
+
+    /// Average heart rate across every `fpVal` in the response, rounded to
+    /// whole beats per minute.
+    ///
+    /// Returns `None` when the response carries no floating-point values —
+    /// the shape Google returns for a user whose devices record no heart
+    /// rate. "No sensor" must not read as "0 bpm", so this is an `Option`,
+    /// never a zero.
+    pub fn average_bpm(&self) -> Option<u16> {
+        let values: Vec<f64> = self
+            .bucket
+            .iter()
+            .flat_map(|b| &b.dataset)
+            .flat_map(|d| &d.point)
+            .flat_map(|p| &p.value)
+            .filter_map(|v| v.fp_val)
+            .filter(|v| v.is_finite() && *v > 0.0)
+            .collect();
+        if values.is_empty() {
+            return None;
+        }
+        let mean = values.iter().sum::<f64>() / values.len() as f64;
+        Some(mean.round().clamp(0.0, u16::MAX as f64) as u16)
     }
 }
 
@@ -169,15 +170,31 @@ mod tests {
     }
 
     #[test]
-    fn steps_view_omits_none_error_fields_in_json() {
-        let v = StepsView {
-            configured: true,
-            snapshot: Some(StepsSnapshot { steps_today: 7, fetched_at_ms: 1 }),
-            error_kind: None,
-            error_message: None,
-        };
-        let s = serde_json::to_string(&v).unwrap();
-        assert!(!s.contains("error_kind"), "error_kind=None must be omitted: {s}");
-        assert!(!s.contains("error_message"), "error_message=None must be omitted: {s}");
+    fn average_bpm_averages_fp_vals() {
+        let json = r#"{
+            "bucket": [{
+                "dataset": [{
+                    "point": [
+                        { "value": [{ "fpVal": 70.0 }] },
+                        { "value": [{ "fpVal": 75.0 }] }
+                    ]
+                }]
+            }]
+        }"#;
+        let resp: AggregateResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.average_bpm(), Some(73)); // 72.5 rounds to 73
+    }
+
+    #[test]
+    fn average_bpm_is_none_when_no_fp_vals() {
+        let json = r#"{"bucket":[{"dataset":[{"point":[{"value":[{"intVal":10}]}]}]}]}"#;
+        let resp: AggregateResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.average_bpm(), None, "no sensor must not read as 0 bpm");
+    }
+
+    #[test]
+    fn average_bpm_is_none_for_empty_response() {
+        let resp: AggregateResponse = serde_json::from_str(r#"{"bucket": []}"#).unwrap();
+        assert_eq!(resp.average_bpm(), None);
     }
 }

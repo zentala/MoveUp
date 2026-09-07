@@ -5,12 +5,27 @@
 
 use crate::commands_catalog::{build_catalog, get_data_catalog};
 
+/// Every source the catalog must describe. Grows with each new data source —
+/// E021-T06 added `voice_notes`.
+const EXPECTED_SOURCE_IDS: &[&str] = &[
+    "sensor",
+    "sqlite_sessions",
+    "snapshots",
+    "events_log",
+    "profiles_ergonomic",
+    "profiles_communication",
+    "store",
+    "remote_ws",
+    "voice_notes",
+];
+
 #[test]
-fn catalog_has_all_eight_sources() {
+fn catalog_has_all_expected_sources() {
     let catalog = build_catalog();
     assert!(
-        catalog.sources.len() >= 8,
-        "expected >= 8 sources, got {}",
+        catalog.sources.len() >= EXPECTED_SOURCE_IDS.len(),
+        "expected >= {} sources, got {}",
+        EXPECTED_SOURCE_IDS.len(),
         catalog.sources.len()
     );
 }
@@ -39,16 +54,7 @@ fn every_source_has_id_and_fields() {
 fn source_ids_match_research_report() {
     let catalog = build_catalog();
     let ids: Vec<&str> = catalog.sources.iter().map(|s| s.id.as_str()).collect();
-    for expected in &[
-        "sensor",
-        "sqlite_sessions",
-        "snapshots",
-        "events_log",
-        "profiles_ergonomic",
-        "profiles_communication",
-        "store",
-        "remote_ws",
-    ] {
+    for expected in EXPECTED_SOURCE_IDS {
         assert!(ids.contains(expected), "missing source id: {}", expected);
     }
 }
@@ -80,7 +86,7 @@ fn command_returns_ok() {
     let result = get_data_catalog();
     assert!(result.is_ok());
     let catalog = result.expect("ok");
-    assert_eq!(catalog.sources.len(), 8);
+    assert_eq!(catalog.sources.len(), EXPECTED_SOURCE_IDS.len());
 }
 
 #[test]

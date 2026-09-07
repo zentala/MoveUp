@@ -53,10 +53,25 @@
     <feature name="notifications">
       <description>Native desktop notifications with trigger_test_notification command, configurable backend</description>
     </feature>
-    <feature name="google-fit-steps">
-      <description>Opt-in walking-steps badge in OneBarWidget — fetches today's step count from Google Fit REST API. OAuth2 offline access with one-time consent (helper script: apps/desk/scripts/google-fit-auth.cjs). Configured via GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN in apps/desk/.env (gitignored). Optional GOOGLE_FIT_STEPS_SOURCE overrides auto-discovered data source. See ADR 012.</description>
-      <commands>get_steps_today, refresh_steps_now</commands>
+    <feature name="health-badge">
+      <description>Source-agnostic health badge (HealthWidget, formerly StepsWidget) in OneBarWidget — today's steps, optional heart rate, and the producing source_id. Google Fit is one source (OAuth2 offline access, helper script apps/desk/scripts/google-fit-auth.cjs, GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN in apps/desk/.env, optional GOOGLE_FIT_STEPS_SOURCE); the LAN push inlet POST /display/health is another. A Google-Fit-only view carries a "Google Fit ends late 2026" tooltip. See ADR 012 and E021-T02/T03/T04.</description>
+      <commands>get_health_today, refresh_health_now</commands>
+      <transports>Desktop reads over Tauri IPC with a 5-min success interval and a 1/2/5/10/30-min backoff ladder; the remote display reads `health` out of the RemoteDisplayState WS snapshot and never polls (src/hooks/useHealth.ts owns both).</transports>
       <error-model>Backend classifies failures as auth_revoked (invalid_grant / 401 → re-run OAuth helper) or transient (network / 5xx / parse → exponential backoff)</error-model>
+      <decision-record>.arch/ADR/020-health-source-inlet.md (partially supersedes ADR 012)</decision-record>
+    </feature>
+    <feature name="remote-write-gate">
+      <description>The remote server's read routes stay open on the LAN; every route that WRITES app state passes remote_auth::require_token — a constant-time compare against DESK_REMOTE_TOKEN. An unset token answers 503 (closed), a wrong one 401, so "unconfigured" can never be mistaken for "working". Bodies are capped before parsing (1 KiB health, 4 KiB voice) and an unusable value answers 422, so a malformed push never looks like an empty one. See ADR 020 and E021-T03.</description>
+      <routes>GET /display/ws and GET /display/api open; POST /display/health and POST /display/voice authenticated</routes>
+    </feature>
+    <feature name="voice-dictation">
+      <description>Phone-only dictation panel on /display posting to POST /display/voice. Keyboard-mic dictation into a textarea is the primary path; the browser's SpeechRecognition button is progressive enhancement, shown only when the API exists and the mic permission is not denied (E021-D5 — /display is plain HTTP, which Chrome will not give a secure context). voice_intent::parse maps the transcript offline to Intent (Snooze/Note/WalkStart/WalkEnd) over PL+EN regexes; unrecognised text is always a Note. The pipeline writes events, never engine state: EventLogger VOICE line → voice_notes row → side effect → optional BYOK AI reply → desk:voice-ack broadcast → webhook push. Snooze is the ONLY intent with a side effect and it sets CommunicationPolicy's existing snooze fields; nothing here touches session_*.rs (E021-D3 / ADR 015). Every leg is independently optional. See ADR 021 and E021-T05/T06/T08.</description>
+      <commands>list_voice_notes(day)</commands>
+      <events>desk:voice-ack (WS DisplayEvent, wire name pinned against desk_events::DESK_VOICE_ACK by test)</events>
+      <storage>voice_notes table in SQLite + a VOICE line in logs/YYYY-MM-DD/events.log; discoverable in Analyst → Catalog</storage>
+    </feature>
+    <feature name="phone-notifications">
+      <description>Optional outbound push so replies reach the user away from the desk: notify_webhook::WebhookNotifier posts {title, message, priority, tags} to an ntfy-shaped endpoint for the sit-limit alert and every voice acknowledgement. Android shows it as a phone notification and mirrors it to a paired watch — the watch runs no MoveUp code (E021-D1 / ADR 021). Fire-and-forget: spawned on tokio, never awaited, 5s per attempt, one retry on 5xx/timeout, none on 4xx. Gated by AppConfig.notify_webhook_enabled (default off); URL from AppConfig.notify_webhook_url else DESK_NOTIFY_WEBHOOK_URL. See E021-T07.</description>
     </feature>
   </functionality>
 
@@ -112,13 +127,31 @@
       <file name="alert_popup.rs">AlertPopup — show/dismiss lifecycle</file>
       <file name="alert_popup_window.rs">WinAPI popup window thread</file>
       <file name="commands_analyst.rs">Analyst IPC: get_snapshots_range, get_events_range, get_sessions_range — read range-scoped history from disk + SQLite</file>
-      <file name="commands_google_fit.rs">Google Fit IPC: get_steps_today, refresh_steps_now — both return symmetric StepsView with error_kind classification</file>
-      <file name="google_fit.rs">Low-level Fit REST client — OAuth refresh, list_step_sources, fetch_steps. Endpoints injectable for wiremock tests. Error classification: AuthRevoked vs Transient</file>
-      <file name="google_fit_models.rs">Wire types (OAuthTokenResponse, AggregateResponse) + UI types (StepsSnapshot, StepsView with optional error_kind)</file>
-      <file name="google_fit_service.rs">Caching wrapper — single-call dedup via tokio broadcast, env override / discovery / fallback source resolution, DST-correct local-day window with injected clock</file>
-      <file name="google_fit_http_tests.rs">6 wiremock-backed integration tests covering happy path + auth_revoked + 5xx + malformed JSON</file>
+      <file name="commands_health.rs">Health IPC: get_health_today, refresh_health_now, list_voice_notes(day) — both return a symmetric HealthView merged across every registered source (E021-T02, replaces commands_google_fit.rs)</file>
+      <file name="health_models.rs">Source-agnostic DTOs: HealthSnapshot (steps + optional heart_rate_bpm/hrv_rmssd_ms + source_id + fetched_at_ms), HealthView, HealthErrorKind (alias of google_fit ErrorKind). ts-rs exported</file>
+      <file name="health_source.rs">HealthSource trait (id/view/refresh) + HealthAggregator: merges sources by freshest fetched_at_ms, passes errors through with AuthRevoked outranking Transient. The inlet the LAN push source (T03) registers into</file>
+      <file name="health_source_tests.rs">Aggregator tests over the real trait — happy / nil / empty / error paths, freshness ordering, "a healthy source never hides another source's error"</file>
+      <file name="remote_auth.rs">Shared-secret guard for the remote server's write endpoints — require_token(headers, expected) with a hand-rolled constant-time compare; unset DESK_REMOTE_TOKEN answers 503 (closed), never 200 (E021-T03)</file>
+      <file name="remote_auth_tests.rs">7 tests: match / wrong / missing header / unconfigured / non-ASCII header, and constant_time_eq agreeing with == including the 256-length-multiple case a naive u8 accumulator gets wrong</file>
+      <file name="remote_routes_health.rs">LAN push inlet POST /display/health — token required, 1 KiB body cap, schema {steps_today, heart_rate_bpm?, hrv_rmssd_ms?, source_id(1..64), measured_at_ms} into PushHealthSource, registered in HealthAggregator, snapshot withdrawn after 1h (E021-T03)</file>
+      <file name="remote_routes_health_tests.rs">12 tests driving the real seam route → PushHealthSource → HealthAggregator via axum oneshot: authenticated push merges, shows in /display/api and in last_view(), 401/413/422/400/503 paths, staleness boundary</file>
+      <file name="google_fit.rs">Low-level Fit layer — credentials, endpoints, error classification (AuthRevoked vs Transient), and SourceCache: per-data-type source discovery with a 1h failure TTL. Endpoints injectable for wiremock tests</file>
+      <file name="google_fit_client.rs">Fit HTTP calls — OAuth refresh, list_step_sources / list_heart_rate_sources, fetch_steps, fetch_heart_rate (aggregate over com.google.heart_rate.bpm), rank_sources</file>
+      <file name="google_fit_models.rs">Fit wire types (OAuthTokenResponse, AggregateResponse with total_steps / average_bpm) + ErrorKind</file>
+      <file name="google_fit_service.rs">GoogleFitService: implements HealthSource, caches the HealthSnapshot, single-call dedup via tokio broadcast, best-effort heart rate that never fails the steps refresh, DST-correct local-day window with injected clock</file>
+      <file name="google_fit_http_tests.rs">10 wiremock-backed integration tests — steps and heart-rate happy paths, auth_revoked, 5xx, malformed JSON, no-heart-rate-data</file>
+      <file name="notify_webhook.rs">Outbound ntfy/generic webhook push — fire-and-forget send, 5s per-attempt timeout, one retry on 5xx/timeout, JSON body {title, message, priority, tags}. URL from AppConfig or DESK_NOTIFY_WEBHOOK_URL, gated by the notify_webhook_enabled toggle</file>
+      <file name="notify_webhook_tests.rs">9 wiremock-backed tests: happy body shape, nil/empty/disabled config, 5xx retry, retry ceiling, timeout retry, 4xx no-retry</file>
+      <file name="voice_ai.rs">Optional AI reply to a dictated voice note — BYOK OpenRouter chat completion, key from OPENROUTER_API_KEY, model from AppConfig.voice_ai_model else google/gemini-2.5-flash-lite, fixed ergonomics-coach system prompt (max 60 words, PL/EN), 8s timeout, endpoint overridable for tests. Not wired to a route yet</file>
+      <file name="voice_intent.rs">Offline intent parser for dictated text — parse(&amp;str) -&gt; Intent (Snooze(u16) / Note / WalkStart / WalkEnd) over an ordered table of Polish+English regexes; WalkEnd is tested before WalkStart, snooze minutes clamped 1..180 with a 5-minute default, unrecognised text is always a Note (E021-T06)</file>
+      <file name="voice_intent_tests.rs">11 tests around a 12-phrase PL/EN acceptance table: every rule compiles (a dropped rule cannot silently shrink the parser), diacritic-free dictation, WalkEnd precedence, clamping, empty transcript, log truncation by characters</file>
+      <file name="remote_routes_voice.rs">Dictation inlet POST /display/voice — token required, 4 KiB body cap, {transcript(1..2000), lang?, captured_at_ms}; pipeline: EventLogger VOICE line -&gt; voice_notes insert -&gt; snooze side effect via CommunicationPolicy::snooze_for (Walk*/Note do nothing) -&gt; optional voice_ai reply -&gt; VoiceAck broadcast + webhook push. Every leg is independently optional (E021-T06)</file>
+      <file name="remote_routes_voice_tests.rs">17 tests driving the real seam route → parser → CommunicationPolicy → real SQLite via axum oneshot: snooze reaches the policy, walk intents change no session state, VOICE line written, ack broadcast, 401/413/422/400/503, and the degraded no-db / no-logger / no-AI paths</file>
+      <file name="db_voice_notes.rs">voice_notes table + insert/list/set_reply/get, local-day bucketing from captured_at_ms. Created by db::init_schema; nothing in session_*.rs reads it (E021-D3 / ADR 021)</file>
+      <file name="db_voice_notes_tests.rs">11 tests on a real SQLite connection migrated by db::init_schema — round-trip, idempotent schema, NULL lang stays unknown, day bucketing and ordering, empty/malformed day, stale set_reply reports zero rows</file>
+      <file name="voice_ai_tests.rs">12 tests: from_env key/model resolution, wiremock happy path, request shape, blank transcript (no call), empty content, no choices, 401 rejected, 5xx, malformed 200, timeout</file>
       <file name="commands_catalog.rs">Analyst IPC: get_data_catalog — static metadata of every data source the app writes</file>
-      <file name="commands_catalog_sources.rs">Helper builders for individual catalog sources (snapshots, events, sessions, store, signals)</file>
+      <file name="commands_catalog_sources.rs">Helper builders for individual catalog sources (snapshots, events, sessions, store, signals, voice_notes)</file>
     </layer>
 
     <layer name="profiles" path="src-tauri/profiles/">
@@ -164,9 +197,11 @@
         <file name="WelcomePopup.tsx">First-launch onboarding popup</file>
         <file name="AppProgressBar.tsx">14px in-app progress bar (debug)</file>
         <file name="ScreenProgressBar.tsx">4px top-of-screen CSS overlay bar</file>
+        <file name="VoiceCapture.tsx">Phone-only dictation panel — token sheet, textarea, optional mic, POST /display/voice, renders the desk:voice-ack</file>
         <dir name="settings/">
           <file name="CalibrationSection.tsx">Calibration UI section</file>
           <file name="NotificationsSection.tsx">Notification prefs section</file>
+          <file name="WebhookSection.tsx">Phone-notification section — toggle + webhook URL bound to AppConfig.notify_webhook_url</file>
           <file name="WidgetPickerSection.tsx">Widget selection dropdown</file>
           <file name="ProfileSelector.tsx">Profile dropdown — switch communication and ergonomic profiles</file>
           <file name="SettingsTypes.ts">Settings type definitions</file>
@@ -213,6 +248,10 @@
         <file name="AnalystLive.tsx">/#/analyst — live Analyst window (no fixture override)</file>
         <file name="AnalystMockup.tsx">DEV /#/mockup/analyst — Analyst window backed by fixtures</file>
         <file name="MockupGallery.tsx">DEV /#/mockup — list of all dev mockup routes</file>
+      </dir>
+
+      <dir name="mockup/">
+        <file name="VoiceCaptureGallery.tsx">DEV /#/mockup/voice — VoiceCapture scenarios (token sheet, ready, acknowledged)</file>
       </dir>
     </layer>
 
@@ -297,6 +336,15 @@
     <dir path=".claude/journals/">Sprint logs and work journals</dir>
     <dir path=".agent/vision/">Long-term vision docs</dir>
     <dir path="docs/">User-facing documentation</dir>
+    <dir path=".arch/ADR/">Architecture decision records — permanent, never deleted</dir>
+    <file path=".arch/ADR/020-health-source-inlet.md">Health arrives through a HealthSource trait + HealthAggregator + an authenticated LAN push inlet; open reads, authenticated writes. Partially supersedes ADR 012 (E021-T09)</file>
+    <file path=".arch/ADR/021-voice-in-on-phone-watch-as-glance.md">Voice goes in on the phone, the watch is a glance surface fed by notification mirroring, and a parsed intent is an event — never an engine input (E021-T09)</file>
+    <file path=".arch/ARCHITECTURE.md">Living architecture doc — component map, remote-server privilege table, health inlet and voice inlet sections</file>
+    <file path=".arch/UX-FLOW.md">What the user sees per state; §2.9 health widget, §9 off-screen mirror, §12 voice dictation</file>
+    <file path="CONTRIBUTING.md">Developer contract — how to add a health source, the write gate's three contractual behaviours, and why the voice path may not touch the engine</file>
+    <file path="docs/REMOTE_DISPLAY.md">User-facing phone setup: dashboard, health push inlet, voice dictation, phone/watch notifications</file>
+    <file path=".plan/decisions.jsonl">Durable decisions, one JSON line each (E021-D1..D6 recorded by T09)</file>
+    <file path="scripts/check-e021-t09-docs.mjs">Doc guard: asserts ADRs 020/021 exist, are linked from every index, and that each claim still matches a symbol in the code</file>
   </project-management>
 
 </project>

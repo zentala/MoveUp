@@ -83,6 +83,41 @@ describe("deskReducer — happy path", () => {
     expect(s.connected).toBe(true);
   });
 
+  it("snapshot carries the health view, and omitting it keeps the last one", () => {
+    const health = {
+      configured: true,
+      snapshot: {
+        steps_today: 4242,
+        source_id: "push",
+        fetched_at_ms: 1_715_000_000_000,
+      },
+    };
+
+    // No health has ever arrived — null, never a fabricated empty view.
+    const empty = deskReducer(initialDeskState, {
+      type: "snapshot",
+      session: makeSession(),
+      metrics: [],
+    });
+    expect(empty.health).toBeNull();
+
+    const withHealth = deskReducer(empty, {
+      type: "snapshot",
+      session: makeSession(),
+      metrics: [],
+      health,
+    });
+    expect(withHealth.health?.snapshot?.steps_today).toBe(4242);
+
+    // A backend that stops sending health must not blank the last reading.
+    const later = deskReducer(withHealth, {
+      type: "snapshot",
+      session: makeSession(),
+      metrics: [],
+    });
+    expect(later.health).toBe(health);
+  });
+
   it("state-changed updates the credited counter and opens a transition", () => {
     const s = deskReducer(initialDeskState, {
       type: "state-changed",

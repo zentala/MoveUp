@@ -19,6 +19,7 @@ import ProfileSelector from "./settings/ProfileSelector";
 import TimelineSkinSection from "./settings/TimelineSkinSection";
 import DebugSection from "./settings/DebugSection";
 import TelemetrySection from "./settings/TelemetrySection";
+import WebhookSection from "./settings/WebhookSection";
 import { AutostartToggle } from "./AutostartToggle";
 
 export type { SettingsPanelProps, DeskSettings } from "./settings/SettingsTypes";
@@ -138,6 +139,7 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
                 Show activity status (Active/Idle)
               </label>
             </div>
+            <WebhookSection settings={settings} onChange={setSettings} />
             <TelemetrySection settings={settings} onChange={setSettings} />
             <div className="settings-panel__section">
               <button className="btn btn--secondary" onClick={() => invoke("show_welcome")}>

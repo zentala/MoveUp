@@ -5,11 +5,25 @@ import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   MockWebSocket, makeSnapshot, makeStateChanged,
-  setupMocks, teardownMocks, importHook,
+  setupMocks, teardownMocks, importHook, importRemoteDeskModule,
 } from "./remoteDesk.test-helpers";
 
 beforeEach(setupMocks);
 afterEach(teardownMocks);
+
+/** Snapshot frame carrying the health slice the display server sends (E021-T03). */
+function makeSnapshotWithHealth() {
+  const frame = makeSnapshot();
+  (frame.payload as Record<string, unknown>).health = {
+    configured: true,
+    snapshot: {
+      steps_today: 1234,
+      source_id: "google_fit",
+      fetched_at_ms: 1_715_000_000_000,
+    },
+  };
+  return frame;
+}
 
 describe("useRemoteDesk", () => {
   it("parses snapshot event and updates all state fields", async () => {
@@ -153,6 +167,84 @@ describe("useRemoteDesk", () => {
     expect(result.current.breakSeconds).toBe(0);
     expect(result.current.positionChanges).toBe(0);
     expect(result.current.dailyScore).toBe(0);
+  });
+
+  it("routes a desk:voice-ack frame to the onVoiceAck option and subscribers", async () => {
+    const { useRemoteDesk, subscribeVoiceAck } = await importRemoteDeskModule();
+    const viaOption = vi.fn();
+    const viaSubscription = vi.fn();
+    const off = subscribeVoiceAck(viaSubscription);
+
+    renderHook(() => useRemoteDesk({ onVoiceAck: viaOption }));
+    const ws = MockWebSocket.latest();
+    act(() => { ws.simulateOpen(); });
+
+    const payload = { transcript: "drzemka 5", intent: "Snooze(5)", reply: "Ok." };
+    act(() => { ws.simulateMessage({ event: "desk:voice-ack", payload }); });
+
+    expect(viaOption).toHaveBeenCalledWith(payload);
+    expect(viaSubscription).toHaveBeenCalledWith(payload);
+    off();
+  });
+
+  it("stops delivering acks to an unmounted consumer", async () => {
+    const { useRemoteDesk } = await importRemoteDeskModule();
+    const viaOption = vi.fn();
+    const { unmount } = renderHook(() => useRemoteDesk({ onVoiceAck: viaOption }));
+    const ws = MockWebSocket.latest();
+    act(() => { ws.simulateOpen(); });
+    unmount();
+
+    act(() => {
+      ws.simulateMessage({
+        event: "desk:voice-ack",
+        payload: { transcript: "x", intent: "Note", reply: null },
+      });
+    });
+
+    expect(viaOption).not.toHaveBeenCalled();
+  });
+
+  it("publishes the snapshot's health view to health subscribers", async () => {
+    const useRemoteDesk = await importHook();
+    const { subscribeRemoteHealth, resetRemoteHealth } = await import("./useHealth");
+    resetRemoteHealth();
+    const seen = vi.fn();
+    const off = subscribeRemoteHealth(seen);
+
+    renderHook(() => useRemoteDesk());
+    const ws = MockWebSocket.latest();
+    ws.simulateOpen();
+    act(() => { ws.simulateMessage(makeSnapshotWithHealth()); });
+
+    expect(seen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configured: true,
+        snapshot: expect.objectContaining({
+          steps_today: 1234,
+          source_id: "google_fit",
+        }),
+      }),
+    );
+    off();
+  });
+
+  it("a snapshot without health leaves the last health view alone", async () => {
+    const useRemoteDesk = await importHook();
+    const { subscribeRemoteHealth, resetRemoteHealth } = await import("./useHealth");
+    resetRemoteHealth();
+    const seen = vi.fn();
+    const off = subscribeRemoteHealth(seen);
+
+    renderHook(() => useRemoteDesk());
+    const ws = MockWebSocket.latest();
+    ws.simulateOpen();
+
+    // A backend older than E021-T03 sends no `health` key at all.
+    act(() => { ws.simulateMessage(makeSnapshot()); });
+
+    expect(seen).not.toHaveBeenCalled();
+    off();
   });
 
   it("port is always null in remote mode", async () => {

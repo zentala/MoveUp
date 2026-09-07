@@ -1,8 +1,32 @@
 # ADR 012: Google Fit Walking Steps Integration
 
-- **Status**: accepted
+- **Status**: accepted, partially superseded by
+  [ADR 020](020-health-source-inlet.md) (2026-09-06)
 - **Date**: 2026-05-19
 - **Epic**: E000-maintenance (Google Fit walking-steps badge in OneBarWidget)
+- **What ADR 020 replaced (E021, 2026-09-06)**: everything below still
+  describes the Google Fit *client* — OAuth2 offline access, per-call token
+  refresh, source auto-discovery, the `auth_revoked` / `transient` split — and
+  all of it is still true. Two things are not:
+
+  1. The **Deprecation-risk mitigation** under *Consequences* claimed a
+     backend swap would be "local to ~3 files" behind `GoogleFitClient` and
+     the `StepsView` IPC contract. It would not have been: the vendor's name
+     was in the command names, the DTO names and the component name. The seam
+     is now the `HealthSource` trait plus the documented push contract
+     (`POST /display/health`), and Google Fit is one registered source among
+     others. Its shutdown is a source that stops registering.
+  2. The **Related** file list below is pre-E021. `StepsView` →
+     `HealthView`; `commands_google_fit.rs` (`get_steps_today` /
+     `refresh_steps_now`) is deleted in favour of `commands_health.rs`
+     (`get_health_today` / `refresh_health_now`); `StepsWidget.tsx` →
+     `HealthWidget.tsx`. `GoogleFitService` now implements `HealthSource`
+     and also fetches heart rate.
+
+  Google Fit itself is **not** being removed (E021-D6): while it is the only
+  registered source, the widget carries a dated "Google Fit ends late 2026"
+  hint.
+
 - **Context**: The desk app's posture + screen-time model (ADR 011) tracks sitting / standing / walking-away from the local sensor + idle detector. But "walking away" is currently inferred only from "user is away from the keyboard and screen" — it has no signal of *actual* walking activity. Step counts from the user's existing health platform (phone, watch, fitness tracker) would close that loop and let the app eventually weigh nudges against real movement (vision item in `.plan/vision/2026-03-24-business-vision.md` — "Health API integration").
 
   Goal for this iteration: surface today's step count next to the existing KPIs in the OneBar popup. Future: drive nudge timing from real movement, weekly walking trends in the analyst dashboard.

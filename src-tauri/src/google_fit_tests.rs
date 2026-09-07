@@ -10,6 +10,7 @@
 
 use crate::google_fit::{classify_response, Credentials, ErrorKind, GoogleFitClient};
 use crate::google_fit_service::{local_day_window_ms, GoogleFitService};
+use crate::health_source::HealthSource;
 
 /// Serialises tests that mutate the shared process environment.
 ///
@@ -61,27 +62,27 @@ fn credentials_picks_up_optional_source_override() {
 }
 
 #[test]
-fn rank_step_sources_prefers_merge_step_deltas() {
+fn rank_sources_prefers_merge_step_deltas() {
     let v = vec![
         "raw:com.google.step_count.delta:samsung:SM-N9005:something".to_string(),
         "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps".to_string(),
         "derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas".to_string(),
     ];
     assert_eq!(
-        GoogleFitClient::rank_step_sources(&v).as_deref(),
+        GoogleFitClient::rank_sources(&v).as_deref(),
         Some("derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas"),
     );
 }
 
 #[test]
-fn rank_step_sources_falls_back_to_first_raw_when_no_derived() {
+fn rank_sources_falls_back_to_first_raw_when_no_derived() {
     let v = vec!["raw:com.google.step_count.delta:samsung:SM-N9005:x".to_string()];
-    assert_eq!(GoogleFitClient::rank_step_sources(&v).as_deref(), Some(v[0].as_str()));
+    assert_eq!(GoogleFitClient::rank_sources(&v).as_deref(), Some(v[0].as_str()));
 }
 
 #[test]
-fn rank_step_sources_none_when_empty() {
-    assert!(GoogleFitClient::rank_step_sources(&[]).is_none());
+fn rank_sources_none_when_empty() {
+    assert!(GoogleFitClient::rank_sources(&[]).is_none());
 }
 
 #[test]

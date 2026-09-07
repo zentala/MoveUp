@@ -8,16 +8,21 @@ use serde::Serialize;
 use tokio::sync::broadcast;
 
 use crate::db::TodaySummary;
+use crate::health_models::HealthView;
 use crate::metrics::MetricSnapshot;
 use crate::session::SessionStateDto;
 
 /// Full state sent to remote display clients on every tick (~1/s).
-/// Includes session state + KPI metrics + today's session list.
+/// Includes session state + KPI metrics + today's session list + health.
 #[derive(Clone, Debug, Serialize)]
 pub struct RemoteDisplayState {
     pub session: SessionStateDto,
     pub metrics: Vec<MetricSnapshot>,
     pub today: TodaySummary,
+    /// Merged health view (E021-T03). Carried in the snapshot rather than
+    /// fetched separately so the phone — which has no Tauri IPC — gets steps
+    /// and heart rate on the same stream as everything else.
+    pub health: HealthView,
 }
 
 /// Message types sent to remote display clients.
@@ -47,6 +52,18 @@ pub enum DisplayEvent {
     /// Daily counter reset (midnight).
     #[serde(rename = "desk:daily-reset")]
     DailyReset,
+
+    /// A dictated voice note was accepted (E021-T06).
+    ///
+    /// Broadcast rather than returned only to the poster, so a second display
+    /// — the desktop popup, a tablet on the desk — shows the same ack the
+    /// phone got.
+    #[serde(rename = "desk:voice-ack")]
+    VoiceAck {
+        transcript: String,
+        intent: String,
+        reply: Option<String>,
+    },
 
     /// Keep-alive ping.
     #[serde(rename = "heartbeat")]
@@ -147,6 +164,7 @@ mod tests {
                 position_changes: 3,
                 sessions: vec![],
             },
+            health: HealthView::unconfigured(),
         };
         let event = DisplayEvent::Snapshot(state);
         let json = serde_json::to_string(&event).expect("should serialize");
@@ -154,6 +172,7 @@ mod tests {
         assert!(json.contains("\"session\""));
         assert!(json.contains("\"metrics\""));
         assert!(json.contains("\"today\""));
+        assert!(json.contains("\"health\""));
     }
 
     #[test]

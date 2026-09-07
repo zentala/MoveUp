@@ -30,4 +30,20 @@ telemetry_enabled: boolean,
 /**
  * Random device ID for telemetry (UUID v4). Generated once on first load.
  */
-telemetry_device_id: string, };
+telemetry_device_id: string, 
+/**
+ * Mirror desk alerts to a webhook (ntfy or generic). Default: false.
+ */
+notify_webhook_enabled: boolean, 
+/**
+ * Webhook endpoint, e.g. `https://ntfy.sh/<topic>`. Empty falls back to
+ * the `DESK_NOTIFY_WEBHOOK_URL` environment variable. May carry a token,
+ * so it is never logged.
+ */
+notify_webhook_url: string | null, 
+/**
+ * OpenRouter model slug (`<org>/<model>`) for the voice AI reply. Empty
+ * or unset uses the cheap default in [`crate::voice_ai::DEFAULT_MODEL`].
+ * The API key itself is never stored here — it stays in the environment.
+ */
+voice_ai_model: string | null, };

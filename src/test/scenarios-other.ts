@@ -2,6 +2,7 @@
  * scenarios-other.ts — Standing, Away, and edge case scenarios (S05-S09).
  */
 import type { Scenario } from "./scenarios";
+import type { VoiceAck } from "@/hooks/useRemoteDesk";
 import { noop, mkMetric, mkSessions } from "./scenario-helpers";
 
 /** S05: Standing for 8 min — gold bar filling toward 15 min target. */
@@ -124,3 +125,58 @@ export const S09_DISCONNECTED: Scenario = {
     metrics: [], error: "Sensor disconnected", idleSecs: 0, continuousComputerSecs: 0, onOpenSettings: noop,
   },
 };
+
+/**
+ * VoiceCapture states (E021-T05).
+ *
+ * VoiceCapture takes no props — its token comes from `localStorage` and its
+ * acknowledgement from the WS stream — so these scenarios describe the two
+ * inputs the mockup gallery drives rather than a `WidgetProps` payload.
+ */
+export interface VoiceCaptureScenario {
+  id: string;
+  name: string;
+  description: string;
+  context: string;
+  /** Token to seed into `localStorage`; null renders the token sheet. */
+  token: string | null;
+  /** Ack to push onto the bus, or null to leave the panel bare. */
+  ack: VoiceAck | null;
+}
+
+/** VC1: first run on the phone — no token yet. */
+export const voiceCaptureTokenSheet: VoiceCaptureScenario = {
+  id: "VC1",
+  name: "Voice — token sheet",
+  description: "No desk_token stored. Only the token form is shown.",
+  context: "First time the phone opens /display.",
+  token: null,
+  ack: null,
+};
+
+/** VC2: ready to dictate, nothing sent yet. */
+export const voiceCaptureIdle: VoiceCaptureScenario = {
+  id: "VC2",
+  name: "Voice — ready",
+  description: "Token stored. Textarea empty, Send disabled.",
+  context: "Normal resting state on the phone.",
+  token: "demo-token",
+  ack: null,
+};
+
+/** VC3: a snooze intent came back with an AI reply. */
+export const voiceCaptureAck: VoiceCaptureScenario = {
+  id: "VC3",
+  name: "Voice — acknowledged",
+  description: "Backend parsed a snooze intent and answered.",
+  context: 'User said "drzemka 5" and the ack arrived over the WS stream.',
+  token: "demo-token",
+  ack: { transcript: "drzemka 5", intent: "Snooze(5)", reply: "Ok, cisza przez 5 minut." },
+};
+
+/** All VoiceCapture scenarios, in gallery order. */
+export const VOICE_CAPTURE_SCENARIOS: VoiceCaptureScenario[] = [
+  voiceCaptureTokenSheet,
+  voiceCaptureIdle,
+  voiceCaptureAck,
+];

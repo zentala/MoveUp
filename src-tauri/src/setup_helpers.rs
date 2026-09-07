@@ -212,21 +212,78 @@ pub fn setup_device_notifications(app: &AppHandle) {
 /// Spawns the remote display HTTP+WS server and wires broadcast listeners.
 pub fn setup_remote_display(app: &AppHandle) {
     let state: tauri::State<'_, AppState> = app.state();
-    let remote_state = crate::remote_server::RemoteState {
-        ws_tx: state.ws_tx.clone(),
-        session: state.session.clone(),
-        comm_policy: state.comm_policy.clone(),
-        today_cache: state.today_cache.clone(),
-        active_clients: Arc::new(AtomicUsize::new(0)),
-    };
+    let health: crate::health_source::HealthState = app
+        .state::<crate::health_source::HealthState>()
+        .inner()
+        .clone();
+    let ws_tx = state.ws_tx.clone();
+    let session = state.session.clone();
+    let comm_policy = state.comm_policy.clone();
+    let today_cache = state.today_cache.clone();
+    let voice = build_voice_state(app, &state);
+    let remote_token = crate::remote_auth::token_from_env();
+    if remote_token.is_none() {
+        log::info!(
+            "{} not set — /display/health is closed (503). Set it to enable the phone inlet.",
+            crate::remote_auth::TOKEN_ENV
+        );
+    }
     let port = std::env::var("DESK_REMOTE_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(crate::remote_server::DEFAULT_PORT);
     tauri::async_runtime::spawn(async move {
+        // Registration is async, so it happens here rather than at manage()
+        // time; the inlet exists before the first request can arrive.
+        let health_push = crate::remote_routes_health::register(&health).await;
+        let remote_state = crate::remote_server::RemoteState {
+            ws_tx,
+            session,
+            comm_policy,
+            today_cache,
+            active_clients: Arc::new(AtomicUsize::new(0)),
+            health,
+            health_push,
+            remote_token,
+            voice,
+        };
         crate::remote_server::start(remote_state, port).await;
     });
     setup_broadcast_listeners(app);
+}
+
+/// Assembles the voice inlet's dependencies (E021-T06).
+///
+/// Each leg is resolved independently and may end up `None`: the event logger
+/// is absent until `perform_app_setup` has managed it, the database until
+/// `ensure_initialized` has opened it, the AI client until the user brings an
+/// OpenRouter key. A missing leg degrades that step only — the route still
+/// parses intents and acknowledges them.
+fn build_voice_state(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> crate::remote_server::VoiceState {
+    let config = state
+        .config
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let ai = crate::voice_ai::VoiceAi::from_env(
+        config.as_ref().and_then(|c| c.voice_ai_model.as_deref()),
+    );
+    if ai.is_none() {
+        info!(
+            "{} not set — dictated notes are stored and acknowledged, without an AI reply.",
+            crate::voice_ai::API_KEY_ENV
+        );
+    }
+    crate::remote_server::VoiceState {
+        event_logger: app.try_state::<crate::Loggers>().map(|l| l.event.clone()),
+        db: Some(state.db.clone()),
+        ai: ai.map(Arc::new),
+        webhook_enabled: config.as_ref().is_some_and(|c| c.notify_webhook_enabled),
+        webhook_url: config.and_then(|c| c.notify_webhook_url),
+    }
 }
 
 /// Forwards device/daily-reset events to WebSocket for remote clients.

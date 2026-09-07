@@ -1,0 +1,92 @@
+/* voice-capture.css — dictation panel on the phone display.
+ *
+ * Uses the globals.css design tokens so the panel matches the widget above
+ * it. Touch targets are 44px tall — this is only ever rendered on a phone.
+ */
+
+.voice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel-base);
+  border-top: 1px solid var(--rail-default);
+}
+
+.voice__label {
+  color: var(--text-dim, #888);
+  font-size: 11px;
+}
+
+.voice__input,
+.voice__token-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--rail-default);
+  border-radius: var(--r-md, 6px);
+  font: inherit;
+  font-size: 14px;
+  resize: none;
+}
+
+.voice__input:focus,
+.voice__token-input:focus {
+  outline: none;
+  border-color: var(--accent, #daa520);
+}
+
+.voice__row {
+  display: flex;
+  gap: 8px;
+}
+
+.voice__btn {
+  min-height: 44px;
+  padding: 0 16px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--rail-default);
+  border-radius: var(--r-md, 6px);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.voice__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.voice__btn--send {
+  flex: 1;
+}
+
+.voice__btn--mic.is-listening {
+  border-color: var(--accent, #daa520);
+  color: var(--accent, #daa520);
+}
+
+.voice__token-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.voice__error {
+  margin: 0;
+  color: #f44336;
+  font-size: 12px;
+}
+
+.voice__ack {
+  margin: 0;
+  color: var(--text-dim, #aaa);
+  font-size: 12px;
+}
+
+.voice__ack-intent {
+  color: var(--accent, #daa520);
+  font-weight: 600;
+}
