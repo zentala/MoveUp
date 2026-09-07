@@ -6,7 +6,7 @@
  */
 import { useDesk } from "./useDesk";
 import { useRemoteDesk } from "./useRemoteDesk";
-import type { UseDeskResult } from "./useDeskTypes";
+import type { UseDeskConnection } from "./useDeskTypes";
 
 /** Whether we are running inside a Tauri desktop app. */
 const isTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
@@ -16,7 +16,7 @@ const isTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
  * - Tauri desktop app -> useDesk() (IPC)
  * - Browser/kiosk -> useRemoteDesk() (WebSocket)
  */
-export function useDeskAuto(): UseDeskResult {
+export function useDeskAuto(): UseDeskConnection {
   // `isTauri` is a module-level constant resolved once at load time (see
   // above) and never changes across renders, so this component's hook count
   // and order are stable for its whole lifetime — the one case where a

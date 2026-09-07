@@ -3,6 +3,7 @@
  *
  * Extracted from useDesk.ts to keep both files under the 250-line limit.
  */
+import type { TransportCapabilities } from "@/remote/transports";
 import type { DeskState, MetricSnapshot, PreviousSession, SessionEntry } from "@/types";
 
 /** Transition info shown for 30s after a state change. */
@@ -67,3 +68,27 @@ export interface UseDeskResult {
   setSitLimit: (mins: number) => Promise<void>;
   setStandLimit: (mins: number) => Promise<void>;
 }
+
+/**
+ * The two facts only the transport knows (E022-T08).
+ *
+ * Deliberately NOT on `UseDeskResult`: `deskReducer.DeskView` is defined by
+ * omission from that interface, so anything added there would have to be
+ * produced by the pure reducer — which cannot know whether a socket is up.
+ */
+export interface DeskTransportFacts {
+  /**
+   * True when the desk itself is reachable.
+   *
+   * On Tauri and on the LAN this is the same fact as being connected. Through
+   * the relay it is not: the phone can hold a healthy socket to a room whose
+   * desk is asleep, and the display must say so rather than spin
+   * "Reconnecting…" at a connection that is fine.
+   */
+  deskOnline: boolean;
+  /** What this transport is allowed to do — gates the remote controls. */
+  capabilities: TransportCapabilities;
+}
+
+/** What every desk hook returns: the reducer view plus its transport facts. */
+export interface UseDeskConnection extends UseDeskResult, DeskTransportFacts {}

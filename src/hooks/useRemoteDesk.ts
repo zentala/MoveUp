@@ -1,15 +1,25 @@
 /**
- * useRemoteDesk.ts — WebSocket transport for the shared desk reducer.
+ * useRemoteDesk.ts — the browser half of the desk display (E022-T08).
  *
- * Provides the same UseDeskResult interface as useDesk(), but works
- * in any browser (no Tauri IPC needed). Used by the remote display
- * kiosk mode on a phone or secondary screen.
+ * Provides the same UseDeskResult interface as useDesk(), but works in any
+ * browser (no Tauri IPC needed). Used by the remote display kiosk mode on a
+ * phone or secondary screen.
  *
- * Auto-reconnects with exponential backoff (1s -> 2s -> 4s -> max 10s).
- * Falls back to REST polling every 2s when WebSocket is disconnected.
+ * The socket itself no longer lives here: `src/remote/transports/` owns the
+ * wire (LAN or relay, chosen by `selectTransport`) and this hook owns the
+ * reducer. That split is what lets one phone build serve both paths — and it
+ * is why the hook now also reports `capabilities` and `deskOnline`, two facts
+ * that only the transport can know.
  */
 import { useState, useEffect, useRef, useCallback, useReducer, useMemo } from "react";
-import type { UseDeskResult } from "./useDeskTypes";
+import { selectTransport } from "@/remote/transports";
+import type {
+  Transport,
+  TransportCapabilities,
+  TransportMessage,
+  TransportStatus,
+} from "@/remote/transports";
+import type { UseDeskConnection } from "./useDeskTypes";
 import { deskReducer, initialDeskState, selectDeskView } from "./deskReducer";
 import { publishRemoteHealth } from "./useHealth";
 import type { HealthView } from "@/generated/HealthView";
@@ -19,12 +29,6 @@ import type {
   TodaySummaryDto,
   StateChangedPayload,
 } from "@/types";
-
-/** WebSocket event shape (matches Rust DisplayEvent serialization). */
-interface WsEvent {
-  event: string;
-  payload: unknown;
-}
 
 /**
  * Acknowledgement of a dictated voice note, pushed over the WS stream.
@@ -68,6 +72,11 @@ export function emitVoiceAck(ack: VoiceAck): void {
 export interface UseRemoteDeskOptions {
   /** Called for every `desk:voice-ack` event received on the stream. */
   onVoiceAck?: VoiceAckListener;
+  /**
+   * Transport to use instead of the one `selectTransport()` would pick.
+   * Read once, on the first render — swapping wires mid-session is a reload.
+   */
+  transport?: Transport;
 }
 
 /** Full snapshot sent by the server on connect and every ~1s. */
@@ -86,14 +95,20 @@ interface RemoteDisplayState {
  * Connects to the desk backend via WebSocket.
  * Same interface as useDesk() but works in any browser.
  */
-export function useRemoteDesk(options: UseRemoteDeskOptions = {}): UseDeskResult {
+export function useRemoteDesk(options: UseRemoteDeskOptions = {}): UseDeskConnection {
   const [state, dispatch] = useReducer(deskReducer, initialDeskState);
   const [wsConnected, setWsConnected] = useState(false);
+  const [deskOnline, setDeskOnline] = useState(false);
 
-  const wsRef = useRef<WebSocket | null>(null);
-  const wsConnectedRef = useRef(false);
-  const reconnectDelay = useRef(1000);
   const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // One transport per mount, built lazily on the first render (it opens
+  // nothing until `connect()`), so `capabilities` is stable from the very
+  // first paint instead of flickering the controls in.
+  const [transport] = useState<Transport>(
+    () => options.transport ?? selectTransport(),
+  );
+  const capabilities: TransportCapabilities = transport.capabilities;
 
   const applySnapshot = useCallback((data: RemoteDisplayState) => {
     dispatch({
@@ -123,85 +138,71 @@ export function useRemoteDesk(options: UseRemoteDeskOptions = {}): UseDeskResult
     return subscribeVoiceAck(onVoiceAck);
   }, [onVoiceAck]);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const wsUrl = `ws://${window.location.host}/display/ws`;
-    const apiUrl = `/display/api`;
-
-    function connect() {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setWsConnected(true);
-        wsConnectedRef.current = true;
-        reconnectDelay.current = 1000;
-      };
-
-      ws.onmessage = (e) => {
-        let msg: WsEvent;
-        try {
-          msg = JSON.parse(e.data);
-        } catch {
-          console.warn("Remote display: malformed WS message, ignoring");
-          return;
-        }
-        switch (msg.event) {
-          case "snapshot":
-            applySnapshot(msg.payload as RemoteDisplayState);
-            break;
-          case "desk:state-changed":
-            applyStateChanged(msg.payload as StateChangedPayload);
-            break;
-          case "desk:device-connected":
-            // Remote mode never exposes a serial port — it is not local.
-            dispatch({ type: "device-connected", port: null });
-            break;
-          case "desk:device-lost":
-            dispatch({ type: "device-lost" });
-            break;
-          case "desk:daily-reset":
-            dispatch({ type: "daily-reset" });
-            break;
-          case "desk:voice-ack":
-            emitVoiceAck(msg.payload as VoiceAck);
-            break;
-          case "heartbeat":
-            break;
-        }
-      };
-
-      ws.onclose = () => {
-        setWsConnected(false);
-        wsConnectedRef.current = false;
-        if (mounted) {
-          setTimeout(connect, reconnectDelay.current);
-          reconnectDelay.current = Math.min(reconnectDelay.current * 2, 10000);
-        }
-      };
-
-      ws.onerror = () => ws.close();
-    }
-
-    connect();
-
-    const fallbackInterval = setInterval(() => {
-      if (!wsConnectedRef.current) {
-        fetch(apiUrl)
-          .then((r) => r.json())
-          .then((data) => applySnapshot(data as RemoteDisplayState))
-          .catch(() => {});
+  /** Routes one `DisplayEvent` into the reducer. Shared by both transports. */
+  const applyEvent = useCallback(
+    (event: string, payload: unknown) => {
+      switch (event) {
+        case "snapshot":
+          applySnapshot(payload as RemoteDisplayState);
+          break;
+        case "desk:state-changed":
+          applyStateChanged(payload as StateChangedPayload);
+          break;
+        case "desk:device-connected":
+          // Remote mode never exposes a serial port — it is not local.
+          dispatch({ type: "device-connected", port: null });
+          break;
+        case "desk:device-lost":
+          dispatch({ type: "device-lost" });
+          break;
+        case "desk:daily-reset":
+          dispatch({ type: "daily-reset" });
+          break;
+        case "desk:voice-ack":
+          emitVoiceAck(payload as VoiceAck);
+          break;
+        case "heartbeat":
+          break;
       }
-    }, 2000);
+    },
+    [applySnapshot, applyStateChanged],
+  );
+
+  useEffect(() => {
+    const onMessage = (message: TransportMessage) => {
+      switch (message.kind) {
+        case "event":
+          applyEvent(message.event, message.payload);
+          break;
+        case "welcome":
+          // A room that has never seen the desk sends `snapshot: null`. Leave
+          // the reducer at its initial state and let the overlay say "desk
+          // offline" — rendering zeros would read as a real reading of zero.
+          if (message.snapshot) applySnapshot(message.snapshot as RemoteDisplayState);
+          break;
+        case "desk_status":
+        case "command_result":
+          // Liveness arrives through onStatus; results through sendCommand.
+          break;
+      }
+    };
+
+    const onStatus = (status: TransportStatus) => {
+      setWsConnected(status.connected);
+      setDeskOnline(status.deskOnline);
+    };
+
+    const offMessage = transport.onMessage(onMessage);
+    const offStatus = transport.onStatus(onStatus);
+    transport.connect();
 
     return () => {
-      mounted = false;
-      clearInterval(fallbackInterval);
+      offMessage();
+      offStatus();
       if (transitionTimer.current) clearTimeout(transitionTimer.current);
-      wsRef.current?.close();
+      transport.close();
     };
-  }, [applySnapshot, applyStateChanged]);
+  }, [transport, applyEvent, applySnapshot]);
 
   // No-ops: settings not available in remote display mode
   const calibrate = useCallback(async () => { console.warn("Calibration unavailable in remote mode"); }, []);
@@ -214,6 +215,8 @@ export function useRemoteDesk(options: UseRemoteDeskOptions = {}): UseDeskResult
     ...view,
     port: null,
     wsConnected,
+    deskOnline,
+    capabilities,
     calibrate,
     setSitLimit,
     setStandLimit,
