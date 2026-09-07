@@ -1,0 +1,125 @@
+/* remote.css — pairing screen and phone controls (E022-T09).
+ *
+ * Both surfaces are phone-only, so every tap target is 44px tall and the
+ * layout is a single column. Colours come from the globals.css tokens, with
+ * literal fallbacks for the pairing screen: it can render before any desk
+ * data arrives, and on a relay-served page that has never seen a theme.
+ */
+
+.pair {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  color: inherit;
+}
+
+.pair__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.pair__hint {
+  margin: 0;
+  color: var(--text-dim, #888);
+  font-size: 13px;
+}
+
+.pair__form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pair__label,
+.rc__label {
+  color: var(--text-dim, #888);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pair__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--rail-default, #444);
+  border-radius: var(--r-md, 6px);
+  font: inherit;
+}
+
+.pair__input--code {
+  font-size: 20px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.pair__btn,
+.rc__btn {
+  min-height: 44px;
+  padding: 8px 14px;
+  color: inherit;
+  background: var(--panel-base, #1b1b1b);
+  border: 1px solid var(--rail-default, #444);
+  border-radius: var(--r-md, 6px);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pair__btn:disabled,
+.rc__btn:disabled,
+.rc__select:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.pair__btn--ghost {
+  background: transparent;
+  color: var(--text-dim, #888);
+}
+
+.pair__error,
+.rc__error {
+  margin: 0;
+  color: var(--color-alert, #f44336);
+  font-size: 13px;
+}
+
+.rc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel-base, #1b1b1b);
+  border-top: 1px solid var(--rail-default, #444);
+}
+
+.rc__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rc__row .rc__label {
+  flex: 1;
+}
+
+.rc__btn--wide {
+  width: 100%;
+}
+
+.rc__select {
+  min-height: 44px;
+  padding: 6px 8px;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--rail-default, #444);
+  border-radius: var(--r-md, 6px);
+  font: inherit;
+}

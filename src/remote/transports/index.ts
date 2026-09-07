@@ -1,6 +1,7 @@
 /**
  * transports/index.ts — public surface plus the one selection rule (E022-T08).
  */
+import { setActiveTransport } from "../activeTransport";
 import { loadRelayRecord } from "../storage";
 import { LanTransport } from "./lan";
 import { RelayTransport } from "./relay";
@@ -20,8 +21,14 @@ export type { RelayTransportOptions } from "./relay";
  * offline) where the LAN path just never connects. With no pairing there is
  * nothing to authenticate with, so the only thing left is the LAN socket —
  * `#/pair` (T09) is what creates the record in the first place.
+ *
+ * The pick is published to `activeTransport` so the layout can gate the
+ * controls on `capabilities.control` without the transport being threaded
+ * through `useWidgetData`.
  */
 export function selectTransport(): Transport {
   const record = loadRelayRecord();
-  return record ? new RelayTransport(record) : new LanTransport();
+  const transport = record ? new RelayTransport(record) : new LanTransport();
+  setActiveTransport(transport);
+  return transport;
 }
