@@ -78,6 +78,24 @@ export type { CommandResult as RemoteCommandResult } from "./generated/CommandRe
 /** Error body of a failed remote message or REST call. */
 export type { ErrorBody as RemoteErrorBody } from "./generated/ErrorBody";
 
+// ─── Relay commands (E022-T06) — what Settings calls and renders ────────────
+
+/** What the relay connection is doing, from `get_relay_status`. */
+export type { RelayStatus } from "./generated/RelayStatus";
+/**
+ * One relay connection state.
+ *
+ * `unentitled`, `revoked` and `replaced` are terminal — the desk stopped on
+ * purpose and the UI must say so instead of showing "reconnecting".
+ */
+export type { RelayState } from "./generated/RelayState";
+/** The public half of this desk's registration. */
+export type { DeskRecord } from "./generated/DeskRecord";
+/** A pairing code plus the QR deep link, from `relay_start_pairing`. */
+export type { PairingCode } from "./generated/PairingCode";
+/** One paired phone, from `relay_list_viewers`. */
+export type { Viewer as RelayViewer } from "./generated/Viewer";
+
 // ─── Frontend-only types ────────────────────────────────────────────────────
 
 /** Payload for `desk:device-connected` event. */
