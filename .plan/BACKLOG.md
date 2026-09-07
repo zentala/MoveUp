@@ -237,6 +237,13 @@ UI at all in dev mode — two pre-existing gaps, neither caused by E015:
   (`dev_fallback()`) serves a static placeholder page literally reading
   "Vite proxy not yet implemented (T05)" instead of the real app, so
   `http://localhost:3390/display` never shows the actual UI in dev mode.
+  **Correction (2026-09-08, E022-T15 browser-visual):** the `browser` agent
+  was dispatched against `:3390` directly and saw the same "not yet
+  implemented" fallback — but that is expected; the fixed path is
+  `http://localhost:1443/display` (Vite, proxying to `:3390`), which was
+  never actually tried. Re-check against `:1443` before filing this as still
+  broken — this entry is a **dispatch mistake**, not a reproduction of the
+  original gap.
   Loading the real Vite dev server at `:1443` instead fails differently:
   `src/hooks/useRemoteDesk.ts:123` builds `ws://${window.location.host}/display/ws`,
   which becomes `ws://localhost:1443/display/ws` — nothing answers there,
