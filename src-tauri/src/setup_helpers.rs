@@ -210,8 +210,17 @@ pub fn setup_device_notifications(app: &AppHandle) {
 }
 
 /// Spawns the remote display HTTP+WS server and wires broadcast listeners.
+///
+/// The server itself is gated on `remote_lan_enabled` (default `true`). The
+/// broadcast listeners are not: they feed `ws_tx`, which the relay client also
+/// subscribes to, so turning the LAN off must not silence the relay.
 pub fn setup_remote_display(app: &AppHandle) {
     let state: tauri::State<'_, AppState> = app.state();
+    if !lan_enabled(&state) {
+        info!("remote display: LAN server disabled ({}=false)", crate::remote_server::LAN_ENABLED_KEY);
+        setup_broadcast_listeners(app);
+        return;
+    }
     let health: crate::health_source::HealthState = app
         .state::<crate::health_source::HealthState>()
         .inner()
@@ -250,6 +259,16 @@ pub fn setup_remote_display(app: &AppHandle) {
         crate::remote_server::start(remote_state, port).await;
     });
     setup_broadcast_listeners(app);
+}
+
+/// Whether the user left the LAN display switched on.
+///
+/// Goes through the serialized config so an older stored config — one written
+/// before the toggle existed — reads as enabled rather than as off.
+fn lan_enabled(state: &tauri::State<'_, AppState>) -> bool {
+    let config = state.config.lock().unwrap_or_else(|e| e.into_inner());
+    let value = config.as_ref().and_then(|c| serde_json::to_value(c).ok());
+    crate::remote_server::lan_enabled_in(value.as_ref())
 }
 
 /// Assembles the voice inlet's dependencies (E021-T06).
