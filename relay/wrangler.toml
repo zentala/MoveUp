@@ -1,0 +1,37 @@
+name = "moveup-relay"
+main = "src/index.ts"
+compatibility_date = "2026-08-22"
+compatibility_flags = ["nodejs_compat"]
+
+# One Durable Object per desk. Named by `desk_id`, so a desk and its viewers
+# always land in the same room without a lookup table.
+[[durable_objects.bindings]]
+name = "DESK_ROOM"
+class_name = "DeskRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DeskRoom"]
+
+# The viewer build, served under /app. Same React bundle the desktop ships;
+# `vite build` writes it. Absent in a fresh checkout — the Worker answers
+# `assets_unavailable` rather than 404, so a missing build cannot look like a
+# missing route.
+[assets]
+binding = "ASSETS"
+directory = "../dist"
+
+# D1 lands in T03 together with the migrations that populate it. Declared here,
+# commented, so the binding name is decided once:
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "moveup-relay"
+# database_id = "<filled at first `wrangler d1 create`>"
+
+[vars]
+RELAY_VERSION = "0.1.0"
+# A socket that has not sent `hello` this many ms after the upgrade is closed
+# 4401. Protocol says 5 s.
+HELLO_TIMEOUT_MS = "5000"
+# A socket silent this long is closed 1001. Clients ping every 25 s.
+IDLE_TIMEOUT_MS = "60000"

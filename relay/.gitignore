@@ -1,0 +1,4 @@
+# wrangler's local state: miniflare's persisted D1/DO storage, build output,
+# and the deploy cache. Never committed — the local D1 holds real token hashes
+# once T03 lands.
+.wrangler/

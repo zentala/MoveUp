@@ -1,0 +1,19 @@
+# `relay/` is a STANDALONE pnpm project, not a member of the app's workspace.
+#
+# Without this file pnpm walks up, finds `../pnpm-workspace.yaml`, decides the
+# relay is inside that workspace root, and installs nothing here — leaving
+# `relay/node_modules` absent while reporting success (verified 2026-09-06).
+# An empty `packages:` list anchors the walk and gives the relay its own root,
+# its own `node_modules` and its own `pnpm-lock.yaml`.
+#
+# Do NOT add `relay` to the app's root `pnpm-workspace.yaml`: the relay ships to
+# Cloudflare, the app ships to a desktop installer, and the two dependency trees
+# have nothing in common (E022 PLAN §Architecture impact).
+packages: []
+
+allowBuilds:
+  esbuild: true
+  workerd: true
+
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-types@5.20260907.1'
