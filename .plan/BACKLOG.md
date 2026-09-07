@@ -28,6 +28,40 @@
 
 ---
 
+## E022 security review — deferred findings (2026-09-07)
+
+High #1 and Medium #2 fixed same-day (commits `98bc801`, `4f55fd6`). The rest
+does not block deploying `relay.desk.zentala.io`. Full report:
+[epics/E022-2026-09-06-cross-device-phone-relay/reports/2026-09-07-security-review.md](epics/E022-2026-09-06-cross-device-phone-relay/reports/2026-09-07-security-review.md).
+
+- [ ] **`#security` `#task`** No enforced TLS for desk→relay — a misconfigured
+  `relay_url` of `ws://` (instead of `wss://`) sends `desk_token`/`viewer_token`
+  over plain TCP. `src-tauri/src/relay_client.rs:82-90` (`ws_url`). Fix:
+  refuse/warn when the effective URL resolves to `ws://` outside an explicit
+  dev mode. (Medium, 2)
+- [ ] **`#security` `#task`** TOCTOU on `max_viewers` — two concurrent
+  `POST /v1/pair` requests with the same code can both pass the viewer-count
+  check before either consumes it, exceeding the licensed cap by one.
+  `relay/src/http/pairing.ts:61-65`. Fix: move the count/limit check inside
+  the Durable Object, which already serializes room operations. (Medium, 3)
+- [ ] **`#security` `#task`** Licence key field has no `type="password"` —
+  shoulder-surfing / browser-history exposure of a registration key.
+  `src/components/settings/RemoteSection.tsx:52-60`. (Low, 1)
+- [ ] **`#security` `#task`** `clientIp` falls back to a shared `"unknown"`
+  rate-limit bucket when `CF-Connecting-IP` is absent (should not happen
+  behind Cloudflare, but the code does not assert it).
+  `relay/src/http/rate-limit.ts:53-54`. Fix: treat a missing header as a
+  configuration error and refuse, rather than degrade silently. (Low, 2)
+- [ ] **`#security` `#task`** No hard frame-size limit on the room's WebSocket
+  messages before `JSON.parse` — the REST side caps bodies at 2 KiB, the room
+  does not. `relay/src/room/desk-room.ts` / `relay/src/room/messages.ts`. (Low, 2)
+- [ ] **`#security` `#task`** `register` route returns different error text for
+  "no such licence key" vs "licence expired" — minor user-enumeration on a
+  256-bit-entropy key, inconsistent with `requireDesk`'s deliberate silence
+  elsewhere. `relay/src/http/desks.ts:56-64`. Cosmetic, low priority. (Low, 1)
+
+---
+
 ## Bugs — Fix Now
 
 - [x] **CRITICAL: Seeding ignores daily reset** — fixed in commit `c1d286f`: `load_today_totals()` now filters by `daily_reset_after` timestamp persisted to tauri-plugin-store. Sessions started before the last daily reset are excluded from DB seeding.

@@ -229,14 +229,16 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   `node scripts/relay-e2e.mjs --relay http://127.0.0.1:8787 --license $(node relay/scripts/mint-license.mjs --local)`
   — from the AO manifest use the smoke test instead:
   `npx vitest run --config vitest.scripts.config.ts tests/scripts/relay-e2e.test.ts`.
-- [ ] **T13** (5, main) — **Security review (pipeline step 5, mandatory).**
-  Write `reports/threat-model.md` (assets, entry points, trust boundaries,
-  the checklist from PLAN.md §Test strategy T13 with a column for the
-  recorded observation). Dispatch agent `security-reviewer` over `relay/src`,
+- [x] **T13** (5, main) — **Security review (pipeline step 5, mandatory).**
+  Done 2026-09-07: agent `security-reviewer` dispatched over `relay/src`,
   `src-tauri/src/relay_*.rs`, `commands_relay.rs`, `remote_server.rs`,
-  `src/remote/**`; run skill `review-loop`; fix confirmed findings here (or
-  file them with the disputed list after 3 rounds); `review-log record
-  review --status clean|issues --findings N`. Manual — skipped in AO.
+  `src/remote/**`. Findings: 0 Critical, 1 High, 3 Medium, 4 Low. High #1
+  (licence never re-checked on an already-open socket) and Medium #2 (command
+  replay inside the 30s staleness window) fixed same session (commits
+  `98bc801`, `4f55fd6`); Medium #3/#4 and all Low filed to
+  [`.plan/BACKLOG.md`](../../BACKLOG.md#e022-security-review--deferred-findings-2026-09-07)
+  — none block deploying `relay.desk.zentala.io`. Full report:
+  [reports/2026-09-07-security-review.md](reports/2026-09-07-security-review.md).
 - [ ] **T14** (3, main) — Docs + ADRs. `.arch/ADR/022-relay-on-cloudflare-durable-objects.md`,
   `.arch/ADR/023-pairing-code-device-token-auth.md`, `.arch/ARCHITECTURE.md`
   section, `CLAUDE.md` Remote Display section rewrite, `docs/REMOTE_DISPLAY.md`
