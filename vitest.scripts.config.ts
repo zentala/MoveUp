@@ -14,7 +14,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['tests/scripts/**/*.test.js'],
+    include: ['tests/scripts/**/*.test.{js,ts}'],
     // No setup files - scripts are isolated unit tests
   },
 });
