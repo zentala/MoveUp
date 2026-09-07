@@ -1,13 +1,13 @@
 /**
- * The router's four surfaces: health, assets, the WebSocket upgrade, and the
- * REST stubs T03 fills in.
+ * The router's surfaces: health, assets, the WebSocket upgrade, the REST table,
+ * and the private room prefix the Worker must never forward.
  */
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { REST_ROUTES, matchPath } from "../../src/http/rest";
-
-const url = (path: string) => `https://relay.test${path}`;
+import { RPC } from "../../src/room/rpc";
+import { url } from "../helpers";
 
 describe("GET /healthz", () => {
   it("reports the running version so a deploy can be told from a redeploy", async () => {
@@ -30,13 +30,13 @@ describe("REST routes", () => {
     ]);
   });
 
-  it.each(REST_ROUTES)("$method $path answers 501, not 404", async (route) => {
+  const deskOnly = REST_ROUTES.filter((r) => r.path.includes(":deskId"));
+
+  it.each(deskOnly)("$method $path refuses a caller with no token", async (route) => {
     const path = route.path.replace(":deskId", "d1").replace(":viewerId", "v1");
     const response = await SELF.fetch(url(path), { method: route.method });
-    expect(response.status).toBe(501);
-    await expect(response.json()).resolves.toMatchObject({
-      error: { code: "not_implemented" },
-    });
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "unauthorized" } });
   });
 
   it("answers 405 when the path is right and the verb is wrong", async () => {
@@ -46,6 +46,14 @@ describe("REST routes", () => {
 
   it("answers 404 for a path in no route", async () => {
     const response = await SELF.fetch(url("/v1/nope"));
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "not_found" } });
+  });
+});
+
+describe("the room's private RPC prefix", () => {
+  it.each(Object.values(RPC))("%s is not reachable from outside the Worker", async (path) => {
+    const response = await SELF.fetch(url(path), { method: "POST", body: "{}" });
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toMatchObject({ error: { code: "not_found" } });
   });
