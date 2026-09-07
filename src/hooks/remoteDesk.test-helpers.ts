@@ -128,3 +128,8 @@ export async function importHook() {
   const mod = await import("./useRemoteDesk");
   return mod.useRemoteDesk;
 }
+
+/** Same module instance as {@link importHook}, for its non-hook exports. */
+export async function importRemoteDeskModule() {
+  return import("./useRemoteDesk");
+}

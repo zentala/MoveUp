@@ -166,6 +166,7 @@
         <file name="WelcomePopup.tsx">First-launch onboarding popup</file>
         <file name="AppProgressBar.tsx">14px in-app progress bar (debug)</file>
         <file name="ScreenProgressBar.tsx">4px top-of-screen CSS overlay bar</file>
+        <file name="VoiceCapture.tsx">Phone-only dictation panel — token sheet, textarea, optional mic, POST /display/voice, renders the desk:voice-ack</file>
         <dir name="settings/">
           <file name="CalibrationSection.tsx">Calibration UI section</file>
           <file name="NotificationsSection.tsx">Notification prefs section</file>
@@ -216,6 +217,10 @@
         <file name="AnalystLive.tsx">/#/analyst — live Analyst window (no fixture override)</file>
         <file name="AnalystMockup.tsx">DEV /#/mockup/analyst — Analyst window backed by fixtures</file>
         <file name="MockupGallery.tsx">DEV /#/mockup — list of all dev mockup routes</file>
+      </dir>
+
+      <dir name="mockup/">
+        <file name="VoiceCaptureGallery.tsx">DEV /#/mockup/voice — VoiceCapture scenarios (token sheet, ready, acknowledged)</file>
       </dir>
     </layer>
 
