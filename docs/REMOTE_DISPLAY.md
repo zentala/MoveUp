@@ -1,14 +1,104 @@
 # Remote Display — Phone Dashboard Setup
 
-Turn an old phone or tablet into a dedicated desk dashboard. The app runs an embedded HTTP + WebSocket server that streams live session data to any browser on your local network.
+Turn a phone or tablet into a desk dashboard. There are two ways to reach the
+desk, and they show the same screen:
 
-## Requirements
+| | **Pair a phone** (Pro) | **Your own Wi-Fi** (free) |
+|---|---|---|
+| Works from | anywhere, mobile data included | the same network as the PC |
+| Setup | a code on the phone, once | the PC's IP address and a firewall rule |
+| Sign-in | pairing code, revocable per device | none — anyone on the network can look |
+| Controls | dismiss an alert, change limits, switch profile | view only |
+| PC turned off | last known state, with the time it was last seen | nothing |
+
+Pairing is the shorter road and the private one. Start there; the LAN section
+below is still the whole story if you never want the desk to talk to a server.
+
+## Pair a phone — works from anywhere
+
+Your PC connects **out** to a relay at `relay.desk.zentala.io`; the phone
+connects out to the same place. Nothing listens for incoming connections, so
+there is no firewall rule, no port forward, and no need for the phone and the PC
+to share a network.
+
+Requires a licence key (Pro). The relay never stores your ergonomics history —
+see [what the relay holds](#what-the-relay-holds) below.
+
+### 1. Turn on remote access on the PC
+
+Open **Settings → Remote access**, type your licence key into **Licence key**
+and press **Enable remote access**. The line above the field is the status; it
+should settle on *"Online — your phone can reach this desk"*.
+
+### 2. Show a pairing code
+
+Press **Pair a phone**. An 8-character code appears together with a QR image.
+The code is valid for **5 minutes** and can be used **once**. Ten wrong guesses
+lock pairing on this desk for 15 minutes.
+
+### 3. Enter it on the phone
+
+Scan the QR — it opens the dashboard already filled in — or open
+`https://relay.desk.zentala.io/app/#/pair` on the phone and type the desk id and
+the code shown next to it.
+
+That is the whole setup. The phone stores a token of its own; it never asks
+again.
+
+### 4. What you can do from the phone
+
+| Control | What happens on the PC |
+|---|---|
+| Dismiss | same as clicking the alert popup, snooze rules included |
+| Sit / stand limit | the same change as Settings, with the same clamps (sit 5–240 min, stand 1–120 min) |
+| Profile | switches the ergonomic or communication profile by name |
+
+Everything else — calibration, the rest of Settings — stays on the PC on
+purpose. A phone cannot measure your desk, and a general "write any setting"
+path from the internet is exactly what this design refuses to have.
+
+Each command is written to `logs/YYYY-MM-DD/events.log` as a `REMOTE` line, so
+there is a record of what was changed from where. Anything not on the list above
+is refused and logged as `REMOTE DENIED`.
+
+### 5. Removing a phone
+
+**Settings → Remote access → Paired phones** lists every paired device. Remove
+one and its connection drops within a second and cannot come back — that is the
+answer to a lost phone.
+
+**Turn off and forget this desk** unregisters the desk entirely. It clears the
+local credential even when the relay cannot be reached: turning sharing off must
+never depend on a working network.
+
+On the phone, **Forget this desk** clears its own stored token. The desk owns
+the list, so a phone cannot un-pair itself server-side.
+
+### What the relay holds
+
+- The **latest snapshot only**, in memory, so a phone opened while the PC is off
+  shows the last known state with a "desk offline" banner instead of a spinner.
+  It is gone when the connection is.
+- **Hashed tokens and device names** — never a plaintext token, never a reading,
+  never a history row. Your ergonomics data stays on the PC.
+- Pairing codes live in memory and expire in five minutes.
+
+Details: [`PRIVACY.md`](PRIVACY.md) and
+[ADR 022](../.arch/ADR/022-relay-on-cloudflare-durable-objects.md) /
+[ADR 023](../.arch/ADR/023-pairing-code-device-token-auth.md).
+
+## On your own Wi-Fi — the LAN dashboard
+
+The app also runs an embedded HTTP + WebSocket server that streams live session
+data to any browser on your local network. No account, no relay, nothing leaves
+the machine — and no password either, so treat it as "anyone on this network may
+look".
+
+### Requirements
 
 - Android phone or tablet (any age — even old devices work)
 - Same WiFi network as the PC running MoveUp
 - A kiosk browser app (recommended: Fully Kiosk Browser)
-
-## Quick Setup
 
 ### 1. Find your PC's local IP
 
@@ -45,6 +135,11 @@ Example: `http://192.168.0.105:3390/display`
 | Autostart on boot | Yes (optional) |
 | Status bar | Hidden |
 | Navigation bar | Hidden |
+
+Fully Kiosk works the same way with a paired phone: set the start URL to
+`https://relay.desk.zentala.io/app/` once the tablet has been paired, and the
+same kiosk settings apply. Pair first in a normal browser tab — the code entry
+is easier there.
 
 ### 5. Allow through Windows Firewall
 
@@ -267,6 +362,31 @@ curl -X POST http://<PC-IP>:3390/display/voice \
 ```
 
 ## Troubleshooting
+
+### Pairing: "that code is not valid"
+
+- Codes expire after **5 minutes** and work **once** — press **Pair a phone**
+  again for a fresh one.
+- The alphabet has no `I`, `O`, `0` or `1`, so a character that looks like one
+  of those is the other one.
+- After ten wrong tries pairing is locked on that desk for 15 minutes. The
+  message says when it reopens.
+
+### The phone says "Desk offline — showing last known state"
+
+The relay is reachable and the PC is not: it is asleep, powered off, or MoveUp
+is not running. The data on screen is the last snapshot, with the time it was
+taken. This is different from "Reconnecting…", which means the **phone** lost
+the relay.
+
+### Settings shows something other than "Online"
+
+| Line | Means |
+|---|---|
+| *Licence expired or not valid for this desk* | the licence ended or was revoked; the app stops retrying on purpose |
+| *This desk was removed from the licence* | the desk registration was deleted — register again |
+| *Another desk took over this registration* | the same registration is in use elsewhere; only one desk may hold it |
+| *Cannot reach the relay* | network or relay outage; the app keeps retrying with a growing delay |
 
 ### "Cannot connect" / page won't load
 

@@ -712,6 +712,22 @@ Phase 3 (future): Standalone — sensor communicates wirelessly (BLE/WiFi) with 
 
 See `.plan/vision/2026-03-15-desk-app-vision.md` → "Remote Display" section for full vision.
 
+- [ ] **LAN pairing — the local dashboard still has no authentication** — E022
+  gave the relay path a pairing code and per-device tokens
+  ([ADR 023](../.arch/ADR/023-pairing-code-device-token-auth.md)) and left the
+  LAN path exactly as it was: `ws_handler` in
+  [`src-tauri/src/remote_server.rs`](../src-tauri/src/remote_server.rs) checks
+  only the client count, so anyone already on the Wi-Fi can open the dashboard.
+  E022-D4 narrowed the gap with a toggle
+  (`AppConfig.remote_lan_enabled`, [`config.rs`](../src-tauri/src/config.rs))
+  rather than closing it, because the free tier is sold as "your own Wi-Fi,
+  view only" ([premium-tier-definition.md](vision/2026-03-25-premium-tier-definition.md)).
+  Closing it means reusing the pairing machinery locally: mint a viewer token
+  on the desk, check it in `ws_handler`, and list those devices in Settings
+  beside the relay's. Not urgent — the surface is read-only and local — but it
+  is the one place in the app where "on my network" still means "allowed".
+  (Importance: Low, Points: 5)
+
 ---
 
 ## Motivation Analytics & Adaptive Coaching (ongoing process)
