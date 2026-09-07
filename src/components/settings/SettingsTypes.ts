@@ -46,4 +46,5 @@ export const DEFAULT_SETTINGS: DeskSettings = {
   telemetry_device_id: '',
   notify_webhook_enabled: false,
   notify_webhook_url: null,
+  voice_ai_model: null,
 };

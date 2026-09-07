@@ -55,6 +55,8 @@ mod notification_service;
 mod notify;
 mod notify_webhook;
 #[cfg(test)] mod notify_webhook_tests;
+mod voice_ai;
+#[cfg(test)] mod voice_ai_tests;
 mod screen_break_nudge;
 #[cfg(test)] mod notification_service_tests;
 #[cfg(test)] mod notification_service_tests_edge;
