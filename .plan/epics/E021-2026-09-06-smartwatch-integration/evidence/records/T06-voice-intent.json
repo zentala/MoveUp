@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "T06",
+  "check_id": "voice-intent",
+  "class": "test",
+  "timestamp": "2026-09-07T02:10:20.173Z",
+  "command_digest": "sha256:e590a9ee4299ab602582b5b41c605e0b7b24df746baba101fc00d14ee0063ca8",
+  "result": "pass",
+  "duration_ms": 535,
+  "source_commit": "c8b379730e35350cc608ea8eb86de0488bb81d53",
+  "source_fingerprint": "sha256:eeea138000c437f9a372a4f5cb690ac79d624629f7890fa8b87b93b030ee0172"
+}

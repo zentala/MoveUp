@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "task_id": "T02",
+  "check_id": "health-source",
+  "class": "test",
+  "timestamp": "2026-09-07T02:10:16.737Z",
+  "command_digest": "sha256:cf2e6fd40220c43bc1714ca86f219d5d92813eca9907d4603ed6918a91065bf2",
+  "result": "pass",
+  "duration_ms": 7912,
+  "source_commit": "c8b379730e35350cc608ea8eb86de0488bb81d53",
+  "source_fingerprint": "sha256:eeea138000c437f9a372a4f5cb690ac79d624629f7890fa8b87b93b030ee0172"
+}
