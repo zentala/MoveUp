@@ -8,6 +8,8 @@ use crate::{
     colors::color_for_progress,
     commands::AppState,
     communication_policy::PolicyInput,
+    communication_types::NotifySignal,
+    notify_webhook::{Notification, WebhookNotifier},
     desk_events::{
         DESK_DEVICE_CONNECTED, DESK_DEVICE_LOST, DESK_DEVICE_MISSING, DESK_DISTANCE,
         DESK_STATE_CHANGED,
@@ -139,6 +141,31 @@ fn update_from_policy(app: &AppHandle) {
 
     if let Some(ref notify) = signals.notify {
         tray_signal_exec::execute_notify(notify, &app_state);
+        push_to_webhook(&app_state, notify);
+    }
+}
+
+/// Mirrors a toast to the user's webhook so a phone or watch sees it too.
+///
+/// Only [`NotifySignal::Toast`] is mirrored: `Popup` is the on-screen
+/// escalation of a toast that already went out, and pushing both would send
+/// the same alert twice. Sending is fire-and-forget — see
+/// [`crate::notify_webhook`] — so a dead receiver cannot stall this tick.
+fn push_to_webhook(app_state: &AppState, notify: &NotifySignal) {
+    let NotifySignal::Toast(message) = notify else {
+        return;
+    };
+    let config = app_state
+        .config
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+        .unwrap_or_default();
+    if let Some(notifier) = WebhookNotifier::from_env_or_config(
+        config.notify_webhook_enabled,
+        config.notify_webhook_url.as_deref(),
+    ) {
+        notifier.send(Notification::alert("MoveUp", message));
     }
 }
 

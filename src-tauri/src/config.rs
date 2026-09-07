@@ -53,6 +53,14 @@ pub struct AppConfig {
     /// Random device ID for telemetry (UUID v4). Generated once on first load.
     #[serde(default = "default_empty_string")]
     pub telemetry_device_id: String,
+    /// Mirror desk alerts to a webhook (ntfy or generic). Default: false.
+    #[serde(default = "bool_false")]
+    pub notify_webhook_enabled: bool,
+    /// Webhook endpoint, e.g. `https://ntfy.sh/<topic>`. Empty falls back to
+    /// the `DESK_NOTIFY_WEBHOOK_URL` environment variable. May carry a token,
+    /// so it is never logged.
+    #[serde(default)]
+    pub notify_webhook_url: Option<String>,
 }
 
 impl AppConfig {
@@ -113,6 +121,8 @@ impl Default for AppConfig {
             show_activity_status: bool_true(),
             telemetry_enabled: bool_false(),
             telemetry_device_id: default_empty_string(),
+            notify_webhook_enabled: bool_false(),
+            notify_webhook_url: None,
         }
     }
 }
