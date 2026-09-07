@@ -21,7 +21,7 @@ mod commands_catalog_sources;
 #[cfg(test)] mod commands_catalog_tests;
 mod commands_config;
 mod commands_profiles;
-mod commands_google_fit;
+mod commands_health;
 mod commands_share;
 mod commands_welcome;
 mod google_fit;
@@ -31,6 +31,9 @@ mod google_fit_models;
 mod google_fit_service;
 #[cfg(test)] mod google_fit_service_tests;
 #[cfg(test)] mod google_fit_tests;
+mod health_models;
+mod health_source;
+#[cfg(test)] mod health_source_tests;
 mod config;
 mod db;
 mod db_backup;
@@ -133,7 +136,8 @@ use communication_profile::CommunicationProfile;
 use ergonomic_profile::ErgonomicProfile;
 use commands::AppState;
 use event_logger::EventLogger;
-use google_fit_service::{GoogleFitService, GoogleFitState};
+use google_fit_service::GoogleFitService;
+use health_source::{HealthAggregator, HealthState};
 use overlay_renderer::OverlayRenderer;
 use serial::ConnectionState;
 use session::SessionManager;
@@ -184,7 +188,9 @@ pub fn run() {
             today_cache: Arc::new(Mutex::new(crate::db::TodaySummary::default())),
         })
         .manage(BlinkState::new())
-        .manage::<GoogleFitState>(std::sync::Arc::new(GoogleFitService::from_env()))
+        .manage::<HealthState>(std::sync::Arc::new(HealthAggregator::new(vec![
+            std::sync::Arc::new(GoogleFitService::from_env()),
+        ])))
         .invoke_handler({
             #[cfg(any(test, debug_assertions))]
             {
@@ -220,8 +226,8 @@ pub fn run() {
                     commands_analyst::get_events_range,
                     commands_analyst::get_sessions_range,
                     commands_catalog::get_data_catalog,
-                    commands_google_fit::get_steps_today,
-                    commands_google_fit::refresh_steps_now,
+                    commands_health::get_health_today,
+                    commands_health::refresh_health_now,
                     tray::open_analyst_window,
                 ]
             }
@@ -257,8 +263,8 @@ pub fn run() {
                     commands_analyst::get_events_range,
                     commands_analyst::get_sessions_range,
                     commands_catalog::get_data_catalog,
-                    commands_google_fit::get_steps_today,
-                    commands_google_fit::refresh_steps_now,
+                    commands_health::get_health_today,
+                    commands_health::refresh_health_now,
                     tray::open_analyst_window,
                 ]
             }
@@ -374,6 +380,7 @@ mod ts_export {
             .expect("StateChangedPayload exports");
         crate::db::TodaySummary::export_all(&cfg).expect("TodaySummary exports");
         crate::config::AppConfig::export_all(&cfg).expect("AppConfig exports");
+        crate::health_models::HealthView::export_all(&cfg).expect("HealthView exports");
         crate::serial_parser::PortInfo::export_all(&cfg).expect("PortInfo exports");
     }
 

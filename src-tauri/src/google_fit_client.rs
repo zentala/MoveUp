@@ -11,6 +11,8 @@ use serde_json::json;
 
 /// Fit data type identifier for step deltas.
 const STEPS_DATA_TYPE: &str = "com.google.step_count.delta";
+/// Fit data type identifier for heart rate.
+pub const HEART_RATE_DATA_TYPE: &str = "com.google.heart_rate.bpm";
 /// One full day in milliseconds — bucket size for the aggregate request.
 const DAY_MS: i64 = 86_400_000;
 
@@ -82,8 +84,22 @@ impl GoogleFitClient {
     /// service layer's auto-discovery on first refresh when no env override
     /// is set.
     pub async fn list_step_sources(&self) -> Result<Vec<String>, FitError> {
+        self.list_sources(STEPS_DATA_TYPE).await
+    }
+
+    /// List heart-rate data sources available to this user.
+    ///
+    /// An empty list is the answer to "does this account have heart rate at
+    /// all" — the question T01's spike asked by hand. The service layer
+    /// reads it to decide whether to issue a second aggregate call.
+    pub async fn list_heart_rate_sources(&self) -> Result<Vec<String>, FitError> {
+        self.list_sources(HEART_RATE_DATA_TYPE).await
+    }
+
+    /// List the data-stream ids the user has for one Fit data type.
+    async fn list_sources(&self, data_type: &str) -> Result<Vec<String>, FitError> {
         let access_token = self.refresh_access_token().await?;
-        let url = format!("{}?dataTypeName={STEPS_DATA_TYPE}", self.endpoints.data_sources);
+        let url = format!("{}?dataTypeName={data_type}", self.endpoints.data_sources);
         let resp = self
             .http
             .get(&url)
@@ -129,16 +145,17 @@ impl GoogleFitClient {
             .collect())
     }
 
-    /// Pick the best data source from the list of step sources.
+    /// Pick the best data source from a list of Fit data streams.
     ///
-    /// Preference: aggregated derived sources (`merge_step_deltas`,
-    /// `estimated_steps`) over device-specific raw streams, because they
-    /// fold together everything a user has connected.
-    pub fn rank_step_sources(sources: &[String]) -> Option<String> {
+    /// Preference: aggregated derived sources (`merge_*`, `estimated_*`)
+    /// over device-specific raw streams, because they fold together
+    /// everything a user has connected. The ranking is data-type agnostic,
+    /// so steps and heart rate both go through it.
+    pub fn rank_sources(sources: &[String]) -> Option<String> {
         let priority = |s: &str| -> i32 {
-            if s.ends_with(":merge_step_deltas") {
+            if s.contains(":merge_") {
                 0
-            } else if s.ends_with(":estimated_steps") {
+            } else if s.contains(":estimated_") {
                 1
             } else if s.starts_with("derived:") {
                 2
@@ -158,10 +175,41 @@ impl GoogleFitClient {
         end_of_day_ms: i64,
         source: &str,
     ) -> Result<i64, FitError> {
+        let parsed = self
+            .aggregate(STEPS_DATA_TYPE, source, start_of_day_ms, end_of_day_ms)
+            .await?;
+        Ok(parsed.total_steps())
+    }
+
+    /// Fetch today's average heart rate, in whole bpm.
+    ///
+    /// `Ok(None)` means the window holds no heart-rate points — a user
+    /// whose devices never recorded any. That is not an error, and callers
+    /// must not surface it as one.
+    pub async fn fetch_heart_rate(
+        &self,
+        start_of_day_ms: i64,
+        end_of_day_ms: i64,
+        source: &str,
+    ) -> Result<Option<u16>, FitError> {
+        let parsed = self
+            .aggregate(HEART_RATE_DATA_TYPE, source, start_of_day_ms, end_of_day_ms)
+            .await?;
+        Ok(parsed.average_bpm())
+    }
+
+    /// Issue one `dataset:aggregate` request and parse the response.
+    async fn aggregate(
+        &self,
+        data_type: &str,
+        source: &str,
+        start_of_day_ms: i64,
+        end_of_day_ms: i64,
+    ) -> Result<AggregateResponse, FitError> {
         let access_token = self.refresh_access_token().await?;
         let body = json!({
             "aggregateBy": [{
-                "dataTypeName": STEPS_DATA_TYPE,
+                "dataTypeName": data_type,
                 "dataSourceId": source,
             }],
             "bucketByTime": { "durationMillis": DAY_MS },
@@ -191,10 +239,9 @@ impl GoogleFitClient {
                 )),
             });
         }
-        let parsed: AggregateResponse = resp.json().await.map_err(|e| {
+        resp.json::<AggregateResponse>().await.map_err(|e| {
             log::warn!("google_fit: aggregate parse: {e:?}");
             FitError::transient("google fit: aggregate parse failed")
-        })?;
-        Ok(parsed.total_steps())
+        })
     }
 }

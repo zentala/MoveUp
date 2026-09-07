@@ -1,22 +1,24 @@
-//! Service layer over `GoogleFitClient`.
+//! Google Fit as a [`HealthSource`].
 //!
 //! Owns:
-//!   - the in-memory `StepsSnapshot` cache so UI reads are instant,
-//!   - the last error (so `get_steps_today` can return classification
-//!     without re-hitting the network),
-//!   - the discovered/overridden steps data source (one discovery per
-//!     process lifetime).
+//!   - the in-memory [`HealthSnapshot`] cache so UI reads are instant,
+//!   - the last error (so a cached read can report classification without
+//!     re-hitting the network),
+//!   - a [`SourceCache`], which resolves *which* Fit data streams this
+//!     account uses (one discovery per data type, per process).
 //!
 //! Thread-safety: tokio `Mutex` around all mutable state. An in-flight
 //! refresh is shared across concurrent callers via a oneshot broadcast
 //! so a flurry of clicks results in **one** outbound API call.
 
-use crate::google_fit::{
-    Credentials, ErrorKind, FitError, GoogleFitClient, DEFAULT_STEPS_DATA_SOURCE,
-};
-use crate::google_fit_models::{StepsSnapshot, StepsView};
-use std::sync::Arc;
+use crate::google_fit::{Credentials, ErrorKind, FitError, GoogleFitClient, SourceCache};
+use crate::health_models::{HealthSnapshot, HealthView};
+use crate::health_source::HealthSource;
+use async_trait::async_trait;
 use tokio::sync::{broadcast, Mutex};
+
+/// `source_id` this service stamps on every snapshot it produces.
+pub const GOOGLE_FIT_SOURCE_ID: &str = "google_fit";
 
 /// Returns (start_of_today_ms, end_of_tomorrow_local_midnight_ms) in the
 /// timezone of the supplied `now` instant.
@@ -47,37 +49,21 @@ where
     (start.timestamp_millis(), end.timestamp_millis())
 }
 
-/// How long a *failed* discovery is honored before retrying. Prevents a
-/// retry-storm against `dataSources` when that endpoint is transiently
-/// flaky (we'd otherwise hit it once per poll = 12×/h).
-const DISCOVERY_FAILURE_TTL_MS: i64 = 60 * 60 * 1000;
-
 /// Cached service state guarded by a single mutex.
 #[derive(Default)]
 struct ServiceState {
-    snapshot: Option<StepsSnapshot>,
+    snapshot: Option<HealthSnapshot>,
     last_error_kind: Option<ErrorKind>,
     last_error_message: Option<String>,
-    /// Discovered (or fallback) data source — cached after the first
-    /// resolution attempt so subsequent refreshes skip the discovery
-    /// HTTP call. Cleared on `AuthRevoked` (new consent may grant new
-    /// scopes / sources).
-    cached_source: Option<String>,
-    /// Wall-clock ms at which `cached_source` was set. Used to decide
-    /// when a fallback (default) entry should expire and be retried.
-    cached_source_at_ms: i64,
-    /// `true` when `cached_source` holds the static fallback because
-    /// discovery failed (not a real discovery result). Re-attempted after
-    /// `DISCOVERY_FAILURE_TTL_MS`.
-    cached_source_is_fallback: bool,
     /// In-flight refresh broadcast — concurrent callers subscribe instead
     /// of issuing parallel API calls.
-    inflight: Option<broadcast::Sender<Result<StepsSnapshot, FitError>>>,
+    inflight: Option<broadcast::Sender<Result<HealthSnapshot, FitError>>>,
 }
 
 /// Caching wrapper around `GoogleFitClient`.
 pub struct GoogleFitService {
     client: Option<GoogleFitClient>,
+    sources: SourceCache,
     state: Mutex<ServiceState>,
 }
 
@@ -88,6 +74,7 @@ impl GoogleFitService {
         let client = Credentials::from_env().map(GoogleFitClient::new);
         Self {
             client,
+            sources: SourceCache::default(),
             state: Mutex::new(ServiceState::default()),
         }
     }
@@ -98,6 +85,7 @@ impl GoogleFitService {
     pub fn with_client(client: GoogleFitClient) -> Self {
         Self {
             client: Some(client),
+            sources: SourceCache::default(),
             state: Mutex::new(ServiceState::default()),
         }
     }
@@ -107,11 +95,71 @@ impl GoogleFitService {
         self.client.is_some()
     }
 
-    /// Build a `StepsView` reflecting the current cached state without
+    /// Best-effort heart rate for the window. Never fails the refresh:
+    /// Fit is first a step source, and an account without heart rate (or
+    /// without the heart-rate scope) must still show its steps.
+    async fn fetch_hr(&self, client: &GoogleFitClient, start: i64, end: i64) -> Option<u16> {
+        let source = self.sources.heart_rate(client).await?;
+        match client.fetch_heart_rate(start, end, &source).await {
+            Ok(bpm) => bpm,
+            Err(e) => {
+                log::warn!("google_fit: heart rate unavailable: {e}");
+                None
+            }
+        }
+    }
+
+    /// Run one refresh: steps, then best-effort heart rate.
+    async fn fetch_snapshot(&self, client: &GoogleFitClient) -> Result<HealthSnapshot, FitError> {
+        let source = self.sources.steps(client).await;
+        let (start, end) = local_day_window_ms(chrono::Local::now());
+        let steps = client.fetch_steps(start, end, &source).await?;
+        Ok(HealthSnapshot {
+            steps_today: steps,
+            heart_rate_bpm: self.fetch_hr(client, start, end).await,
+            hrv_rmssd_ms: None,
+            source_id: GOOGLE_FIT_SOURCE_ID.to_string(),
+            fetched_at_ms: chrono::Utc::now().timestamp_millis(),
+        })
+    }
+
+    /// Persist a refresh result into the cache.
+    async fn store(&self, result: &Result<HealthSnapshot, FitError>) {
+        let mut revoked = false;
+        let mut st = self.state.lock().await;
+        st.inflight = None;
+        match result {
+            Ok(snap) => {
+                st.snapshot = Some(snap.clone());
+                st.last_error_kind = None;
+                st.last_error_message = None;
+            }
+            Err(err) => {
+                st.last_error_kind = Some(err.kind);
+                st.last_error_message = Some(err.message.clone());
+                revoked = err.kind == ErrorKind::AuthRevoked;
+            }
+        }
+        drop(st);
+        // Auth revoked invalidates the resolved sources — re-consent may
+        // grant different scopes, and therefore different streams.
+        if revoked {
+            self.sources.invalidate().await;
+        }
+    }
+}
+
+#[async_trait]
+impl HealthSource for GoogleFitService {
+    fn id(&self) -> &str {
+        GOOGLE_FIT_SOURCE_ID
+    }
+
+    /// Build a `HealthView` reflecting the current cached state without
     /// touching the network.
-    pub async fn view(&self) -> StepsView {
+    async fn view(&self) -> HealthView {
         let st = self.state.lock().await;
-        StepsView {
+        HealthView {
             configured: self.is_configured(),
             snapshot: st.snapshot.clone(),
             error_kind: st.last_error_kind,
@@ -119,80 +167,20 @@ impl GoogleFitService {
         }
     }
 
-    /// Resolve the steps data source.
-    ///
-    /// Order of precedence:
-    ///   1. Env var override (`GOOGLE_FIT_STEPS_SOURCE`) — always wins.
-    ///   2. Valid cached discovery — reused forever (until auth revoked).
-    ///   3. Fallback cached < 1h ago — reused to avoid retry-storm against
-    ///      a flaky `dataSources` endpoint.
-    ///   4. Fresh discovery — cached on success, or fallback cached with
-    ///      a 1h TTL on failure.
-    async fn resolve_source(&self, client: &GoogleFitClient) -> String {
-        if let Some(over) = client.steps_source_override() {
-            return over.to_string();
-        }
-        let now_ms = chrono::Utc::now().timestamp_millis();
-        {
-            let st = self.state.lock().await;
-            if let Some(cached) = &st.cached_source {
-                // Real discovery result: cache indefinitely.
-                if !st.cached_source_is_fallback {
-                    return cached.clone();
-                }
-                // Fallback entry: honor for the TTL window before retrying.
-                if now_ms - st.cached_source_at_ms < DISCOVERY_FAILURE_TTL_MS {
-                    return cached.clone();
-                }
-            }
-        }
-        match client.list_step_sources().await {
-            Ok(sources) => {
-                let picked = GoogleFitClient::rank_step_sources(&sources)
-                    .unwrap_or_else(|| DEFAULT_STEPS_DATA_SOURCE.to_string());
-                let is_fallback_pick = picked == DEFAULT_STEPS_DATA_SOURCE && sources.is_empty();
-                log::info!("google_fit: discovered steps data source: {picked}");
-                let mut st = self.state.lock().await;
-                st.cached_source = Some(picked.clone());
-                st.cached_source_at_ms = now_ms;
-                st.cached_source_is_fallback = is_fallback_pick;
-                picked
-            }
-            Err(e) => {
-                log::warn!(
-                    "google_fit: data source discovery failed: {e}; caching default for {}min",
-                    DISCOVERY_FAILURE_TTL_MS / 60_000,
-                );
-                let mut st = self.state.lock().await;
-                st.cached_source = Some(DEFAULT_STEPS_DATA_SOURCE.to_string());
-                st.cached_source_at_ms = now_ms;
-                st.cached_source_is_fallback = true;
-                DEFAULT_STEPS_DATA_SOURCE.to_string()
-            }
-        }
-    }
-
     /// Force a fresh API call, update the cache, and return the new view.
     ///
     /// Concurrent callers piggyback on the first in-flight request; only
     /// one outbound HTTP call goes to Google per refresh window.
-    pub async fn refresh(&self) -> StepsView {
+    async fn refresh(&self) -> HealthView {
         let Some(client) = self.client.as_ref() else {
-            return StepsView {
-                configured: false,
-                snapshot: None,
-                error_kind: None,
-                error_message: None,
-            };
+            return HealthView::unconfigured();
         };
 
         // Subscribe to an existing in-flight refresh, or claim ownership.
         let (own_tx, mut rx) = {
             let mut st = self.state.lock().await;
             if let Some(tx) = &st.inflight {
-                // Piggyback on the existing flight.
-                let rx = tx.subscribe();
-                (None, rx)
+                (None, tx.subscribe())
             } else {
                 let (tx, rx) = broadcast::channel(1);
                 st.inflight = Some(tx.clone());
@@ -201,40 +189,11 @@ impl GoogleFitService {
         };
 
         if let Some(tx) = own_tx {
-            // We own the request — execute and broadcast result.
-            let source = self.resolve_source(client).await;
-            let (start, end) = local_day_window_ms(chrono::Local::now());
-            let result = match client.fetch_steps(start, end, &source).await {
-                Ok(steps) => Ok(StepsSnapshot {
-                    steps_today: steps,
-                    fetched_at_ms: chrono::Utc::now().timestamp_millis(),
-                }),
-                Err(e) => Err(e),
-            };
+            // We own the request — execute and broadcast the result.
+            let result = self.fetch_snapshot(client).await;
             // Persist + clear inflight before broadcasting so late
             // subscribers always observe the post-result state.
-            {
-                let mut st = self.state.lock().await;
-                st.inflight = None;
-                match &result {
-                    Ok(snap) => {
-                        st.snapshot = Some(snap.clone());
-                        st.last_error_kind = None;
-                        st.last_error_message = None;
-                    }
-                    Err(err) => {
-                        st.last_error_kind = Some(err.kind);
-                        st.last_error_message = Some(err.message.clone());
-                        // Auth revoked invalidates any cached source — next
-                        // attempt will discover fresh after re-consent.
-                        if err.kind == ErrorKind::AuthRevoked {
-                            st.cached_source = None;
-                            st.cached_source_at_ms = 0;
-                            st.cached_source_is_fallback = false;
-                        }
-                    }
-                }
-            }
+            self.store(&result).await;
             // Ignore send errors — they just mean no piggyback subscriber.
             let _ = tx.send(result);
         } else {
@@ -245,6 +204,3 @@ impl GoogleFitService {
         self.view().await
     }
 }
-
-/// Type alias used by Tauri state.
-pub type GoogleFitState = Arc<GoogleFitService>;
