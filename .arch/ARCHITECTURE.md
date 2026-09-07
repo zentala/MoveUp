@@ -57,7 +57,18 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 │  commands_share.rs  (IPC: get_share_text for viral sharing)  │
 │  telemetry.rs       (opt-in daily aggregate telemetry)       │
 │  remote_server.rs   (HTTP+WS server on :3390)               │
+│    ├── remote_auth.rs          (require_token — write gate)  │
+│    ├── remote_routes_health.rs (POST /display/health inlet)  │
+│    └── remote_routes_voice.rs  (POST /display/voice inlet)   │
 │  ws_broadcaster.rs  (broadcasts state to WS clients)         │
+│                                                              │
+│  health_source.rs   (HealthSource trait + HealthAggregator)  │
+│    ├── health_models.rs      (HealthSnapshot / HealthView)   │
+│    └── google_fit*.rs        (one source: OAuth2 pull)       │
+│  voice_intent.rs    (offline PL/EN intent parser)            │
+│  db_voice_notes.rs  (voice_notes table)                      │
+│  voice_ai.rs        (BYOK OpenRouter reply, optional)        │
+│  notify_webhook.rs  (outbound ntfy push → phone → watch)     │
 │  lib.rs       (app entry, plugins, AppState)                 │
 └──────────────────────┬──────────────────────────────────────┘
                        │ IPC commands + events + HTTP/WS
@@ -72,7 +83,10 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 │  hooks/useDesk.ts        (IPC bridge, polls session state)   │
 │  hooks/useRemoteDesk.ts  (WS bridge for remote display)     │
 │  hooks/useDeskAuto.ts    (auto-selects IPC or WS)           │
+│  hooks/useHealth.ts      (IPC poll on desktop, WS on phone)  │
 │  components/ConnectionOverlay.tsx (remote mode status)       │
+│  components/HealthWidget.tsx  (steps + optional HR badge)    │
+│  components/VoiceCapture.tsx  (phone-only dictation panel)   │
 │  components/         (ProgressBar, KpiStrip, Settings, etc.) │
 │  types.ts            (shared TS types matching Rust DTOs)    │
 └─────────────────────────────────────────────────────────────┘
@@ -89,7 +103,11 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 
 ## IPC Commands (Frontend → Rust)
 
-Key commands: `get_session_state`, `get_today_summary`, `inject_reading`, `list_ports`, `start_auto_connect`, `stop_reading`, `trigger_test_notification`, `set_session_limit`, `set_stand_limit`, `calibrate`, `get_settings`, `save_settings`, `get_overlay_state`, `dismiss_welcome`, `show_welcome`.
+Key commands: `get_session_state`, `get_today_summary`, `inject_reading`, `list_ports`, `start_auto_connect`, `stop_reading`, `trigger_test_notification`, `set_session_limit`, `set_stand_limit`, `calibrate`, `get_settings`, `save_settings`, `get_overlay_state`, `dismiss_welcome`, `show_welcome`, `get_health_today`, `refresh_health_now`, `list_voice_notes`.
+
+Both `invoke` handler lists in `lib.rs` must be edited together — a test
+asserts they are equal, because a command registered in one and not the other
+fails only at runtime.
 
 Rust owns the shape of everything these send. `ts-rs` writes the TypeScript
 mirror into `src/generated/`, which `src/types.ts` and
@@ -122,6 +140,17 @@ Remote display path (parallel to IPC):
         → remote_server.rs (:3390 — serves React UI + /display/ws + /display/api)
         → useRemoteDesk.ts (WS client in browser, auto-reconnect)
         → Widget renders (same components, phone viewport)
+
+Inbound paths (the LAN writing INTO the app — E021, authenticated):
+    phone / curl / future companion app
+        → POST /display/health → require_token → PushHealthSource
+            → HealthAggregator (merged with Google Fit by freshness)
+            → RemoteDisplayState.health + /display/api + HealthWidget
+        → POST /display/voice  → require_token → voice_intent::parse
+            → event_logger (VOICE line) → db_voice_notes (row)
+            → CommunicationPolicy snooze fields (Snooze intent only)
+            → voice_ai::reply (optional) → desk:voice-ack over WS
+            → notify_webhook → phone notification → mirrored to watch
 ```
 
 ## Session Counters (one credited value)
@@ -172,6 +201,86 @@ The table in `session_breaks.rs`'s module doc comment is the map.
 Source: `session_manager.rs`, `session_reading.rs`, `session_daily.rs`,
 `session_breaks.rs`, `session_persistence.rs`,
 [E020](../.plan/epics/E020-2026-09-06-engine-pure-core/PLAN.md).
+
+## Remote Server: open reads, authenticated writes
+
+`remote_server.rs::build_router` mounts four routes and one fallback, and they
+do not all carry the same privilege:
+
+| Route | Privilege | Purpose |
+|-------|-----------|---------|
+| `GET /display/ws` | open on the LAN | live snapshot + events, ~1/s |
+| `GET /display/api` | open on the LAN | one-shot snapshot; **also PM3's health probe** (ADR 019) |
+| `POST /display/health` | `X-Desk-Token` | health inlet (ADR 020) |
+| `POST /display/voice` | `X-Desk-Token` | dictation inlet (ADR 021) |
+| fallback | open | the React UI (dev: a helper page) |
+
+Reading and writing are different privileges, so they get different gates.
+`remote_auth.rs::require_token` is the one gate: a constant-time compare
+against `DESK_REMOTE_TOKEN`, applied by every write route. Its refusals are
+deliberately distinguishable — `401` means the caller's token was wrong,
+**`503` means the PC has no token configured at all**. Unset is closed, not
+open; a missing secret must never read as a working endpoint.
+
+Both inlets cap their bodies before parsing (1 KiB health, 4 KiB voice) and
+answer `422` for a body that parses but carries an unusable value, so a
+malformed push is never mistaken for an empty one.
+
+## Health Sources and the LAN Inlet
+
+Health data is source-agnostic (ADR 020). Three pieces:
+
+| Piece | In code | Job |
+|-------|---------|-----|
+| **`trait HealthSource`** | `health_source.rs` | `id()` · `view()` (cache-only) · `refresh()` (may hit the network) |
+| **`HealthAggregator`** | `health_source.rs` | merges every source's `HealthView` by freshest `fetched_at_ms`; `AuthRevoked` outranks `Transient`, so a healthy source never hides a broken one |
+| **`PushHealthSource`** | `remote_routes_health.rs` | holds the last LAN push; **withdraws its snapshot after 1 h** (`STALE_AFTER_MS`) so the app falls back rather than showing stale steps as current |
+
+`GoogleFitService` is one implementation, not the architecture — its
+shutdown (announced for late 2026) is a source that stops registering.
+`HealthSnapshot` / `HealthView` (`health_models.rs`) are ts-rs exported per
+ADR 017; the frontend reads them through `useHealth.ts`, which polls over IPC
+on the desktop and reads the WS snapshot on the phone, never both.
+
+Source: `health_source.rs`, `health_models.rs`, `remote_routes_health.rs`,
+`remote_auth.rs`, `google_fit_service.rs`, `commands_health.rs`,
+[ADR 020](ADR/020-health-source-inlet.md).
+
+## Voice Inlet
+
+A dictated sentence enters at `POST /display/voice` and leaves as a record
+and a notification. It never enters the session engine — ADR 015 keeps that
+core pure, and ADR 021 records why a spoken "I'm walking" is not allowed to
+set `DeskState`.
+
+`voice_intent.rs::parse` maps the transcript to `enum Intent`
+(`Snooze(u16)` · `Note` · `WalkStart` · `WalkEnd`) offline, from an ordered
+table of Polish and English regexes — no API key, no network, deterministic
+enough to unit-test. `WalkEnd` is matched before `WalkStart` ("wracam ze
+spaceru" contains a walk); anything unrecognised is a `Note`, so no
+transcript is ever lost.
+
+The pipeline in `remote_routes_voice.rs::run_pipeline`, in order:
+
+1. `EventLogger` — a `VOICE <intent> <transcript≤80>` line, written **first**,
+   so a later failure still leaves the dictation in `events.log`;
+2. `db_voice_notes::insert_voice_note` — a `voice_notes` row, bucketed by the
+   local day of `captured_at_ms`;
+3. the side effect — **only `Snooze` has one**, and it sets
+   `CommunicationPolicy`'s existing snooze fields, the same ones the alert
+   popup's snooze button sets. `Note`, `WalkStart` and `WalkEnd` change no
+   state at all;
+4. `voice_ai::reply` — optional BYOK OpenRouter call, 8 s timeout, ≤60 words;
+5. `DisplayEvent::VoiceAck` broadcast as `desk:voice-ack`, then
+   `notify_webhook` push (phone notification, mirrored to the watch).
+
+Every leg is independently optional: no database, no logger, no AI key, no
+webhook — each degrades to a shorter acknowledgement and the request still
+returns `200` with the parsed intent.
+
+Source: `voice_intent.rs`, `remote_routes_voice.rs`, `db_voice_notes.rs`,
+`voice_ai.rs`, `notify_webhook.rs`, `src/components/VoiceCapture.tsx`,
+[ADR 021](ADR/021-voice-in-on-phone-watch-as-glance.md).
 
 ## Release Store and Supervision Boundary
 
@@ -226,6 +335,9 @@ blocked on PM3 gaining candidate lists — see
 | **Pure engine, impure adapters** | The engine reading its own clock made midnight and DST untestable; config copied into state made profile hot-reload a no-op; tray re-derivation let two consumers disagree | E020, ADR 015 |
 | **PM3 supervises, the app defines health** | A private watchdog would put a second supervisor on a machine where PM3 owns long-lived processes, and every future app would rewrite the same rollback logic | E014, ADR 018 |
 | **Versioned release store, 3 retained** | Overwriting the single installed build leaves nothing to fall back to; "process alive" would promote a build that starts and never serves | E014, ADR 019 |
+| **Health arrives through a trait and an inlet, not a vendor client** | Google Fit's name was in the command, DTO and component names, so its announced shutdown was a rewrite; the phone's Health Connect data can only be pushed, and pushing needs an endpoint | E021, ADR 020 |
+| **Open reads, authenticated writes on :3390** | The LAN routes were read-only, so no gate was needed; the moment anything writes app state, an unset token must mean closed (`503`), never open | E021, ADR 020 |
+| **Voice in on the phone, watch as glance; intents are events** | `SpeechRecognition` needs a secure context that plain-HTTP `/display` cannot give, and a spoken "I'm walking" reaching the engine would give it two sources of truth about position | E021, ADR 021 |
 
 ## Native UI Elements (WinAPI, outside Tauri)
 
@@ -236,7 +348,10 @@ Both run in dedicated background threads with their own Windows message loops.
 
 ## Persistence
 
-- **SQLite** (via rusqlite): session history, daily summaries
+- **SQLite** (via rusqlite): session history, daily summaries, `voice_notes`
+  (dictated transcripts + parsed intent + optional AI reply, bucketed by the
+  local day of `captured_at_ms`; created by `db::init_schema`, read by
+  `list_voice_notes` and the Analyst catalog, and by nothing in `session_*.rs`)
 - **tauri-plugin-store**: user config (session limits, calibration, notification prefs, widget selection)
 - **Per-minute JSON snapshots** (`logs/YYYY-MM-DD/HH-MM.json`): the Analyst time series
 
