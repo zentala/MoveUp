@@ -217,6 +217,10 @@
           <file name="WidgetPickerSection.tsx">Widget selection dropdown</file>
           <file name="ProfileSelector.tsx">Profile dropdown — switch communication and ergonomic profiles</file>
           <file name="SettingsTypes.ts">Settings type definitions</file>
+          <file name="RemoteSection.tsx">E022 — Settings → More → Remote access. Reads RelayStatus.state, not the enabled flag: "switched on" and "actually connected" are different facts. Unregistered shows only the licence form; registered shows Pair a phone (enabled only while online), the device list and a disable button. Also carries the remote_lan_enabled toggle — the relay never takes the LAN transport away</file>
+          <file name="PairingCodeCard.tsx">The pairing code, desk id, minutes left, and the QR as inline SVG (qrcode toString — the one output needing no canvas, so it draws the same in the app and under jsdom). Code and QR are both always shown: a phone that cannot scan must still be pairable by typing</file>
+          <file name="PairedDevicesList.tsx">One row per paired phone with its own Remove button. An empty list says so in words — blank pixels would be indistinguishable from "still loading" and from "the request failed"</file>
+          <file name="useRelaySettings.ts">The IPC half of the Remote section: get_relay_status + relay_list_viewers on mount, and the four actions (register, start pairing, revoke, disable), each refreshing afterwards. Viewers are only requested for a registered desk</file>
         </dir>
       </dir>
 

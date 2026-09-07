@@ -20,6 +20,7 @@ import TimelineSkinSection from "./settings/TimelineSkinSection";
 import DebugSection from "./settings/DebugSection";
 import TelemetrySection from "./settings/TelemetrySection";
 import WebhookSection from "./settings/WebhookSection";
+import RemoteSection from "./settings/RemoteSection";
 import { AutostartToggle } from "./AutostartToggle";
 
 export type { SettingsPanelProps, DeskSettings } from "./settings/SettingsTypes";
@@ -139,6 +140,7 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
                 Show activity status (Active/Idle)
               </label>
             </div>
+            <RemoteSection settings={settings} onChange={setSettings} />
             <WebhookSection settings={settings} onChange={setSettings} />
             <TelemetrySection settings={settings} onChange={setSettings} />
             <div className="settings-panel__section">
