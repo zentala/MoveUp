@@ -281,6 +281,21 @@ UI at all in dev mode — two pre-existing gaps, neither caused by E015:
   or make `default_dist_path` fall back to a second candidate (repo-root
   `dist/`, or the Tauri resource dir once this function gains an
   `AppHandle`) when the exe-relative one is missing. (High, 3)
+  **Tried and did NOT fix it (2026-09-08):** copied `dist/` to
+  `target/release/dist/` next to the *already-running* production exe (pure
+  file copy, no process restart) — `curl http://127.0.0.1:3390/` and
+  `/display` both still 404 after the copy. Also: routing in `src/App.tsx`
+  is entirely hash-based (`window.location.hash`), and there is **no
+  `#/display` check at all** — the phone view is presumably just `/` in
+  non-Tauri context (`isTauri` gate), so `/display` as a literal path was
+  the wrong URL all along on top of the dist-path bug (a third, compounding
+  mistake in the same investigation — logged as friction, not re-filed as a
+  separate KB entry). Root cause is deeper than `default_dist_path` alone;
+  next attempt should read the Rust log-crate output (redirect stdout/stderr
+  when launching, or check whether `tauri-plugin-log`'s file target is even
+  configured) rather than guessing again against a live process — and should
+  happen in a worktree/dev build, not against Paweł's running production
+  instance.
   Loading the real Vite dev server at `:1443` instead fails differently:
   `src/hooks/useRemoteDesk.ts:123` builds `ws://${window.location.host}/display/ws`,
   which becomes `ws://localhost:1443/display/ws` — nothing answers there,
