@@ -20,6 +20,8 @@ param(
 
 $ProcessName = "desk"
 $ErrorActionPreference = "Stop"
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+$ReleaseExe = Join-Path $RepoRoot "src-tauri\target\release\desk.exe"
 
 # --- Overlay data source ---
 # Default is ALWAYS live. Demo/Mock require explicit flag.
@@ -28,15 +30,31 @@ elseif ($Demo)  { $env:OVERLAY_DATA = "demo" }
 else            { $env:OVERLAY_DATA = "live" }
 
 # --- Process guard ---
+# Killing a running instance without a plan to bring it back cost Pawel's own
+# production app ~14h of downtime (2026-09-07/08, an agent ran this script for
+# a screenshot and nothing restarted the killed instance afterward — see
+# .plan/BACKLOG.md). If the process this guard kills is the RELEASE build --
+# i.e. the one Windows autostart actually launches, not a prior dev build --
+# relaunch it once this dev session ends, whatever the reason it ended.
+$killedReleaseInstance = $false
 $existing = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
 if ($existing) {
     $existingPid = $existing.Id
+    $existingPath = $existing.Path
     Write-Host ""
     Write-Host "========================================"
     Write-Host "  Previous instance detected!"
     Write-Host "  $ProcessName.exe is running (PID: $existingPid)"
+    Write-Host "  Path: $existingPath"
     Write-Host "========================================"
     Write-Host ""
+
+    if ($existingPath -and ($existingPath -ieq $ReleaseExe)) {
+        $killedReleaseInstance = $true
+        Write-Host "  This is the RELEASE build (what autostart launches)."
+        Write-Host "  It will be relaunched automatically when this dev session ends."
+        Write-Host ""
+    }
 
     if ($Force) {
         Write-Host "  -Force: killing $ProcessName.exe..."
@@ -85,5 +103,14 @@ if ($existing) {
 # --- Ensure notification AUMID is registered (dev mode) ---
 & "$PSScriptRoot\register-notifications.ps1"
 
-# --- Launch tauri dev ---
-pnpm exec tauri dev
+# --- Launch tauri dev, always try to restore what we killed afterward ---
+try {
+    pnpm exec tauri dev
+} finally {
+    if ($killedReleaseInstance) {
+        Write-Host ""
+        Write-Host "  Dev session ended -- relaunching the release build it replaced."
+        Start-Process -FilePath $ReleaseExe -ArgumentList "--minimized"
+        Write-Host "  Relaunched: $ReleaseExe --minimized"
+    }
+}
