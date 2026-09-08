@@ -2,20 +2,20 @@
 
 ## Planned Epics
 
-- [ ] **`scripts/tauri-dev.ps1` pre-dev kill guard doesn't log what it killed** — the
-  guard (`.claude/rules/overlay.md` § "Pre-dev process guard") auto-kills any
-  running `desk.exe` before starting `pnpm tauri:dev`, but does not print the
-  killed process's PID/start-time/cmdline before terminating it. Found
-  2026-09-08: a `browser` subagent ran `pnpm tauri:dev` for a screenshot, the
-  guard silently killed the production autostart instance
+- [x] **`scripts/tauri-dev.ps1` pre-dev kill guard doesn't log what it killed** —
+  done 2026-09-08, commit `b0f96ca`: the guard now prints the killed process's
+  path before terminating it, and — the bigger fix — when the killed process
+  is the RELEASE build (the one the autostart registry key actually
+  launches), it is automatically relaunched in a `finally` block once the dev
+  session ends, whatever the reason it ended. Found 2026-09-08: a `browser`
+  subagent ran `pnpm tauri:dev` for a screenshot, the guard silently killed
+  the production autostart instance
   (`src-tauri\target\release\desk.exe --minimized`, running since
   2026-09-06 06:57), and once the dev session was later stopped, the app was
-  down for ~14h until diagnosed via `%APPDATA%\io.zntl.desk\logs\` reconstruction
-  (event-log timestamps, autostart registry, no `desk.exe` process/port 3390).
-  Add a one-line log (PID, `CreationDate`, `CommandLine`) before the kill so a
-  killed production instance can be identified without forensic log
-  reconstruction — see `~/.claude/CLAUDE.md` "Ubijasz coś, co należy do
-  Pawła → wyliczasz to imiennie". (Medium, 2)
+  down for ~14h until diagnosed via `%APPDATA%\io.zntl.desk\logs\`
+  reconstruction (event-log timestamps, autostart registry, no `desk.exe`
+  process/port 3390). See `~/.claude/CLAUDE.md` "Ubijasz coś, co należy do
+  Pawła → wyliczasz to imiennie".
 - [ ] **[E021 — Smartwatch integration + voice dictation (phone bridge)](epics/E021-2026-09-06-smartwatch-integration/PLAN.md)** — `HealthSource` trait + token-guarded `POST /display/health` (Google Fit REST ends late 2026), voice capture on the phone's `/display`, intent parser (snooze/note/walk), ntfy-compatible webhook so replies reach the Watch 4 by notification mirroring, BYOK OpenRouter reply. Handoff: [HANDOFF.md](epics/E021-2026-09-06-smartwatch-integration/HANDOFF.md), deck: [PRES.md](epics/E021-2026-09-06-smartwatch-integration/PRES.md). 51 points, full AO. Planned 2026-09-06 from [reports/2026-09-06-brief-smartwatch-integration.md](reports/2026-09-06-brief-smartwatch-integration.md). Candidate follow-up E022: Android Health Connect companion (official SDK) using E021's push contract.
 - [x] **`.plan/epics/INDEX.md` does not exist** — done 2026-09-08: created
   [`epics/INDEX.md`](epics/INDEX.md) (23 rows via `epic-index --fix`) with
