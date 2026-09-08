@@ -1049,9 +1049,10 @@ Also left as warnings by the plugins' own defaults (not downgraded here):
 - [x] **Create `.plan/epics/INDEX.md`** — done 2026-09-08, duplicate of the
   entry above (this one predates it). See [`epics/INDEX.md`](epics/INDEX.md).
 
-- [ ] **Audit the 14 `unknown` rows in `epics/INDEX.md`** (E001-E011,
-  E017-E020) — this session verified E000/E012/E013/E014/E015/E016/E021/E022
-  against `git log` and `.plan/HISTORY.md`; the rest were left honestly
-  `unknown` rather than guessed. Cross-reference each against
-  [`HISTORY.md`](HISTORY.md) and `git log --oneline --grep="E0NN"` — same
-  method used for E021/E022 this session, ~2 min per epic. (Medium, 3)
+- [ ] **Audit the 9 remaining `unknown` rows in `epics/INDEX.md`** (E001-E009)
+  — this session set E000, E010-E022 (13 rows) from explicit text already in
+  `.plan/STATE.md`/`BACKLOG.md`; E001-E009 only have `.plan/STATE.md:103`'s
+  vague "partially done (see ORCHESTRATOR.md per epic)", which needs opening
+  each epic's own `ORCHESTRATOR.md`/`PLAN.md` to resolve — not guessable from
+  STATE.md alone. Same method as the rest: cross-reference
+  [`HISTORY.md`](HISTORY.md) + `git log --oneline --grep="E0NN"`. (Medium, 2)

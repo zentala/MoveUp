@@ -1,6 +1,6 @@
 ---
 updated: 2026-09-07T22:48:29
-active_epic: none (E011, E012, E016, E017, E018, E019, E020 code complete; E014 waves 1-2 code complete, waves 3-4 blocked on pm3-mcp; E015 code-complete, T05 browser evidence gap open — see below)
+active_epic: none (E011, E012, E016-E022 done or code-complete — see epics/INDEX.md for the real per-epic status table, created 2026-09-08; E014 waves 1-2 code complete, waves 3-4 blocked on pm3-mcp; E015 code-complete, T05 browser evidence gap open — see below; E022's T16 deploy deliberately deferred, decision E022-D6)
 planning_epic: none
 planning_epic_path: null
 current_wave:
@@ -87,6 +87,28 @@ current_wave:
     browser-evidence gap. Two Pro-tier feature ideas (smartwatch
     integration, cross-device/phone relay) exist only as vision-doc
     paragraphs and would need a full planning session from scratch.
+  - **2026-09-07/08 — E021 (smartwatch integration, 51 pts) and E022
+    (cross-device phone relay, 111 pts) planned and dispatched through AO**
+    (the "vision-doc paragraphs" mentioned in the entry above are now
+    implemented). E021: all 9 tasks merged, AO run e021-run1, promoted;
+    815 Rust tests green. E022: 14/16 tasks merged, AO run e022-run1,
+    promoted; T13 (security review) done with 2 fixes shipped same session
+    (licence re-check on the alarm, command-replay rejection — see
+    `epics/E022-.../reports/2026-09-07-security-review.md`); T15
+    (verify+browser) partial — 8-9/10 acceptance criteria confirmed, the
+    phone-dashboard render still unconfirmed (found a real, standing bug:
+    `remote_server.rs`'s `default_dist_path()` misses `dist/` when launched
+    from a raw `target/release/` build, which is how Paweł's own autostart
+    actually runs it — filed to BACKLOG.md); T16 (deploy to
+    `relay.desk.zentala.io`) deliberately deferred — Cloudflare Durable
+    Objects require the paid Workers plan (5 USD/mo), Paweł chose to stay
+    LAN-only for now (decision E022-D6). Both epics pushed to `origin/main`.
+    Created `epics/INDEX.md` (was missing entirely) and backfilled 13 of 23
+    rows from verified evidence; 9 rows (E001-E009) still `unknown`, filed
+    as a backlog audit. Incident: an agent dispatch running `pnpm tauri:dev`
+    for a screenshot killed Paweł's live production `desk.exe` (autostart
+    guard kills any running instance) and nothing restarted it for ~14h
+    until noticed and fixed this session — filed as KB feedback.
 ---
 
 ## Status
