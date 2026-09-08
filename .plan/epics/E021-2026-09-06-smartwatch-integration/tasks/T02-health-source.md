@@ -1,6 +1,8 @@
 ---
 id: E021-T02
-status: pending
+status: done
+updated: 2026-09-08
+evidence: fce9a1e
 ---
 
 # E021-T02: Health source trait + Google Fit adapter

@@ -1,6 +1,8 @@
 ---
 id: E021-T09
-status: pending
+status: done
+updated: 2026-09-08
+evidence: c8b3797
 ---
 # E021-T09: Docs + ADRs (health source inlet, voice glance)
 ## Acceptance

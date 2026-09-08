@@ -1,6 +1,8 @@
 ---
 id: E021-T04
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 11211bd
 ---
 # E021-T04: HealthWidget (rename StepsWidget) + useHealth hook
 ## Acceptance

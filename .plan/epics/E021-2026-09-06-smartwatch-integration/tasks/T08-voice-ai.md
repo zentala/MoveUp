@@ -1,6 +1,8 @@
 ---
 id: E021-T08
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 50a045d
 ---
 # E021-T08: Voice AI reply client (BYOK OpenRouter)
 ## Acceptance

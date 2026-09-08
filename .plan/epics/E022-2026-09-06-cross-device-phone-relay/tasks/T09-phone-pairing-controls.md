@@ -1,6 +1,8 @@
 ---
 id: E022-T09
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 0034b08
 ---
 # E022-T09: Phone pairing + controls UI
 ## Acceptance

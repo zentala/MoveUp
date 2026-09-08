@@ -1,6 +1,8 @@
 ---
 id: E022-T11
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 71b186d
 ---
 # E022-T11: LAN path on the shared envelope
 ## Acceptance

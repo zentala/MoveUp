@@ -1,6 +1,8 @@
 ---
 id: E022-T08
-status: pending
+status: done
+updated: 2026-09-08
+evidence: b41dc84
 ---
 # E022-T08: Phone transport abstraction
 ## Acceptance

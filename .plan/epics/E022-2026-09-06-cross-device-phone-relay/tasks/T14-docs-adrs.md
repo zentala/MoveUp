@@ -1,6 +1,8 @@
 ---
 id: E022-T14
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 6c08f6d
 ---
 # E022-T14: Docs + ADRs
 ## Acceptance

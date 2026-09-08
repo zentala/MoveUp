@@ -1,6 +1,8 @@
 ---
 id: E022-T06
-status: pending
+status: done
+updated: 2026-09-08
+evidence: ba216c8
 ---
 # E022-T06: Desktop credentials + pairing + IPC
 ## Acceptance

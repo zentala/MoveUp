@@ -1,6 +1,8 @@
 ---
 id: E022-T02
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 494f9f6
 ---
 # E022-T02: Relay Worker core
 ## Acceptance

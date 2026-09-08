@@ -1,6 +1,8 @@
 ---
 id: E021-T03
-status: pending
+status: done
+updated: 2026-09-08
+evidence: fe9594a
 ---
 # E021-T03: Remote health push inlet + auth
 ## Acceptance

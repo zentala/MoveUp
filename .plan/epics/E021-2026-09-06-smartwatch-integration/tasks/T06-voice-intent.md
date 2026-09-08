@@ -1,6 +1,8 @@
 ---
 id: E021-T06
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 97947ed
 ---
 # E021-T06: Voice intent parser + voice routes + notes DB
 ## Acceptance

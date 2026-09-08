@@ -2,8 +2,26 @@
 
 ## Planned Epics
 
+- [ ] **`scripts/tauri-dev.ps1` pre-dev kill guard doesn't log what it killed** — the
+  guard (`.claude/rules/overlay.md` § "Pre-dev process guard") auto-kills any
+  running `desk.exe` before starting `pnpm tauri:dev`, but does not print the
+  killed process's PID/start-time/cmdline before terminating it. Found
+  2026-09-08: a `browser` subagent ran `pnpm tauri:dev` for a screenshot, the
+  guard silently killed the production autostart instance
+  (`src-tauri\target\release\desk.exe --minimized`, running since
+  2026-09-06 06:57), and once the dev session was later stopped, the app was
+  down for ~14h until diagnosed via `%APPDATA%\io.zntl.desk\logs\` reconstruction
+  (event-log timestamps, autostart registry, no `desk.exe` process/port 3390).
+  Add a one-line log (PID, `CreationDate`, `CommandLine`) before the kill so a
+  killed production instance can be identified without forensic log
+  reconstruction — see `~/.claude/CLAUDE.md` "Ubijasz coś, co należy do
+  Pawła → wyliczasz to imiennie". (Medium, 2)
 - [ ] **[E021 — Smartwatch integration + voice dictation (phone bridge)](epics/E021-2026-09-06-smartwatch-integration/PLAN.md)** — `HealthSource` trait + token-guarded `POST /display/health` (Google Fit REST ends late 2026), voice capture on the phone's `/display`, intent parser (snooze/note/walk), ntfy-compatible webhook so replies reach the Watch 4 by notification mirroring, BYOK OpenRouter reply. Handoff: [HANDOFF.md](epics/E021-2026-09-06-smartwatch-integration/HANDOFF.md), deck: [PRES.md](epics/E021-2026-09-06-smartwatch-integration/PRES.md). 51 points, full AO. Planned 2026-09-06 from [reports/2026-09-06-brief-smartwatch-integration.md](reports/2026-09-06-brief-smartwatch-integration.md). Candidate follow-up E022: Android Health Connect companion (official SDK) using E021's push contract.
-- [ ] **`.plan/epics/INDEX.md` does not exist** — `~/.claude/hooks/epic-index-guard.mjs` blocks commits that touch `PLAN.md`/`HANDOFF.md` unless `epics/INDEX.md` is staged, so every plan commit in this repo currently needs `Epic-index-skipped:` in its body (E021 planning, 2026-09-06). Create it with `epic-index --fix` (rows land as `unknown`, never guessed `done`), then set the 21 rows by hand from [HISTORY.md](HISTORY.md). (Medium, 2)
+- [x] **`.plan/epics/INDEX.md` does not exist** — done 2026-09-08: created
+  [`epics/INDEX.md`](epics/INDEX.md) (23 rows via `epic-index --fix`) with
+  E000, E012, E013, E014, E015, E016, E021, E022 set to their real,
+  git-verified status; the other 14 (E001-E011, E017-E020) stay `unknown` —
+  see the audit item below, this was not guessed.
 
 - [x] **[E016 — Plan hygiene and AO readiness](epics/E016-2026-09-06-plan-hygiene-and-ao-readiness/PLAN.md)** — fix `.plan/STATE.md` self-contradiction, consolidate four backlog files into `.plan/BACKLOG.md`, close E011's ceremony, untrack `coverage/`+`test-performance-report/`, add `.giter.yaml`+root `justfile` for AO. Handoff: [HANDOFF.md](epics/E016-2026-09-06-plan-hygiene-and-ao-readiness/HANDOFF.md). 8 points. Done via AO run E016-20260906-0348, promoted `0995f42` (2026-09-06). See [HISTORY.md](HISTORY.md#e016--plan-hygiene-and-ao-readiness-2026-09-06).
 - [x] **[E015 — One truth for the sitting counter](epics/E015-2026-09-06-engine-single-truth/PLAN.md)** — popup reads the uncredited `current_session_secs`; delete it, one credited counter, PostureBalance + `break_credit` row, ADR 008 rev. Handoff: [HANDOFF.md](epics/E015-2026-09-06-engine-single-truth/HANDOFF.md). 21 points. Code-complete via AO, promoted `7a8bbf3`, tagged v0.6.0 (2026-09-06). T05's browser evidence gap stays open — see "Dev-mode remote display" section below. See [HISTORY.md](HISTORY.md#e015--one-truth-for-the-sitting-counter-2026-09-06-v060--code-complete-t05-open).
@@ -244,6 +262,25 @@ UI at all in dev mode — two pre-existing gaps, neither caused by E015:
   never actually tried. Re-check against `:1443` before filing this as still
   broken — this entry is a **dispatch mistake**, not a reproduction of the
   original gap.
+  **Second, real bug found 2026-09-08 checking the RELEASE build instead:**
+  `remote_server.rs:297-301` (`default_dist_path`) resolves `dist/` relative
+  to the *executable's own directory* — `<exe_dir>/dist`. A raw
+  `cargo build --release` (or the release binary the Windows autostart
+  registry `Run\MoveUp` value points at, `src-tauri/target/release/desk.exe`)
+  never gets a `dist/` copied next to it — only the repo root has one
+  (`C:/Users/zentala/code/MoveUp/dist`, populated by `pnpm build`). So in
+  release mode `ServeDir::new(dist)` (`:306-314`) serves a directory that
+  does not exist, and every route not matching `/display/ws`,
+  `/display/api`, or the health/voice REST routes 404s — confirmed with
+  `curl http://127.0.0.1:3390/display` → `404`, `content-length: 0`, against
+  the live, freshly-restarted production instance. This has likely been true
+  every time Paweł's actual daily-use instance (launched straight from
+  `target/release/`, not through the NSIS installer) served `/display` — a
+  standing bug, not something today's session broke. Fix: either set
+  `DESK_REMOTE_DIST` in the environment the autostart Run-key command uses,
+  or make `default_dist_path` fall back to a second candidate (repo-root
+  `dist/`, or the Tauri resource dir once this function gains an
+  `AppHandle`) when the exe-relative one is missing. (High, 3)
   Loading the real Vite dev server at `:1443` instead fails differently:
   `src/hooks/useRemoteDesk.ts:123` builds `ws://${window.location.host}/display/ws`,
   which becomes `ws://localhost:1443/display/ws` — nothing answers there,
@@ -1009,20 +1046,12 @@ Also left as warnings by the plugins' own defaults (not downgraded here):
   integer. Confirm against the epic folder list before creating it.
   (Importance: Medium, Points: 13)
 
-- [ ] **Create `.plan/epics/INDEX.md` — the status table this repo has no
-  substitute for.** 24 epic folders exist under
-  [`.plan/epics/`](epics/) and the only statement of what is done lives in
-  each epic's own `PLAN.md` header and task frontmatter — fields written at
-  planning time and almost never updated after a merge. The global rule
-  (`~/.claude/rules/plan-arch-structure.md` § "Status epiku mieszka w
-  `epics/INDEX.md`") makes that table the single source of truth, and the
-  `epic-index-guard.mjs` PreToolUse hook is supposed to block a commit that
-  touches an epic's `PLAN.md`/`HANDOFF.md`/`tasks/*.md` without touching
-  `INDEX.md`. **The guard cannot enforce anything here until the file
-  exists**, so every epic edit in this repo currently passes unchecked.
-  Work: run `epic-index --fix` to seed a row per folder at status `unknown`,
-  then set the ~20 known-real statuses by hand (E001–E020 are merged; E021 is
-  this epic; E022 is `planned`; E013/E014 are partly blocked) — never let
-  `--fix` guess `done`. Measured cost of not having it: a status review on
-  2026-09-06 burned ~40 minutes reconstructing the truth from `git log --all`
-  because the headers lie. (Importance: Medium, Points: 3)
+- [x] **Create `.plan/epics/INDEX.md`** — done 2026-09-08, duplicate of the
+  entry above (this one predates it). See [`epics/INDEX.md`](epics/INDEX.md).
+
+- [ ] **Audit the 14 `unknown` rows in `epics/INDEX.md`** (E001-E011,
+  E017-E020) — this session verified E000/E012/E013/E014/E015/E016/E021/E022
+  against `git log` and `.plan/HISTORY.md`; the rest were left honestly
+  `unknown` rather than guessed. Cross-reference each against
+  [`HISTORY.md`](HISTORY.md) and `git log --oneline --grep="E0NN"` — same
+  method used for E021/E022 this session, ~2 min per epic. (Medium, 3)

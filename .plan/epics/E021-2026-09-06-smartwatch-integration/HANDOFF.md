@@ -104,7 +104,7 @@ E021`, annotated tag `v0.7.0`), and commit this HANDOFF. Branch
   works? Add `scripts/check-e021-t01-spike.mjs` (fails when the file or
   any row is missing/blank — an empty table is not a pass). Tests: the
   script itself. Verify: `node scripts/check-e021-t01-spike.mjs`.
-- [ ] **T02** (8, ts-dev Rust, wave 1) — `health_source.rs` (trait
+- [x] **T02** (8, ts-dev Rust, wave 1) — `health_source.rs` (trait
   `HealthSource { fn id(&self) -> &str; async fn view(&self) -> HealthView; async fn refresh(&self) -> HealthView }`,
   `HealthAggregator` merging by `fetched_at_ms`, error passthrough),
   `health_models.rs` (`HealthSnapshot`, `HealthView`, `HealthErrorKind`
@@ -115,7 +115,7 @@ E021`, annotated tag `v0.7.0`), and commit this HANDOFF. Branch
   lists in `lib.rs`. Tests: `health_source_tests.rs`, HR case in
   `google_fit_http_tests.rs`, four paths per PLAN. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- health_source google_fit`.
-- [ ] **T05** (5, ts-dev React, wave 1) — `src/components/VoiceCapture.tsx`
+- [x] **T05** (5, ts-dev React, wave 1) — `src/components/VoiceCapture.tsx`
   (+ `voice-capture.css`), rendered on `/display` only (not the desktop
   popup); textarea + Send; mic button gated on `SpeechRecognition`
   presence and a `navigator.permissions.query({name:"microphone"})`
@@ -128,7 +128,7 @@ E021`, annotated tag `v0.7.0`), and commit this HANDOFF. Branch
   `src/test/scenarios-other.ts`; mockup gallery entry. Tests:
   `VoiceCapture.test.tsx` (four paths + double-click guard). Verify:
   `npx vitest run --config vite.config.ts src/components/VoiceCapture.test.tsx`.
-- [ ] **T07** (5, ts-dev Rust, wave 1) — `notify_webhook.rs`:
+- [x] **T07** (5, ts-dev Rust, wave 1) — `notify_webhook.rs`:
   `WebhookNotifier::from_env_or_config`, `send(&Notification) -> ()`
   spawned on tokio (never awaited by callers), 5 s timeout, one retry on
   5xx/timeout, JSON body `{title, message, priority, tags}` (ntfy accepts
@@ -137,7 +137,7 @@ E021`, annotated tag `v0.7.0`), and commit this HANDOFF. Branch
   More toggle + URL field bound to `AppConfig.notify_webhook_url`. Tests:
   `notify_webhook_tests.rs` (wiremock, four paths). Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- notify_webhook`.
-- [ ] **T03** (8, ts-dev Rust, wave 2, after T02) — `remote_auth.rs`
+- [x] **T03** (8, ts-dev Rust, wave 2, after T02) — `remote_auth.rs`
   (`require_token(headers, expected) -> Result<(), StatusCode>`,
   constant-time compare via `subtle` or a manual XOR fold — add the crate
   only if `subtle` is already transitive), `remote_routes_health.rs`
@@ -149,7 +149,7 @@ E021`, annotated tag `v0.7.0`), and commit this HANDOFF. Branch
   token setup. Tests: `remote_routes_health_tests.rs`, `remote_auth_tests.rs`
   (real seam: route → source → aggregator). Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- remote_routes_health remote_auth`.
-- [ ] **T08** (5, ts-dev Rust, wave 2) — `voice_ai.rs`:
+- [x] **T08** (5, ts-dev Rust, wave 2) — `voice_ai.rs`:
   `VoiceAi::from_env` (`OPENROUTER_API_KEY`; endpoint overridable for
   tests), `reply(transcript, &SessionStateDto) -> Result<Option<String>, VoiceAiError>`,
   fixed system prompt (≤60-word reply, Polish or English matching the
@@ -159,7 +159,7 @@ E021`, annotated tag `v0.7.0`), and commit this HANDOFF. Branch
   route yet (T06 does). Tests: `voice_ai_tests.rs` (wiremock, five
   cases). Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- voice_ai`.
-- [ ] **T04** (5, ts-dev React, wave 3, after T03) — rename
+- [x] **T04** (5, ts-dev React, wave 3, after T03) — rename
   `StepsWidget.tsx` → `HealthWidget.tsx` (+ test), `src/hooks/useHealth.ts`
   (Tauri: `invoke("get_health_today"/"refresh_health_now")` with the
   existing `useExponentialPoll` ladder; remote: read `health` from the
@@ -169,7 +169,7 @@ E021`, annotated tag `v0.7.0`), and commit this HANDOFF. Branch
   action carries `health`. Tests: `HealthWidget.test.tsx`,
   `useHealth.test.ts`, `useRemoteDesk.test.ts` extended. Verify:
   `npx vitest run --config vite.config.ts src/components/HealthWidget.test.tsx src/hooks/useHealth.test.ts src/hooks/useRemoteDesk.test.ts`.
-- [ ] **T06** (8, ts-dev Rust, wave 3, after T03 and T08) —
+- [x] **T06** (8, ts-dev Rust, wave 3, after T03 and T08) —
   `voice_intent.rs` (`parse(&str) -> Intent` with
   `Snooze(u16)`/`Note`/`WalkStart`/`WalkEnd`, table-driven regexes,
   Polish + English), `remote_routes_voice.rs` (`POST /display/voice`,
@@ -183,7 +183,7 @@ E021`, annotated tag `v0.7.0`), and commit this HANDOFF. Branch
   (12-phrase table), `remote_routes_voice_tests.rs` (real seam to the
   parser and a real temp SQLite), `db_voice_notes_tests.rs`. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- voice_intent remote_routes_voice db_voice_notes`.
-- [ ] **T09** (3, main, wave 4) — `.arch/ADR/020-health-source-inlet.md`,
+- [x] **T09** (3, main, wave 4) — `.arch/ADR/020-health-source-inlet.md`,
   `.arch/ADR/021-voice-in-on-phone-watch-as-glance.md` (both with
   Context/Decision/Alternatives/Consequences and `Status: accepted`),
   supersede note in ADR 012, `.arch/ARCHITECTURE.md` remote-server +
@@ -199,7 +199,7 @@ E021`, annotated tag `v0.7.0`), and commit this HANDOFF. Branch
   symbol (`trait HealthSource`, `fn require_token`, `enum Intent`,
   `struct WebhookNotifier`, `fn reply`), counts checks, fails on zero.
   Verify: `node scripts/check-e021-t09-docs.mjs`.
-- [ ] **T10** (2, verify + browser, wave 5) — `just check`; write all
+- [x] **T10** (2, verify + browser, wave 5) — `just check`; write all
   evidence records; then the `browser` agent: `/display` at 360×780 DPR 3
   after `curl -X POST -H "X-Desk-Token: …" http://127.0.0.1:3390/display/health -d '{"steps_today":1234,"source_id":"curl","measured_at_ms":…}'`
   shows `1 234` with source `curl`; typing "drzemka 5" and Send shows an

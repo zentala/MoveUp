@@ -1,6 +1,8 @@
 ---
 id: E022-T10
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 8cc0e4d
 ---
 # E022-T10: Desktop Settings -> Remote section
 ## Acceptance

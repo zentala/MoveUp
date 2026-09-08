@@ -1,6 +1,8 @@
 ---
 id: E021-T10
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 5c3aa9f
 ---
 # E021-T10: Full-suite verify + browser pass
 ## Acceptance

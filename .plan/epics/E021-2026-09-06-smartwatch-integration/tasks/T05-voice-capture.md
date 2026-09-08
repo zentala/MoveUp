@@ -1,6 +1,8 @@
 ---
 id: E021-T05
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 9bdfa30
 ---
 
 # E021-T05: VoiceCapture component (phone display)

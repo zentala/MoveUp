@@ -1,6 +1,8 @@
 ---
 id: E022-T07
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 646935c
 ---
 # E022-T07: Desktop command execution
 ## Acceptance

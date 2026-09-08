@@ -1,6 +1,8 @@
 ---
 id: E022-T05
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 8b7f5e4
 ---
 # E022-T05: Desktop relay client
 ## Acceptance

@@ -127,7 +127,7 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
 
 ## Tasks
 
-- [ ] **T01** (5, ts-dev) — Protocol contract. `src-tauri/src/remote_protocol.rs`
+- [x] **T01** (5, ts-dev) — Protocol contract. `src-tauri/src/remote_protocol.rs`
   (+ `remote_protocol_tests.rs`, `mod` lines in `lib.rs`): `Envelope<T>`,
   `Hello`, `Welcome`, `Command`, `CommandResult`, `DeskStatus`, `ErrorBody`,
   close-code consts, `COMMAND_ALLOWLIST` with arg bounds as data; `ts_rs`
@@ -138,7 +138,7 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   command-switch-profile, command-result-ok, command-result-err, ping, error).
   Verify: `cargo test --manifest-path src-tauri/Cargo.toml --lib -- remote_protocol`
   and `npx vitest run --config vite.config.ts src/remote/protocol.test.ts`.
-- [ ] **T02** (13, ts-dev) — Relay Worker core. Create `relay/` per Mental
+- [x] **T02** (13, ts-dev) — Relay Worker core. Create `relay/` per Mental
   model; `DeskRoom` DO using the WebSocket Hibernation API (`acceptWebSocket`,
   `webSocketMessage`, `webSocketClose`, tags `desk`/`viewer:<id>`), `hello`
   timeout via DO alarm, `welcome`, `event` fan-out, `desk_status`, last
@@ -147,7 +147,7 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   501. Auth in this task is a `verifyToken` hook that T03 fills — but the
   4401 path must already exist and be tested. Verify:
   `pnpm --dir relay install --frozen-lockfile && pnpm --dir relay exec vitest run test/room`.
-- [ ] **T03** (13, ts-dev) — Relay auth + REST. `migrations/0001_init.sql`
+- [x] **T03** (13, ts-dev) — Relay auth + REST. `migrations/0001_init.sql`
   (`licenses(key_hash PK, plan, max_desks, max_viewers, expires_at,
   created_at)`, `desks(desk_id PK, license_key_hash, token_hash, desk_name,
   app_version, created_at, last_seen)`, `viewers(viewer_id PK, desk_id,
@@ -158,13 +158,13 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   `scripts/mint-license.mjs` (prints one key, inserts its hash via `wrangler
   d1 execute`). Verify:
   `pnpm --dir relay exec vitest run test/auth test/http`.
-- [ ] **T04** (5, ts-dev) — Relay command routing. `command` from a viewer:
+- [x] **T04** (5, ts-dev) — Relay command routing. `command` from a viewer:
   validate name/args with the shared zod schema, attach `viewer_id`, forward
   to the desk socket; `desk_offline` immediate result when none; route
   `command_result` by `command_id` to the originating viewer only (keep a
   bounded `Map<command_id, viewer_tag>` with TTL 30 s); 10/min/viewer.
   Verify: `pnpm --dir relay exec vitest run test/commands`.
-- [ ] **T05** (8, ts-dev) — Desktop relay client. `src-tauri/src/relay_client.rs`
+- [x] **T05** (8, ts-dev) — Desktop relay client. `src-tauri/src/relay_client.rs`
   (+ `relay_client_tests.rs`, `relay_status.rs`): tokio task with
   `tokio-tungstenite` (`rustls-tls-webpki-roots`), `hello` → `welcome` →
   snapshot → forward `ws_tx` subscription; ping 25 s / 60 s timeout; backoff
@@ -173,7 +173,7 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   stop(), restart() }`. Tests use an in-process tokio-tungstenite server on
   port 0. Add deps in `Cargo.toml`. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- relay_client relay_status`.
-- [ ] **T06** (8, ts-dev) — Desktop credentials + pairing + IPC.
+- [x] **T06** (8, ts-dev) — Desktop credentials + pairing + IPC.
   `relay_auth.rs` (`keyring` with the `mock` feature under `cfg(test)`;
   `register`, `start_pairing`, `list_viewers`, `revoke_viewer`,
   `disable_relay` over `reqwest`), `commands_relay.rs` (Tauri commands:
@@ -183,14 +183,14 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   client start/restart on config save, registration in `lib.rs` handler
   list. Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- relay_auth commands_relay config`.
-- [ ] **T07** (5, ts-dev) — Desktop command execution. `relay_commands.rs`
+- [x] **T07** (5, ts-dev) — Desktop command execution. `relay_commands.rs`
   (+ tests): `execute(cmd, &AppState-like struct) -> CommandResult`;
   allowlist + bounds from `remote_protocol.rs`; stale `ts` > 30 s rejected;
   extract `switch_*_by_name` from `commands_profiles.rs`; `ack_alert` per
   Mental model; `events.log` lines `REMOTE <name> viewer=<id> ok|err=<code>`
   and `REMOTE DENIED <name>`. Wire into `relay_client.rs`'s receive arm.
   Verify: `cargo test --manifest-path src-tauri/Cargo.toml --lib -- relay_commands commands_profiles`.
-- [ ] **T08** (8, ts-dev) — Phone transport abstraction. `src/remote/transports/
+- [x] **T08** (8, ts-dev) — Phone transport abstraction. `src/remote/transports/
   {types.ts, lan.ts, relay.ts, index.ts}` (`Transport { connect, close,
   sendCommand?, capabilities, onMessage, onStatus }`), envelope parse via
   `protocol.ts`, stored record helpers `src/remote/storage.ts`
@@ -199,14 +199,14 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   (`data-testid="conn-overlay-desk-offline"`), `useDesk.ts` gets the two new
   constant fields, `useDeskTypes.ts` updated. Verify:
   `npx vitest run --config vite.config.ts src/remote src/hooks/useRemoteDesk src/components/ConnectionOverlay`.
-- [ ] **T09** (8, ts-dev) — Phone pairing + controls UI. `src/remote/PairScreen.tsx`
+- [x] **T09** (8, ts-dev) — Phone pairing + controls UI. `src/remote/PairScreen.tsx`
   (+ test), `src/remote/RemoteControls.tsx` (+ test), `#/pair` route in
   `App.tsx`, `RemoteControls` mounted in the remote layout only when
   `capabilities.control`; styles in `src/remote/remote.css`; scenarios for
   the mockup gallery in `src/test/scenarios.ts` (`pair-empty`,
   `pair-deeplink`, `pair-error-locked`, `controls-pending`). Verify:
   `npx vitest run --config vite.config.ts src/remote/PairScreen src/remote/RemoteControls`.
-- [ ] **T10** (8, ts-dev) — Desktop Settings → Remote section.
+- [x] **T10** (8, ts-dev) — Desktop Settings → Remote section.
   `src/components/settings/RemoteSection.tsx` (+ test, ≤ 100 lines per
   component — split `PairedDevicesList.tsx`, `PairingCodeCard.tsx`), `qrcode`
   dependency, wired into the existing settings panel tabs, scenarios
@@ -214,12 +214,12 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   `relay-pairing-code-shown` in `src/test/scenarios.ts` **before** the
   component (ux-design-flow.md — show the mockup, get "ok", then build).
   Verify: `npx vitest run --config vite.config.ts src/components/settings/RemoteSection src/components/settings/PairedDevicesList src/components/settings/PairingCodeCard`.
-- [ ] **T11** (3, ts-dev) — LAN path on the shared envelope. `remote_server.rs`
+- [x] **T11** (3, ts-dev) — LAN path on the shared envelope. `remote_server.rs`
   envelope wrap + `remote_lan_enabled` gate in `setup_helpers.rs` +
   read-only test; `docs/REMOTE_DISPLAY.md` LAN section mentions the toggle
   (T14 rewrites the rest). Verify:
   `cargo test --manifest-path src-tauri/Cargo.toml --lib -- remote_server`.
-- [ ] **T12** (5, ts-dev) — Wiring + local e2e. `justfile` recipes
+- [x] **T12** (5, ts-dev) — Wiring + local e2e. `justfile` recipes
   `relay-dev`, `relay-test`, `relay-deploy`; `.giter.yaml` guard;
   `vite.config.ts` `/display` proxy (closes the first "Dev-mode remote
   display" backlog entry — mark it `[x]` with this task id);
@@ -239,7 +239,7 @@ epic without `T13-security-review.json` as `current` is not a closed epic.
   [`.plan/BACKLOG.md`](../../BACKLOG.md#e022-security-review--deferred-findings-2026-09-07)
   — none block deploying `relay.desk.zentala.io`. Full report:
   [reports/2026-09-07-security-review.md](reports/2026-09-07-security-review.md).
-- [ ] **T14** (3, main) — Docs + ADRs. `.arch/ADR/022-relay-on-cloudflare-durable-objects.md`,
+- [x] **T14** (3, main) — Docs + ADRs. `.arch/ADR/022-relay-on-cloudflare-durable-objects.md`,
   `.arch/ADR/023-pairing-code-device-token-auth.md`, `.arch/ARCHITECTURE.md`
   section, `CLAUDE.md` Remote Display section rewrite, `docs/REMOTE_DISPLAY.md`
   rewrite (pairing first, LAN second, Fully Kiosk notes kept),

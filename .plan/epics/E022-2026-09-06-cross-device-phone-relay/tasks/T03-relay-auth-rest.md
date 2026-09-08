@@ -1,6 +1,8 @@
 ---
 id: E022-T03
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 264ece8
 ---
 # E022-T03: Relay auth + REST
 ## Acceptance

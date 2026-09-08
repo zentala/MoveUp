@@ -1,6 +1,8 @@
 ---
 id: E021-T07
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 7786176
 ---
 # E021-T07: Ntfy/generic webhook notifier
 ## Acceptance

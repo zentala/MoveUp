@@ -1,6 +1,8 @@
 ---
 id: E022-T01
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 8e5d918
 ---
 # E022-T01: Protocol contract
 ## Acceptance

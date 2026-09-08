@@ -1,6 +1,8 @@
 ---
 id: E022-T12
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 3e2079e
 ---
 # E022-T12: Wiring + local e2e
 ## Acceptance

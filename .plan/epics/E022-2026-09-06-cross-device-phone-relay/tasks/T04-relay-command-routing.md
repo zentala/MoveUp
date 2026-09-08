@@ -1,6 +1,8 @@
 ---
 id: E022-T04
-status: pending
+status: done
+updated: 2026-09-08
+evidence: 9af0b8f
 ---
 # E022-T04: Relay command routing
 ## Acceptance
