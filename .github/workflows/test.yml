@@ -82,11 +82,12 @@ jobs:
         run: pnpm test:unit:rust
 
       - name: Build Frontend
+        if: runner.os == 'Windows'
         run: pnpm build
 
       - name: Build Tauri (Debug)
-        run: pnpm tauri build --debug
         if: runner.os == 'Windows'
+        run: pnpm tauri build --debug
 
       - name: Upload Coverage Reports
         uses: codecov/codecov-action@v4
