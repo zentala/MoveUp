@@ -1,8 +1,8 @@
 ---
 id: E001-T12
 epic: E001
-status: completed
-completed: 2026-03-21
+status: pending
+completed: null  # was 2026-03-21; UI removed later, audit 2026-09-13
 original_id: "0012"
 title: T012 — Yesterday Delta Arrow in TodayStats
 ---

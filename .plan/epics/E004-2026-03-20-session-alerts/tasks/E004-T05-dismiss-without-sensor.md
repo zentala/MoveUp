@@ -1,8 +1,8 @@
 ---
 id: E004-T05
 epic: E004
-status: completed
-completed: 2026-03-20
+status: pending
+completed: null  # was 2026-03-20; fix not in code, audit 2026-09-13
 created: 2026-03-20
 original_id: T021
 title: T021 — Fix: Dismiss snooze not triggered when sensor disconnected

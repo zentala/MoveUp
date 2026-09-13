@@ -4,13 +4,17 @@
 
 | ID | Task | Status | Depends on | Wave |
 |----|------|--------|------------|------|
-| E009-T01 | Version bump to 0.3.0 | [ ] | — | 0 |
-| E009-T02 | WebSocket broadcaster module | [ ] | — | 1 |
-| E009-T03 | HTTP + WebSocket server (axum) | [ ] | T02 | 1 |
-| E009-T04 | useRemoteDesk() React hook | [ ] | T03 | 2 |
-| E009-T05 | Responsive layout for phone | [ ] | T04 | 2 |
-| E009-T06 | Connection status & reconnect UI | [ ] | T04, T05 | 3 |
-| E009-T07 | E2E testing & documentation | [ ] | T06 | 3 |
+| E009-T01 | Version bump to 0.3.0 | [x] | — | 0 |
+| E009-T02 | WebSocket broadcaster module | [x] | — | 1 |
+| E009-T03 | HTTP + WebSocket server (axum) | [x] | T02 | 1 |
+| E009-T04 | useRemoteDesk() React hook | [x] | T03 | 2 |
+| E009-T05 | Responsive layout for phone | [x] | T04 | 2 |
+| E009-T06 | Connection status & reconnect UI | [x] | T04, T05 | 3 |
+| E009-T07 | E2E testing & documentation | [x] | T06 | 3 |
+
+Boxes ticked 2026-09-13 by the INDEX audit: shipped in commits `dc2dbd9`..`f17dc0e`
+("E009 complete"), v0.3.0 `3afbdb0`; files `remote_server.rs`, `ws_broadcaster.rs`,
+`useRemoteDesk.ts`, `ConnectionOverlay.tsx` exist.
 
 ## Execution Waves
 

@@ -1,7 +1,7 @@
 ---
 id: "002"
 title: "T02 ts-consumers-and-drift-test"
-status: pending
+status: completed
 priority: high
 effort: 5
 tags: [E015]

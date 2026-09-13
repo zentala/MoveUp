@@ -23,10 +23,10 @@ title: E001 Orchestrator — App Foundation
 
 ### Wave 4 — Parallel (3 agents, no conflicts)
 - [x] E001-T08 — Test framework (was 0001-test-framework)
-- [ ] E001-T09 — position_changes DB schema (was 0007) → BACKLOG
+- [x] E001-T09 — position_changes DB schema (was 0007) — present in code (`position_changes`), audit 2026-09-13
 - [-] E001-T10 — Dynamic tray icon (was 0010) — CANCELLED, replaced by T016
-- [ ] E001-T11 — Rail pulse animation (was 0011) → BACKLOG
-- [ ] E001-T12 — Yesterday delta arrow (was 0012) → BACKLOG
+- [x] E001-T11 — Rail pulse animation (was 0011) — present (`rail-pulse` keyframe, `globals.css`), audit 2026-09-13
+- [ ] E001-T12 — Yesterday delta arrow (was 0012) — built in March in `TodayStats.tsx`, unmounted by the widget rewrite (`e49a1f6`), deleted as dead code (`663ce98`); not on screen today → BACKLOG (audit 2026-09-13)
 
 ## Merge Conflict Notes
 

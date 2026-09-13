@@ -1,7 +1,7 @@
 ---
 id: "004"
 title: "T04 docs-adr-uxflow-decisions"
-status: pending
+status: completed
 priority: high
 effort: 2
 tags: [E015]
