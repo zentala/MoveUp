@@ -49,24 +49,24 @@ verification runs exactly its own tests. Zero matched tests is a failure.
 
 ## Tasks
 
-- [ ] **T01** (8, ts-dev Rust) — remove `current_session_secs` from state,
+- [x] **T01** (8, ts-dev Rust) — remove `current_session_secs` from state,
   DTO and payload; `limit_used_secs` is the DTO name for the credited value
   if it is not already exposed under a clear name; invert the reset test;
   add real-path scenario test (sit 30 min, stand 2 min, sit; DTO shows
   1800 − 120·m). Verify: `cargo test --lib`.
-- [ ] **T02** (5, ts-dev) — TS consumers read the credited field; state in
+- [x] **T02** (5, ts-dev) — TS consumers read the credited field; state in
   both hooks named `limitUsedSecs`; timer and colour from one value; DTO
   drift test against a JSON fixture emitted by a Rust test. Verify:
   `pnpm test:unit`, `pnpm typecheck`.
-- [ ] **T03** (5, ts-dev Rust) — PostureBalance uses
+- [x] **T03** (5, ts-dev Rust) — PostureBalance uses
   `sitting_seconds_total` vs `standing_seconds` (both raw);
   `break_credit` column on sessions table with migration in `db.rs`,
   written in `db_sessions.rs`, read by `commands_analyst.rs` instead of the
   threshold guess. Verify: `cargo test --lib -- db`.
-- [ ] **T04** (2, main) — ADR 008 revision, `.arch/UX-FLOW.md:113,342-346`,
+- [x] **T04** (2, main) — ADR 008 revision, `.arch/UX-FLOW.md:113,342-346`,
   `CLAUDE.md` Session Logic, `.arch/ARCHITECTURE.md`, create
   `.plan/decisions.jsonl` with D1 and D2.
-- [ ] **T05** (1, verify + browser) — full `cargo test` and `pnpm test:unit`
+- [x] **T05** (1, verify + browser) — full `cargo test` and `pnpm test:unit`
   green; browser agent on the popup with `pnpm tauri:dev:mock` (mock sim
   passes through stand phases): timer after a stand is non-zero and its
   band matches the bar colour. Evidence records per PLAN.md.

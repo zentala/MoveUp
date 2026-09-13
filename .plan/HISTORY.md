@@ -93,7 +93,7 @@ all of it, each task verified by its own `scripts/check-e016-t0N.mjs`.
 
 This file is one of its outputs.
 
-## E015 — One truth for the sitting counter (2026-09-06, v0.6.0) — code-complete, T05 open
+## E015 — One truth for the sitting counter (2026-09-06, v0.6.0) — done (closed 2026-09-13)
 
 Plan: [PLAN.md](./epics/E015-2026-09-06-engine-single-truth/PLAN.md) ·
 Handoff: [HANDOFF.md](./epics/E015-2026-09-06-engine-single-truth/HANDOFF.md)
@@ -116,6 +116,8 @@ two pre-existing dev-mode gaps (no Vite proxy for the remote-display route,
 and mock mode never drives the real session engine) blocked it, filed to
 `.plan/BACKLOG.md`. The fixed scenario (sit 30 min, stand 2 min, sit) is
 proven by an automated Rust test, not by a screenshot of the running app.
+**Closed 2026-09-13:** Paweł accepted the automated `e015_` test as sufficient
+evidence for T05; no browser pass will be run for this epic.
 
 ## E017 — Release readiness (2026-09-06, v0.6.0 tagged)
 
