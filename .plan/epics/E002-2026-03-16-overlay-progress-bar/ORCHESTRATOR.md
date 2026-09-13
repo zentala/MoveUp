@@ -23,7 +23,7 @@ title: E002 Orchestrator — Overlay Progress Bar
 
 ### Wave 4 — Sequential
 - [x] E002-T08 — DataSource refactor (was T-OVR-008)
-- [ ] E002-T09 — Choose production render mode (was T-OVR-009) → BACKLOG
+- [x] E002-T09 — Choose production render mode (was T-OVR-009) — resolved: `opaque` is the default in `overlay_renderer.rs` (audit 2026-09-13)
 
 ### Post-wave (added later)
 - [x] E002-T10 — Split overlay_renderer.rs (was T-OVR-010)

@@ -25,5 +25,5 @@ title: E006 Orchestrator — Session Bugs & Polish
 - [x] E006-T13 — Session timer unit tests (was T042)
 
 ## Open (deferred to BACKLOG)
-- [ ] E006-T14 — Connection status UI cleanup (was T039)
-- [ ] E006-T15 — Tooltip + UI integration tests (was T043)
+- [x] E006-T14 — Connection status UI cleanup (was T039) — superseded by `ConnectionOverlay.tsx` (E009), audit 2026-09-13
+- [x] E006-T15 — Tooltip + UI integration tests (was T043) — superseded by E008-T08 tooltips, audit 2026-09-13

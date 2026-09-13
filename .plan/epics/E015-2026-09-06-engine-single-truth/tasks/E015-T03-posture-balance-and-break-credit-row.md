@@ -1,7 +1,7 @@
 ---
 id: "003"
 title: "T03 posture-balance-and-break-credit-row"
-status: pending
+status: completed
 priority: high
 effort: 5
 tags: [E015]

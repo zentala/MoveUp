@@ -334,33 +334,36 @@ warunkiem wstępnym (bez proxy i tak nie ma czego oglądać w przeglądarce).
 ## Open Tasks from Previous Epics
 
 ### From E002 — Overlay Progress Bar
-- [ ] E002-T09 — [Choose production render mode](epics/E002-2026-03-16-overlay-progress-bar/tasks/E002-T09-choose-production-mode.md) (OPAQUE vs LAYERED) — decision made (OPAQUE=default), needs ADR
+- [x] E002-T09 — [Choose production render mode](epics/E002-2026-03-16-overlay-progress-bar/tasks/E002-T09-choose-production-mode.md) (OPAQUE vs LAYERED) — resolved: `opaque` is the default in `overlay_renderer.rs` (audit 2026-09-13); an ADR was never written and is not worth writing now
 - [ ] E002-T11 — [Verify debug overlay info](epics/E002-2026-03-16-overlay-progress-bar/tasks/E002-T11-verify-debug-overlay.md) — display works, needs manual QA sign-off
 
 ### From E003 — Installer & Distribution
 - [ ] E003-T07 — [GitHub Releases CI/CD](epics/E003-2026-03-16-installer-distribution/tasks/E003-T07-github-releases-automation.md) (requires code signing certificate) — superseded by E013 (see [E013/PLAN.md](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md) status note).
 
 ### From E004 — Session Alerts & Snooze
-- [ ] E004-T04 — [Integration test: full alert flow](epics/E004-2026-03-20-session-alerts/tasks/E004-T04-integration-test-alert-flow.md) — basic tests exist, time simulation missing; `tests/integration/alert_flow.test.ts` still does not exist (re-checked 2026-09-13)
-
-### E001-E009 audit leftovers (2026-09-13)
-- [ ] **`#bug` Dismissing the sit-limit popup is ignored while no sensor is connected** —
-  E004-T05 is ticked in `DONE.md`, but the fix is not in code: `take_user_dismissed()`
-  is consumed only inside `update_from_policy` (`src-tauri/src/tray_controller.rs:106-110`),
-  which runs only on `desk:distance` events (`tray_controller.rs:36-39`). No sensor →
-  no readings → the click never reaches `CommunicationPolicy::dismiss`. Also correct
-  the stale `DONE.md` entry. Found by the INDEX audit. (Importance: Medium, Points: 3)
-- [ ] **`#task` Yesterday delta arrow is not rendered** — E001-T12. Data is plumbed
-  (`src/generated/TodaySummary.ts:7` `yesterday_sitting_secs`,
-  `src/hooks/deskReducer.ts:30-31`) but no `.tsx` reads it; the older note at
-  §"Done / superseded" saying "implemented (TodayStats.tsx ↑/↓ delta)" is stale —
-  `TodayStats.tsx` no longer exists. UI change → mockup first. (Importance: Low, Points: 2)
+- [x] E004-T04 — [Integration test: full alert flow](epics/E004-2026-03-20-session-alerts/tasks/E004-T04-integration-test-alert-flow.md) — planned 2026-09-14 as [E025](epics/E025-2026-09-14-alert-dismiss-and-yesterday-delta/PLAN.md) T02
 - [ ] T017 — Stages 3-5 implementation (no task file)
 - [ ] T018 — Notification A/B testing (no task file) — profiles now enable this; see Profile System section
 - [ ] T019 — Success notifications + gamification (no task file)
 
+### E001-E009 audit leftovers (2026-09-13)
+→ Both leftovers (popup dismiss ignored without a sensor — E004-T05; yesterday
+comparison not rendered — E001-T12) moved 2026-09-14 to epic
+[E025 — alert dismiss without sensor + yesterday comparison](epics/E025-2026-09-14-alert-dismiss-and-yesterday-delta/PLAN.md)
+§Problem, with `path:line`, history (`e49a1f6`, `663ce98`) and a test per item.
+
+### AO branch leftovers (2026-09-14)
+- [ ] **`#decision` 29 unmerged `ao/*` branches kept** — all are superseded or failed
+  attempts of tasks whose other attempt is on `main` (28 workers) plus the
+  integration branch of the abandoned E015 run `0425`. 84 merged ones were deleted.
+  Inventory with SHAs and restore command:
+  [reports/2026-09-14-ao-branches.md](reports/2026-09-14-ao-branches.md). Delete
+  with `git branch -D` once nobody wants to compare attempts. Root cause for the
+  pile-up is AO never deleting its branches — reported via `feedback bug-harness`
+  2026-09-13. (Importance: Low, Points: 1)
+
 ### From E006 — Session Bugs & Polish
-- [ ] E006-T14 — Connection status UI cleanup — functional in debug section only
+- [x] E006-T14 — Connection status UI cleanup — superseded by `ConnectionOverlay.tsx` (E009), audit 2026-09-13
 - [ ] E006-T15 — Tooltip + UI integration tests — tooltips done, e2e coverage basic
 
 ### From E007 — KPI Dashboard + Timer UX

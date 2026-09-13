@@ -16,4 +16,4 @@ title: E004 Orchestrator — Session Alerts & Snooze
 
 ## Open (deferred to BACKLOG)
 - [ ] E004-T04 — Integration test: full alert flow (was T020)
-- [ ] E004-T05 — Fix dismiss without sensor (was T021)
+- [ ] E004-T05 — Fix dismiss without sensor (was T021) — NOT fixed in code although `DONE.md` said so; `tray_controller.rs:36-39` still gates dismiss on `desk:distance` → BACKLOG (audit 2026-09-13)

@@ -1,7 +1,7 @@
 ---
 id: "001"
 title: "T01 rust-delete-second-counter"
-status: pending
+status: completed
 priority: high
 effort: 8
 tags: [E015]

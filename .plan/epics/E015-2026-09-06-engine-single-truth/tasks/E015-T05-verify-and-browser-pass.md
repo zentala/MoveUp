@@ -1,7 +1,7 @@
 ---
 id: "005"
 title: "T05 verify-and-browser-pass"
-status: pending
+status: completed
 priority: high
 effort: 1
 tags: [E015]
