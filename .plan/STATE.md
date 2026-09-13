@@ -1,6 +1,6 @@
 ---
 updated: 2026-09-07T22:48:29
-active_epic: none (E011, E012, E016-E022 done or code-complete — see epics/INDEX.md for the real per-epic status table, created 2026-09-08; E014 waves 1-2 code complete, waves 3-4 blocked on pm3-mcp; E015 code-complete, T05 browser evidence gap open — see below; E022's T16 deploy deliberately deferred, decision E022-D6)
+active_epic: none (E011, E012, E016-E022 done or code-complete — see epics/INDEX.md for the real per-epic status table, created 2026-09-08; E014 waves 1-2 code complete, waves 3-4 blocked on pm3-mcp; E015 done 2026-09-13, T05 closed on automated evidence; E022's T16 deploy deliberately deferred, decision E022-D6; E023 relay security hardening and E024 sensor connection diagnostics planned 2026-09-13, readiness ready, wave 6 in parallel)
 planning_epic: none
 planning_epic_path: null
 current_wave:

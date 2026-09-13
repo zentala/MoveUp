@@ -52,31 +52,11 @@ High #1 and Medium #2 fixed same-day (commits `98bc801`, `4f55fd6`). The rest
 does not block deploying `relay.desk.zentala.io`. Full report:
 [epics/E022-2026-09-06-cross-device-phone-relay/reports/2026-09-07-security-review.md](epics/E022-2026-09-06-cross-device-phone-relay/reports/2026-09-07-security-review.md).
 
-- [ ] **`#security` `#task`** No enforced TLS for desk→relay — a misconfigured
-  `relay_url` of `ws://` (instead of `wss://`) sends `desk_token`/`viewer_token`
-  over plain TCP. `src-tauri/src/relay_client.rs:82-90` (`ws_url`). Fix:
-  refuse/warn when the effective URL resolves to `ws://` outside an explicit
-  dev mode. (Medium, 2)
-- [ ] **`#security` `#task`** TOCTOU on `max_viewers` — two concurrent
-  `POST /v1/pair` requests with the same code can both pass the viewer-count
-  check before either consumes it, exceeding the licensed cap by one.
-  `relay/src/http/pairing.ts:61-65`. Fix: move the count/limit check inside
-  the Durable Object, which already serializes room operations. (Medium, 3)
-- [ ] **`#security` `#task`** Licence key field has no `type="password"` —
-  shoulder-surfing / browser-history exposure of a registration key.
-  `src/components/settings/RemoteSection.tsx:52-60`. (Low, 1)
-- [ ] **`#security` `#task`** `clientIp` falls back to a shared `"unknown"`
-  rate-limit bucket when `CF-Connecting-IP` is absent (should not happen
-  behind Cloudflare, but the code does not assert it).
-  `relay/src/http/rate-limit.ts:53-54`. Fix: treat a missing header as a
-  configuration error and refuse, rather than degrade silently. (Low, 2)
-- [ ] **`#security` `#task`** No hard frame-size limit on the room's WebSocket
-  messages before `JSON.parse` — the REST side caps bodies at 2 KiB, the room
-  does not. `relay/src/room/desk-room.ts` / `relay/src/room/messages.ts`. (Low, 2)
-- [ ] **`#security` `#task`** `register` route returns different error text for
-  "no such licence key" vs "licence expired" — minor user-enumeration on a
-  256-bit-entropy key, inconsistent with `requireDesk`'s deliberate silence
-  elsewhere. `relay/src/http/desks.ts:56-64`. Cosmetic, low priority. (Low, 1)
+→ All six open findings (TLS for desk→relay, `max_viewers` TOCTOU, unmasked
+licence key, `clientIp` fallback, room frame-size limit, `register` error
+enumeration) moved 2026-09-13 to epic
+[E023 — relay security hardening](epics/E023-2026-09-13-relay-security-hardening/PLAN.md)
+§Problem, with full text, `path:line` and a test per finding.
 
 ## E022 evidence contract — most records still missing (2026-09-07)
 
@@ -361,7 +341,20 @@ warunkiem wstępnym (bez proxy i tak nie ma czego oglądać w przeglądarce).
 - [ ] E003-T07 — [GitHub Releases CI/CD](epics/E003-2026-03-16-installer-distribution/tasks/E003-T07-github-releases-automation.md) (requires code signing certificate) — superseded by E013 (see [E013/PLAN.md](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md) status note).
 
 ### From E004 — Session Alerts & Snooze
-- [ ] E004-T04 — [Integration test: full alert flow](epics/E004-2026-03-20-session-alerts/tasks/E004-T04-integration-test-alert-flow.md) — basic tests exist, time simulation missing
+- [ ] E004-T04 — [Integration test: full alert flow](epics/E004-2026-03-20-session-alerts/tasks/E004-T04-integration-test-alert-flow.md) — basic tests exist, time simulation missing; `tests/integration/alert_flow.test.ts` still does not exist (re-checked 2026-09-13)
+
+### E001-E009 audit leftovers (2026-09-13)
+- [ ] **`#bug` Dismissing the sit-limit popup is ignored while no sensor is connected** —
+  E004-T05 is ticked in `DONE.md`, but the fix is not in code: `take_user_dismissed()`
+  is consumed only inside `update_from_policy` (`src-tauri/src/tray_controller.rs:106-110`),
+  which runs only on `desk:distance` events (`tray_controller.rs:36-39`). No sensor →
+  no readings → the click never reaches `CommunicationPolicy::dismiss`. Also correct
+  the stale `DONE.md` entry. Found by the INDEX audit. (Importance: Medium, Points: 3)
+- [ ] **`#task` Yesterday delta arrow is not rendered** — E001-T12. Data is plumbed
+  (`src/generated/TodaySummary.ts:7` `yesterday_sitting_secs`,
+  `src/hooks/deskReducer.ts:30-31`) but no `.tsx` reads it; the older note at
+  §"Done / superseded" saying "implemented (TodayStats.tsx ↑/↓ delta)" is stale —
+  `TodayStats.tsx` no longer exists. UI change → mockup first. (Importance: Low, Points: 2)
 - [ ] T017 — Stages 3-5 implementation (no task file)
 - [ ] T018 — Notification A/B testing (no task file) — profiles now enable this; see Profile System section
 - [ ] T019 — Success notifications + gamification (no task file)
@@ -404,8 +397,12 @@ warunkiem wstępnym (bez proxy i tak nie ma czego oglądać w przeglądarce).
 
 - **Extended height stabilization** — when desk is stationary for extended period (no significant movement), increase smoothing window 2x to eliminate residual jitter (e.g. 92→91→92→91 flickering). Current HeightStabilizer uses 10-sample window; for stationary desk, double to 20 samples or use exponential moving average with lower alpha.
 - **Sensor diagnostics panel** — show raw vs smoothed readings, debounce state, threshold visualization
-- [ ] **Migotanie połączenia (connect/lost w tej samej sekundzie) nie jest nigdzie sygnalizowane** — `src-tauri/src/serial.rs:161-200`: przy złym kablu urządzenie enumeruje się i natychmiast pada, co w `events.log` wygląda tak: `00:30:47 DEVICE connected COM3` / `00:30:47 DEVICE lost` / `00:30:50 DEVICE connected COM3` / `00:30:50 DEVICE lost`. Apka traktuje każdy cykl jak normalne podłączenie — brak licznika, brak progu, brak ostrzeżenia dla użytkownika, mimo że to jednoznaczny objaw problemu z zasilaniem/kablem (patrz CLAUDE.md → Hardware → Cable sensitivity). Fix: wykrywać N połączeń trwających krócej niż X sekund w oknie Y i emitować ostrzeżenie („niestabilne połączenie — spróbuj innego kabla / portu bez huba”) do tray + zakładki Debug. Znalezione 2026-09-06 przy diagnozie „sensor podłączony, apka nie wykrywa”. (Importance: Medium, Points: 3)
-- [ ] **Brak portu COM jest nieodróżnialny od "sensor nie odpowiada"** — `src-tauri/src/serial.rs:161-200`: pętla skanująca loguje `No desk sensor found` tylko przez `info!` (stderr), nie do `events.log`, i nie rozróżnia dwóch zupełnie różnych stanów: (a) `available_ports()` zwróciło PUSTĄ listę (Windows w ogóle nie widzi urządzenia — kabel tylko do ładowania, martwy port, płytka bez zasilania), (b) porty są, ale żaden nie odpowiedział `DEVICE: zntl-desk-sensor v1` (zły firmware/baud/zajęty port). Użytkownik widzi w obu wypadkach to samo „brak sensora”. Fix: logować do `event_logger` liczbę znalezionych portów i ich nazwy (`DEVICE scan ports=0` / `DEVICE scan ports=2 [COM3, COM5] none matched`), pokazać to w zakładce Debug. Zgodne z regułą „cisza nigdy nie znaczy sukcesu” — asertuj LICZBĘ przeskanowanych rzeczy, nie sam brak wyniku. Znalezione 2026-09-05 przy diagnozie „sensor podłączony, apka nie wykrywa” (okazało się: zero portów COM w systemie). (Importance: Medium, Points: 2)
+- → Both sensor-connection findings below moved 2026-09-13 to epic
+  [E024 — sensor connection diagnostics](epics/E024-2026-09-13-sensor-connection-diagnostics/PLAN.md)
+  (F1 no port vs no match, F2 flapping), with emulator integration tests as a
+  hard requirement. Kept below as the original record, ticked.
+- [x] **Migotanie połączenia (connect/lost w tej samej sekundzie) nie jest nigdzie sygnalizowane** — planned as E024 F2. — `src-tauri/src/serial.rs:161-200`: przy złym kablu urządzenie enumeruje się i natychmiast pada, co w `events.log` wygląda tak: `00:30:47 DEVICE connected COM3` / `00:30:47 DEVICE lost` / `00:30:50 DEVICE connected COM3` / `00:30:50 DEVICE lost`. Apka traktuje każdy cykl jak normalne podłączenie — brak licznika, brak progu, brak ostrzeżenia dla użytkownika, mimo że to jednoznaczny objaw problemu z zasilaniem/kablem (patrz CLAUDE.md → Hardware → Cable sensitivity). Fix: wykrywać N połączeń trwających krócej niż X sekund w oknie Y i emitować ostrzeżenie („niestabilne połączenie — spróbuj innego kabla / portu bez huba”) do tray + zakładki Debug. Znalezione 2026-09-06 przy diagnozie „sensor podłączony, apka nie wykrywa”. (Importance: Medium, Points: 3)
+- [x] **Brak portu COM jest nieodróżnialny od "sensor nie odpowiada"** — planned as E024 F1. — `src-tauri/src/serial.rs:161-200`: pętla skanująca loguje `No desk sensor found` tylko przez `info!` (stderr), nie do `events.log`, i nie rozróżnia dwóch zupełnie różnych stanów: (a) `available_ports()` zwróciło PUSTĄ listę (Windows w ogóle nie widzi urządzenia — kabel tylko do ładowania, martwy port, płytka bez zasilania), (b) porty są, ale żaden nie odpowiedział `DEVICE: zntl-desk-sensor v1` (zły firmware/baud/zajęty port). Użytkownik widzi w obu wypadkach to samo „brak sensora”. Fix: logować do `event_logger` liczbę znalezionych portów i ich nazwy (`DEVICE scan ports=0` / `DEVICE scan ports=2 [COM3, COM5] none matched`), pokazać to w zakładce Debug. Zgodne z regułą „cisza nigdy nie znaczy sukcesu” — asertuj LICZBĘ przeskanowanych rzeczy, nie sam brak wyniku. Znalezione 2026-09-05 przy diagnozie „sensor podłączony, apka nie wykrywa” (okazało się: zero portów COM w systemie). (Importance: Medium, Points: 2)
 
 ---
 
@@ -1064,7 +1061,9 @@ Also left as warnings by the plugins' own defaults (not downgraded here):
 - [x] **Create `.plan/epics/INDEX.md`** — done 2026-09-08, duplicate of the
   entry above (this one predates it). See [`epics/INDEX.md`](epics/INDEX.md).
 
-- [ ] **Audit the 9 remaining `unknown` rows in `epics/INDEX.md`** (E001-E009)
+- [x] **Audit the 9 remaining `unknown` rows in `epics/INDEX.md`** (E001-E009) —
+  done 2026-09-13: 8 `done`, E004 `in progress`; leftovers filed under
+  §"From E004" and §"E001-E009 audit leftovers".
   — this session set E000, E010-E022 (13 rows) from explicit text already in
   `.plan/STATE.md`/`BACKLOG.md`; E001-E009 only have `.plan/STATE.md:103`'s
   vague "partially done (see ORCHESTRATOR.md per epic)", which needs opening
