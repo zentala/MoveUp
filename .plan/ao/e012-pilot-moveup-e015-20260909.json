@@ -1,0 +1,360 @@
+{
+  "contractVersion": "ao-v1",
+  "strictContract": true,
+  "workId": "e012-pilot-moveup-e015-20260909",
+  "projectId": "MoveUp",
+  "repository": {
+    "name": "MoveUp",
+    "root": "C:/Users/zentala/code/moveup",
+    "relativePaths": []
+  },
+  "baseRef": "main",
+  "execution": {
+    "mode": "attended",
+    "unattended": false,
+    "autoMerge": false,
+    "maxTasksPerWave": 8
+  },
+  "tasks": [
+    {
+      "id": "E015-T01",
+      "title": "T01 — rust-delete-second-counter",
+      "projectId": "MoveUp",
+      "epicId": "E015",
+      "status": "ready",
+      "priority": "critical-path",
+      "dependencies": [],
+      "repoPath": "C:/Users/zentala/code/moveup",
+      "baseRef": "main",
+      "taskRef": ".plan/epics/E015-2026-09-06-engine-single-truth/tasks/E015-T01-rust-delete-second-counter.md",
+      "handoffRef": ".plan/epics/E015-2026-09-06-engine-single-truth/HANDOFF.md",
+      "executor": "codex",
+      "profile": "ts-dev",
+      "role": "implementer",
+      "model": "gpt-5.6-sol",
+      "budgetMinutes": 90,
+      "writeSet": [
+        "src-tauri/src/session_types.rs",
+        "src-tauri/src/session_breaks.rs",
+        "src-tauri/src/session_live.rs",
+        "src-tauri/src/session_reading.rs",
+        "src-tauri/src/session_persistence.rs",
+        "src-tauri/src/session_tests_*.rs",
+        "src-tauri/src/session_tests.rs",
+        "src-tauri/src/session_daily.rs",
+        "src-tauri/src/session_manager.rs",
+        "src-tauri/src/commands_catalog_sources.rs",
+        "src-tauri/src/ws_broadcaster.rs",
+        "src-tauri/src/metrics/tests.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/tray_controller.rs",
+        "src-tauri/src/remote_server.rs",
+        "src-tauri/src/ergonomic_profile.rs",
+        "src-tauri/profiles/**",
+        "allows:.plan/sessions/**",
+        "allows:.plan/BACKLOG.md",
+        "allows:.plan/IMPRO.md",
+        "allows:.plan/epics/E015-2026-09-06-engine-single-truth/JOURNAL.md",
+        "allows:.plan/epics/E015-2026-09-06-engine-single-truth/IMPRO.md"
+      ],
+      "claims": [
+        "src-tauri/src/session_types.rs",
+        "src-tauri/src/session_breaks.rs",
+        "src-tauri/src/session_live.rs",
+        "src-tauri/src/session_reading.rs",
+        "src-tauri/src/session_tests_timers_live.rs",
+        "src-tauri/src/session_tests_scenarios.rs",
+        "src-tauri/src/session_tests.rs",
+        "src-tauri/src/session_daily.rs",
+        "src-tauri/src/session_manager.rs",
+        "src-tauri/src/commands_catalog_sources.rs",
+        "src-tauri/src/ws_broadcaster.rs",
+        "src-tauri/src/metrics/tests.rs",
+        "src-tauri/src/ergonomic_profile.rs"
+      ],
+      "verificationCommands": [
+        {
+          "command": "cargo",
+          "args": [
+            "test",
+            "--manifest-path",
+            "src-tauri/Cargo.toml",
+            "--lib",
+            "--",
+            "e015_"
+          ]
+        }
+      ],
+      "acceptanceRef": ".plan/epics/E015-2026-09-06-engine-single-truth/tasks/E015-T01-rust-delete-second-counter.md",
+      "acceptance": "",
+      "outputContract": [
+        "commit",
+        "worktree",
+        "changed_paths",
+        "tests",
+        "evidence",
+        "blockers",
+        "gaps"
+      ],
+      "boundaries": [
+        "No changes outside the declared write set",
+        "No edits to .plan files",
+        "No push, no merge to base"
+      ]
+    },
+    {
+      "id": "E015-T02",
+      "title": "T02 — ts-consumers-and-drift-test",
+      "projectId": "MoveUp",
+      "epicId": "E015",
+      "status": "ready",
+      "priority": "critical-path",
+      "dependencies": [
+        "E015-T01"
+      ],
+      "repoPath": "C:/Users/zentala/code/moveup",
+      "baseRef": "main",
+      "taskRef": ".plan/epics/E015-2026-09-06-engine-single-truth/tasks/E015-T02-ts-consumers-and-drift-test.md",
+      "handoffRef": ".plan/epics/E015-2026-09-06-engine-single-truth/HANDOFF.md",
+      "executor": "codex",
+      "profile": "ts-dev",
+      "role": "implementer",
+      "model": "gpt-5.6-sol",
+      "budgetMinutes": 60,
+      "writeSet": [
+        "src/types.ts",
+        "src/hooks/**",
+        "src/widgets/**",
+        "src/components/settings/DebugSection.tsx",
+        "creates:src/components/SessionProgress.floating.test.tsx",
+        "src/test/**",
+        "creates:src-tauri/src/session_dto_fixture_tests.rs",
+        "src-tauri/src/lib.rs",
+        "allows:.plan/sessions/**",
+        "allows:.plan/BACKLOG.md",
+        "allows:.plan/IMPRO.md",
+        "allows:.plan/epics/E015-2026-09-06-engine-single-truth/JOURNAL.md",
+        "allows:.plan/epics/E015-2026-09-06-engine-single-truth/IMPRO.md"
+      ],
+      "claims": [
+        "src/types.ts",
+        "src/hooks/useDesk.ts",
+        "src/hooks/useRemoteDesk.ts",
+        "src/hooks/remoteDesk.test-helpers.ts",
+        "src/widgets/OneBarWidget.test.tsx",
+        "src/widgets/one-bar/OneBarTimer.tsx",
+        "src/widgets/one-bar/OneBarTimeline.tsx",
+        "src/widgets/one-bar/useWidgetData.ts",
+        "src/components/settings/DebugSection.tsx",
+        "src/test/dto-drift.test.ts"
+      ],
+      "verificationCommands": [
+        {
+          "command": "npx",
+          "args": [
+            "vitest",
+            "run",
+            "--config",
+            "vite.config.ts",
+            "src/hooks",
+            "src/widgets/one-bar",
+            "src/test/dto-drift.test.ts"
+          ]
+        }
+      ],
+      "acceptanceRef": ".plan/epics/E015-2026-09-06-engine-single-truth/tasks/E015-T02-ts-consumers-and-drift-test.md",
+      "acceptance": "",
+      "outputContract": [
+        "commit",
+        "worktree",
+        "changed_paths",
+        "tests",
+        "evidence",
+        "blockers",
+        "gaps"
+      ],
+      "boundaries": [
+        "No changes outside the declared write set",
+        "No edits to .plan files",
+        "No push, no merge to base"
+      ]
+    },
+    {
+      "id": "E015-T03",
+      "title": "T03 — posture-balance-and-break-credit-row",
+      "projectId": "MoveUp",
+      "epicId": "E015",
+      "status": "ready",
+      "priority": "critical-path",
+      "dependencies": [
+        "E015-T01"
+      ],
+      "repoPath": "C:/Users/zentala/code/moveup",
+      "baseRef": "main",
+      "taskRef": ".plan/epics/E015-2026-09-06-engine-single-truth/tasks/E015-T03-posture-balance-and-break-credit-row.md",
+      "handoffRef": ".plan/epics/E015-2026-09-06-engine-single-truth/HANDOFF.md",
+      "executor": "codex",
+      "profile": "ts-dev",
+      "role": "implementer",
+      "model": "gpt-5.6-sol",
+      "budgetMinutes": 60,
+      "writeSet": [
+        "src-tauri/src/notification_service.rs",
+        "src-tauri/src/db.rs",
+        "src-tauri/src/db_sessions.rs",
+        "src-tauri/src/db_queries.rs",
+        "src-tauri/src/db_tests.rs",
+        "src-tauri/src/db_tests_break_credit.rs",
+        "src-tauri/src/commands_analyst.rs",
+        "src-tauri/src/commands_analyst_tests.rs",
+        "src-tauri/src/session_breaks.rs",
+        "src-tauri/src/serial_periodic.rs",
+        "allows:.plan/sessions/**",
+        "allows:.plan/BACKLOG.md",
+        "allows:.plan/IMPRO.md",
+        "allows:.plan/epics/E015-2026-09-06-engine-single-truth/JOURNAL.md",
+        "allows:.plan/epics/E015-2026-09-06-engine-single-truth/IMPRO.md"
+      ],
+      "claims": [
+        "src-tauri/src/notification_service.rs",
+        "src-tauri/src/db.rs",
+        "src-tauri/src/db_sessions.rs",
+        "src-tauri/src/db_tests.rs",
+        "src-tauri/src/db_tests_break_credit.rs",
+        "src-tauri/src/commands_analyst.rs",
+        "src-tauri/src/session_breaks.rs",
+        "src-tauri/src/serial_periodic.rs"
+      ],
+      "verificationCommands": [
+        {
+          "command": "cargo",
+          "args": [
+            "test",
+            "--manifest-path",
+            "src-tauri/Cargo.toml",
+            "--lib",
+            "--",
+            "e015_"
+          ]
+        }
+      ],
+      "acceptanceRef": ".plan/epics/E015-2026-09-06-engine-single-truth/tasks/E015-T03-posture-balance-and-break-credit-row.md",
+      "acceptance": "",
+      "outputContract": [
+        "commit",
+        "worktree",
+        "changed_paths",
+        "tests",
+        "evidence",
+        "blockers",
+        "gaps"
+      ],
+      "boundaries": [
+        "No changes outside the declared write set",
+        "No edits to .plan files",
+        "No push, no merge to base"
+      ]
+    },
+    {
+      "id": "E015-T04",
+      "title": "T04 — docs-adr-uxflow-decisions",
+      "projectId": "MoveUp",
+      "epicId": "E015",
+      "status": "ready",
+      "priority": "critical-path",
+      "dependencies": [
+        "E015-T01",
+        "E015-T02",
+        "E015-T03"
+      ],
+      "repoPath": "C:/Users/zentala/code/moveup",
+      "baseRef": "main",
+      "taskRef": ".plan/epics/E015-2026-09-06-engine-single-truth/tasks/E015-T04-docs-adr-uxflow-decisions.md",
+      "handoffRef": ".plan/epics/E015-2026-09-06-engine-single-truth/HANDOFF.md",
+      "executor": "codex",
+      "profile": "main",
+      "role": "implementer",
+      "model": "gpt-5.6-sol",
+      "budgetMinutes": 30,
+      "writeSet": [
+        ".arch/ADR/008-proportional-break-credit.md",
+        ".arch/UX-FLOW.md",
+        ".arch/ARCHITECTURE.md",
+        "CLAUDE.md",
+        ".plan/decisions.jsonl",
+        "scripts/check-e015-docs.mjs",
+        "allows:.plan/sessions/**",
+        "allows:.plan/BACKLOG.md",
+        "allows:.plan/IMPRO.md",
+        "allows:.plan/epics/E015-2026-09-06-engine-single-truth/JOURNAL.md",
+        "allows:.plan/epics/E015-2026-09-06-engine-single-truth/IMPRO.md"
+      ],
+      "claims": [
+        ".arch/ADR/008-proportional-break-credit.md",
+        ".arch/UX-FLOW.md",
+        ".arch/ARCHITECTURE.md",
+        "CLAUDE.md",
+        ".plan/decisions.jsonl",
+        "scripts/check-e015-docs.mjs"
+      ],
+      "verificationCommands": [
+        {
+          "command": "node",
+          "args": [
+            "scripts/check-e015-docs.mjs"
+          ]
+        }
+      ],
+      "acceptanceRef": ".plan/epics/E015-2026-09-06-engine-single-truth/tasks/E015-T04-docs-adr-uxflow-decisions.md",
+      "acceptance": "",
+      "outputContract": [
+        "commit",
+        "worktree",
+        "changed_paths",
+        "tests",
+        "evidence",
+        "blockers",
+        "gaps"
+      ],
+      "boundaries": [
+        "No changes outside the declared write set",
+        "No edits to .plan files",
+        "No push, no merge to base"
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "id": "W0",
+      "tasks": [
+        "E015-T01"
+      ]
+    },
+    {
+      "id": "W1",
+      "tasks": [
+        "E015-T02",
+        "E015-T03"
+      ]
+    },
+    {
+      "id": "W2",
+      "tasks": [
+        "E015-T04"
+      ]
+    }
+  ],
+  "handoff": {
+    "ref": ".plan/epics/E015-2026-09-06-engine-single-truth/HANDOFF.md"
+  },
+  "verification": [],
+  "outputSchema": "ao-worker-result-v1",
+  "boundaries": [
+    "No secrets, production access, force push, or auto-merge"
+  ],
+  "retry": {
+    "waitMs": 120000,
+    "maxAttempts": 10,
+    "maxDurationMs": 1200000
+  }
+}
