@@ -338,7 +338,7 @@ warunkiem wstępnym (bez proxy i tak nie ma czego oglądać w przeglądarce).
 - [ ] E002-T11 — [Verify debug overlay info](epics/E002-2026-03-16-overlay-progress-bar/tasks/E002-T11-verify-debug-overlay.md) — display works, needs manual QA sign-off
 
 ### From E003 — Installer & Distribution
-- [ ] E003-T07 — [GitHub Releases CI/CD](epics/E003-2026-03-16-installer-distribution/tasks/E003-T07-github-releases-automation.md) (requires code signing certificate) — superseded by E013 (see [E013/PLAN.md](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md) status note).
+- [x] (superseded — closed 2026-09-14; tag-triggered releases wait on the signing decision in §"Follow-ons filed by E017") E003-T07 — [GitHub Releases CI/CD](epics/E003-2026-03-16-installer-distribution/tasks/E003-T07-github-releases-automation.md) (requires code signing certificate) — superseded by E013 (see [E013/PLAN.md](epics/E013-2026-08-28-signed-tauri-pm3-deployment/PLAN.md) status note).
 
 ### From E004 — Session Alerts & Snooze
 - [x] E004-T04 — [Integration test: full alert flow](epics/E004-2026-03-20-session-alerts/tasks/E004-T04-integration-test-alert-flow.md) — planned 2026-09-14 as [E025](epics/E025-2026-09-14-alert-dismiss-and-yesterday-delta/PLAN.md) T02
@@ -627,7 +627,7 @@ and popup-timer items are NOT E019's scope and stay open.
   ([src-tauri/src/session_manager.rs:49](../src-tauri/src/session_manager.rs)). Fixing the
   34 warnings is left as a separate follow-up (Importance Low, Points 3) — not done here,
   out of scope for "unblock visibility". (Importance Low, 1 point)
-- [ ] **Popup's main timer/progress bar reads the wrong field and hard-resets on every
+- [x] **(Fixed by [E015](epics/E015-2026-09-06-engine-single-truth/PLAN.md), promoted `7a8bbf3`, v0.6.0 — ticked 2026-09-14.) Popup's main timer/progress bar reads the wrong field and hard-resets on every
   break, contradicting ADR-008's proportional break credit** — `OneBarTimer.tsx:28`
   binds its big number and progress-bar fill to `current_session_secs`, which is
   unconditionally zeroed on every Standing/Walking/Away→Sitting transition
@@ -657,17 +657,20 @@ Engine and backend items were filed above by their reviewers. Frontend and relea
 - [x] **6 local `formatXxx` helpers duplicate `src/utils/format.ts`**. (Low, 1) → E018-T06
 - [x] **"Smart Desk" branding in share-card copy** — [src/components/ShareStats.tsx](../src/components/ShareStats.tsx). Replaced with "MoveUp" (3 occurrences: share text, tweet/reddit title, preview card). (Low, 1) → E017
 - [x] **No `justfile`**; `.claude/rules/overlay.md` documents `tauri-dev.sh --force` that was replaced by `tauri-dev.ps1 -Force`. (Low, 1) → E018-T05/T07 (justfile added by T05, overlay.md fixed by T07)
-- [ ] **User docs describe zntlDesk: name, `AppData\Local\zntlDesk`, repo `zentala/zntl-tray`** — `docs/README.md`, `USER_INSTALL.md`, `USER_SUPPORT.md`, `PRIVACY.md`. (High, 3) → E017
-- [ ] **`docs/USER_UPDATES.md` documents a 24h auto-updater that is not wired in code** (no updater plugin in `src-tauri/tauri.conf.json`). (High, 2) → E017
-- [ ] **No LICENSE file, no `license` field, despite open-core (ADR 005)**. (High, 2) → E017, decision D3
-- [ ] **`PRIVACY.md` claims no network egress; Google Fit sends to Google** — [src-tauri/src/google_fit.rs](../src-tauri/src/google_fit.rs). (High, 2) → E017
-- [ ] **`.github/workflows/test.yml` targets defunct `apps/desk/` path, runs on every push**. (High, 3) → E017
-- [ ] **`firmware/` ships a bare `.ino`, no README, no flashing steps, no cable warning** (see CLAUDE.md Hardware). (High, 3) → E017
-- [ ] **`coverage/` and `test-performance-report/` are tracked in git** (`git ls-files coverage | wc -l`). (Medium, 1) → E016
-- [ ] **Cargo package metadata still says "zntl Desk"** — [src-tauri/Cargo.toml](../src-tauri/Cargo.toml). (Medium, 1) → E017
-- [ ] **`installer.md` size target 60-70 MB vs observed ~4-6 MB; `.perf-baseline.json`/`.build-sizes.json` stale**. (Low, 1) → E017
+- [x] **User docs describe zntlDesk: name, `AppData\Local\zntlDesk`, repo `zentala/zntl-tray`** — `docs/README.md`, `USER_INSTALL.md`, `USER_SUPPORT.md`, `PRIVACY.md`. (High, 3) → E017 (done, ticked 2026-09-14 after checking E017 HANDOFF)
+- [x] **`docs/USER_UPDATES.md` documents a 24h auto-updater that is not wired in code** (no updater plugin in `src-tauri/tauri.conf.json`). (High, 2) → E017-T02 rewrote the doc; building the updater is §"Follow-ons filed by E017"
+- [x] **No LICENSE file, no `license` field, despite open-core (ADR 005)**. (High, 2) → E017, decision D3 (done)
+- [x] **`PRIVACY.md` claims no network egress; Google Fit sends to Google** — [src-tauri/src/google_fit.rs](../src-tauri/src/google_fit.rs). (High, 2) → E017 (done)
+- [x] **`.github/workflows/test.yml` targets defunct `apps/desk/` path, runs on every push**. (High, 3) → E017 (done; CI further reworked on origin 2026-09-13, `ef0b5fe`)
+- [x] **`firmware/` ships a bare `.ino`, no README, no flashing steps, no cable warning** (see CLAUDE.md Hardware). (High, 3) → E017 (done)
+- [x] **`coverage/` and `test-performance-report/` are tracked in git** (`git ls-files coverage | wc -l`). (Medium, 1) → E016-T04 (done; `git ls-files coverage` = 0 on 2026-09-14)
+- [x] **Cargo package metadata still says "zntl Desk"** — [src-tauri/Cargo.toml](../src-tauri/Cargo.toml). (Medium, 1) → E017 (done)
+- [x] **`installer.md` size target 60-70 MB vs observed ~4-6 MB; `.perf-baseline.json`/`.build-sizes.json` stale**. (Low, 1) → E017 (done; `.claude/rules/installer.md:17` now says 4-6 MB)
+- [ ] **`#task` `CatalogTab.tsx` uses 16 inline `style={{}}` blocks instead of `globals.css` tokens** — frontend review finding #11, not covered by E018; still 16 on 2026-09-14. [src/analyst/CatalogTab.tsx](../src/analyst/CatalogTab.tsx), report [reports/_review-2026-09-06/frontend.md](reports/_review-2026-09-06/frontend.md). (Low, 2)
+- [ ] **`#task` `MockupGallery.tsx` hardcodes colours in 13 inline styles, outside the token set** — finding #12, not covered by E018; still 13 on 2026-09-14. [src/pages/MockupGallery.tsx](../src/pages/MockupGallery.tsx). (Low, 1)
+- [ ] **`#task` Accessibility is thin** — finding #13, not covered by E018: 20 of 51 non-test `.tsx` files use `aria-*`/`role=`, one `:focus-visible` rule in all CSS (2026-09-14). Needs a keyboard/screen-reader pass over popup, Settings and Analyst. [reports/_review-2026-09-06/frontend.md](reports/_review-2026-09-06/frontend.md). (Medium, 5)
 - [x] **Four backlog-like files (root `BACKLOG.md`, `TASKS.md`, `ORCHESTRATOR.md`, this file); E010 human-task count contradicts (3 vs 10)** — consolidated 2026-09-06 by E016-T02: the three root files are deleted and every section unique to root `BACKLOG.md` is merged verbatim below under "Merged from root `BACKLOG.md`". E010's count is E016-T01's job ([STATE.md](STATE.md)). (High, 2) → E016
-- [ ] **E011 close-out ceremony not done; E003-T07 not marked superseded by E013** — [epics/E011-2026-05-07-autostart-hardening/ORCHESTRATOR.md:44-51](epics/E011-2026-05-07-autostart-hardening/ORCHESTRATOR.md). (High, 3) → E016
+- [x] **(Done by E016-T03, ticked 2026-09-14.) E011 close-out ceremony not done; E003-T07 not marked superseded by E013** — [epics/E011-2026-05-07-autostart-hardening/ORCHESTRATOR.md:44-51](epics/E011-2026-05-07-autostart-hardening/ORCHESTRATOR.md). (High, 3) → E016
 
 ---
 
