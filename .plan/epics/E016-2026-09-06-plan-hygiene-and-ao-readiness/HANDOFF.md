@@ -44,21 +44,21 @@ Implementing session reads only this file plus
 
 ## Tasks
 
-- [ ] **T01** (1, main) — Fix `.plan/STATE.md` body to match its frontmatter;
+- [x] **T01** (1, main) — Fix `.plan/STATE.md` body to match its frontmatter;
   reconcile E010's 3-vs-10 human-task count.
   Verify: `node scripts/check-e016-t01.mjs`
-- [ ] **T02** (2, main) — Merge root `BACKLOG.md`+`TASKS.md` into
+- [x] **T02** (2, main) — Merge root `BACKLOG.md`+`TASKS.md` into
   `.plan/BACKLOG.md` verbatim; delete the three root files; fix
   README/CONTRIBUTING links.
   Verify: `node scripts/check-e016-t02.mjs`
-- [ ] **T03** (2, main, depends on T02) — Close E011's ceremony
+- [x] **T03** (2, main, depends on T02) — Close E011's ceremony
   (`.plan/HISTORY.md`, IMPRO triage note); mark E003-T07 and E013
   superseded.
   Verify: `node scripts/check-e016-t03.mjs`
-- [ ] **T04** (1, main) — `git rm -r --cached coverage
+- [x] **T04** (1, main) — `git rm -r --cached coverage
   test-performance-report` + `.gitignore` entries.
   Verify: `node scripts/check-e016-t04.mjs`
-- [ ] **T05** (2, main) — Create root `.giter.yaml` and `justfile` for AO
+- [x] **T05** (2, main) — Create root `.giter.yaml` and `justfile` for AO
   readiness; record precondition-4 check result.
   Verify: `node scripts/check-e016-t05.mjs`
 
