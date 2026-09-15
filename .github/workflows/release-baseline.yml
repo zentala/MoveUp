@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.inputs.ref }}"
+  cancel-in-progress: false
+
 jobs:
   build-unsigned:
     name: Build unsigned Windows installer
