@@ -5,6 +5,7 @@
 //! process. This module wraps `notify-rust` directly with AUMID always set.
 
 /// App identifier used as Windows AppUserModelId.
+#[cfg(target_os = "windows")]
 const APP_ID: &str = "io.zntl.desk";
 
 /// Sends a Windows toast notification with the correct app identity.
@@ -15,13 +16,14 @@ pub fn show(title: &str, body: &str) {
     let title = title.to_string();
     let body = body.to_string();
     tauri::async_runtime::spawn(async move {
-        if let Err(e) = notify_rust::Notification::new()
+        let mut notification = notify_rust::Notification::new();
+        notification
             .appname("Smart Desk")
             .summary(&title)
-            .body(&body)
-            .app_id(APP_ID)
-            .show()
-        {
+            .body(&body);
+        #[cfg(target_os = "windows")]
+        notification.app_id(APP_ID);
+        if let Err(e) = notification.show() {
             log::warn!("Toast notification failed: {e}");
         }
     });
