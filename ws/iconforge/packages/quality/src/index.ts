@@ -2,6 +2,8 @@ import { parseIconSpec, type Diagnostic, type IconSpec, type StyleProfile } from
 
 export { shapeBounds, IDENTITY_TRANSFORM, type Bounds, type Transform } from './bounds.ts';
 export { checkGeometry } from './rules.ts';
+export { flatten, type FlattenedContour } from './flatten.ts';
+export { checkJoins } from './joins.ts';
 
 import { checkGeometry } from './rules.ts';
 

@@ -91,3 +91,64 @@ describe('shapeBounds', () => {
     expect(b.maxY - b.minY).toBeCloseTo(4, 5);
   });
 });
+
+describe('shapeBounds — path', () => {
+  it('path heart: two cubics from a shared apex back to a shared bottom point', () => {
+    // Left lobe: apex(12,7) -> bulge up-left -> bottom(12,20). Right lobe mirrors it.
+    const heart: import('@iconforge/schema').PathShape = {
+      id: 'heart',
+      type: 'path',
+      start: [12, 20],
+      segments: [
+        { kind: 'cubic', control1: [4, 14], control2: [4, 7], to: [12, 7] },
+        { kind: 'cubic', control1: [20, 7], control2: [20, 14], to: [12, 20] },
+      ],
+      closed: true,
+    };
+    const b = shapeBounds(heart);
+    // Both cubics bow outward past the endpoints' own x=12, toward their control points.
+    expect(b.minX).toBeLessThan(12);
+    expect(b.maxX).toBeGreaterThan(12);
+    expect(b.minY).toBeCloseTo(7, 1);
+    expect(b.maxY).toBeCloseTo(20, 1);
+  });
+
+  describe('path arc segment — both flag combinations', () => {
+    // Chord (0,0)->(10,0), radius 10: a 60deg "small" arc bulging one way, and its
+    // complementary 300deg "large" arc bulging the other way, for each sweep direction.
+    const start: [number, number] = [0, 0];
+    const to: [number, number] = [10, 0];
+    const makePath = (large: boolean, clockwise: boolean): import('@iconforge/schema').PathShape => ({
+      id: 'a',
+      type: 'path',
+      start,
+      segments: [{ kind: 'arc', to, radius: 10, large, clockwise }],
+    });
+
+    it('both endpoints stay exactly on every combination\'s bbox chord', () => {
+      for (const large of [false, true]) {
+        for (const clockwise of [false, true]) {
+          const b = shapeBounds(makePath(large, clockwise));
+          expect(b.minX).toBeLessThanOrEqual(0 + 1e-6);
+          expect(b.maxX).toBeGreaterThanOrEqual(10 - 1e-6);
+        }
+      }
+    });
+
+    it('small arc (large=false) bulges less than its complementary large arc', () => {
+      const small = shapeBounds(makePath(false, true));
+      const large = shapeBounds(makePath(true, true));
+      const smallBulge = Math.max(Math.abs(small.minY), Math.abs(small.maxY));
+      const largeBulge = Math.max(Math.abs(large.minY), Math.abs(large.maxY));
+      expect(smallBulge).toBeLessThan(largeBulge);
+    });
+
+    it('flipping clockwise (large fixed) bulges to the opposite side of the chord', () => {
+      const cw = shapeBounds(makePath(false, true));
+      const ccw = shapeBounds(makePath(false, false));
+      // one bulges above the chord (y<0), the other below (y>0); never both on the same side
+      expect(cw.minY < 0 && cw.maxY <= 1e-9).toBe(true);
+      expect(ccw.maxY > 0 && ccw.minY >= -1e-9).toBe(true);
+    });
+  });
+});

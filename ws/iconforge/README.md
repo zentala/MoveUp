@@ -85,6 +85,34 @@ Revises an existing IconSpec against a list of defects (a JSON array of
 `{ shapeId, observation, change }`, or free text treated as one defect) and
 writes the same artifacts as `generate`.
 
+### `improve`
+
+```bash
+pnpm icon improve <spec.json|dir...> --out <dir> [--brief "..."] [--rounds 1..3] \
+  [--model <id>] [--reviewer-model <id>] [--max-cost <usd>] [--complexity auto|simple|detailed]
+```
+
+Runs the review → revise loop (`improveIcon`, `@iconforge/agent`) against one
+or more EXISTING IconSpec files — no planner round. `--brief` applies to
+every icon; without it, each icon's brief comes from a `briefs.json` file
+next to the specs (`{ "<name>": "<brief>" }`), falling back to the icon's
+file name. A revision that fails geometry validation (even after the one
+explicit retry) is never accepted — the previous valid spec is kept and the
+loop moves to the next round. `--complexity` is accepted for symmetry with
+`generate` but has no effect here (there is no planner call to size).
+
+Per icon, writes `<out>/<name>/`:
+
+- `before.svg`, `before-24-light.png`, `before-512-light.png` — the input as given
+- `after.svg`, `after-24-light.png`, `after-512-light.png`, `after.json` — the spec after the loop
+- `rounds/<n>.json` — the accepted spec after each round that produced one
+- `history.json` — defects, diagnostics, usage and `stopReason` per round (never the API key)
+
+Then writes `<out>/improve-sheet.html` and `<out>/improve-sheet.png`: one row
+per icon, before vs. after at 24/48/96px, with the per-round defect list in
+the HTML version. Prints one summary line per icon: round count, stop
+reason, cost.
+
 ## Exit codes
 
 | Code | Meaning |

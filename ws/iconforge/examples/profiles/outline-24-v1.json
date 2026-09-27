@@ -30,6 +30,7 @@
     "roundedRect",
     "arc",
     "curve",
+    "path",
     "group"
   ]
 }

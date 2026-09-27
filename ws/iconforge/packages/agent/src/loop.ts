@@ -1,7 +1,7 @@
 import type { IconSpec, StyleProfile, Diagnostic } from '@iconforge/schema';
 import type { LlmProvider, Usage } from './provider.ts';
 import { extractJson } from './json-extract.ts';
-import { plannerPrompt, reviserPrompt, reviewerPrompt, ReviewerOutputSchema, type Defect } from './prompts.ts';
+import { plannerPrompt, reviserPrompt, reviewerPrompt, ReviewerOutputSchema, type Defect, type Complexity } from './prompts.ts';
 import {
   askForSpec,
   addUsage,
@@ -53,6 +53,8 @@ export type GenerateIconOptions = {
   brief: string;
   profile: StyleProfile;
   examples?: IconSpec[];
+  /** Shape-count budget for the planner. Default 'auto': the model picks the smallest workable count. */
+  complexity?: Complexity;
   provider: LlmProvider;
   reviewer?: LlmProvider;
   render: (spec: IconSpec) => RenderResult;
@@ -82,7 +84,12 @@ export async function generateIcon(opts: GenerateIconOptions): Promise<GenerateR
   const plannerResult = await askForSpec(
     opts.provider,
     plannerSystem,
-    [{ role: 'user', content: plannerPrompt({ brief: opts.brief, profile: opts.profile, examples: opts.examples }) }],
+    [
+      {
+        role: 'user',
+        content: plannerPrompt({ brief: opts.brief, profile: opts.profile, examples: opts.examples, complexity: opts.complexity }),
+      },
+    ],
     opts.check,
     signal,
   );
@@ -141,6 +148,7 @@ async function runReviewRound(
   emit: (event: LoopEvent) => void,
 ): Promise<{ defects: Defect[]; usage: Usage; historyEntry: LoopHistoryEntry }> {
   const rendered = opts.render(currentSpec);
+  const geometryDiagnostics = opts.check(currentSpec);
   emit({ type: 'reviewer-start', round });
   const reviewerSystem = 'You are an IconForge reviewer. Follow the instructions in the user message exactly.';
   // opts.reviewer is guaranteed defined by the caller (checked before entering the round loop).
@@ -150,7 +158,15 @@ async function runReviewRound(
       {
         role: 'user',
         content: [
-          { type: 'text', text: reviewerPrompt({ brief: opts.brief, profile: opts.profile, examples: opts.examples }) },
+          {
+            type: 'text',
+            text: reviewerPrompt({
+              brief: opts.brief,
+              profile: opts.profile,
+              examples: opts.examples,
+              diagnostics: geometryDiagnostics,
+            }),
+          },
           { type: 'image', pngBase64: rendered.png24.toString('base64') },
           { type: 'image', pngBase64: rendered.png512.toString('base64') },
         ],

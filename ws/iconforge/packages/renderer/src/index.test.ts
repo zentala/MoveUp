@@ -190,6 +190,161 @@ describe('assertSafeSvg', () => {
   });
 });
 
+describe('renderSvg — path', () => {
+  it('line segment', () => {
+    const svg = renderSvg(
+      spec([{ id: 'a', type: 'path', start: [1, 1], segments: [{ kind: 'line', to: [3, 4] }] }]),
+      OUTLINE_24_V1,
+    );
+    expect(svg).toContain('<path d="M 1 1 L 3 4"/>');
+    assertSafeSvg(svg);
+  });
+
+  it('quad segment', () => {
+    const svg = renderSvg(
+      spec([
+        {
+          id: 'a',
+          type: 'path',
+          start: [0, 0],
+          segments: [{ kind: 'quad', control: [1, 2], to: [3, 4] }],
+        },
+      ]),
+      OUTLINE_24_V1,
+    );
+    expect(svg).toContain('<path d="M 0 0 Q 1 2 3 4"/>');
+    assertSafeSvg(svg);
+  });
+
+  it('cubic segment', () => {
+    const svg = renderSvg(
+      spec([
+        {
+          id: 'a',
+          type: 'path',
+          start: [0, 0],
+          segments: [{ kind: 'cubic', control1: [1, 1], control2: [2, 2], to: [3, 3] }],
+        },
+      ]),
+      OUTLINE_24_V1,
+    );
+    expect(svg).toContain('<path d="M 0 0 C 1 1 2 2 3 3"/>');
+    assertSafeSvg(svg);
+  });
+
+  it('arc segment defaults: large=0, clockwise sweep=1', () => {
+    const svg = renderSvg(
+      spec([
+        {
+          id: 'a',
+          type: 'path',
+          start: [0, 0],
+          segments: [{ kind: 'arc', to: [5, 5], radius: 3 }],
+        },
+      ]),
+      OUTLINE_24_V1,
+    );
+    expect(svg).toContain('<path d="M 0 0 A 3 3 0 0 1 5 5"/>');
+    assertSafeSvg(svg);
+  });
+
+  it('arc segment: large=true, clockwise=false', () => {
+    const svg = renderSvg(
+      spec([
+        {
+          id: 'a',
+          type: 'path',
+          start: [0, 0],
+          segments: [{ kind: 'arc', to: [5, 5], radius: 3, large: true, clockwise: false }],
+        },
+      ]),
+      OUTLINE_24_V1,
+    );
+    expect(svg).toContain('<path d="M 0 0 A 3 3 0 1 0 5 5"/>');
+    assertSafeSvg(svg);
+  });
+
+  it('open path has no trailing Z', () => {
+    const svg = renderSvg(
+      spec([{ id: 'a', type: 'path', start: [0, 0], segments: [{ kind: 'line', to: [1, 1] }] }]),
+      OUTLINE_24_V1,
+    );
+    expect(svg).not.toContain('Z');
+  });
+
+  it('closed path adds trailing Z', () => {
+    const svg = renderSvg(
+      spec([
+        {
+          id: 'a',
+          type: 'path',
+          start: [0, 0],
+          segments: [{ kind: 'line', to: [1, 1] }],
+          closed: true,
+        },
+      ]),
+      OUTLINE_24_V1,
+    );
+    expect(svg).toContain('<path d="M 0 0 L 1 1 Z"/>');
+    assertSafeSvg(svg);
+  });
+
+  it('never fills — path relies on profile fill="none"', () => {
+    const svg = renderSvg(
+      spec([
+        {
+          id: 'a',
+          type: 'path',
+          start: [0, 0],
+          segments: [{ kind: 'line', to: [1, 1] }],
+          closed: true,
+        },
+      ]),
+      OUTLINE_24_V1,
+    );
+    expect(svg).toContain('fill="none"');
+  });
+
+  it('is deterministic across repeated calls', () => {
+    const s = spec([
+      {
+        id: 'a',
+        type: 'path',
+        start: [0, 0],
+        segments: [
+          { kind: 'line', to: [1, 1] },
+          { kind: 'quad', control: [2, 0], to: [3, 1] },
+          { kind: 'cubic', control1: [4, 0], control2: [5, 2], to: [6, 1] },
+          { kind: 'arc', to: [7, 1], radius: 2 },
+        ],
+      },
+    ]);
+    const first = renderSvg(s, OUTLINE_24_V1);
+    const second = renderSvg(s, OUTLINE_24_V1);
+    expect(first).toBe(second);
+  });
+
+  it('heart shape made of two cubics: closed, safe, and rasterizable', () => {
+    const heart = spec([
+      {
+        id: 'heart',
+        type: 'path',
+        start: [12, 20],
+        segments: [
+          { kind: 'cubic', control1: [2, 10], control2: [2, 2], to: [12, 8] },
+          { kind: 'cubic', control1: [22, 2], control2: [22, 10], to: [12, 20] },
+        ],
+        closed: true,
+      },
+    ]);
+    const svg = renderSvg(heart, OUTLINE_24_V1);
+    expect(svg).toContain('<path d="M 12 20 C 2 10 2 2 12 8 C 22 2 22 10 12 20 Z"/>');
+    assertSafeSvg(svg);
+    const png = renderPng(svg, { size: 24, background: 'light' });
+    expect(png.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  });
+});
+
 describe('renderPng', () => {
   const svg = renderSvg(spec([{ id: 'a', type: 'circle', center: [12, 12], radius: 8 }]), OUTLINE_24_V1);
   const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);

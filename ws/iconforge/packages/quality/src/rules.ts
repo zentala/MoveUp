@@ -1,5 +1,6 @@
 import type { Diagnostic, IconSpec, Point, Shape, StyleProfile } from '@iconforge/schema';
 import { shapeBounds, type Bounds } from './bounds.ts';
+import { checkJoins } from './joins.ts';
 
 interface Node {
   shape: Shape;
@@ -50,6 +51,15 @@ function rawPoints(shape: Shape): Point[] {
       return [shape.center];
     case 'curve':
       return [shape.from, shape.control1, shape.control2, shape.to];
+    case 'path': {
+      const pts: Point[] = [shape.start];
+      for (const seg of shape.segments) {
+        if (seg.kind === 'quad') pts.push(seg.control, seg.to);
+        else if (seg.kind === 'cubic') pts.push(seg.control1, seg.control2, seg.to);
+        else pts.push(seg.to);
+      }
+      return pts;
+    }
     case 'group':
       return shape.translate ? [shape.translate] : [];
   }
@@ -74,6 +84,9 @@ function gridCheckValues(shape: Shape): number[] {
       return [...shape.center, shape.radius];
     case 'curve':
       return [...shape.from, ...shape.to];
+    case 'path':
+      // Endpoints only — control points (quad.control, cubic.control1/2) are never quantized.
+      return [...shape.start, ...shape.segments.flatMap((seg) => [...seg.to])];
     case 'group':
       return shape.translate ? [...shape.translate] : [];
   }
@@ -248,6 +261,8 @@ export function checkGeometry(spec: IconSpec, profile: StyleProfile): Diagnostic
       }
     }
   }
+
+  diagnostics.push(...checkJoins(spec, profile));
 
   return diagnostics;
 }

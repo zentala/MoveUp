@@ -58,7 +58,37 @@ const curve = z.strictObject({
   to: PointSchema,
 });
 
+/**
+ * One continuous stroke built from segments. Joins between segments use the profile's
+ * line join, so connected outlines (a heart, a pulse trace, a seat + backrest) render
+ * without the overlapping round caps that separate primitives produce.
+ */
+const segment = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('line'), to: PointSchema }),
+  z.strictObject({ kind: z.literal('quad'), control: PointSchema, to: PointSchema }),
+  z.strictObject({ kind: z.literal('cubic'), control1: PointSchema, control2: PointSchema, to: PointSchema }),
+  z.strictObject({
+    kind: z.literal('arc'),
+    to: PointSchema,
+    radius: num.positive(),
+    /** SVG large-arc flag. Default false. */
+    large: z.boolean().optional(),
+    /** Clockwise on screen (SVG sweep-flag 1). Default true. */
+    clockwise: z.boolean().optional(),
+  }),
+]);
+export type PathSegment = z.infer<typeof segment>;
+
+const path = z.strictObject({
+  id,
+  type: z.literal('path'),
+  start: PointSchema,
+  segments: z.array(segment).min(1).max(64),
+  closed: z.boolean().optional(),
+});
+
 export type LineShape = z.infer<typeof line>;
+export type PathShape = z.infer<typeof path>;
 export type PolylineShape = z.infer<typeof polyline>;
 export type CircleShape = z.infer<typeof circle>;
 export type EllipseShape = z.infer<typeof ellipse>;
@@ -75,7 +105,8 @@ export type LeafShape =
   | RectShape
   | RoundedRectShape
   | ArcShape
-  | CurveShape;
+  | CurveShape
+  | PathShape;
 
 export type GroupShape = {
   id: string;
@@ -98,6 +129,7 @@ export const ShapeSchema: z.ZodType<Shape> = z.lazy(() =>
     roundedRect,
     arc,
     curve,
+    path,
     z.strictObject({
       id,
       type: z.literal('group'),
@@ -129,6 +161,7 @@ export const SHAPE_TYPES = [
   'roundedRect',
   'arc',
   'curve',
+  'path',
   'group',
 ] as const;
 export type ShapeType = (typeof SHAPE_TYPES)[number];

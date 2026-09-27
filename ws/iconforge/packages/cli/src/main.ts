@@ -5,6 +5,7 @@ import { runRender } from './commands/render.ts';
 import { runSheet } from './commands/sheet.ts';
 import { runGenerate } from './commands/generate.ts';
 import { runRevise } from './commands/revise.ts';
+import { runImprove } from './commands/improve.ts';
 import { CliError, EXIT } from './util.ts';
 
 const TOP_HELP = `Usage: icon <command> [options]
@@ -15,6 +16,7 @@ Commands:
   sheet      Build a comparison sheet for a set of icons
   generate   Generate an IconSpec from a text brief via an LLM loop
   revise     Revise an IconSpec against reported defects
+  improve    Review -> revise loop for existing icons, with before/after sheet
 
 Run "icon <command> --help" for command-specific options.
 `;
@@ -25,6 +27,7 @@ const COMMANDS: Record<string, (argv: string[]) => Promise<number>> = {
   sheet: runSheet,
   generate: runGenerate,
   revise: runRevise,
+  improve: runImprove,
 };
 
 /** Run only when this file is the process entrypoint (not when imported by tests). */

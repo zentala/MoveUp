@@ -225,6 +225,43 @@ function compileShape(shape: Shape, precision: number, opts: RenderOptions): str
       return element('path', attrs, ['d', 'data-id']);
     }
 
+    case 'path': {
+      const parts: string[] = [`M ${fn(shape.start[0])} ${fn(shape.start[1])}`];
+      for (const segment of shape.segments) {
+        switch (segment.kind) {
+          case 'line':
+            parts.push(`L ${fn(segment.to[0])} ${fn(segment.to[1])}`);
+            break;
+          case 'quad':
+            parts.push(
+              `Q ${fn(segment.control[0])} ${fn(segment.control[1])} ${fn(segment.to[0])} ${fn(segment.to[1])}`,
+            );
+            break;
+          case 'cubic':
+            parts.push(
+              `C ${fn(segment.control1[0])} ${fn(segment.control1[1])} ` +
+                `${fn(segment.control2[0])} ${fn(segment.control2[1])} ` +
+                `${fn(segment.to[0])} ${fn(segment.to[1])}`,
+            );
+            break;
+          case 'arc': {
+            const largeArcFlag = segment.large === true ? 1 : 0;
+            const sweepFlag = segment.clockwise === false ? 0 : 1;
+            parts.push(
+              `A ${fn(segment.radius)} ${fn(segment.radius)} 0 ${largeArcFlag} ${sweepFlag} ` +
+                `${fn(segment.to[0])} ${fn(segment.to[1])}`,
+            );
+            break;
+          }
+        }
+      }
+      if (shape.closed === true) {
+        parts.push('Z');
+      }
+      const attrs: Attrs = { d: parts.join(' '), ...idAttr(shape, opts) };
+      return element('path', attrs, ['d', 'data-id']);
+    }
+
     case 'group': {
       const children = shape.children.map((child) => compileShape(child, precision, opts));
       const transformParts: string[] = [];

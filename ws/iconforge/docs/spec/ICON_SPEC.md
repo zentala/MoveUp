@@ -44,3 +44,18 @@ Proponowany profil `outline-24-v1`: viewBox `[0,0,24,24]`; stroke `currentColor`
 Kontrakt łuku: kąty w stopniach, 0° na prawo, dodatni obrót zgodny z ruchem wskazówek zegara w SVG; `0 < abs(sweepDeg) <= 360`. Pełne 360° kompiluj jako okrąg lub dwa łuki. Obrót grupy wokół początku grupy; w późniejszej wersji jawny pivot. Wszystkie `id` unikalne w dokumencie. `closed` nie oznacza automatycznego fill. Maksymalne wymiary i liczby wynikają z profilu i walidatora.
 
 Schema Zod ma odrzucać nieznane pola (`strict`), NaN, Infinity i niepoprawne tablice punktów. Wersję schematu migratuj jawnie; nie naprawiaj po cichu współrzędnych modelu. Serializer ma stałą precyzję, kolejność atrybutów i identyczny output dla identycznego wejścia. Metadane generacji zapisuj obok JSON, nie w samym kontrakcie geometrii.
+
+## Zmiana 2026-09-27 — prymityw `path` (addytywna, nadal `version: 1`)
+
+Powód: pilot E001 pokazał, że osobne prymitywy z okrągłymi zakończeniami nie łączą się czysto — linia wystaje za cel albo nie dochodzi do niego (promienie słońca, kończyny postaci), a zarysy organiczne złożone z polyline wyglądają na poszarpane (tętno, serce). `curve` pozwala tylko na jedną krzywą Béziera.
+
+```ts
+type Segment =
+  | { kind: 'line'; to: Point }
+  | { kind: 'quad'; control: Point; to: Point }
+  | { kind: 'cubic'; control1: Point; control2: Point; to: Point }
+  | { kind: 'arc'; to: Point; radius: number; large?: boolean; clockwise?: boolean };
+type PathShape = Base & { type: 'path'; start: Point; segments: Segment[]; closed?: boolean };
+```
+
+`path` to jedna ciągła linia: segmenty łączą się połączeniem z profilu (`round`), więc nie ma nakładających się zaokrągleń. `arc.clockwise` domyślnie `true` (zgodnie z ruchem wskazówek na ekranie), `large` domyślnie `false`. `closed` nie oznacza wypełnienia. Model nadal nie pisze `d`: segmenty są danymi, renderer składa `d` deterministycznie. Zmiana jest addytywna — każdy istniejący IconSpec v1 pozostaje poprawny, więc wersja się nie zmienia.
