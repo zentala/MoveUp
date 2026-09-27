@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "settings",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "hub", "type": "circle", "center": [12, 12], "radius": 3 },
+    { "id": "tooth-e", "type": "line", "from": [16, 12], "to": [18.5, 12] },
+    { "id": "tooth-ne", "type": "line", "from": [15, 9], "to": [16.5, 7.5] },
+    { "id": "tooth-n", "type": "line", "from": [12, 8], "to": [12, 5.5] },
+    { "id": "tooth-nw", "type": "line", "from": [9, 9], "to": [7.5, 7.5] },
+    { "id": "tooth-w", "type": "line", "from": [8, 12], "to": [5.5, 12] },
+    { "id": "tooth-sw", "type": "line", "from": [9, 15], "to": [7.5, 16.5] },
+    { "id": "tooth-s", "type": "line", "from": [12, 16], "to": [12, 18.5] },
+    { "id": "tooth-se", "type": "line", "from": [15, 15], "to": [16.5, 16.5] }
+  ]
+}

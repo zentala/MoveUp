@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "sit-timer",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "face", "type": "circle", "center": [12, 12.5], "radius": 8 },
+    { "id": "tick-top", "type": "line", "from": [12, 3], "to": [12, 4.5] },
+    { "id": "hand-hour", "type": "line", "from": [12, 12.5], "to": [12, 8] },
+    { "id": "hand-minute", "type": "line", "from": [12, 12.5], "to": [16, 12.5] }
+  ]
+}

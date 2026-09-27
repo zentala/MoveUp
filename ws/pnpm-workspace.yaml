@@ -1,0 +1,6 @@
+# ws — incubator monorepo. Each top-level folder is one project;
+# its packages live under <project>/packages/*.
+packages:
+  - "*/packages/*"
+allowBuilds:
+  esbuild: true

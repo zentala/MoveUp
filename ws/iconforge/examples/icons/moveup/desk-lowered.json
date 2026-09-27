@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "desk-lowered",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "top", "type": "roundedRect", "origin": [3, 13], "width": 18, "height": 2, "radius": 0.5 },
+    { "id": "left-leg", "type": "line", "from": [6, 15], "to": [6, 20] },
+    { "id": "right-leg", "type": "line", "from": [18, 15], "to": [18, 20] },
+    { "id": "arrow-down", "type": "polyline", "points": [[10, 7], [12, 9], [14, 7]] }
+  ]
+}

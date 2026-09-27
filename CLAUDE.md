@@ -10,6 +10,12 @@
   synonyms in prose. They must not appear in code that looks anything up by name.
 - **Internal IDs**: `io.zntl.desk` (bundle identifier), `zntl-desk` (npm package) — do NOT change
 
+## Side projects — `ws/`
+`ws/` is a separate pnpm workspace (own root, not built by the app) incubating tools
+that support MoveUp. Read [`ws/AGENTS.md`](ws/AGENTS.md). Current project:
+[`ws/iconforge/`](ws/iconforge/AGENTS.md) — text brief → IconSpec JSON → deterministic SVG icons;
+sub-plan `ws/iconforge/.plan/`.
+
 ## Purpose
 Ergonomics tracker for a sit/stand desk. Detects sitting/standing via laser sensor, tracks session durations, and nudges user to take breaks via visual cues and notifications.
 

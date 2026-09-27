@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "name": "snooze",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "moon", "type": "arc", "center": [10.5, 12], "radius": 6, "startDeg": 50, "sweepDeg": 260 },
+    { "id": "z-small", "type": "polyline", "points": [[16, 8], [18, 8], [16, 10.5], [18, 10.5]] },
+    { "id": "z-large", "type": "polyline", "points": [[17, 13], [20, 13], [17, 16.5], [20, 16.5]] }
+  ]
+}

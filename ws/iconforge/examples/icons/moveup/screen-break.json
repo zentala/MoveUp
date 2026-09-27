@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "screen-break",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "screen", "type": "roundedRect", "origin": [3, 4], "width": 18, "height": 12, "radius": 1.5 },
+    { "id": "stand", "type": "line", "from": [12, 16], "to": [12, 19] },
+    { "id": "base", "type": "line", "from": [8, 19], "to": [16, 19] },
+    { "id": "eye-left", "type": "arc", "center": [9.5, 9.5], "radius": 1.5, "startDeg": 20, "sweepDeg": 140 },
+    { "id": "eye-right", "type": "arc", "center": [14.5, 9.5], "radius": 1.5, "startDeg": 20, "sweepDeg": 140 }
+  ]
+}

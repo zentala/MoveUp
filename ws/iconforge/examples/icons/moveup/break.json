@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "break",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "cup", "type": "roundedRect", "origin": [6, 10], "width": 9, "height": 8, "radius": 1 },
+    { "id": "handle", "type": "arc", "center": [15, 14], "radius": 2, "startDeg": 270, "sweepDeg": 180 },
+    { "id": "steam-left", "type": "curve", "from": [8.5, 9], "control1": [7.5, 7], "control2": [9.5, 6], "to": [8.5, 4] },
+    { "id": "steam-right", "type": "curve", "from": [12.5, 9], "control1": [11.5, 7], "control2": [13.5, 6], "to": [12.5, 4] }
+  ]
+}
