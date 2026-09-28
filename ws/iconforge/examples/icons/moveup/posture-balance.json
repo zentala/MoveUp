@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "name": "posture-balance",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "stand", "type": "line", "from": [12, 3.5], "to": [12, 18] },
+    { "id": "base", "type": "line", "from": [8, 20], "to": [16, 20] },
+    { "id": "crossbar", "type": "line", "from": [6, 7.5], "to": [18, 7.5] },
+    { "id": "left-hang", "type": "line", "from": [6.5, 7.5], "to": [6.5, 10.5] },
+    { "id": "right-hang", "type": "line", "from": [17.5, 7.5], "to": [17.5, 10.5] },
+    { "id": "left-pan", "type": "arc", "center": [6.5, 10.5], "radius": 2, "startDeg": 20, "sweepDeg": 140 },
+    { "id": "right-pan", "type": "arc", "center": [17.5, 10.5], "radius": 2, "startDeg": 20, "sweepDeg": 140 }
+  ]
+}

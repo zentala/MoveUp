@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "name": "steps",
+  "profile": "outline-24-v1",
+  "shapes": [
+    {
+      "id": "foot-back",
+      "type": "group",
+      "translate": [8.5, 16],
+      "rotationDeg": -14,
+      "children": [
+        { "id": "sole-back", "type": "ellipse", "center": [0, 0], "rx": 1.5, "ry": 3.25 },
+        { "id": "toe-back-1", "type": "line", "from": [-1.1, -3.6], "to": [-1.5, -5] },
+        { "id": "toe-back-2", "type": "line", "from": [0, -4], "to": [0, -5.5] },
+        { "id": "toe-back-3", "type": "line", "from": [1.1, -3.6], "to": [1.5, -5] }
+      ]
+    },
+    {
+      "id": "foot-front",
+      "type": "group",
+      "translate": [15.5, 8.5],
+      "rotationDeg": 14,
+      "children": [
+        { "id": "sole-front", "type": "ellipse", "center": [0, 0], "rx": 1.5, "ry": 3.25 },
+        { "id": "toe-front-1", "type": "line", "from": [-1.1, -3.6], "to": [-1.5, -5] },
+        { "id": "toe-front-2", "type": "line", "from": [0, -4], "to": [0, -5.5] },
+        { "id": "toe-front-3", "type": "line", "from": [1.1, -3.6], "to": [1.5, -5] }
+      ]
+    }
+  ]
+}

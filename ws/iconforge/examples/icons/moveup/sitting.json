@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "sitting",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "head", "type": "circle", "center": [12, 6], "radius": 2 },
+    { "id": "torso", "type": "line", "from": [12, 8], "to": [12, 13] },
+    { "id": "arm", "type": "line", "from": [12, 9.5], "to": [9, 12] },
+    { "id": "thigh", "type": "line", "from": [12, 13], "to": [16.5, 13] },
+    { "id": "shin", "type": "line", "from": [16.5, 13], "to": [16.5, 19] }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "alert-bell",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "dome", "type": "arc", "center": [12, 11], "radius": 5, "startDeg": 180, "sweepDeg": 180 },
+    { "id": "knob", "type": "circle", "center": [12, 5], "radius": 1 },
+    { "id": "side-left", "type": "line", "from": [7, 11], "to": [6, 16] },
+    { "id": "side-right", "type": "line", "from": [17, 11], "to": [18, 16] },
+    { "id": "rim", "type": "line", "from": [6, 16], "to": [18, 16] },
+    { "id": "clapper", "type": "circle", "center": [12, 19], "radius": 1 }
+  ]
+}

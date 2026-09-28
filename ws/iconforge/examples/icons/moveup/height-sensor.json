@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "height-sensor",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "sensor-body", "type": "roundedRect", "origin": [9, 3], "width": 6, "height": 3, "radius": 0.5 },
+    { "id": "beam", "type": "line", "from": [12, 6], "to": [12, 20] },
+    { "id": "wave-near", "type": "arc", "center": [12, 17], "radius": 3, "startDeg": 200, "sweepDeg": 140 },
+    { "id": "wave-far", "type": "arc", "center": [12, 17], "radius": 5, "startDeg": 200, "sweepDeg": 140 },
+    { "id": "floor", "type": "line", "from": [7, 21], "to": [17, 21] }
+  ]
+}

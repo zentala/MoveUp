@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "name": "desk",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "top", "type": "roundedRect", "origin": [3, 9], "width": 18, "height": 2, "radius": 0.5 },
+    { "id": "left-leg", "type": "line", "from": [6, 11], "to": [6, 20] },
+    { "id": "right-leg", "type": "line", "from": [18, 11], "to": [18, 20] }
+  ]
+}

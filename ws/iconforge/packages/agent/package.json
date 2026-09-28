@@ -1,0 +1,13 @@
+{
+  "name": "@iconforge/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@iconforge/schema": "workspace:*",
+    "zod": "^4.1.0"
+  }
+}

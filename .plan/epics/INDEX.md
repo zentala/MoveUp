@@ -43,3 +43,9 @@ to `.plan/BACKLOG.md` §"E001-E009 audit leftovers".
 | E024 | `E024-2026-09-13-sensor-connection-diagnostics` | planned | No-port vs no-match vs flapping sensor diagnostics, emulator integration tests; 18 pts, **AO**; wave 6, parallel with E023 — [HANDOFF](E024-2026-09-13-sensor-connection-diagnostics/HANDOFF.md) |
 | E025 | `E025-2026-09-14-alert-dismiss-and-yesterday-delta` | planned | Audit leftovers: popup dismiss ignored without sensor (E004-T05), alert-flow integration test (E004-T04), yesterday comparison KPI (E001-T12); 10 pts, **subagents**; wave 6 — [HANDOFF](E025-2026-09-14-alert-dismiss-and-yesterday-delta/HANDOFF.md) |
 | E026 | `ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-vector-library` | planning | Icon studio sub-plan: [INDEX](../../ws/icon-studio/.plan/epics/INDEX.md), [PLAN](../../ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-vector-library/PLAN.md), [HANDOFF](../../ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-vector-library/HANDOFF.md). Total **?** pending inventory; no dispatch. |
+
+## Sub-plans
+
+| Sub-plan | Scope |
+|---|---|
+| sub-plan: [`ws/iconforge/.plan/`](../../ws/iconforge/.plan/epics/INDEX.md) | IconForge — brief → IconSpec → deterministic SVG icons (incubated in the `ws/` monorepo, 2026-09-27) |

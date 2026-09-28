@@ -1,0 +1,17 @@
+{
+  "name": "ws",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "icon": "tsx iconforge/packages/cli/src/main.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.8.3",
+    "vitest": "^4.1.0"
+  }
+}

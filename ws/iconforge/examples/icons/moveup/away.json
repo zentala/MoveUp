@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "away",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "seat", "type": "roundedRect", "origin": [7, 13], "width": 10, "height": 2, "radius": 0.5 },
+    { "id": "back", "type": "line", "from": [8, 13], "to": [8, 5] },
+    { "id": "leg-left", "type": "line", "from": [8, 15], "to": [7.5, 20] },
+    { "id": "leg-right", "type": "line", "from": [16, 15], "to": [16.5, 20] }
+  ]
+}

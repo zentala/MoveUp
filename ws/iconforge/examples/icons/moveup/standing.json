@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "standing",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "head", "type": "circle", "center": [12, 5.5], "radius": 2 },
+    { "id": "torso", "type": "line", "from": [12, 7.5], "to": [12, 15] },
+    { "id": "arm-left", "type": "line", "from": [12, 9], "to": [8.5, 12.5] },
+    { "id": "arm-right", "type": "line", "from": [12, 9], "to": [15.5, 12.5] },
+    { "id": "leg-left", "type": "line", "from": [12, 15], "to": [9, 20] },
+    { "id": "leg-right", "type": "line", "from": [12, 15], "to": [15, 20] }
+  ]
+}

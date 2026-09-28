@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "name": "settings",
+  "profile": "outline-24-v1",
+  "shapes": [
+    {
+      "id": "hub",
+      "type": "circle",
+      "center": [
+        12,
+        12
+      ],
+      "radius": 5.5
+    },
+    {
+      "id": "tooth-n",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-n-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 0
+    },
+    {
+      "id": "tooth-ne",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-ne-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 45
+    },
+    {
+      "id": "tooth-e",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-e-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 90
+    },
+    {
+      "id": "tooth-se",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-se-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 135
+    },
+    {
+      "id": "tooth-s",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-s-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 180
+    },
+    {
+      "id": "tooth-sw",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-sw-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 225
+    },
+    {
+      "id": "tooth-w",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-w-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 270
+    },
+    {
+      "id": "tooth-nw",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-nw-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 315
+    }
+  ]
+}

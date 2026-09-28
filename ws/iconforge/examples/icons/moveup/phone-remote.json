@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "phone-remote",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "body", "type": "roundedRect", "origin": [6, 3], "width": 7, "height": 18, "radius": 1.5 },
+    { "id": "home-button", "type": "circle", "center": [9.5, 19.5], "radius": 1 },
+    { "id": "wave-near", "type": "arc", "center": [17, 7], "radius": 2, "startDeg": 315, "sweepDeg": 90 },
+    { "id": "wave-far", "type": "arc", "center": [17, 7], "radius": 4, "startDeg": 315, "sweepDeg": 90 }
+  ]
+}

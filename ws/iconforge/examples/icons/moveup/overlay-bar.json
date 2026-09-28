@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "overlay-bar",
+  "profile": "outline-24-v1",
+  "shapes": [
+    { "id": "screen", "type": "roundedRect", "origin": [3, 4], "width": 18, "height": 13, "radius": 1 },
+    { "id": "progress-bar", "type": "roundedRect", "origin": [3, 4], "width": 11, "height": 1.5, "radius": 0.5 },
+    { "id": "stand", "type": "line", "from": [12, 17], "to": [12, 20] },
+    { "id": "base", "type": "line", "from": [8, 20], "to": [16, 20] }
+  ]
+}

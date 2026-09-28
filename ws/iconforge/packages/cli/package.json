@@ -1,0 +1,16 @@
+{
+  "name": "@iconforge/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@iconforge/schema": "workspace:*",
+    "@iconforge/renderer": "workspace:*",
+    "@iconforge/quality": "workspace:*",
+    "@iconforge/agent": "workspace:*",
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}
