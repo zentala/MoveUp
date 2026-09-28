@@ -1,16 +1,15 @@
 ---
-updated: 2026-09-27
-active_epic: none (E001 code-complete)
+updated: 2026-09-28
+active_epic: none (E001 code-complete, E002 done)
 ---
 
 # IconForge — state
 
-Bootstrapped 2026-09-27 from `IconForge-spec.zip` (spec v0.1, copied to `docs/spec/`).
+E002 done 2026-09-28: `path` primitive, `join.near-miss`/`join.overshoot`, `icon improve` loop; 115 tests green.
+First live OpenRouter run (`anthropic/claude-sonnet-5`, ~$0.12/icon, 2 rounds): heart-rate and settings clearly
+improved and adopted into `examples/icons/moveup/`; height-sensor not improved (kept); sitting failed when credit ran out.
+Structured output is off for IconSpec (providers reject the recursive schema and the unrolled one is too large);
+the prompt + `parseIconSpec` + one retry carry the contract.
 
-E001 code-complete: schema, renderer, quality, agent, cli packages; 80 tests green, typecheck clean;
-`render` is byte-deterministic; 20 MoveUp pilot icons validate with 0 errors.
-Showcase page (private artifact): https://claude.ai/artifact/41SiWfxj41P9NF6dm39DPJ
-
-Not yet verified: a live OpenRouter `generate`/`revise` run (needs `OPENROUTER_API_KEY`), automated test for `revise`.
-
-Next: spec phase 3 — run the 7 flagged pilot icons through `revise` with real vision review, then blind 24 px evaluation.
+Next: widen `improve` to the remaining flagged icons after topping up OpenRouter credit (BACKLOG).
+Key: Password Broker `openrouter-api-key`, inject with `-EnvName OPENROUTER_API_KEY`.

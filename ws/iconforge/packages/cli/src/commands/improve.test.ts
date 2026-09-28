@@ -64,6 +64,41 @@ describe('runImprove', () => {
     }
   });
 
+  it('keeps going after one icon fails at the provider, writes the sheet, exits PROVIDER', async () => {
+    process.env.OPENROUTER_API_KEY = 'sk-test-secret-value';
+    // A throwing responder is not recorded in mock.calls, so count attempts here.
+    let attempts = 0;
+    const mock = createMockProvider([
+      () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('openrouter response missing choices[0].message.content');
+        return json({ defects: [] });
+      },
+    ]);
+    const dir = await mkdtemp(join(tmpdir(), 'iconforge-improve-fail-'));
+    try {
+      const inDir = join(dir, 'in');
+      await mkdir(inDir, { recursive: true });
+      await writeFile(join(inDir, 'a-icon.json'), JSON.stringify(SPEC_A));
+      await writeFile(join(inDir, 'b-icon.json'), JSON.stringify({ ...SPEC_A, name: 'b-icon' }));
+
+      const out = join(dir, 'out');
+      const code = await runImprove(
+        [join(inDir, 'a-icon.json'), join(inDir, 'b-icon.json'), '--out', out],
+        { providerFactory: () => mock },
+      );
+      expect(code).toBe(EXIT.PROVIDER);
+
+      const failed = JSON.parse(await readFile(join(out, 'a-icon', 'history.json'), 'utf8')) as { error: string };
+      expect(failed.error).toContain('missing choices');
+      const ok = JSON.parse(await readFile(join(out, 'b-icon', 'history.json'), 'utf8')) as { stopReason: string };
+      expect(ok.stopReason).toBe('accepted');
+      expect(await readFile(join(out, 'improve-sheet.html'), 'utf8')).toContain('b-icon');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('writes rounds/<n>.json when the icon goes through a revision', async () => {
     process.env.OPENROUTER_API_KEY = 'sk-test-secret-value';
     const revised = { ...SPEC_A, shapes: [{ id: 's', type: 'circle', center: [12, 12], radius: 5 }] };

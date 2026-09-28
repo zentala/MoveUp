@@ -28,7 +28,7 @@ joints show round-cap bumps and notches ("ragged"); (3) heart-rate is jagged;
 | T01 | `path` primitive: schema (coordinator) + renderer | schema, renderer | High | 3 | 1 | done |
 | T02 | `path` bounds + `join.near-miss`/`join.overshoot` + `flatten` | quality | High | 3 | 1 | done |
 | T03 | Prompts (path, joins, dynamic budget, warnings to reviewer) + `improveIcon` + CLI `improve` + `revise` test | agent, cli | High | 5 | 1 | done |
-| T04 | Live run on 4 icons, coordinator evaluation, decide on widening | examples | High | 2 | 2 | todo |
+| T04 | Live run on 4 icons, coordinator evaluation, decide on widening | examples | High | 2 | 2 | done |
 
 Epic total: **13 points** → subagents (policy threshold ≤13).
 

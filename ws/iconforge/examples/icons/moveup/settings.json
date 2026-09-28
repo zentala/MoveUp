@@ -3,14 +3,190 @@
   "name": "settings",
   "profile": "outline-24-v1",
   "shapes": [
-    { "id": "hub", "type": "circle", "center": [12, 12], "radius": 3 },
-    { "id": "tooth-e", "type": "line", "from": [16, 12], "to": [18.5, 12] },
-    { "id": "tooth-ne", "type": "line", "from": [15, 9], "to": [16.5, 7.5] },
-    { "id": "tooth-n", "type": "line", "from": [12, 8], "to": [12, 5.5] },
-    { "id": "tooth-nw", "type": "line", "from": [9, 9], "to": [7.5, 7.5] },
-    { "id": "tooth-w", "type": "line", "from": [8, 12], "to": [5.5, 12] },
-    { "id": "tooth-sw", "type": "line", "from": [9, 15], "to": [7.5, 16.5] },
-    { "id": "tooth-s", "type": "line", "from": [12, 16], "to": [12, 18.5] },
-    { "id": "tooth-se", "type": "line", "from": [15, 15], "to": [16.5, 16.5] }
+    {
+      "id": "hub",
+      "type": "circle",
+      "center": [
+        12,
+        12
+      ],
+      "radius": 5.5
+    },
+    {
+      "id": "tooth-n",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-n-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 0
+    },
+    {
+      "id": "tooth-ne",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-ne-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 45
+    },
+    {
+      "id": "tooth-e",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-e-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 90
+    },
+    {
+      "id": "tooth-se",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-se-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 135
+    },
+    {
+      "id": "tooth-s",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-s-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 180
+    },
+    {
+      "id": "tooth-sw",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-sw-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 225
+    },
+    {
+      "id": "tooth-w",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-w-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 270
+    },
+    {
+      "id": "tooth-nw",
+      "type": "group",
+      "children": [
+        {
+          "id": "tooth-nw-rect",
+          "type": "roundedRect",
+          "origin": [
+            -1.5,
+            -8.5
+          ],
+          "width": 3,
+          "height": 3,
+          "radius": 0.9
+        }
+      ],
+      "translate": [
+        12,
+        12
+      ],
+      "rotationDeg": 315
+    }
   ]
 }

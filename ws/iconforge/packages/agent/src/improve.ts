@@ -2,7 +2,7 @@ import type { IconSpec, StyleProfile, Diagnostic } from '@iconforge/schema';
 import type { LlmProvider, Usage } from './provider.ts';
 import { extractJson } from './json-extract.ts';
 import { reviewerPrompt, ReviewerOutputSchema, type Defect } from './prompts.ts';
-import { askForSpec, addUsage, emptyUsage, budgetExceeded, timedOut, makeTimeoutSignal } from './loop-helpers.ts';
+import { askForSpec, addUsage, emptyUsage, budgetExceeded, timedOut, makeTimeoutSignal, REVIEW_MAX_TOKENS } from './loop-helpers.ts';
 import { reviserPrompt } from './prompts.ts';
 import type { RenderResult, GenerateResult, LoopEvent, LoopHistoryEntry, StopReason, GenerateBudget } from './loop.ts';
 import { HARD_MAX_ROUNDS } from './loop.ts';
@@ -94,6 +94,7 @@ async function runReview(
   const geometryDiagnostics = opts.check(currentSpec);
   emit({ type: 'reviewer-start', round });
   const reviewerResult = await opts.reviewer.complete({
+    maxTokens: REVIEW_MAX_TOKENS,
     system: 'You are an IconForge reviewer. Follow the instructions in the user message exactly.',
     messages: [
       {

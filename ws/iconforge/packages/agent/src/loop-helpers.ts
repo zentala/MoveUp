@@ -2,10 +2,17 @@ import type { IconSpec, Diagnostic } from '@iconforge/schema';
 import { parseIconSpec } from '@iconforge/schema';
 import type { ChatMessage, LlmProvider, Usage } from './provider.ts';
 import { extractJson } from './json-extract.ts';
-import { iconSpecJsonSchema } from './jsonSchema.ts';
 import { retryWithDiagnosticsPrompt, type Defect } from './prompts.ts';
 
 export const ICON_SPEC_JSON_SCHEMA_NAME = 'IconSpecV1';
+
+/**
+ * Output token caps. Without them OpenRouter reserves the model's default
+ * (65 536 for Claude Sonnet 5) against the key's credit and answers 402 on a
+ * low balance. A 64-shape IconSpec is ~6k tokens; a review of <=3 defects ~600.
+ */
+export const SPEC_MAX_TOKENS = 8000;
+export const REVIEW_MAX_TOKENS = 1500;
 
 export function emptyUsage(): Usage {
   return { inputTokens: 0, outputTokens: 0, costUsd: 0 };
@@ -40,12 +47,11 @@ export async function askForSpec(
   const messages = [...initialMessages];
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const result = await provider.complete({
-      system,
-      messages,
-      jsonSchema: { name: ICON_SPEC_JSON_SCHEMA_NAME, schema: iconSpecJsonSchema() },
-      signal,
-    });
+    // No provider-enforced JSON schema: strict modes reject the recursive IconSpec
+    // schema, and the acyclic unrolled one exceeds their grammar size limit
+    // (OpenRouter -> Anthropic/Google/Azure, 2026-09-28). The prompt carries the
+    // type description; parseIconSpec + one retry enforce the contract.
+    const result = await provider.complete({ system, messages, maxTokens: SPEC_MAX_TOKENS, signal });
     usage = addUsage(usage, result.usage);
 
     const extracted = extractJson(result.text);

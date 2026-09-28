@@ -10,6 +10,7 @@ import {
   timedOut,
   unchangedShapesPreservedWarning,
   makeTimeoutSignal,
+  REVIEW_MAX_TOKENS,
 } from './loop-helpers.ts';
 
 export const HARD_MAX_ROUNDS = 3;
@@ -153,6 +154,7 @@ async function runReviewRound(
   const reviewerSystem = 'You are an IconForge reviewer. Follow the instructions in the user message exactly.';
   // opts.reviewer is guaranteed defined by the caller (checked before entering the round loop).
   const reviewerResult = await opts.reviewer!.complete({
+    maxTokens: REVIEW_MAX_TOKENS,
     system: reviewerSystem,
     messages: [
       {

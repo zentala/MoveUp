@@ -138,16 +138,26 @@ export async function runImprove(argv: string[], deps: { providerFactory?: Provi
     await writeOutFile(join(outDir, 'before-512-light.png'), renderPng(beforeSvg, { size: 512, background: 'light' }));
     await writeOutFile(join(outDir, 'before-24-light.png'), renderPng(beforeSvg, { size: 24, background: 'light' }));
 
-    const result = await improveIcon({
-      spec: beforeSpec,
-      brief,
-      profile,
-      reviewer: reviewerProvider,
-      reviser: reviserProvider,
-      render: makeRender(profile),
-      check: makeCheck(profile),
-      budget: { maxRounds, maxCostUsd },
-    });
+    // One icon's provider failure must not abort the batch or suppress the sheet.
+    let result: Awaited<ReturnType<typeof improveIcon>>;
+    try {
+      result = await improveIcon({
+        spec: beforeSpec,
+        brief,
+        profile,
+        reviewer: reviewerProvider,
+        reviser: reviserProvider,
+        render: makeRender(profile),
+        check: makeCheck(profile),
+        budget: { maxRounds, maxCostUsd },
+      });
+    } catch (err) {
+      const message = (err as Error).message;
+      process.stderr.write(`${name}: failed — ${message}\n`);
+      await writeOutFile(join(outDir, 'history.json'), `${JSON.stringify({ error: message }, null, 2)}\n`);
+      failures += 1;
+      continue;
+    }
 
     for (const entry of result.history) {
       if (entry.spec !== undefined) {
