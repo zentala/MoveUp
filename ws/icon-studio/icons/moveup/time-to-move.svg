@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="time-to-move">
+  <title>time-to-move</title>
+  <path d="M2 5h20v3H2zM4 8h2v9H4zM18 8h2v9h-2z" fill="#F0EBE0" stroke="#403830" stroke-width="0.8"/>
+  <path d="M10 12h4v3h-4zM10 16h4v2h-4z" fill="#B91C1C"/>
+</svg>

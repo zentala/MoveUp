@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="paused">
+  <title>paused</title>
+  <path d="M2 5h20v3H2zM4 8h2v9H4zM18 8h2v9h-2z" fill="#F0EBE0" stroke="#403830" stroke-width="0.8"/>
+  <path d="M10 12h1.5v6H10zM12.5 12H14v6h-1.5z" fill="#706858"/>
+</svg>

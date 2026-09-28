@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="goal-reached">
+  <title>goal-reached</title>
+  <path d="M2 5h20v3H2zM4 8h2v9H4zM18 8h2v9h-2z" fill="#F0EBE0" stroke="#403830" stroke-width="0.8"/>
+  <path d="M8.5 12h7v6h-7z" fill="#D97706"/><path d="m10 15 1.3 1.3 2.7-2.7" fill="none" stroke="#141210" stroke-width="1.5" stroke-linecap="square"/>
+</svg>

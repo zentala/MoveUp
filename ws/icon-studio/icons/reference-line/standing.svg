@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="#F5F7FA" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="standing">
+  <title>standing</title>
+  <rect x="5" y="22" width="22" height="3" rx="1"/>
+  <path d="M9 25v15m-4 0h8M23 25v15m-4 0h8"/>
+  <circle cx="36" cy="12" r="3"/>
+  <path d="M35 17c-2 0-3 2-3 4v9l-2 10m7-10 2 10m-7-19-3 6m10-6 3 6"/><path d="M29 15v-8m-3 3 3-3 3 3" stroke="#7ED957"/>
+</svg>

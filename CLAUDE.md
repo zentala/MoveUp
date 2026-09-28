@@ -71,7 +71,20 @@ See [PROJECT.xml](./PROJECT.xml) for a full structured map of the codebase, arch
 - **Session State Persistence**: notification flags, credit-reduced `sitting_seconds`, and `daily_score` are persisted to `tauri-plugin-store` (key: `persisted_session_state`). Survives app restarts within the same day. Date-guarded: stale data from a previous day is discarded on load. Cleared on daily reset. Save points: every state transition, alert fire, periodic notification, and shutdown.
 - **Computer time tracking** (ADR 011): `continuous_computer_secs` tracks total time at computer (Sitting + Standing). After `computer_break_reset_secs` (default 5 min) of Away, resets to 0. When standing and computer time exceeds `max_continuous_computer_secs` (default 60 min), one gentle toast nudge fires encouraging a screen break. Configurable in ergonomic profile. Toggle: Settings → More → "Screen time tracking".
 
+## Icon studio
+
+`ws/icon-studio/` is the reproducible SVG icon workspace. Its instructions are
+in `ws/icon-studio/AGENTS.md` and its own plan is in `ws/icon-studio/.plan/`.
+Run `pnpm icons:generate`; review `ws/icon-studio/preview.html` and the editable
+geometry in `ws/icon-studio/reference-line.mjs`. It contains two earlier tray
+families and a line-icon family based on three June 8 reference boards. These
+are unselected proposals, not application assets. The live tray icon remains
+`src-tauri/src/tray_icon.rs`; do not wire a proposal into the tray without an
+explicit state mapping and native-size review. The older Electron Healthy
+Balance spec is archived under `.plan/archive/healthy-balance-spec/`.
+
 ## UI Components
+
 1. **System tray** — `↕ 72 cm` tooltip + color dot (green/yellow/red by progress)
 2. **Floating window** — current height, today's totals, session history
 3. **Top-of-screen progress bar** — green→red over 40min session (overlay_renderer.rs)

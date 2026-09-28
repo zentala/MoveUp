@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MoveUp icon studio</title>
+  <style>
+    :root { font: 14px/1.5 system-ui, sans-serif; color: #1f2430; background: #f5f3ee; }
+    body { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    h1 { margin-bottom: 4px; }
+    p { margin: 0 0 24px; max-width: 72ch; }
+    h2 { margin-top: 32px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 12px; }
+    .card { border: 1px solid #d7d2c9; border-radius: 8px; overflow: hidden; background: white; }
+    .label { padding: 8px 10px; font: 600 12px/1.3 ui-monospace, monospace; }
+    .samples { padding: 12px; display: flex; align-items: center; gap: 16px; height: 48px; }
+    .samples img { display: block; flex: none; }
+    .light { color: #1f2430; background: #f7f7f7; }
+    .dark { color: #f0ebe0; background: #141210; }
+    .reference { color: #f5f7fa; background: #080f14; }
+    .light img.hb { filter: brightness(0); }
+    .dark img.hb { filter: brightness(0) invert(1); }
+    .size { font: 10px ui-monospace, monospace; opacity: .65; }
+  </style>
+</head>
+<body>
+  <h1>MoveUp icon studio</h1>
+  <p>Visual proposals only. The SVGs are not wired into MoveUp. The first two families explore seven tray states; the third is a line icon library drawn after the June 8 reference boards.</p>
+  <div id="families"></div>
+  <script src="preview-manifest.js"></script>
+  <script>
+    const families = window.iconStudioFamilies;
+    const target = document.getElementById('families');
+    for (const family of families) {
+      const section = document.createElement('section');
+      const heading = document.createElement('h2');
+      heading.textContent = family.title;
+      section.append(heading);
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      for (const state of family.names) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = state;
+        card.append(label);
+        for (const theme of family.themes) {
+          const row = document.createElement('div');
+          row.className = `samples ${theme}`;
+          for (const size of family.sizes) {
+            const img = document.createElement('img');
+            img.className = family.id === 'healthy-balance' ? 'hb' : '';
+            img.src = `icons/${family.id}/${state}.svg`;
+            img.width = size;
+            img.height = size;
+            img.alt = `${family.id} ${state}, ${size} pixels`;
+            row.append(img);
+          }
+          card.append(row);
+        }
+        grid.append(card);
+      }
+      section.append(grid);
+      target.append(section);
+    }
+  </script>
+</body>
+</html>

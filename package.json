@@ -14,6 +14,7 @@
     "tauri:dev:demo": "powershell -ExecutionPolicy Bypass -File scripts/tauri-dev.ps1 -Demo",
     "tauri:build": "pnpm test:all && tauri build && node scripts/build-report.cjs",
     "typecheck": "tsc --noEmit",
+    "icons:generate": "node ws/icon-studio/generate.mjs",
     "test": "vitest run",
     "test:unit": "vitest run --config vite.config.ts",
     "test:unit:watch": "vitest --config vite.config.ts",
