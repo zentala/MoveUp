@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { link, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -56,4 +56,43 @@ test('bad manifest or renderer output fails before touching generated files', as
   await assert.rejects(writeIconSet(root, [{ ...valid[0], names: ['kept', 'broken'] }], { 'test-family': (name) => name === 'broken' ? '' : svg(name) }), /invalid SVG/);
   assert.equal(await readFile(join(root, 'icons', 'test-family', 'kept.svg'), 'utf8'), before);
   assert.deepEqual(await readdir(join(root, 'icons', 'test-family')), ['kept.svg']);
+});
+
+test('generated files cannot overwrite linked targets outside their output paths', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'moveup-icon-studio-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const family = [{ id: 'test-family', names: ['icon'], title: 'Test', sizes: [24], themes: ['light'] }];
+  const renderers = { 'test-family': svg };
+  await writeIconSet(root, family, renderers);
+
+  const target = join(root, 'outside.txt');
+  await writeFile(target, 'untouched', 'utf8');
+  const icon = join(root, 'icons', 'test-family', 'icon.svg');
+  await rm(icon);
+  await link(target, icon);
+  await writeIconSet(root, family, renderers);
+  assert.equal(await readFile(target, 'utf8'), 'untouched');
+  await rm(icon);
+  const preview = join(root, 'preview-manifest.js');
+  await rm(preview);
+  await link(target, preview);
+  await writeIconSet(root, family, renderers);
+  assert.equal(await readFile(target, 'utf8'), 'untouched');
+
+  await rm(icon);
+  try {
+    await symlink(target, icon);
+  } catch (error) {
+    if (error.code !== 'EPERM') throw error;
+    t.diagnostic('File symlink creation is unavailable on this Windows host; hard-link replacement was verified.');
+    return;
+  }
+  await assert.rejects(writeIconSet(root, family, renderers), /not a regular file/);
+  assert.equal(await readFile(target, 'utf8'), 'untouched');
+
+  await rm(icon);
+  await rm(preview);
+  await symlink(target, preview);
+  await assert.rejects(writeIconSet(root, family, renderers), /not a regular file/);
+  assert.equal(await readFile(target, 'utf8'), 'untouched');
 });

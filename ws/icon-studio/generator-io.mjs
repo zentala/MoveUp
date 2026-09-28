@@ -1,5 +1,6 @@
-import { lstat, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 const safeId = /^[a-z0-9][a-z0-9-]*$/;
 
@@ -12,6 +13,24 @@ async function ensureRealDirectory(path) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
     await mkdir(path);
+  }
+}
+
+async function writeRegularFile(path, contents) {
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, contents, { encoding: 'utf8', flag: 'wx' });
+    try {
+      const entry = await lstat(path);
+      if (!entry.isFile() || entry.isSymbolicLink()) {
+        throw new Error(`Generated output path is not a regular file: ${path}`);
+      }
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    await rename(temporary, path);
+  } finally {
+    await rm(temporary, { force: true });
   }
 }
 
@@ -58,7 +77,7 @@ export async function writeIconSet(root, families, renderers) {
     const out = join(iconsRoot, family.id);
     await ensureRealDirectory(out);
     for (const { name, svg } of family.icons) {
-      await writeFile(join(out, `${name}.svg`), svg, 'utf8');
+      await writeRegularFile(join(out, `${name}.svg`), svg);
     }
     for (const entry of await readdir(out, { withFileTypes: true })) {
       if (entry.isFile() && entry.name.endsWith('.svg') && !family.names.has(entry.name.slice(0, -4))) {
@@ -66,5 +85,5 @@ export async function writeIconSet(root, families, renderers) {
       }
     }
   }
-  await writeFile(join(root, 'preview-manifest.js'), previewManifestSource(families), 'utf8');
+  await writeRegularFile(join(root, 'preview-manifest.js'), previewManifestSource(families));
 }
