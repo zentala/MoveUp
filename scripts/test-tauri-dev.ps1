@@ -138,8 +138,15 @@ try {
             [Environment]::SetEnvironmentVariable($key, "synthetic-inherited-$key")
         }
         Copy-Item -LiteralPath "$PSScriptRoot/../tests/fixtures/supervision-launcher.mjs" -Destination $launcher
-        $node = if ($env:PM3_DAEMON_NODE) { $env:PM3_DAEMON_NODE } else { $env:DESK_PM3_NODE }
-        Assert-That ($node -and [IO.Path]::IsPathFullyQualified($node)) 'explicit fixture Node supplied'
+        # Test-only discovery; never set the production supervision environment.
+        $node = $env:MOVEUP_TEST_NODE
+        if (!$node) { $node = $env:PM3_DAEMON_NODE }
+        if (!$node) { $node = $env:DESK_PM3_NODE }
+        if (!$node) {
+            $node = (Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+        }
+        Assert-That ($node -and [IO.Path]::IsPathFullyQualified($node) -and (Test-Path -LiteralPath $node -PathType Leaf)) 'absolute fixture Node resolved'
+        $node = (Resolve-Path -LiteralPath $node).ProviderPath
         $transportConfig = @{Node=$node; Home=$temp; Service='fixture/desk'}
         $reply = Invoke-MoveUpPm3 $transportConfig @('suspend','fixture/desk','--intent','quit','--json')
         Assert-That (Test-MoveUpHold $reply 'suspend' 'fixture/desk' 'quit') 'actual hidden transport acknowledgement'

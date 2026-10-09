@@ -2,15 +2,31 @@
 use crate::{supervision::{Configuration, Transport}, supervision_process::PublicLauncher};
 use std::{path::PathBuf, time::Duration};
 
+// Discovery is confined to this test module; it never configures supervision.
+fn fixture_node() -> PathBuf {
+    for key in ["MOVEUP_TEST_NODE", "PM3_DAEMON_NODE", "DESK_PM3_NODE"] {
+        if let Some(value) = std::env::var_os(key).filter(|value| !value.is_empty()) {
+            let node = PathBuf::from(value);
+            assert!(node.is_absolute() && node.is_file(), "{key} must name an absolute Node executable");
+            return node.canonicalize().expect("Resolve fixture Node executable");
+        }
+    }
+    let executable = if cfg!(windows) { "node.exe" } else { "node" };
+    for directory in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
+        let node = directory.join(executable);
+        if node.is_file() {
+            return node.canonicalize().expect("Resolve Node executable from PATH");
+        }
+    }
+    panic!("Synthetic transport tests require Node on PATH or an absolute MOVEUP_TEST_NODE");
+}
+
 fn fixture(service: &str) -> (tempfile::TempDir, Configuration) {
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir(temp.path().join("releases")).unwrap();
     std::fs::write(temp.path().join("releases/launch.mjs"),
         include_str!("../../tests/fixtures/supervision-launcher.mjs")).unwrap();
-    let node = PathBuf::from(std::env::var("PM3_DAEMON_NODE")
-        .or_else(|_| std::env::var("DESK_PM3_NODE"))
-        .expect("Set an absolute PM3_DAEMON_NODE for synthetic Node transport tests"));
-    assert!(node.is_absolute() && node.is_file());
+    let node = fixture_node();
     let cfg = Configuration { node, home: temp.path().to_path_buf(), service: service.into() };
     (temp, cfg)
 }

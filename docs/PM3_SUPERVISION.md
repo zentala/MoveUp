@@ -46,7 +46,11 @@ installed `pwsh`; no package installation is performed. Missing PowerShell 7
 fails before replacement. Helpers inherit the full supplied environment,
 including all fixture IPC/run/pidfile overrides, and never start a PM3 daemon.
 
-Verification (requires an absolute `PM3_DAEMON_NODE` or `DESK_PM3_NODE`):
+Verification requires Node on PATH. Synthetic transport tests also accept an
+absolute `MOVEUP_TEST_NODE` override, followed by the existing `PM3_DAEMON_NODE`
+and `DESK_PM3_NODE` overrides. Invalid supplied paths fail explicitly; transport
+coverage is never skipped. Discovery is test-only and does not enable production
+supervision or change its explicit configuration requirements.
 
 ```powershell
 cargo test --offline --lib supervision --manifest-path src-tauri/Cargo.toml
@@ -65,6 +69,22 @@ overrides to verify inheritance. Logs are ignored local artifacts in
 `e014-t06-launcher.log`. The library retains four pre-existing compiler warnings
 in session timer tests. No dependency, generated binding, installed app or daemon
 changes were made. Independent review and real desktop/runtime gates are pending.
+
+Correction verification, 2026-10-09: with `PM3_DAEMON_NODE`, `DESK_PM3_NODE`
+and `MOVEUP_TEST_NODE` absent and Node on PATH, focused Rust adapter tests
+passed **15/15** (838 filtered), the full Rust library passed **853/853**
+(none filtered), and the PowerShell runner passed **41 assertions**. All exits
+were 0, with no failed or ignored Rust tests. A separate explicit
+`MOVEUP_TEST_NODE` run passed **4/4** transport tests (849 filtered) and
+**41 PowerShell assertions**, both exit 0. Logs are
+`src-tauri/target/e014-t06-correction-rust-focused.log`,
+`e014-t06-correction-rust-library.log`, `e014-t06-correction-pwsh-path.log`,
+`e014-t06-correction-rust-override.log` and `e014-t06-correction-pwsh-override.log`.
+The four pre-existing compiler warnings remain. Previous failed review logs
+remain intact; these correction checks do not replace the independent review
+or certify the coordinator's aggregate write-set gate. The intent decision is
+preserved in the dated amendment to canonical
+[ADR 024](../.arch/ADR/024-application-lifecycle-readiness.md).
 
 MoveUp exposes flat application readiness on a dedicated loopback listener at
 `127.0.0.1:3391/display/readiness`. Set `DESK_READINESS_PORT` to an integer from
