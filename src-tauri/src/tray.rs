@@ -51,7 +51,10 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| match event.id().as_ref() {
             "settings" => show_main_window_settings(app),
             "open-analyst" => show_analyst_window(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                crate::app_lifecycle_runtime::request_quit(app);
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -230,4 +233,3 @@ fn show_analyst_window(app: &AppHandle) {
 pub fn tray_menu_item_ids() -> &'static [&'static str] {
     &["settings", "open-analyst", "quit"]
 }
-

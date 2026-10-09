@@ -26,6 +26,7 @@ use std::process::Child;
 use std::time::{Duration, Instant};
 
 use crate::last_known_good::ProbeOutcome;
+pub use crate::health_probe_readiness::{validate_readiness, ExpectedReadiness, ReadinessError};
 
 /// How long a build must stay alive to count as good (D5).
 pub const ALIVE_REQUIREMENT_SECS: u64 = 30;

@@ -84,6 +84,15 @@
     <layer name="rust-backend" path="src-tauri/src/">
       <file name="lib.rs">App entry — plugins, AppState, setup hook (tray, blur, serial, welcome)</file>
       <file name="main.rs">Binary entry — calls lib::run()</file>
+      <file name="app_lifecycle.rs">Per-run identity, essential readiness, setup/failure/Quit/exit events; separate from the ergonomic engine</file>
+      <file name="app_lifecycle_store.rs">OS-locked primary-run record; distinguishes prior clean exit, recorded failure and unknown interruption</file>
+      <file name="app_lifecycle_runtime.rs">Tauri adapters for persistence flush and bounded readiness; database contention preserves known initialization</file>
+      <file name="startup_diagnostics.rs">Best-effort early failure evidence and panic hook without engine or persistence locks</file>
+      <file name="runtime_readiness.rs">Flat typed application readiness route; sensor absence degrades status without invalidating essential readiness</file>
+      <file name="health_probe_readiness.rs">Bounded typed readiness probe with application identity and version validation</file>
+      <file name="app_lifecycle_tests.rs">Run ownership, prior outcomes and correlated lifecycle event regression tests</file>
+      <file name="app_lifecycle_runtime_tests.rs">Persistence flush and readiness under database contention, missing connection and poison</file>
+      <file name="runtime_readiness_tests.rs">Typed readiness states and route contract tests</file>
       <file name="commands.rs">IPC commands: list_ports, start_auto_connect, stop_reading, get_session_state, get_today_summary, inject_reading, trigger_test_notification, dismiss_welcome, show_welcome</file>
       <file name="commands_config.rs">Config IPC: set_session_limit, set_stand_limit, calibrate, get_settings, save_settings, get_overlay_state. save_settings resyncs the relay client, but only when relay_settings_changed says relay_enabled or relay_url actually moved — every settings edit calls it, and reconnecting over an unrelated field would drop live viewers (E022-T06)</file>
       <file name="commands_profiles.rs">Profile IPC: list_communication_profiles, list_ergonomic_profiles, get_active_profiles, switch_communication_profile, switch_ergonomic_profile, open_profile_in_editor, duplicate_profile. The engine half of a switch is extracted as switch_communication_profile_by_name / switch_ergonomic_profile_by_name (app_data_dir + handles, no AppHandle) so the relay command path can call it; the IPC wrappers add store persistence of the active ID on top</file>
@@ -375,6 +384,10 @@
 
     <layer name="unit-ts" path="src/**/*.test.tsx" runner="pnpm test:unit">
       <files>Components, hooks, widgets, utils</files>
+    </layer>
+
+    <layer name="lifecycle-process" path="src-tauri/tests/application_lifecycle.rs" runner="cargo test --manifest-path src-tauri/Cargo.toml --test application_lifecycle">
+      <note>Isolated child-process fixtures prove primary ownership, early failure, panic evidence and forced-exit classification without production data or desktop singleton access.</note>
     </layer>
 
     <layer name="integration" path="tests/integration/" runner="pnpm test:integration">
