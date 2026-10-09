@@ -39,3 +39,27 @@ temporary disable for the operator-arranged ownership test, and delete the Run
 value only after PM3-only login proof. Do not perform this disable during T08 or
 while merely preparing the cutover. Confirm supervision readiness, actual
 installed artifact and recorded process/run identity after the test login.
+
+## Existing per-service boot contract
+
+The PM3 owner inspected source `9608643`: the app-owned configuration's `boot`
+flag is read during daemon boot. A false flag prevents restore at the next login,
+even for a previously running service; same-login adoption of an existing child
+is separate. Never call `unstartup`, which removes shared PM3 startup.
+
+The existing public apply flow is `reload <project>` from the explicitly selected
+application configuration directory. Re-enabling a changed service additionally
+requires explicit `start` to establish desired-service bookkeeping; reload alone
+does not do that. This proposed flow is not accepted yet: the current supervised
+live-child path returns through its controller without the ordinary start
+bookkeeping. The PM3 owner must resolve and verify that transition first.
+Preserve login suspension holds and never use `resume --all`
+merely to toggle the preference. Test OFF -> ON, a service first started with
+boot false, and an existing Quit hold through the actual isolated daemon path.
+
+There is currently no machine-readable effective-boot field in PM3 status or
+describe, and reload prints text. Read the preference from the app-owned file;
+do not present that as observed daemon convergence. Bound launcher calls, report
+apply failures truthfully and preserve recoverable configuration on failure.
+Resolve any remaining unsupported transition before claiming the checkbox works;
+do not silently add a private PM3 source import or a competing startup owner.
