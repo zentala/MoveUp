@@ -15,6 +15,17 @@ Execute the acceptance matrix in ../RESUME.md against reviewed integrated source
 Use a separate PM3 home, ports, synthetic executables/releases and app data. Keep
 the real user's application, profile, database and active PM3 daemon untouched.
 
+Apply every public fixture environment key to each CLI/daemon child, clearing
+unrelated inherited PM3_TEST overrides first. PM3_HOME alone does not isolate
+the Windows named pipe. Accepted PM3's daemon/test-overrides.ts also strips test
+keys from its own environment after reading them, so inheritance through the
+daemon is insufficient for a supervised application that calls PM3 back. Carry
+the fixture IPC/run/pid overrides explicitly through the test service's env
+configuration (or another verified public fixture mechanism). Assert their
+actual presence in that child before exercising its Quit/dev adapter. Keep
+test overrides out of production configuration. Use the supported no-op domain
+adapter for fixtures so their registration cannot touch the live domain registry.
+
 The current app resolves data through Tauri's `app.path().app_data_dir()` at
 multiple call sites; no application data-directory override was found in the
 current runtime. Do not assume setting APPDATA alone isolates it. Establish a
