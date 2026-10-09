@@ -88,3 +88,31 @@ Authority: operator-requested investigation, fixes and independent Herdr verific
   real-store restart, integration and publication remain outstanding.
 - Reviewer receipt path references were corrected against frozen source before
   final closure; source never changed. No new round or repeated runtime suite.
+
+## Post-round4 AO gates and isolated dependency integration
+
+- First verify-only gates on the accepted pair both FAILED, CLI exit2, solely
+  for six historical administrative paths outside the current write sets.
+  Frontend2/2 and backend3/3 declared commands exited0. The administrative trees
+  matched their integration targets; separately materialized commits appeared
+  in AO's triple-dot audit. No product-source or completeness cause was reported.
+- Narrow metadata reconciliation b1817db added exactly those six historical
+  allowances to the two frozen task contracts. Source write sets and claims,
+  worker HEADs, original context snapshots and prior failures were preserved.
+  No new implementer metadata rights or source replay was granted.
+- One corrected verify per run: both gate PASS with exact reviewed sourceHead;
+  frontend2/2 commands exit0, backend3/3 commands exit0. Aggregate CLI exit2
+  retains historical attention, not a failed current gate. No review-round reset.
+- Explicitly admitted frontend-only AO merge produced
+  6d22d73875c85f8e1baf837a8312ed17dae74510 on
+  ao/integration/E027-20261009-correction. Merge verdict merged, basis gate,
+  aggregate exit2; cleanup pending, promotion not ready. Candidate ancestry
+  proved and the entire resulting tree equals accepted frontend86a3204:
+  tree13630b3fc3d838737632da5ba1aaeae516576db3. Worker status merged and
+  verification.merged=true satisfy T03's T02 dependency. Backend remains
+  unmerged in its separate worker; no main source integration or publication.
+- Future author dispatch remains held pending a supported source-only
+  materialization/preflight route. Current AO run/resume reaches verifyAndMerge
+  without enforcing execution.autoMerge=false as an independent-review pause.
+  No uncontrolled resume, fake failure/result, runtime edit or approval override.
+  Final UI, combined runtime, browser/native and delivery remain NOT_CHECKED.
