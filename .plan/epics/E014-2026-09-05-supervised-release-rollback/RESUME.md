@@ -44,10 +44,14 @@ T05 source at 76f4d5e passed independent round 3 and public-launcher validation
 against accepted PM3 source 5be48d7 with all fixture isolation keys applied.
 AO integrated it at b8f0c3d and completed its source task at fa628af. T06 source
 ba1e3ab passed independent round 2 and the final source gate; integrated at
-25c1edc and completed at 1e15589. T07 source f52f6a3 requires five confirmed
-round1 corrections; see review-rounds.md. Independent real callback passed;
-coverage and the isolated release artifact remain open. Real supervision, desktop behavior
-and login remain separate acceptance gates.
+25c1edc and completed at 1e15589. T07 source 6c846fd resolves all five round1
+findings, but round2 independently reproduced fresh debug readiness incorrectly
+promoting a release record. Two smaller documentation/diff findings also need
+correction before round3; two of six rounds are consumed. Coverage and the
+isolated production artifact at 6c846fd passed, including independent metadata
+and all16 staging hashes; the corrected SHA needs a newly bound artifact.
+See review-rounds.md. Real supervision, desktop behavior and login remain
+separate acceptance gates.
 
 1. T11 (8 points, High): MoveUp lifecycle diagnostics and readiness, independent
    of the PM3 contract. Preserve current Run registration until cutover.

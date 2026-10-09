@@ -211,3 +211,34 @@
   source review and final isolated release artifact evidence are pending.
   Build collection may continue without source edits while review runs.
 - No integration, promotion, public push, installed release or live changes.
+
+## Release integration round 2 result — 2026-10-09 (three corrections required)
+
+- Independent review of 6c846fddfe435d7fc284dfc3a3fbccbba46351ba:
+  REQUEST_CHANGES. All five round1 findings resolved; three new confirmed,
+  zero disputed. Two rounds consumed, four remain under the six-round maximum.
+- High/3: release promotion discards the validated fresh readiness build mode,
+  accepting debug while the recorded owner and staged artifact claim release.
+  Actual maintenance CLI reproduction wrote the marker with that mismatch;
+  its exit0 is BUG_REPRODUCED, not a passed negative acceptance check.
+- Low/1: installed-release documentation still tells users to pass unsupported
+  --json to generic start. Low/1: extra EOF blank line fails the base diff check.
+  Ordinary diff checks also flag CRLF; reviewer distinguished that with an
+  explicit CRLF-aware check, which still failed for the EOF line. Coordinator's
+  ordinary base-to-candidate check also failed, exit1; no global config changed.
+- Independent tests: 9 actual-entrypoint, 25 release and 15 supervision Rust
+  tests, plus 44 Node tests passed, exit0. Author full Rust 865 library plus
+  16 integration passed; frontend 470 passed with unchanged coverage thresholds,
+  typecheck/lint/build passed. Earlier failures remain in the round1 receipt.
+- Production artifact at this SHA passed build/staging evidence: explicit
+  tauri/custom-protocol, real release describe/version0.6.1, all16 packaged and
+  staged file hashes matched, cutover:false. This does not accept defective
+  source; a corrected SHA requires a newly bound release artifact.
+- Retained reviewer harness failures: two lookup/compile failures and native
+  link failure before the successful synthetic reproduction; no further attempts
+  after the coordinator's bound arrived. Direct PowerShell GUI-subsystem describe
+  did not capture reliable exit; bounded ProcessStartInfo retry exited0. Author
+  pipe-panic describe attempt remains failed despite its later waited exit0.
+- Corrector continues only these three findings in the same owned worktree.
+  Round3 requires independently frozen corrected source. No live changes,
+  main source integration or push; publication/privacy hold remains.

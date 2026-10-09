@@ -16,10 +16,13 @@ current_wave:
     three passed); causality remains open. T06/T07 handoffs are prepared,
     and T06 is now integrated at 25c1edc/completed 1e15589 after round2 acceptance.
     Its full Rust853 and PowerShell41 checks pass, including ordinary Node PATH
-    discovery. T07 source f52f6a3 received independent round1 FAIL: five confirmed
-    corrections in activation, portable tests, project map and rollback errors.
-    Independent real maintenance/callback2 and Node43 passed; coverage and isolated
-    release build remain open. Correct, freeze and review round2 before integration.
+    discovery. T07 source 6c846fd resolved all five round1 findings, but independent
+    round2 reproduced promotion accepting fresh debug readiness for a release
+    record. Two smaller documentation/diff issues also remain. Corrector is
+    applying those three findings before round3 (two of six rounds consumed).
+    Rust881, Node44, frontend470/coverage and production build passed; independent
+    artifact metadata and all16 staging hashes passed. Corrected source requires
+    a newly bound artifact before integration; see the epic review-rounds.md.
     T07/T08/T10 and login remain open.
     Current application and Run bridge unchanged. Lifecycle worker cleanup
     failed on its already-durable AO session junction; source/evidence retained,
