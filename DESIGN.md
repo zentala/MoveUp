@@ -1,119 +1,118 @@
-# Design System — Desk App
+# MoveUp design contract
 
-## Direction
+Updated 2026-10-09. **Accepted target; implementation pending.** Canonical visual contract for popup and Analyst. The operator accepted the tokens below. Source baseline: `6e81da375fe4265325af2f33d2c1c1fac263640f` and working files read in this review. Browser/live QA: **NOT_CHECKED**. Independent coordinator review is required.
 
-**Precision instrument panel** — oiled-steel surfaces, amber active indicators,
-warm readout text. The app should feel like bespoke hardware software built
-for a specific desk, not a generic SaaS dashboard.
+## Direction and scope
 
-Think: cockpit instrument, mechanical watch face, oscilloscope display.
+MoveUp is a modular desk ergonomics experimentation platform. Popup: understand the current state at a glance. Analyst: inspect the selected day's observations. Preserve the compact precision-instrument feel and popup monospace typography. Unify charcoal surfaces, posture semantics and Lucide line icons. Retain React/TypeScript, Tauri, SVG charts and Recharts donuts; no stack replacement or ergonomic-engine change.
 
-## Principles
+Preserve popup 420×240, frameless; Analyst 1280×800, decorated and resizable ([window decision](.arch/ADR/012-analyst-dashboard-separate-window.md)). Settings, Catalog, help and menus share chrome tokens. Native tray/overlay urgency remains separately governed by CommunicationPolicy.
 
-1. **One font** — full monospace. Everything reads like a calibration readout.
-2. **Borders only** — no shadows. Depth comes from surface color elevation.
-3. **Warm palette** — near-black with amber warmth. Never cold gray (#ccc).
-4. **Data density** — every pixel earns its place. No decorative elements.
-5. **Temperature escalation** — visual urgency builds through background color shift, not flashy UI changes.
+## Accepted tokens
 
-## Tokens
+Preserve existing token names as the migration interface. New `--state-*` names are target additions, not existing exports. CSS and `chartColors` must resolve to one palette rather than independent hex inventories.
 
-### Surfaces (4-level elevation)
+| Token | Target | Role |
+|---|---|---|
+| `--panel-base` | `#161616` | Page/window background |
+| `--panel-raised` | `#262626` | Panels and connected selected day tab |
+| `--panel-elevated` | `#303030` | Hover and inactive day tabs |
+| `--panel-overlay` | `#393939` | Menus, tooltips and pressed controls |
+| `--rail-subtle` | `#393939` | Decorative separators, quiet badge borders |
+| `--rail-default` | `#525252` | Secondary separators, not sole control affordance |
+| `--rail-emphasis` | `#6f6f6f` | Required control boundary on base/raised |
+| `--rail-active` | `#78a9ff` | Focus outline |
+| `--ink-primary` | `#f4f4f4` | Primary text/readouts |
+| `--ink-secondary` | `#c6c6c6` | Labels |
+| `--ink-tertiary` | `#a8a8a8` | Readable metadata |
+| `--ink-muted` | `#6f6f6f` | Disabled text only |
+| `--state-sitting` | `#fa4d56` | Sitting posture, never urgency |
+| `--state-standing` | `#42be65` | Standing posture |
+| `--state-away` | `#8d8d8d` | Explicitly observed Away |
+| `--state-walking` | `#78a9ff` | Existing Walking state, separately labeled |
+| `--state-unknown` | `#525252` | Unobserved elapsed time, hatched |
+| `--state-future` | `#393939` | Future time, outlined/unfilled |
+| `--signal-warn`, `--signal-alert` | `#ffc107`, `#f44336` | Existing urgency meanings |
+| `--signal-ok` | `#4caf50` | Existing KPI evaluation, not posture |
+| `--beam`, `--beam-hi` | `#d97706`, `#f59e0b` | Retained height/hardware accent, not Standing |
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--panel-base` | `#141210` | Window background |
-| `--panel-raised` | `#1c1a17` | Cards, sections |
-| `--panel-elevated` | `#242118` | Active/pressed states |
-| `--panel-overlay` | `#2c2920` | Tooltips, dropdowns |
+Timeline `--tl-sitting/standing/walking/away` and matching `chartColors` fields alias state tokens. Use opaque chart fills and ink text next to state swatches. Legacy amber/clinical skin settings need an explicit migration decision before modifying persisted preferences; they must not silently override the accepted shared posture mapping. Urgency labels/indicators never recolor historical posture.
 
-### Borders (amber-tinted rails)
+Use opaque base/raised backgrounds for reconciliation. Existing popup translucency/blur is observed, not required; retaining it requires measured contrast over actual desktop backgrounds. No decorative glow or depth shadows. Quiet badge: raised fill, subtle 1px border, readable label and small swatch; border alone conveys no meaning.
 
-| Token | Opacity | Usage |
-|-------|---------|-------|
-| `--rail-subtle` | 5% | Default borders, dividers |
-| `--rail-default` | 10% | Input borders |
-| `--rail-emphasis` | 22% | Hover borders |
-| `--rail-active` | 45% | Focus rings |
+## Typography, density and icons
 
-### Text (warm off-white hierarchy)
+Preserve popup `--font-mono: ui-monospace, "Cascadia Code", "Fira Mono", "Consolas", monospace`; apply to Analyst, SVG labels, controls and menus. No font download. Base 13px/1.5; metadata 11px/1.5; compact labels 10–11px, tracking 0.08em, uppercase only for short labels. Readouts 26px/1.1, weight 700, tabular numerals; panel title 14px/600, page title 20px/600. Essential 8–9px labels in existing source must rise to at least 10px.
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--ink-primary` | `#f0ebe0` | Primary text, big numbers |
-| `--ink-secondary` | `#b0a898` | Secondary labels |
-| `--ink-tertiary` | `#706858` | Tertiary, muted labels |
-| `--ink-muted` | `#403830` | Barely visible, disabled |
+Preserve 4px spacing basis and compact gaps 4/7/8/11/13px; section padding 11–13px, outer padding 12–16px. Preserve radii `--r-sm:3px`, `--r-md:5px`, `--r-lg:8px`.
 
-### Amber Beam (active indicator)
+Use named `lucide-react` imports: Settings, Share2, ChevronLeft, ChevronRight, RefreshCw, CircleHelp, X. Default size 16px, strokeWidth 1.5, currentColor; replace action glyphs/emoji. Decorative icons are aria-hidden. Icon-only buttons have accessible action names and hover/focus tooltips. Hit areas ≥24×24px, preferably 28×28px popup and 32×32px Analyst. Dependency installation is pending. Chart posture swatches retain text labels; do not invent posture pictograms.
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--beam` | `#d97706` | Primary accent (desk height, standing) |
-| `--beam-hi` | `#f59e0b` | Hover/active beam |
-| `--beam-glow` | `rgba(217,119,6,0.20)` | Glow around beam elements |
-| `--beam-dim` | `rgba(217,119,6,0.08)` | Subtle beam hint |
+## Timeline and connected day tabs
 
-### Semantic Signals
+Explorer order: compact range/refresh controls; **large selected-day horizontal timeline**; **smaller daily composition donut tabs directly below**; then height/KPI/score details. No intervening grid or detached sticky bottom navigator. One range/selected-day model governs every chart, retaining [ADR 013's single date authority](.arch/ADR/013-date-navigator-merge.md) while superseding mini bars and placement.
 
-| Token | Value | Meaning |
-|-------|-------|---------|
-| `--signal-ok` | `#65a30d` | Good state (sitting within limit) |
-| `--signal-warn` | `#c2762d` | Warning (approaching limit) |
-| `--signal-alert` | `#b91c1c` | Alert (limit exceeded, overtime) |
-| `--signal-up` | `#d97706` | Standing/active (amber) |
-| `--signal-away` | `#4a7c9e` | Away/idle (cool blue-gray) |
+Panel: raised background, 12px padding, 8px outer radius. Target strip height 96px including ticks, posture band ≥56px. Default visible domain: full selected local day fitted to width. Optional neighboring-day pan/zoom preserves proportional elapsed-time scale and explicit midnight boundaries; no compressed side previews. Show selected date, timezone, legend and Now when applicable.
 
-## Typography
+Daily donut target: 48px diameter, 6px ring; tab width ≥72px, weekday/date and observation coverage. Single horizontally scrollable row, no wrapping. Selected tab and panel share `#262626`, no vertical gap; remove shared top seam under the selected tab. Others use `#303030`, subtle 1px separators, 4px gaps. Selection has readable date/semantics, no gold glow. Focus remains visible across the seam. Keep selected tab visible when resizing; stack lower charts if needed, avoiding whole-page horizontal overflow.
 
-- **Font:** `ui-monospace, "Cascadia Code", "Fira Mono", "Consolas", monospace`
-- **Base size:** 13px
-- **Line height:** 1.5
-- **Big numbers:** 26px, weight 700, `font-variant-numeric: tabular-nums`
-- **Labels:** 10-11px, uppercase, `letter-spacing: 0.08em`
-- **Smoothing:** `-webkit-font-smoothing: antialiased`
+Popup uses the shared compact timeline fitted to its width without Analyst navigation chrome. Activating it opens Analyst on the same local day; dismissal returns invoking focus.
 
-## Spacing
+## Shared data and full-day composition
 
-- **Base unit:** 4px
-- **Common gaps:** 4, 7, 8, 11, 13px
-- **Section padding:** 11-13px
-- **Window padding:** 12-16px
+One timeline component has compact/detail modes and one normalization/aggregation layer serves both modes and day donuts. Modes change dimensions, ticks and navigation, never durations, coverage or state identity. Source adapters stay outside rendering. Target input: half-open intervals `{startMs,endMs,state,provenance}`, local-day bounds, timezone and injectable `nowMs`; explicit Unknown/Future coverage accompanies confirmed states.
 
-## Radii
+For local date D, start is local midnight D and end is local midnight D+1 by calendar arithmetic in the desk's authoritative timezone. `daySeconds=(endMs-startMs)/1000`: normally 86400, DST 82800/90000. Never select days by timestamp string prefix, UTC today, or fixed 24-hour increment. Show timezone; repeated hours need offset-disambiguated tooltips. Authoritative timezone provenance remains a source dependency.
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--r-sm` | 3px | Buttons, timeline blocks |
-| `--r-md` | 5px | Cards, sections |
-| `--r-lg` | 8px | Modals, large panels |
+Sort, validate and deduplicate records; clip at boundaries/Now and split midnight crossings. Explicit raw session intervals take precedence over snapshot approximations on overlapping coverage. Reject/report irreconcilable overlap rather than double counting. Chronological Sitting uses raw observed time, never credited `limitUsedSecs`; credit remains for timer/urgency ([engine ownership](.arch/ADR/015-pure-ergo-engine.md)).
 
-## Temperature Variants
+Snapshots require a bounded observation horizon grounded in producer cadence. If none is established, mark coverage uncertain/pending rather than filling a long gap. Unknown enums, missing samples, disconnected sensors or stopped app mean Unknown, not Away. Live coverage ends at Now or last confirmed horizon, whichever is earlier. Detail tooltips expose provenance. Producer horizon is pending, not guessed here.
 
-The One Bar widget background shifts subtly based on sitting urgency:
+Each daily ring uses **the full actual local calendar day**: `stateShare=confirmedStateSeconds/daySeconds`. Unknown is uncovered elapsed time; Future is time after Now in today/future days. Confirmed states + Unknown + Future equal daySeconds before rounding. Past normal-day example: 2h Sitting + 1h Standing + 1h observed Away + 20h Unknown = 24h, never 50% Sitting or 21h Away. At noon today with 3h confirmed coverage: 9h Unknown + 12h Future remain on a normal day.
 
-| State | Background | Effect |
-|-------|-----------|--------|
-| calm (<50%) | `var(--panel-base)` | Neutral |
-| warm (50-80%) | `#12100c` | Slight warm shift |
-| hot (80-100%) | `#140e0c` | Warmer |
-| burning (>100%) | `#16100c` | Noticeably warm |
-| standing | `#0e100c` | Slight green shift |
-| reset | `#0e110c` | Green-shifted + glow |
-| away | `var(--panel-base)` | Neutral |
+Unknown is hatched/labeled; Future outlined/unfilled/labeled; Away solid gray. Accessible descriptions and focus/hover details expose durations, percentages, denominator and coverage. Center shows date or coverage. Preserve tiny durations mathematically; enlarge hit targets rather than visual proportions. Rounding never fabricates observations.
 
-## Window
+Daily composition is distinct from KPI gauges: Standing/active time, posture-change goal and score/100 may remain subordinate metrics with explicit denominators. They are not full-day composition. Retain [Recharts decision](.arch/ADR/016-recharts-for-kpi-donuts.md): explicit size, real SVG center label; no ResponsiveContainer requirement or wholesale chart migration.
 
-- **Size:** 420x240px
-- **Position:** Bottom-right corner (16px from right edge, 56px from bottom for taskbar)
-- **Background:** `rgba(20, 18, 16, 0.84)` with `backdrop-filter: blur(12px)`
-- **Decorations:** None (frameless)
-- **Draggable:** Header area only
+## Interaction, accessibility and asynchronous states
 
-## Anti-patterns
+Default: readable ink, quiet separators. Hover: elevated fill/primary text; pressed: overlay fill. Selected: persistent connected raised tab and aria-selected. Disabled: native disabled where applicable, muted text, no hover affordance; explanations remain readable outside disabled controls.
 
-- No sans-serif fonts (everything monospace)
-- No cold grays (#ccc, #888) — use warm `--ink-*` tokens
-- No shadows for depth — borders only
-- No decorative elements — every element shows data
-- No hardcoded colors in widget CSS — use design tokens
+Focus-visible: 2px rail-active outline with 2px offset, never removed/clipped. Required control boundaries on elevated/overlay surfaces use ink-tertiary or another measured ≥3:1 indicator; rail-emphasis meets 3:1 only on base/raised. Badge dividers are decorative, not sole interactive affordances. Red/gray-state descriptions use ink text on elevated backgrounds.
+
+Day navigation: labeled tablist, tab roles, roving tabindex, linked tabpanel/stable IDs. Left/Right and Home/End move focus; Enter/Space selects (manual activation avoids load delays). Tab enters selected tab, then panel controls. Day updates retain initiating-tab focus. Catalog/Explorer use the same pattern. Help opens on hover/focus, Escape closes; dialogs restore invoking focus. Provide a keyboard-accessible timeline interval list/details rather than pointer-only tooltips or hundreds of required tab stops.
+
+Loading reserves geometry with aria-busy and readable status; never show a zero ring or empty claim before success. Ready-empty past day: “No observations recorded”, 100% Unknown; today splits elapsed Unknown/Future. Error: readable explanation + Retry, selected date preserved; retained successful data must say stale and show timestamp. Invalid/overlapping time data is a data-quality error, not plausible zero. Partial observations show honest coverage. Announce meaningful updates politely, not every clock tick.
+
+Reduced motion disables pulse, arc animation and smooth scrolling; selection applies immediately. No decorative continuous animation. WCAG 2.2 AA is a verification target, not certified. Calculated opaque token minima: tertiary text 4.86:1, focus 4.90:1; Sitting/Away fills 3.44:1/3.48:1 against surfaces. Use ink labels and separators/other cues between touching states. Computed contrast, keyboard, targets and overflow require rendered verification.
+
+## Observed source baseline / pending reconciliation
+
+| Evidence | Observed | Pending target |
+|---|---|---|
+| [globals.css](src/styles/globals.css):16–53,121,244–247 | Warm tokens, translucent shell, Standing dot uses amber beam | Charcoal opaque layers, posture aliases |
+| [AnalystWindow](src/analyst/AnalystWindow.tsx):90–92; [chart-utils](src/analyst/charts/chart-utils.ts):33–44 | Explicit sans-serif, navy surfaces, separate state hexes | Monospace/shared palette; migrate overrides |
+| [ExplorerTab](src/analyst/ExplorerTab.tsx):155–175; [DateNavigatorColumn](src/analyst/charts/DateNavigatorColumn.tsx) | Timeline, grid, bottom navigator; mini bars/amber selection | Connected donut tabs immediately below timeline |
+| [OneBarTimeline](src/widgets/one-bar/OneBarTimeline.tsx):31,49–77 | Unknown→Away; observed-sum widths/minimum 0.5%; live Sitting uses credit | Shared raw chronology, truthful widths/coverage |
+| [timeline-segments](src/analyst/charts/timeline-segments.ts):40–64; [timeline-utils](src/analyst/charts/timeline-utils.ts):77–87 | Extends to next sample; separate fixed-sample aggregation; fixed-day boundary steps | Bounded horizon, single aggregation, calendar bounds |
+| [DateNavigator](src/analyst/charts/DateNavigator.tsx):44–45; [TimelineDetail](src/analyst/charts/TimelineDetail.tsx):40–60 | UTC today; width uses fixed DAY_MS while scale helper uses calendar end | Local today and consistent calendar scale |
+| [explorer-day-kpis](src/analyst/explorer-day-kpis.ts):51,113; [KpiDonut](src/analyst/charts/KpiDonut.tsx):58 | Date prefix; standing/active ratio; navy remainder | Full-day composition separate from KPI gauges |
+| [OneBarWidget](src/widgets/OneBarWidget.tsx); [ChartCard](src/analyst/charts/ChartCard.tsx); package.json | Glyph share/settings/help; no lucide-react dependency found | Named line icons/accessibility; installation pending |
+
+Source precedence checked: App imports globals; OneBarWidget imports one-bar CSS and skin class; Analyst explicitly overrides inherited font. These are source findings, not computed styles. No live app, screenshots or application tests ran for this documentation change.
+
+## Decision history and acceptance
+
+| Date | Change / previous direction | Reason | Status |
+|---|---|---|---|
+| Prior contract, date unknown | Warm oiled-steel, amber active/Standing, warm ink, monospace and borders-only | Bespoke desk instrument, not generic SaaS | Historical rationale retained; palette/Standing superseded |
+| 2026-10-09 | Charcoal replaces warm popup/navy Analyst; retain mono/density/radii | Operator direction and unified instrument identity | Accepted; implementation pending |
+| 2026-10-09 | Red Sitting/green Standing/gray Away; separate urgency; Lucide actions | Operator direction, stable meanings/quiet chrome | Accepted; implementation pending |
+| 2026-10-09 | Timeline first, connected donut tabs replace bottom mini bars | Operator direction, selected-day association | Accepted; ADR 013 presentation superseded, date authority retained |
+| 2026-10-09 | Full local day + Unknown/Future; shared compact/detail semantics | Operator direction, truthful observation coverage | Accepted; horizon/timezone evidence pending |
+
+Implementer supplies source and tests; coordinator independently accepts. Required evidence: shared tokens/font, connected tabs, equal interval/ring totals, honest states, named icons, fixtures for DST/midnight/gaps/live/unknown enums. When authorized preview exists, verify popup 420×240, Analyst 1280×800 and narrow resizing; keyboard/focus/overflow/reduced motion and computed contrast. Until then live QA stays NOT_CHECKED. This author does not certify implementation. Instruction-file link to this contract is pending coordinator-owned work outside this write scope. [Private review](.plan/reports/2026-10-09-design-review.md).
+
+## Official references
+
+[Carbon colors](https://www.carbondesignsystem.com/building-blocks/foundations/color/overview) and [layering](https://www.carbondesignsystem.com/building-blocks/foundations/color/guidelines) inform neutral layers/semantic roles; [Carbon tabs](https://www.carbondesignsystem.com/building-blocks/core/components/tabs/guidelines) informs selected-tab/panel matching and horizontal scrolling. Below-panel donut tabs are MoveUp's adaptation. [Lucide React](https://lucide.dev/guide/react/) supports named imports. [WAI tabs](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/) and [WCAG 2.2](https://www.w3.org/TR/WCAG22/) inform keyboard/contrast targets. Checked 2026-10-09; exact tokens are operator-accepted MoveUp choices, not a Carbon compliance claim.

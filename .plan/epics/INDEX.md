@@ -44,6 +44,8 @@ to `.plan/BACKLOG.md` §"E001-E009 audit leftovers".
 | E025 | `E025-2026-09-14-alert-dismiss-and-yesterday-delta` | planned | Audit leftovers: popup dismiss ignored without sensor (E004-T05), alert-flow integration test (E004-T04), yesterday comparison KPI (E001-T12); 10 pts, **subagents**; wave 6 — [HANDOFF](E025-2026-09-14-alert-dismiss-and-yesterday-delta/HANDOFF.md) |
 | E026 | `ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-vector-library` | planning | Icon studio sub-plan: [INDEX](../../ws/icon-studio/.plan/epics/INDEX.md), [PLAN](../../ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-vector-library/PLAN.md), [HANDOFF](../../ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-vector-library/HANDOFF.md). Total **?** pending inventory; no dispatch. |
 
+| E027 | `E027-2026-10-09-analyst-timeline` | in-progress | Trustworthy shared timelines, current-day loading, connected daily donuts and mixed-break history recording. Total **39p**; direct workers in Herdr with independent verification. |
+
 ## Sub-plans
 
 | Sub-plan | Scope |
