@@ -108,3 +108,20 @@
 - PM3 owner acceptance and actual public-launcher interoperability remain
   separate pending gates before merge. Source acceptance is not live runtime
   or login verification.
+
+## Readiness dependency acceptance and integration — 2026-10-09
+
+- PM3 owner source 5be48d773f1138301718858a965b8f4b038aa578 passed the final
+  independent third review and owner's full gate (exit 0). Contract amendment 5
+  records durable retry refusal, unknown hold applicability and eligible start
+  intent. No live release is implied.
+- MoveUp source 76f4d5e passed actual public-launcher offline interoperability:
+  valid config accepted; app-owned candidate bytes preserved; existing output
+  refused and preserved; missing executable refused before publication. Exit 0.
+  A repeated run applied every fixture environment key, including a dedicated
+  Windows named pipe and run/pid paths; exit 0. Neither run started a daemon.
+- Normal AO merge produced 5ec6249. Its aggregate exit 2 retained cleanup's
+  unknown/degraded state; the recorded merge verdict is merged, not a failed
+  source gate. AO promote exited 0, integrated at b8f0c3d and closed T05 at
+  fa628af. Cleanup remains pending; historical failures above remain retained.
+- T06 may proceed. Runtime recovery, GUI and real-login acceptance remain open.

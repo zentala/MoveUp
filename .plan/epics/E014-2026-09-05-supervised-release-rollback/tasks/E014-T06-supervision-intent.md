@@ -22,7 +22,7 @@ not proof of no suspension: reconcile through status. An unsupported or failed
 suspend must produce a visible actionable error and must not claim successful
 session suspension. Unsupervised bridge mode retains ordinary Quit behavior.
 
-Read all four PM3 contract amendments. Status readback confirms suspension
+Read all five PM3 contract amendments. Status readback confirms suspension
 only when the named service has a supervision.suspension.holds entry matching
 this request's intentId. Missing service or supervision, incomplete/malformed
 JSON and transport errors are UNKNOWN, never proof that no hold exists. Retry
@@ -40,8 +40,13 @@ success has no `ok` field; require its acknowledged service, intent and scope.
 Tolerate additional status fields, but an explicitly unknown supervision mode
 cannot authorize Quit even if a previously stored matching hold is visible:
 PM3 may be unable to establish whether that hold applies to the current login.
-The contract is frozen at PM3 source 02531ee, pending owner source acceptance.
-Do not merge or claim compatibility before that independent acceptance arrives.
+The accepted contract is frozen at PM3 source
+5be48d773f1138301718858a965b8f4b038aa578 (independent final round 3 ACCEPT).
+T05 public-launcher interoperability passed against that exact release.
+For isolated Windows fixtures, inherit every supplied fixture environment key,
+including PM3_TEST_IPC_PATH, PM3_TEST_RUN_DIR and PM3_TEST_PIDFILE_PATH;
+PM3_HOME alone does not isolate the production named pipe. Do not start a daemon
+or use the production pipe during this task.
 
 The PowerShell development launcher must explicitly suspend supervision before
 replacing an installed process, including when DESK_REMOTE_PORT is changed. Use

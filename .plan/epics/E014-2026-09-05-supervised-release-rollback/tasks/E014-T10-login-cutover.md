@@ -50,9 +50,10 @@ is separate. Never call `unstartup`, which removes shared PM3 startup.
 The existing public apply flow is `reload <project>` from the explicitly selected
 application configuration directory. Re-enabling a changed service additionally
 requires explicit `start` to establish desired-service bookkeeping; reload alone
-does not do that. This proposed flow is not accepted yet: the current supervised
-live-child path returns through its controller without the ordinary start
-bookkeeping. The PM3 owner must resolve and verify that transition first.
+does not do that. PM3 source 5be48d7, independently accepted in final round 3,
+now records eligible desired intent after a successful supervised start,
+including an already-live owned child; amendment 5 defines this transition.
+Consumer acceptance must still exercise the actual isolated daemon path.
 Preserve login suspension holds and never use `resume --all`
 merely to toggle the preference. Test OFF -> ON, a service first started with
 boot false, and an existing Quit hold through the actual isolated daemon path.
