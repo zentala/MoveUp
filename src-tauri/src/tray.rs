@@ -52,8 +52,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             "settings" => show_main_window_settings(app),
             "open-analyst" => show_analyst_window(app),
             "quit" => {
-                crate::app_lifecycle_runtime::request_quit(app);
-                app.exit(0);
+                crate::supervision_quit::request(app);
             }
             _ => {}
         })
