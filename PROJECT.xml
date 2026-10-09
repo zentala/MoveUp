@@ -378,7 +378,10 @@
 
   <testing>
     <layer name="pm3-supervision-config" path="scripts/pm3-config.test.mjs" runner="node scripts/pm3-config.test.mjs">
-      <note>Isolated synthetic installation; exact flat health keys, candidate version, PID/run binding and foreign-dev distinction against PM3_SOURCE. No CLI or daemon launch.</note>
+      <note>Isolated synthetic installation; exact readiness/PID/run config, app-owned candidate bytes and pathname, pending drafts, atomic exclusive publication, failure/retry and racing output preservation. No live actions.</note>
+    </layer>
+    <layer name="pm3-offline-validation" path="scripts/pm3-validation.test.mjs" runner="node scripts/pm3-validation.test.mjs">
+      <note>Injected process boundary checks public launcher argv, no shell, hidden window, timeout/output bounds and failed/unsupported reports. Real PM3 owner acceptance remains pending.</note>
     </layer>
     <strategy coverage-gate="80%">3-layer: Unit to Integration to E2E</strategy>
 
@@ -424,9 +427,9 @@
   </testing>
 
   <config-files>
-    <file name="scripts/pm3-config.mjs">Pure opt-in PM3 supervised configuration and candidate document with absolute argv and local readiness identity</file>
-    <file name="scripts/prepare-pm3.mjs">Explicit isolated file preparation; no service registration or existing configuration overwrite</file>
-    <file name="scripts/pm3-source-validation.mjs">Read-only PM3 source schema, candidate and instance-binding validation; source hashes as evidence</file>
+    <file name="scripts/pm3-config.mjs">Pure opt-in PM3 config pointing to app-owned candidate JSON with local readiness identity</file>
+    <file name="scripts/prepare-pm3.mjs">Atomic exclusive draft-config publication; candidate input unchanged, no service registration or overwrite</file>
+    <file name="scripts/pm3-validation.mjs">Optional bounded public offline CLI adapter; no source loader, missing capability and owner acceptance remain explicit</file>
     <file name="tauri.conf.json">Window config, bundle, CSP, welcome window</file>
     <file name="Cargo.toml">Rust deps: tauri2, rusqlite, serialport, chrono, tokio, window-vibrancy, windows</file>
     <file name="vite.config.ts">Vite + Vitest, 80% coverage gate, welcome entry</file>

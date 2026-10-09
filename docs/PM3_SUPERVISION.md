@@ -15,32 +15,40 @@ does not read remote health providers or the display aggregate.
 
 ## Preparation only
 
-The generator writes a new configuration and candidate document into an explicitly
-provided directory. It never loads the PM3 CLI, registers a service, starts an
-application, changes Scheduled Tasks or removes the Run-key bridge. `boot: false`
-keeps this preparation out of automatic boot restore. Do not install it until the
-PM3 owner accepts its implementation and the separately owned live cutover passes.
+The generator writes only a new draft configuration into an explicitly provided
+directory. It consumes the absolute path to MoveUp's app-owned candidate JSON
+projection, without copying, rewriting, reordering or inferring its artifacts.
+It never registers a service, starts an application, changes Scheduled Tasks or
+removes the Run-key bridge. `boot: false` keeps preparation out of automatic boot
+restore. Do not install the draft until the PM3 owner accepts its implementation
+and the separately owned live cutover passes.
 
-Requirements: Node with this checkout's installed TypeScript dev dependency;
-installed candidate executables; the ordered newline-separated candidate list
-from MoveUp's release store; an existing, isolated output directory; and the
-owner-provided PM3 source with its dependencies available.
+Requirements: Node, an existing installation directory, the app-owned candidate
+JSON projection, and an existing isolated output directory on a filesystem that
+supports hard links. No TypeScript dependency or PM3 source checkout is needed.
 
 ```powershell
 node scripts/prepare-pm3.mjs --install-root C:/example/MoveUp `
-  --ordered-candidates C:/example/MoveUp/releases/candidates `
+  --candidates-file C:/example/MoveUp/releases/candidates.json `
   --output-dir C:/example/prepared-supervision `
-  --pm3-source C:/example/pm3-source --port 3391
+  --port 3391
 ```
 
 All paths must be absolute. The example directories are placeholders: supply
-resolved paths for the intended installation. Executables are checked and
-resolved without executing them. The input order is preserved, never recomputed.
-The generator refuses existing output files, so it cannot overwrite a service
-configuration. `PM3_SOURCE` may replace `--pm3-source`.
+paths for the intended installation. The app owns artifact paths and validation;
+the generator only checks that the candidate input is a file containing JSON.
+Without an offline validator it reports `pending-not-validated`, never schema
+success. The config retains that candidate pathname so later atomic updates
+published by the app remain visible.
 
-Output is `pm3.yaml` (JSON, valid YAML) plus `candidates.json`. The service name is
-`moveup/desk`. It uses structured argv (`desk.exe`, `--minimized`), absolute cwd,
+Output is only `pm3.yaml` (JSON, valid YAML). Publication flushes a private
+temporary file and creates the final path atomically without replacement, even
+if another writer creates it concurrently. Existing files are preserved. A
+pre-publication failure cleans only this invocation's temporary artifacts and
+allows retry. Unsupported hard links cause refusal, with no unsafe fallback.
+
+The service name is `moveup/desk`. Candidates supply their structured argv;
+the config uses absolute cwd,
 no `.env` discovery, two misses 60 seconds apart, and stand-down. Service-level
 health matches `{ app_id: "io.zntl.desk", ready: true }`; candidate-level health
 adds its exact `version`. The PID key is `pid`, and the supervision identity key
@@ -55,11 +63,20 @@ stand-down, miss spacing, instance PID/run binding, and independent suspension
 holds (the two amendments to its frozen supervision contract). Its current
 package version alone does not identify that capability.
 
-The preparation tool evaluates the supplied source schema and candidate parser
-in memory, including the workspace runtime-release schema. It records source
-hashes, refuses a schema that drops required supervision fields, and reports an
-actionable error if source or dependencies are missing. It does not try an old
-CLI as a fallback. This checks the application adapter, not the live daemon.
+After the owner supplies and accepts the offline capability, optional validation
+can be selected with both `--pm3-node ABSOLUTE_NODE_EXECUTABLE` and
+`--pm3-home ABSOLUTE_PM3_HOME`. The tool invokes Node directly with the stable
+`<PM3_HOME>/releases/launch.mjs` entrypoint and these structured arguments:
+`candidates validate FILE --config STAGED_CONFIG --service desk --json`.
+There is no shell or `pm3.cmd`, no source loader and no environment-driven fallback.
+The window is hidden, stdin ignored, timeout 10 seconds and output cap 256 KiB.
+Invalid candidates, unavailable/unsupported CLI, timeout, process errors,
+malformed or unsupported JSON all refuse publication. A valid v1 response reports
+`offline-valid`, but `readyToInstall` stays false pending owner acceptance.
+
+This offline capability is currently **pending owner certification**. The
+correction tests use an injected synthetic process boundary; they do not invoke
+installed PM3 and cannot establish that the real CLI is available or accepted.
 
 External gates remain **pending**: PM3 owner certification (including suspension
 holds and runtime promotion), Quit/dev intent integration, release maintenance
@@ -67,7 +84,32 @@ and promotion callback, and supervised logon cutover. This task intentionally
 omits the promotion callback: no last-known-good marker is changed by preparation.
 No public domain is registered for this process-metadata-only local endpoint.
 
-## Verification evidence — 2026-10-09
+## Developer verification — generator correction, 2026-10-09
+
+These checks are development evidence, separate from the setup instructions.
+
+- `node scripts/pm3-config.test.mjs`: 13 passed, 0 failed/skipped, exit 0.
+  Covers unchanged candidate bytes, subsequent app publication, exact config
+  identity, pending draft state, staged validation, failure/retry, existing-output
+  preservation, racing writer and cleanup limited to invocation-owned files.
+- `node scripts/pm3-validation.test.mjs`: 18 passed, 0 failed/skipped, exit 0.
+  Injected process seam verifies exact launcher/argv, hidden/no-shell options,
+  time/output bounds and refusal on timeout, spawn error, unsupported command,
+  nonzero exits, malformed or unsupported reports. No real PM3 process ran.
+- Logs: `src-tauri/target/e014-t05-round1-generator.log` and
+  `src-tauri/target/e014-t05-round1-adapter.log` (ignored local build output).
+- Accepted Rust source is unchanged; its earlier 838-test result below is
+  historical evidence, not a new Rust test run.
+- `git diff --exit-code e41d2f6ea6c94a4e2142bbba74169bd50816ac08 -- src-tauri`:
+  exit 0. `PROJECT.xml` parsed successfully; `git diff --check` and `git fetch`
+  returned exit 0.
+- Offline owner capability and independent source acceptance remain pending.
+
+## Developer verification — historical baseline, 2026-10-09
+
+The following evidence belongs to baseline `e41d2f6ea6c94a4e2142bbba74169bd50816ac08`.
+The source loader described here was subsequently removed; these results do not
+certify the replacement public CLI boundary. Earlier failures remain failures.
 
 PM3 source checkout HEAD inspected before and after the final configuration
 fixture: `c4bb47dff144a78d1baf9d46691e42323ffb5696`. Earlier inspection saw
@@ -85,8 +127,10 @@ The fixture checks foreign-dev vs owned-child identity using PM3's actual
   in the sandbox's test-worker launch). Direct execution above runs the same
   `node:test` cases without a child runner.
 - Initial source-loader check failed, exit 1: PM3's runtime-release package has
-  import-only exports. The loader now evaluates that workspace's source as well;
-  the source-validation fixture above passes.
+  import-only exports. The baseline loader was then changed to evaluate that
+  workspace's source and its later source-validation fixture passed. The entire
+  custom loader is now obsolete and deleted; that later pass does not erase
+  the initial failure or establish public offline CLI acceptance.
 
 Source SHA-256 evidence:
 
@@ -107,7 +151,7 @@ Source SHA-256 evidence:
   warnings in `session_tests_timers.rs` remain outside this task.
 - `PROJECT.xml` parsed successfully; `git diff --check` returned exit 0.
 
-Changed files: this document; `PROJECT.xml`;
+Baseline changed files: this document; `PROJECT.xml`;
 `.arch/ADR/024-application-lifecycle-readiness.md`;
 `scripts/{pm3-config.mjs,pm3-config.test.mjs,pm3-source-validation.mjs,prepare-pm3.mjs}`;
 `src-tauri/src/{readiness_server.rs,readiness_server_tests.rs,health_probe_readiness.rs,lib.rs,remote_server.rs,runtime_readiness_tests.rs,setup_helpers.rs}`.

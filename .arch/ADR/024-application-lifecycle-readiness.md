@@ -143,11 +143,28 @@ Candidate health additionally pins `version`. Owned-child evidence binds
 UUID. A healthy foreign dev process without PM3 identity permits stand-down,
 never owned-child promotion.
 
-The generator validates against explicitly supplied PM3 source and refuses
-missing or older schema capabilities. Schema validation is preparation only:
-the PM3 owner must certify supervision, instance binding and independent
-suspension holds before integration. Installation, registration, promotion
-callback and login cutover remain separate work; the Run bridge stays intact.
+The 2026-10-09 generator correction removes the custom PM3 source/VM loader.
+The application owns the candidate JSON projection: preparation takes its absolute
+path unchanged, never regenerates or copies candidates, and points the config at
+that same path so later application publications remain visible.
+
+Preparation writes only a draft config with `boot: false`. It flushes a private
+temporary file in the output directory and publishes it with an exclusive hard
+link, giving atomic visibility without overwriting a racing writer. Filesystems
+without hard-link support fail explicitly; only invocation-owned temporary
+artifacts are cleaned, and no partial destination is left on a pre-publication
+failure. No unsafe rename/write fallback is used.
+
+Optional offline validation uses an explicit absolute Node executable and the
+stable `<PM3_HOME>/releases/launch.mjs` entrypoint with structured
+`candidates validate FILE --config FILE --service desk --json` arguments.
+It has no shell, uses a hidden window and bounded time/output, and never imports
+PM3 internals. Missing selection yields `pending-not-validated`; invalid,
+unsupported or failed validation prevents publication. Even a valid offline
+report is not owner acceptance: the PM3 owner must certify supervision, instance
+binding and independent suspension holds before integration. Installation,
+registration, promotion callback and login cutover remain separate work; the
+Run bridge stays intact.
 See [preparation and evidence](../../docs/PM3_SUPERVISION.md).
 
 ## Verification boundary

@@ -1,31 +1,54 @@
-// Opt-in file preparation only. No registration, process launch or machine changes.
-import { readFileSync, realpathSync, statSync, writeFileSync, existsSync } from 'node:fs';
+// Opt-in file preparation. No service registration or application launch.
+import * as fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { createConfiguration, absolutePath, DEFAULT_READINESS_PORT } from './pm3-config.mjs';
-import { loadPm3Source, validateConfiguration } from './pm3-source-validation.mjs';
+import { validateOffline } from './pm3-validation.mjs';
 
-export function prepare(options) {
-  const installRoot = realpathSync(absolutePath(options['install-root'], '--install-root'));
-  const outputDirectory = realpathSync(absolutePath(options['output-dir'], '--output-dir'));
-  const input = absolutePath(options['ordered-candidates'], '--ordered-candidates');
+export function prepare(options, { io = fs, execute } = {}) {
+  const installRoot = fs.realpathSync(absolutePath(options['install-root'], '--install-root'));
+  const outputDirectory = fs.realpathSync(absolutePath(options['output-dir'], '--output-dir'));
+  // Preserve the app-owned pathname so atomic replacement by the app stays visible.
+  const candidatesFile = absolutePath(options['candidates-file'], '--candidates-file');
+  if (!fs.statSync(candidatesFile).isFile()) throw new Error('--candidates-file must name the app-owned JSON file');
+  JSON.parse(fs.readFileSync(candidatesFile, 'utf8')); // Syntax only; schema belongs to PM3.
+  if (!fs.statSync(installRoot).isDirectory()) throw new Error('--install-root must be a directory');
+  if (options['ordered-candidates'] !== undefined || options['pm3-source'] !== undefined) {
+    throw new Error('Use --candidates-file with the app-owned JSON projection; source loading and candidate generation are no longer supported');
+  }
   const portText = options.port ?? String(DEFAULT_READINESS_PORT);
   if (!/^\d+$/.test(portText)) throw new Error('--port must be an integer from 1 to 65535');
-  const versions = readFileSync(input, 'utf8').trim().split(/\r?\n/);
-  const documents = createConfiguration({ installRoot, outputDirectory, versions, port: Number(portText) });
-  for (const candidate of documents.candidates.candidates) {
-    if (!statSync(candidate.argv[0]).isFile()) throw new Error(`Candidate executable is missing: ${candidate.argv[0]}`);
-    candidate.argv[0] = realpathSync(candidate.argv[0]);
+  const { config } = createConfiguration({ installRoot, candidatesFile, port: Number(portText) });
+  const nodeExecutable = options['pm3-node'];
+  const pm3Home = options['pm3-home'];
+  if ((nodeExecutable !== undefined) !== (pm3Home !== undefined)) {
+    throw new Error('Offline validation requires both --pm3-node ABS and --pm3-home ABS');
   }
-  const api = loadPm3Source(options['pm3-source'] ?? process.env.PM3_SOURCE);
-  validateConfiguration(api, documents);
-  const files = [path.join(outputDirectory, 'candidates.json'), path.join(outputDirectory, 'pm3.yaml')];
-  if (files.some(existsSync)) throw new Error('Output files already exist. Use a new isolated output directory; existing services are never overwritten.');
-  // JSON is valid YAML; avoid another serializer and preserve scalar types exactly.
-  writeFileSync(files[0], JSON.stringify(documents.candidates, null, 2) + '\n', { flag: 'wx' });
-  writeFileSync(files[1], JSON.stringify(documents.config, null, 2) + '\n', { flag: 'wx' });
-  return { files, sourceHashes: api.hashes, validation: 'schema-passed',
+  const destination = path.join(outputDirectory, 'pm3.yaml');
+  if (fs.existsSync(destination)) throw new Error('Output pm3.yaml already exists; use a new isolated output directory');
+  const temporaryDirectory = io.mkdtempSync(path.join(outputDirectory, '.moveup-pm3-'));
+  const temporaryFile = path.join(temporaryDirectory, 'pm3.yaml');
+  let validation = { status: 'pending-not-validated',
+    reason: 'No offline PM3 validator selected. Supply --pm3-node ABS and --pm3-home ABS after owner acceptance.' };
+  try {
+    const fd = io.openSync(temporaryFile, 'wx');
+    try {
+      io.writeFileSync(fd, JSON.stringify(config, null, 2) + '\n');
+      io.fsyncSync(fd);
+    } finally { io.closeSync(fd); }
+    if (nodeExecutable !== undefined) {
+      validation = validateOffline({ nodeExecutable, pm3Home, candidatesFile, configFile: temporaryFile }, execute);
+    }
+    // Hard-link publication is atomic and fails if any competing output exists.
+    // rename would overwrite on POSIX; writing destination directly exposes partial bytes.
+    io.linkSync(temporaryFile, destination);
+  } finally {
+    // This invocation owns the newly created directory and this one temporary file.
+    if (fs.existsSync(temporaryFile)) fs.unlinkSync(temporaryFile);
+    fs.rmdirSync(temporaryDirectory);
+  }
+  return { files: [destination], candidatesFile, validation, readyToInstall: false,
     integration: 'pending-pm3-owner-acceptance', registration: 'not-performed' };
 }
 
@@ -33,11 +56,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   try {
     const { values } = parseArgs({ options: {
       'install-root': { type: 'string' }, 'output-dir': { type: 'string' },
-      'ordered-candidates': { type: 'string' }, 'pm3-source': { type: 'string' },
+      'candidates-file': { type: 'string' }, 'pm3-node': { type: 'string' }, 'pm3-home': { type: 'string' },
       port: { type: 'string' }, help: { type: 'boolean' },
     } });
     if (values.help) {
-      console.log('node scripts/prepare-pm3.mjs --install-root ABS --ordered-candidates ABS --output-dir ABS [--pm3-source ABS] [--port 3391]\nOutput directory must exist and be empty of pm3.yaml/candidates.json. Preparation only; no service is registered.');
+      console.log('node scripts/prepare-pm3.mjs --install-root ABS --candidates-file ABS --output-dir ABS [--port 3391] [--pm3-node ABS --pm3-home ABS]\nWrites only a draft pm3.yaml; candidates remain app-owned. Without a validator: pending/not-validated. No service is registered; owner acceptance remains required.');
     } else console.log(JSON.stringify(prepare(values), null, 2));
   } catch (error) {
     console.error(`PM3 preparation refused: ${error.message}`);

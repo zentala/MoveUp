@@ -1,39 +1,48 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createConfiguration, EXPECT_JSON } from './pm3-config.mjs';
-import { loadPm3Source, validateConfiguration } from './pm3-source-validation.mjs';
+import { createConfiguration } from './pm3-config.mjs';
 import { prepare } from './prepare-pm3.mjs';
 
 function fixture(t) {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'moveup-pm3-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moveup-pm3-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const installRoot = path.join(root, 'installed app');
   const outputDirectory = path.join(root, 'isolated-home');
-  mkdirSync(installRoot); mkdirSync(outputDirectory);
-  const versions = ['0.6.1', '0.6.0'];
-  for (const version of versions) {
-    const dir = path.join(installRoot, 'releases', version);
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, 'desk.exe'), 'fixture, never executed');
-  }
-  const ordered = path.join(root, 'ordered-candidates');
-  writeFileSync(ordered, versions.join('\n') + '\n');
-  const options = { installRoot, outputDirectory, versions, port: 43391 };
-  return { root, options, documents: createConfiguration(options), cli: {
-    'install-root': installRoot, 'output-dir': outputDirectory,
-    'ordered-candidates': ordered, port: '43391',
-  } };
+  fs.mkdirSync(installRoot); fs.mkdirSync(outputDirectory);
+  const candidatesFile = path.join(installRoot, 'app-owned.json');
+  // Deliberately non-inferred layout, order and whitespace. Never execute artifacts.
+  const candidates = { version: 1, candidates: ['0.6.1', '0.6.0'].map(id => ({
+    id, argv: [path.join(installRoot, 'custom artifacts', id, 'desk.exe'), '--minimized'],
+    health: { expectJson: { version: id } },
+  })) };
+  const bytes = JSON.stringify(candidates, null, 4) + '\r\n';
+  fs.writeFileSync(candidatesFile, bytes);
+  const options = { installRoot, candidatesFile, port: 43391 };
+  const cli = { 'install-root': installRoot, 'output-dir': outputDirectory,
+    'candidates-file': candidatesFile, port: '43391' };
+  const validatedCli = { ...cli, 'pm3-node': process.execPath, 'pm3-home': path.join(root, 'synthetic pm3') };
+  const report = { ok: true, version: 1, problems: [], candidates: candidates.candidates.map(c => ({
+    id: c.id, argv0: c.argv[0], artifact: null,
+    expectJson: { app_id: 'io.zntl.desk', ready: true, version: c.id },
+  })) };
+  return { root, options, cli, validatedCli, report, bytes, outputDirectory, candidatesFile,
+    destination: path.join(outputDirectory, 'pm3.yaml') };
 }
 
-test('configuration pins exact readiness keys, identity and the same explicit port', t => {
-  const { documents } = fixture(t);
-  const service = documents.config.services[0];
+test('configuration preserves readiness, identity, port and opt-in supervision', t => {
+  const f = fixture(t);
+  const { config } = createConfiguration(f.options);
+  const service = config.services[0];
+  assert.equal(config.name, 'moveup');
+  assert.equal(config.nodeAutoInstall, false);
+  assert.equal(service.name, 'desk');
   assert.deepEqual(service.health.expectJson, { app_id: 'io.zntl.desk', ready: true });
   assert.deepEqual(service.supervised.instance, { pidField: 'pid', runIdField: 'supervisor_run_id' });
   assert.equal(service.env.DESK_READINESS_PORT, '43391');
+  assert.equal(service.health.port, 43391);
   assert.equal(new URL(service.health.url).port, service.env.DESK_READINESS_PORT);
   assert.equal(new URL(service.health.url).hostname, '127.0.0.1');
   assert.equal(new URL(service.health.url).pathname, '/display/readiness');
@@ -41,73 +50,130 @@ test('configuration pins exact readiness keys, identity and the same explicit po
   assert.equal(service.supervised.missIntervalMs, 60000);
   assert.equal(service.supervised.standDown, true);
   assert.equal(service.boot, false);
+  assert.equal(service.cwd, f.options.installRoot);
   assert.equal(service.cmd, undefined);
   assert.deepEqual(service.envFile, []);
-  for (const candidate of documents.candidates.candidates) {
-    assert.deepEqual(candidate.health.expectJson, { version: candidate.id });
-    assert.ok(path.isAbsolute(candidate.argv[0]));
-    assert.equal(candidate.argv[1], '--minimized');
-  }
+  assert.equal(service.supervised.promote.callback, undefined);
+  assert.equal(service.supervised.candidatesFile, f.candidatesFile);
 });
 
-test('invalid ports, paths and candidate identities are refused', t => {
-  const { options } = fixture(t);
+test('invalid ports and relative paths are refused', t => {
+  const f = fixture(t);
   for (const port of [0, 65536, 3.5, NaN, '3391']) {
-    assert.throws(() => createConfiguration({ ...options, port }), /integer/);
+    assert.throws(() => createConfiguration({ ...f.options, port }), /integer/);
   }
-  for (const versions of [[], ['../escape'], ['0.6', '0.6'], ['.'], ['a', 'b', 'c', 'd']]) {
-    assert.throws(() => createConfiguration({ ...options, versions }), /candidate list/);
+  for (const key of ['installRoot', 'candidatesFile']) {
+    assert.throws(() => createConfiguration({ ...f.options, [key]: 'relative' }), /absolute/);
   }
-  assert.throws(() => createConfiguration({ ...options, installRoot: 'relative' }), /absolute/);
+  for (const port of ['bad', '3.5', '65536']) assert.throws(() => prepare({ ...f.cli, port }), /integer/);
+  assert.deepEqual(fs.readdirSync(f.outputDirectory), []);
 });
 
-test('missing source is actionable and writes no configuration', t => {
+test('draft requires no PM3 dependency, preserves input bytes and points to future app updates', t => {
   const f = fixture(t);
-  assert.throws(() => prepare({ ...f.cli, 'pm3-source': path.join(f.root, 'missing') }), /No CLI was started/);
-  assert.equal(existsSync(path.join(f.options.outputDirectory, 'pm3.yaml')), false);
-  assert.equal(existsSync(path.join(f.options.outputDirectory, 'candidates.json')), false);
-});
-
-test('a schema silently stripping supervision is refused', t => {
-  const { documents } = fixture(t);
-  const api = { Pm3ConfigSchema: { parse: config => {
-    const result = structuredClone(config);
-    delete result.services[0].supervised;
-    return result;
-  } } };
-  assert.throws(() => validateConfiguration(api, documents), /discarded required fields/);
-});
-
-test('actual PM3 source accepts isolated configuration and rejects foreign promotion', {
-  skip: !process.env.PM3_SOURCE && 'PENDING: PM3_SOURCE is required for owner-source validation',
-}, t => {
-  const f = fixture(t);
-  const api = loadPm3Source(process.env.PM3_SOURCE);
-  const parsed = validateConfiguration(api, f.documents);
-  const service = parsed.services[0];
-  const context = { deps: { config: () => service } };
-  const candidate = api.parseCandidateDocument(f.documents.candidates).candidates[0];
-  const expected = api.mergedExpectJson(EXPECT_JSON, candidate);
-  const owned = { pid: 1234, runId: 'pm3-spawn' };
-  const dev = { app_id: 'io.zntl.desk', ready: true, version: candidate.id,
-    pid: 1234, run_id: 'app-diagnostic-uuid', sensor_present: false };
-  assert.equal(api.firstMismatch(dev, service.health.expectJson), null);
-  assert.equal(api.firstMismatch(dev, expected), null);
-  assert.equal(api.isOwnedInstance(context, dev, owned), false);
-  const child = { ...dev, supervisor_run_id: 'pm3-spawn' };
-  assert.equal(api.isOwnedInstance(context, child, owned), true);
-  assert.equal(api.isOwnedInstance(context, { ...child, pid: 999 }, owned), false);
-  assert.equal(api.isOwnedInstance(context, { ...child, supervisor_run_id: 'another' }, owned), false);
-  assert.equal(api.firstMismatch({ ...child, version: 'wrong' }, expected), 'version');
-  assert.equal(api.firstMismatch({ ...child, app_id: 'wrong' }, expected), 'app_id');
-  assert.equal(api.firstMismatch({ ...child, ready: 'true' }, expected), 'ready');
-  const result = prepare(f.cli);
-  assert.equal(result.registration, 'not-performed');
+  const result = prepare(f.cli, { execute: () => assert.fail('draft must never launch a process') });
+  assert.equal(result.validation.status, 'pending-not-validated');
+  assert.equal(result.readyToInstall, false);
   assert.equal(result.integration, 'pending-pm3-owner-acceptance');
-  const config = JSON.parse(readFileSync(result.files[1], 'utf8'));
-  assert.equal(config.services[0].supervised.candidatesFile, result.files[0]);
-  const before = readFileSync(result.files[1], 'utf8');
-  assert.throws(() => prepare(f.cli), /already exist/);
-  assert.equal(readFileSync(result.files[1], 'utf8'), before);
-  t.diagnostic(`PM3 source hashes: ${JSON.stringify(result.sourceHashes)}`);
+  assert.equal(result.registration, 'not-performed');
+  assert.deepEqual(result.files, [f.destination]);
+  assert.deepEqual(fs.readdirSync(f.outputDirectory), ['pm3.yaml']);
+  assert.equal(fs.readFileSync(f.candidatesFile, 'utf8'), f.bytes);
+  const configured = JSON.parse(fs.readFileSync(f.destination)).services[0].supervised.candidatesFile;
+  assert.equal(configured, f.candidatesFile);
+  // Simulate the app's atomic publication; the config must follow the same pathname.
+  const replacement = path.join(f.options.installRoot, 'next.json');
+  fs.writeFileSync(replacement, '{"version":1,"candidates":[]}');
+  fs.renameSync(replacement, f.candidatesFile);
+  assert.equal(fs.readFileSync(configured, 'utf8'), '{"version":1,"candidates":[]}');
+});
+
+test('missing, non-JSON, directory and legacy candidates refuse without output', t => {
+  const f = fixture(t);
+  assert.throws(() => prepare({ ...f.cli, 'candidates-file': path.join(f.root, 'missing') }), /ENOENT/);
+  assert.throws(() => prepare({ ...f.cli, 'candidates-file': f.root }), /app-owned JSON/);
+  assert.throws(() => prepare({ ...f.cli, 'ordered-candidates': f.candidatesFile }), /no longer supported/);
+  fs.writeFileSync(f.candidatesFile, '0.6.1\n0.6.0');
+  assert.throws(() => prepare(f.cli), SyntaxError);
+  assert.deepEqual(fs.readdirSync(f.outputDirectory), []);
+});
+
+test('incomplete validator selection refuses before writing', t => {
+  const f = fixture(t);
+  for (const key of ['pm3-node', 'pm3-home']) {
+    assert.throws(() => prepare({ ...f.cli, [key]: f.root }), /requires both/);
+  }
+  assert.deepEqual(fs.readdirSync(f.outputDirectory), []);
+});
+
+test('synthetic offline validation receives the complete staged config and original candidate path', t => {
+  const f = fixture(t);
+  let calls = 0;
+  const result = prepare(f.validatedCli, { execute: (executable, argv) => {
+    calls++;
+    assert.equal(executable, process.execPath);
+    assert.equal(argv[3], f.candidatesFile);
+    assert.equal(fs.existsSync(f.destination), false);
+    const config = JSON.parse(fs.readFileSync(argv[5]));
+    assert.equal(config.services[0].supervised.candidatesFile, f.candidatesFile);
+    return JSON.stringify(f.report);
+  } });
+  assert.equal(calls, 1);
+  assert.equal(result.validation.status, 'offline-valid');
+  assert.equal(result.readyToInstall, false);
+  assert.equal(result.integration, 'pending-pm3-owner-acceptance');
+  assert.equal(fs.readFileSync(f.candidatesFile, 'utf8'), f.bytes);
+  assert.deepEqual(fs.readdirSync(f.outputDirectory), ['pm3.yaml']);
+});
+
+test('failed validator cleans staged files and permits retry without losing candidate bytes', t => {
+  const f = fixture(t);
+  assert.throws(() => prepare(f.validatedCli, { execute: () => { throw { status: 2 }; } }), /usage-or-unsupported/);
+  assert.deepEqual(fs.readdirSync(f.outputDirectory), []);
+  assert.equal(fs.readFileSync(f.candidatesFile, 'utf8'), f.bytes);
+  prepare(f.validatedCli, { execute: () => JSON.stringify(f.report) });
+  assert.deepEqual(fs.readdirSync(f.outputDirectory), ['pm3.yaml']);
+});
+
+for (const operation of ['openSync', 'writeFileSync', 'fsyncSync', 'linkSync']) {
+  test(`injected ${operation} failure leaves no partial config and retry succeeds`, t => {
+    const f = fixture(t);
+    const foreign = path.join(f.outputDirectory, '.moveup-pm3-foreign');
+    fs.mkdirSync(foreign);
+    fs.writeFileSync(path.join(foreign, 'keep'), 'foreign');
+    const io = { ...fs, [operation]: (...args) => {
+      if (operation === 'writeFileSync') fs.writeFileSync(args[0], '{"partial":');
+      throw new Error('injected publication failure');
+    } };
+    assert.throws(() => prepare(f.cli, { io }), /injected publication failure/);
+    assert.equal(fs.existsSync(f.destination), false);
+    assert.deepEqual(fs.readdirSync(f.outputDirectory), ['.moveup-pm3-foreign']);
+    assert.equal(fs.readFileSync(path.join(foreign, 'keep'), 'utf8'), 'foreign');
+    assert.equal(fs.readFileSync(f.candidatesFile, 'utf8'), f.bytes);
+    prepare(f.cli);
+    assert.equal(JSON.parse(fs.readFileSync(f.destination)).name, 'moveup');
+  });
+}
+
+test('existing output is preserved byte-for-byte without invoking the validator', t => {
+  const f = fixture(t);
+  fs.writeFileSync(f.destination, 'existing configuration');
+  assert.throws(() => prepare(f.validatedCli, { execute: () => assert.fail('must not invoke') }), /already exists/);
+  assert.equal(fs.readFileSync(f.destination, 'utf8'), 'existing configuration');
+  assert.equal(fs.readFileSync(f.candidatesFile, 'utf8'), f.bytes);
+  assert.deepEqual(fs.readdirSync(f.outputDirectory), ['pm3.yaml']);
+});
+
+test('racing writer wins without overwrite or cleanup of its output', t => {
+  const f = fixture(t);
+  const io = { ...fs, linkSync: (source, destination) => {
+    assert.equal(fs.existsSync(destination), false);
+    assert.equal(JSON.parse(fs.readFileSync(source)).name, 'moveup');
+    fs.writeFileSync(destination, 'racing writer', { flag: 'wx' });
+    fs.linkSync(source, destination);
+  } };
+  assert.throws(() => prepare(f.cli, { io }), { code: 'EEXIST' });
+  assert.equal(fs.readFileSync(f.destination, 'utf8'), 'racing writer');
+  assert.equal(fs.readFileSync(f.candidatesFile, 'utf8'), f.bytes);
+  assert.deepEqual(fs.readdirSync(f.outputDirectory), ['pm3.yaml']);
 });
