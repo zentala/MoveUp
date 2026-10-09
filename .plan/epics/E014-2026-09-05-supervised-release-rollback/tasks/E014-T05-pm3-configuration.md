@@ -3,11 +3,12 @@ formatVersion: 1
 id: E014-T05
 title: Provide independent local readiness and the supervision configuration
 epic: E014
-status: pending
+status: completed
 points: 5
 importance: High
 dependencies: [E014-T11]
 ---
+<!-- pm3-plan-completion: E014-T05 15d9f38994a84ecbecc20aa255bc4c091b3af93ee232e2aaf132a7c981f87027 -->
 
 # Installed application configuration
 
