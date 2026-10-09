@@ -64,3 +64,15 @@ do not present that as observed daemon convergence. Bound launcher calls, report
 apply failures truthfully and preserve recoverable configuration on failure.
 Resolve any remaining unsupported transition before claiming the checkbox works;
 do not silently add a private PM3 source import or a competing startup owner.
+
+## PM3 owner deployment prerequisite — 2026-10-09
+
+Source main/origin at 5be48d7 is accepted. The owner's final dependency handoff
+in pm3-mcp's private plan, E050/reports/MOVEUP-PUBLIC-LAUNCHER-HANDOFF.md,
+separately retains live holds: E047 restart ownership, E048 GitNexus admission,
+E042 released-daemon cutover, E044 owner/Job control and E045-T04 attended domain
+acceptance. E045-T06 is complete and must not be repeated as an open hold.
+Installed pointer remains e138cabb3ed6. Re-read current owner evidence before
+cutover; a successful isolated fixture or ordinary source push does not clear
+these holds. Complete independent MoveUp source/fixture work first and report
+the exact remaining deployment dependency without replacing the live daemon.
