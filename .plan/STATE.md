@@ -6,9 +6,15 @@ planning_epic_path: ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-ve
 current_wave:
   - E014 T11 integrated through AO at 9c552e3 and completed at 7c1a81c.
     Independent round2 accepted the corrected source; integrated Rust library
-    833 tests and child-process integration 4 tests passed. T05 independent
-    loopback readiness is running in isolation. T06/T07/T08/T10 remain open;
-    PM3 dependency source acceptance and live login cutover are still pending.
+    833 tests and child-process integration 4 tests passed. T05 source at
+    76f4d5e passed independent round3, with 19 generator and 18 adapter tests
+    passing; its final Rust gate passed. Integration waits for PM3 source
+    acceptance and real public-launcher validation. PM3 review found six
+    contract/persistence defects; its owner is preparing bounded corrections.
+    The real-timing fixture passed, but the earlier plain-service cleanup
+    failure reproduced in one of three final-source smoke runs (baseline
+    three passed); causality remains open. T06/T07 handoffs are prepared,
+    not dispatched. T06/T07/T08/T10 and live login cutover remain open.
     Current application and Run bridge unchanged. Lifecycle worker cleanup
     failed on its already-durable AO session junction; source/evidence retained,
     owning lifecycle defect recorded. Public push held for unpublished-history
