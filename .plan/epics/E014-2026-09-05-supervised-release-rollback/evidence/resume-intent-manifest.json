@@ -44,6 +44,7 @@
       "allows:scripts/pm3-config.mjs",
       "allows:scripts/pm3-config.test.mjs",
       "allows:src-tauri/tests/supervision*.rs",
+      "allows:tests/fixtures/supervision*.mjs",
       "docs/PM3_SUPERVISION.md",
       ".arch/ADR/024-application-lifecycle-readiness.md",
       "PROJECT.xml"
