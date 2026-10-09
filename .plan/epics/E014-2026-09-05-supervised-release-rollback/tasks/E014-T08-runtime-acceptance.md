@@ -23,6 +23,15 @@ within the same login and suspension expiry under a controlled login identity.
 Retain timestamps, process identities, relevant logs, source revisions and exits.
 Fake-clock unit tests supplement, not replace, the real runtime evidence.
 
+Cover both process exit and a still-alive process whose typed readiness stops
+passing after a successful promotion probe. In both cases measure the full
+replacement window from the last positive observation; a fixed poll schedule
+must not shorten two 60-second misses to 90 seconds. Preserve the demotion of
+an unchanged artifact when its candidate temporarily disappears and returns.
+Include unavailable login identity and persistence-failure outcomes: unknown
+state cannot authorize Quit or silently resume a suspended service, and failed
+durable writes must be visible rather than reported as successful persistence.
+
 Verify diagnostic logs from real isolated lifecycle fixtures: ready, graceful
 exit, early failure/panic and forced termination without invented crash cause.
 Check the Windows GUI/tray behavior using an isolated fixture before relying on
