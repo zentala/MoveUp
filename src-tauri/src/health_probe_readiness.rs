@@ -31,7 +31,7 @@ pub fn validate_readiness(body: &str, expected: &ExpectedReadiness<'_>)
     }
     let mut computed = status.clone();
     computed.compute_state();
-    if !status.ready || !computed.ready || !status.remote_listening
+    if !status.ready || !computed.ready
         || status.state != computed.state || status.reason != computed.reason
         || !matches!(status.state, ReadinessState::Ready | ReadinessState::Degraded) {
         return Err(ReadinessError::NotReady);

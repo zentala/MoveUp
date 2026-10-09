@@ -91,6 +91,7 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
         }
         Err(_) => lifecycle.fail(crate::startup_diagnostics::Diagnostic::SetupFailed),
     }
+    crate::readiness_server::setup(app.handle());
     setup_remote_display(app.handle());
 
     let state: tauri::State<'_, AppState> = app.state();
@@ -269,7 +270,6 @@ pub fn setup_remote_display(app: &AppHandle) {
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(crate::remote_server::DEFAULT_PORT);
-    let readiness = crate::app_lifecycle_runtime::readiness_reader(app);
     let lifecycle = app.state::<Arc<crate::app_lifecycle::AppLifecycle>>().inner().clone();
     tauri::async_runtime::spawn(async move {
         // Registration is async, so it happens here rather than at manage()
@@ -286,7 +286,7 @@ pub fn setup_remote_display(app: &AppHandle) {
             remote_token,
             voice,
         };
-        crate::remote_server::start(remote_state, port, readiness, lifecycle).await;
+        crate::remote_server::start(remote_state, port, lifecycle).await;
     });
     setup_broadcast_listeners(app);
 }
