@@ -30,3 +30,12 @@ starts again at next login; the direct Run value is removed only after predecess
 proof and is not recreated on manual launch. Verify the autostart off choice.
 Retain registry/task/runtime evidence. Never mark this complete from source tests
 or Scheduled Task presence alone. Unperformed login remains pending.
+
+The login evidence must identify PM3 as the launching owner. One process/tray
+while the old Run entry can also launch the app is insufficient: singleton or
+stand-down could hide which startup path actually worked. Preserve an exact
+backup and a tested rollback procedure for the bridge; prepare a recoverable
+temporary disable for the operator-arranged ownership test, and delete the Run
+value only after PM3-only login proof. Do not perform this disable during T08 or
+while merely preparing the cutover. Confirm supervision readiness, actual
+installed artifact and recorded process/run identity after the test login.
