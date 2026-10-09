@@ -5,7 +5,7 @@ epic: E014
 created: 2026-09-05
 status: in-progress
 readiness: drafting
-points: 51
+points: 53
 agent: ts-dev
 depends-on: [E013]
 ---
@@ -17,7 +17,8 @@ depends-on: [E013]
 The operator authorized finishing the existing supervision project, including the
 architecture proposed after the October 8 missing-process incident. Read
 [RESUME.md](RESUME.md) before the historical plan below. The original 43 points
-plus T11 (8 points: lifecycle diagnostics and explicit readiness) total **51**.
+plus T11 (8 points: lifecycle diagnostics and explicit readiness) and the T05
+re-estimate from 3 to 5 points (independent loopback readiness) total **53**.
 Execution route: **AO**, attended and supervised from the repository's Herdr
 workspace. The full epic total, including integrated work, determines this route.
 The PM3 dependency is owned and delivered in the PM3 repository. No replacement

@@ -23,6 +23,10 @@ and versions are validated, contained in the explicit release root, and never
 interpreted as shell input. Reject symlink/junction escapes and incomplete builds.
 Publish a candidate only after its complete artifact is staged successfully;
 preserve the old candidate file and known-good marker on failure.
+The existing release server resolves `dist/` beside its executable through
+remote_server::default_dist_path. Stage and validate those frontend assets with
+the executable; a copied desk.exe alone is not a complete installed release.
+Test rejection of missing assets and independence from the launch directory.
 
 Promotion must bind to the observed candidate and owned process/run evidence,
 after at least 30 seconds alive with matching typed readiness. A different

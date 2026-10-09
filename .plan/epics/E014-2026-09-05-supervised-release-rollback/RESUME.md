@@ -10,7 +10,8 @@ the product vision in `../../vision/2026-03-15-desk-app-vision.md`.
 
 ◉ MoveUp remains available after an unexpected process exit, explains observed
 failures, respects an intentional stop, and starts at login through one owner.
-⑄ Existing E014 (43 points) plus E014-T11 (8 points), full total 51 points.
+⑄ Existing E014 (43 points) plus E014-T11 (8 points) and T05's 3-to-5-point
+re-estimate for independent loopback readiness, full total 53 points.
 ⑆ Scoped MoveUp changes, isolated test fixtures, attended integration and
 deployment; PM3 changes run in its own repository and Herdr workspace.
 ⑀ Read repository CLAUDE.md, ADR 018/019, engine boundary ADR 015 and this file
@@ -39,14 +40,16 @@ unknown result or unperformed login remains incomplete; keep the goal active. �
 1. T11 (8 points, High): MoveUp lifecycle diagnostics and readiness, independent
    of the PM3 contract. Preserve current Run registration until cutover.
 2. PM3 owner implements/verifies missing generic dependency in its own plan.
-3. T05/T06 (3 + 3 points, High): actual config, start/stop intent and dev
-   coexistence based on verified PM3 APIs. Resolve alternate-port dev explicitly.
+3. T05/T06 (5 + 3 points, High): independent loopback readiness, actual config,
+   start/stop intent and dev coexistence based on verified PM3 APIs. Readiness
+   must work when LAN display is disabled; process/run metadata stays off the
+   LAN router. Resolve alternate-port dev explicitly.
 4. T07 (8 points, High): connect install/release store/probe/candidates/marker to
    real commands and PM3 callbacks. Keep last-known-good and data compatibility.
 5. T08/T10 (5 + 3 points, High): fixture rollback and real desktop checks;
    retire direct Run registration only after PM3 login ownership is proven.
 
-Route is attended AO (total 51) from Herdr; every run has explicit manifest,
+Route is attended AO (total 53) from Herdr; every run has explicit manifest,
 ledger, isolated worktree and independent review. PM3 reconnaissance is read-only
 and not an implementation run. Do not treat headless source inspection as a
 verified dispatch. Preserve other agents and the running desk process.
