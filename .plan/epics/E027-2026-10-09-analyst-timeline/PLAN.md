@@ -15,7 +15,7 @@ This serves the owner's vision of a configurable desk ergonomics application who
 - Show selected-day heading, immediately Range/refresh, large timeline and one daily donut tab per day directly below in one section. Start with seven days, reserving loading geometry immediately. Remove main Desk Height Timeline and Day at a Glance.
 - Explain day composition against the complete local calendar day, with unobserved time explicit.
 - Review and exercise relevant popup, Analyst and settings interactions; report other findings separately.
-- Keep recorded signed points and change-event provenance truthful; do not invent a 0–100 scale, goal or noise filter. Secondary trajectory/histogram choices await operator discussion; range-wide KPI trends sit outside the selected-day context.
+- Keep recorded signed points and change-event provenance truthful; do not invent a 0–100 scale, goal or noise filter. Retain corrected trajectory/histogram in expandable details per operator selection; range-wide KPI trends sit outside the selected-day context.
 
 ## Correction prerequisite and retained evidence
 
@@ -25,7 +25,7 @@ Publication hold: supervision explicitly prohibits pushing current main until ow
 
 ## Execution
 
-Total: **39 points**. Route: direct bounded workers supervised in Herdr, followed by independent source verification. Six tasks: design contract (5), data/loading correction (5), shared timeline (8), connected donut navigation/theme/icons (8), browser and integration verification (5), mixed-break history recording (8). The history task was added after source and read-only runtime evidence showed mixed breaks persisted as one final state. No AO threshold is reached. Writes are isolated by explicit file ownership and worktrees for implementation.
+Total: **47 points**. Route: Agent Orchestrator with Herdr execution/supervision, followed by independent source verification. Seven tasks: design contract (5), data/loading correction (5), shared timeline (8), connected donut navigation/theme/icons (8), browser and integration verification (5), mixed-break history recording (8), secondary score/credit chart corrections (8). The full total includes preserved earlier work, not only remaining tasks. Existing backend work started under the prior 39-point direct route and remains active; it is not relabeled as an AO execution. New frontend dispatch waits for supported AO admission; no second host or daemon. Sequential frontend dependency waves avoid overlapping writes. No candidate is accepted solely from author tests.
 
 ## Acceptance
 
@@ -46,6 +46,7 @@ Total: **39 points**. Route: direct bounded workers supervised in Herdr, followe
 - ADR 015: keep ergonomics engine semantics unchanged; presentation adapters own history normalization.
 - ADR 016: reuse existing Recharts support where appropriate, without a second chart library.
 - Root `DESIGN.md` is the visual authority; record the new target before implementing it.
+- Operator chose to retain both score trajectory and break-credit histogram in expandable details after correcting calculations/descriptions. Core day chronology remains primary. Score samples preserve signed values, local timestamps and explicit gaps; no hourly positive maxima. Histogram categories describe actual recorded credit outcomes and identify unknown population/coverage.
 - Applicable ecosystem patterns: disposable bounded scout for diagnosis; explicit loading/error states ensure silence cannot pass for success. Follow existing repository/component ownership and public-artifact boundaries.
 
 ## Data impact

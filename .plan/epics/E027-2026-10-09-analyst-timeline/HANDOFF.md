@@ -1,0 +1,9 @@
+# Analyst correction AO handoff
+
+Outcome: same truthful compact/detail chronology, immediate current-day data, coherent heading/Range/timeline/day-donut navigation and corrected optional details. Read root AGENTS.md, legacy CLAUDE.md, DESIGN.md, VISION.md, PLAN.md and the exact task before source work.
+
+Full epic total47p selects AO. This fresh continuation does not adopt existing interactive workers: completed sessions/candidates were preserved and closed; backend T06 is finishing its earlier direct task separately and will be independently verified. Do not run a duplicate T06. Earlier committed candidates are inputs, not accepted integration. Work only inside AO-owned branches/worktrees. Do not push, promote to main or modify historical/live data. Publication is held by supervision; controller must notify before any overlapping main integration or push. Do not rewrite foreign history or launch another host/daemon.
+
+Sequential frontend waves: data correction T02, shared timeline T03, accepted core UI T04, optional details T07. T01 documentation and T05 independent/browser acceptance remain coordinator-owned. Existing global source-review campaign has consumed1/6 rounds; author tests do not consume/replace independent review or close findings. Source corrections need independent round2 and zero unresolved accepted-scope defects. Keep known failed test exits and native NOT_CHECKED.
+
+Write-set limits are manifest-owned. Changes to module-list PROJECT.xml are wiring only; no unrelated release/autostart code. Final acceptance includes chart signs/missing values, local dates/DST, same-count updates, keyboard, loading/empty/error/stale, narrow layout, shared colors and truthful interval provenance. Repository checks use normal configuration; do not weaken coverage or guardrails. No automatic main merge.

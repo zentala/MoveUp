@@ -1,0 +1,270 @@
+{
+  "contractVersion": "ao-v1",
+  "strictContract": true,
+  "workId": "E027-20261009-correction",
+  "projectId": "MoveUp",
+  "repository": {
+    "root": "."
+  },
+  "baseRef": "main",
+  "execution": {
+    "mode": "attended",
+    "unattended": false,
+    "autoMerge": false,
+    "maxTasksPerWave": 1
+  },
+  "integrationVerificationCommands": [
+    {
+      "command": "pnpm",
+      "args": [
+        "typecheck"
+      ]
+    },
+    {
+      "command": "pnpm",
+      "args": [
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vite.config.ts"
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "id": "correction-02",
+      "tasks": [
+        "E027-T02"
+      ]
+    },
+    {
+      "id": "correction-03",
+      "tasks": [
+        "E027-T03"
+      ]
+    },
+    {
+      "id": "correction-04",
+      "tasks": [
+        "E027-T04"
+      ]
+    },
+    {
+      "id": "correction-07",
+      "tasks": [
+        "E027-T07"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "E027-T02",
+      "epicId": "E027",
+      "taskRef": ".plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T02.md",
+      "handoffRef": ".plan/epics/E027-2026-10-09-analyst-timeline/HANDOFF.md",
+      "acceptanceRef": ".plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T02.md",
+      "role": "implementer",
+      "profile": "ts-dev",
+      "executor": "codex",
+      "status": "ready",
+      "dependencies": [],
+      "budgetMinutes": 60,
+      "claims": [
+        "src/analyst/AnalystWindow.tsx",
+        "src/analyst/AnalystWindow.test.tsx",
+        "src/analyst/ExplorerTab.tsx",
+        "src/analyst/explorer*.ts",
+        "src/analyst/hooks/**",
+        "src/analyst/charts/KpiDonutPanel.tsx",
+        "src/analyst/charts/KpiTrend.tsx",
+        "src/analyst/charts/DeskHeightTimeline.tsx",
+        "src/analyst/charts/DailyScoreTrajectory.tsx",
+        "src/analyst/charts/chart-utils.ts",
+        "src/pages/AnalystLive*",
+        "src/test/analyst-fixtures*",
+        "src-tauri/src/commands_analyst.rs",
+        "src-tauri/src/commands_analyst_tests.rs"
+      ],
+      "writeSet": [
+        "src/analyst/AnalystWindow.tsx",
+        "src/analyst/AnalystWindow.test.tsx",
+        "src/analyst/ExplorerTab.tsx",
+        "src/analyst/explorer*.ts",
+        "src/analyst/hooks/**",
+        "src/analyst/charts/KpiDonutPanel.tsx",
+        "src/analyst/charts/KpiTrend.tsx",
+        "src/analyst/charts/DeskHeightTimeline.tsx",
+        "src/analyst/charts/DailyScoreTrajectory.tsx",
+        "src/analyst/charts/chart-utils.ts",
+        "src/pages/AnalystLive*",
+        "src/test/analyst-fixtures*",
+        "src-tauri/src/commands_analyst.rs",
+        "src-tauri/src/commands_analyst_tests.rs",
+        "PROJECT.xml"
+      ],
+      "verificationCommands": [
+        "pnpm exec vitest run --config vite.config.ts src/analyst src/timeline src/widgets/one-bar",
+        "pnpm typecheck"
+      ],
+      "boundaries": [
+        "Read canonical design and own task; preserve candidate refs and existing global review budget",
+        "No live data, servers, secrets, push, main promotion or foreign-history changes",
+        "No release/autostart code changes",
+        "Do not self-certify: independent source/browser acceptance remains controller-owned"
+      ],
+      "outputContract": [
+        "source SHA",
+        "changed files",
+        "test counts and exact exits",
+        "known failures retained",
+        "uncertainty and native NOT_CHECKED"
+      ]
+    },
+    {
+      "id": "E027-T03",
+      "epicId": "E027",
+      "taskRef": ".plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T03.md",
+      "handoffRef": ".plan/epics/E027-2026-10-09-analyst-timeline/HANDOFF.md",
+      "acceptanceRef": ".plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T03.md",
+      "role": "implementer",
+      "profile": "ts-dev",
+      "executor": "codex",
+      "status": "ready",
+      "dependencies": [
+        "E027-T02"
+      ],
+      "budgetMinutes": 60,
+      "claims": [
+        "src/timeline/**",
+        "src/widgets/one-bar/OneBarTimeline*",
+        "src/analyst/charts/TimelineDetail*",
+        "src/analyst/charts/timeline-*.ts",
+        "src/utils/timeline.ts"
+      ],
+      "writeSet": [
+        "creates:src/timeline/**",
+        "src/widgets/one-bar/OneBarTimeline*",
+        "src/analyst/charts/TimelineDetail*",
+        "src/analyst/charts/timeline-*.ts",
+        "src/utils/timeline.ts",
+        "PROJECT.xml"
+      ],
+      "verificationCommands": [
+        "pnpm exec vitest run --config vite.config.ts src/analyst src/timeline src/widgets/one-bar",
+        "pnpm typecheck"
+      ],
+      "boundaries": [
+        "Read canonical design and own task; preserve candidate refs and existing global review budget",
+        "No live data, servers, secrets, push, main promotion or foreign-history changes",
+        "No release/autostart code changes",
+        "Do not self-certify: independent source/browser acceptance remains controller-owned"
+      ],
+      "outputContract": [
+        "source SHA",
+        "changed files",
+        "test counts and exact exits",
+        "known failures retained",
+        "uncertainty and native NOT_CHECKED"
+      ]
+    },
+    {
+      "id": "E027-T04",
+      "epicId": "E027",
+      "taskRef": ".plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T04.md",
+      "handoffRef": ".plan/epics/E027-2026-10-09-analyst-timeline/HANDOFF.md",
+      "acceptanceRef": ".plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T04.md",
+      "role": "implementer",
+      "profile": "ts-dev",
+      "executor": "codex",
+      "status": "ready",
+      "dependencies": [
+        "E027-T03"
+      ],
+      "budgetMinutes": 60,
+      "claims": [
+        "src/analyst/**",
+        "src/styles/globals.css",
+        "src/widgets/OneBarWidget*",
+        "src/widgets/one-bar/**",
+        "src/components/UiIcon*",
+        "package.json",
+        "pnpm-lock.yaml"
+      ],
+      "writeSet": [
+        "src/analyst/**",
+        "src/styles/globals.css",
+        "src/widgets/OneBarWidget*",
+        "src/widgets/one-bar/**",
+        "creates:src/components/UiIcon*",
+        "package.json",
+        "pnpm-lock.yaml",
+        "PROJECT.xml"
+      ],
+      "verificationCommands": [
+        "pnpm exec vitest run --config vite.config.ts src/analyst src/timeline src/widgets/one-bar",
+        "pnpm typecheck"
+      ],
+      "boundaries": [
+        "Read canonical design and own task; preserve candidate refs and existing global review budget",
+        "No live data, servers, secrets, push, main promotion or foreign-history changes",
+        "No release/autostart code changes",
+        "Do not self-certify: independent source/browser acceptance remains controller-owned"
+      ],
+      "outputContract": [
+        "source SHA",
+        "changed files",
+        "test counts and exact exits",
+        "known failures retained",
+        "uncertainty and native NOT_CHECKED"
+      ]
+    },
+    {
+      "id": "E027-T07",
+      "epicId": "E027",
+      "taskRef": ".plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T07.md",
+      "handoffRef": ".plan/epics/E027-2026-10-09-analyst-timeline/HANDOFF.md",
+      "acceptanceRef": ".plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T07.md",
+      "role": "implementer",
+      "profile": "ts-dev",
+      "executor": "codex",
+      "status": "ready",
+      "dependencies": [
+        "E027-T04"
+      ],
+      "budgetMinutes": 60,
+      "claims": [
+        "src/analyst/charts/DailyScoreTrajectory*",
+        "src/analyst/charts/BreakCreditHistogram*",
+        "src/analyst/charts/score-*.ts",
+        "src/analyst/charts/credit-*.ts",
+        "src/analyst/ExplorerTab*"
+      ],
+      "writeSet": [
+        "src/analyst/charts/DailyScoreTrajectory*",
+        "src/analyst/charts/BreakCreditHistogram*",
+        "creates:src/analyst/charts/score-*.ts",
+        "creates:src/analyst/charts/credit-*.ts",
+        "src/analyst/ExplorerTab*",
+        "PROJECT.xml"
+      ],
+      "verificationCommands": [
+        "pnpm exec vitest run --config vite.config.ts src/analyst src/timeline src/widgets/one-bar",
+        "pnpm typecheck"
+      ],
+      "boundaries": [
+        "Read canonical design and own task; preserve candidate refs and existing global review budget",
+        "No live data, servers, secrets, push, main promotion or foreign-history changes",
+        "No release/autostart code changes",
+        "Do not self-certify: independent source/browser acceptance remains controller-owned"
+      ],
+      "outputContract": [
+        "source SHA",
+        "changed files",
+        "test counts and exact exits",
+        "known failures retained",
+        "uncertainty and native NOT_CHECKED"
+      ]
+    }
+  ]
+}
