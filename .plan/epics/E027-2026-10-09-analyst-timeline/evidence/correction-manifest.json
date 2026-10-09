@@ -80,11 +80,12 @@
         "src/analyst/charts/KpiTrend.tsx",
         "src/analyst/charts/DeskHeightTimeline.tsx",
         "src/analyst/charts/DailyScoreTrajectory.tsx",
-        "src/analyst/charts/chart-utils.ts",
         "src/pages/AnalystLive*",
         "src/test/analyst-fixtures*",
         "src-tauri/src/commands_analyst.rs",
-        "src-tauri/src/commands_analyst_tests.rs"
+        "src-tauri/src/commands_analyst_tests.rs",
+        "src/analyst/charts/timeline-utils.ts",
+        "src/analyst/charts/KpiDonut.test.tsx"
       ],
       "writeSet": [
         "src/analyst/AnalystWindow.tsx",
@@ -96,12 +97,13 @@
         "src/analyst/charts/KpiTrend.tsx",
         "src/analyst/charts/DeskHeightTimeline.tsx",
         "src/analyst/charts/DailyScoreTrajectory.tsx",
-        "src/analyst/charts/chart-utils.ts",
         "src/pages/AnalystLive*",
         "src/test/analyst-fixtures*",
         "src-tauri/src/commands_analyst.rs",
         "src-tauri/src/commands_analyst_tests.rs",
-        "PROJECT.xml"
+        "PROJECT.xml",
+        "src/analyst/charts/timeline-utils.ts",
+        "src/analyst/charts/KpiDonut.test.tsx"
       ],
       "verificationCommands": [
         "pnpm exec vitest run --config vite.config.ts src/analyst src/timeline src/widgets/one-bar",
