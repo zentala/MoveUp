@@ -20,7 +20,7 @@ Authority: operator-requested investigation, fixes and independent Herdr verific
 - Disposition HOLD. First four findings return to backend correction in the same epic. Legacy uncertainty remains cross-task acceptance owned by shared timeline T03; do not add guessed provenance or mutate historical rows. A backend source correction alone cannot close that criterion.
 - Remaining automatic rounds:4. Frontend source still awaits independent review. No main source integration or push.
 
-## Round 3 — corrected data candidate (reserved)
+## Round 3 — corrected data candidate (FAIL)
 
 - Frozen frontend candidate9b9a17371cafed4d7ad2e282745a8e46c4afc51c;
   review covers the full T02 data change and retained round1 findings, not only
@@ -33,3 +33,19 @@ Authority: operator-requested investigation, fixes and independent Herdr verific
 - Independent reviewer receives source-read-only scope, normal frontend checks
   and explicit filesystem preflight. Failed dispatch is NOT_CHECKED and consumes
   this reservation. No integration/publication under this reservation alone.
+
+- Completed frontend-only at9b9a173: one confirmed High/3p loading-state defect.
+  ExplorerTab renders KPI no-data when sessions resolve empty before snapshots
+  resolve or while snapshots fail. Source evidence: ExplorerTab.tsx:162 and
+  KpiDonutPanel.tsx:64. Add response-order regressions and preserve independent
+  query error/stale behavior. DM independently confirmed the render condition.
+- Independent typecheck exit0; full Vitest with normal vite.config.ts and
+  maxWorkers1 failed startup exit1 (esbuild spawn EPERM, errno -4048), zero tests.
+  Execution remains NOT_CHECKED; no escalation or permission change occurred.
+- Backend1d27595 was supplied during reporting, but the final verdict explicitly
+  excludes it. Only backend HEAD/clean inspected; no backend source acceptance
+  or Cargo execution. Next review must name its frozen source explicitly.
+- Three rounds consumed, three remain. Correct the confirmed frontend defect,
+  then reserve the next round on the corrected frontend and frozen backend.
+  Pending T03 provenance/Unknown rendering and T07 trajectory signs/local-time
+  remain separate task dependencies, not accepted by this review.
