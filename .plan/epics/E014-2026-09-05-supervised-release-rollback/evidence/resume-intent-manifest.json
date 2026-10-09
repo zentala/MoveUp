@@ -37,6 +37,8 @@
       "allows:src-tauri/src/desk_events.rs",
       "allows:src-tauri/src/setup_helpers.rs",
       "scripts/tauri-dev.ps1",
+      "allows:scripts/tauri-dev-*.ps1",
+      "allows:package.json",
       "creates:scripts/test-tauri-dev.ps1",
       "allows:scripts/pm3*.ps1",
       "allows:scripts/pm3-config.mjs",
