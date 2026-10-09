@@ -12,9 +12,16 @@ This serves the owner's vision of a configurable desk ergonomics application who
 - Correct credited-load versus actual-interval confusion without changing engine credit, scoring or persisted history.
 - Share timeline rendering, interval normalization and state colors between compact and detail views; retain mode-specific navigation.
 - Diagnose and fix confirmed initial-load/current-day/standing-visibility defects.
-- Put the large timeline first; connect smaller daily donut tabs directly below it, before secondary charts.
+- Show selected-day heading, immediately Range/refresh, large timeline and one daily donut tab per day directly below in one section. Start with seven days, reserving loading geometry immediately. Remove main Desk Height Timeline and Day at a Glance.
 - Explain day composition against the complete local calendar day, with unobserved time explicit.
 - Review and exercise relevant popup, Analyst and settings interactions; report other findings separately.
+- Keep recorded signed points and change-event provenance truthful; do not invent a 0–100 scale, goal or noise filter. Secondary trajectory/histogram choices await operator discussion; range-wide KPI trends sit outside the selected-day context.
+
+## Correction prerequisite and retained evidence
+
+The operator rejected the previous browser preview's extra panels. Revised UI implementation is held until Astra user stories, metric investigation, UX audit/internet skill review and this corrected plan exist. Those artifacts now exist privately in the owning reports directory; they remain untracked because they contain private operational context. The superseded UI candidate `de3ff28` is preserved, unaccepted and unintegrated. Compatible timeline `f8e77d0` and data `45d3fac` candidates remain subject to independent acceptance. Round 1 confirmed uncertainty/presentation defects; see `review-rounds.md`. Do not restart a second queue.
+
+Publication hold: supervision explicitly prohibits pushing current main until owner-safe preparation addresses private paths in earlier unpublished history. Preserve audit references and local commits. Notify supervision before planned push or overlapping source integration; no force-push or unilateral rewriting of foreign work.
 
 ## Execution
 
