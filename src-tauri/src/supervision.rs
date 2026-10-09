@@ -52,7 +52,7 @@ impl Configuration {
         if action == "suspend" {
             args.extend(["--intent".into(), intent.into(), "--reason".into(), "MoveUp Quit".into()]);
         }
-        args.push("--json".into());
+        if action != "start" { args.push("--json".into()); }
         args
     }
 }
