@@ -242,3 +242,62 @@
 - Corrector continues only these three findings in the same owned worktree.
   Round3 requires independently frozen corrected source. No live changes,
   main source integration or push; publication/privacy hold remains.
+
+## Release integration round 3 — 2026-10-09 (reserved)
+
+- Frozen correction: 892513e0a734785ef9c34d2be1c7e5ff60c1a31a; only the
+  three confirmed round2 findings. Existing independent verifier retained
+  specifically for this immediate re-review; source remains read-only.
+- Two rounds used, round3 reserved, three further rounds remain after this
+  attempt. Prior failures and the successful bug reproduction remain retained.
+- Corrector's first expanded full Rust run failed exit101 because the callback
+  regression expected detailed stderr that its dispatcher intentionally wraps.
+  Corrected only that assertion; both maintenance tests then passed, exit0.
+  CRLF-aware full-task diff check passed; ordinary CRLF-sensitive failure remains.
+- New production artifact build and independent correction acceptance pending.
+
+## Release integration round 3 result — 2026-10-09 (fixture correction required)
+
+- Independent review of 892513e0a734785ef9c34d2be1c7e5ff60c1a31a resolved
+  the three round2 findings. REQUEST_CHANGES remains for the test server only
+  (Importance Medium, Points2):
+  accepted socket mode is not explicitly blocking after a nonblocking listener,
+  followed by read().unwrap(). Two independent maintenance runs failed exit101,
+  alternating the CLI/callback case with WouldBlock at release_maintenance.rs:54.
+- Correct only the accepted stream mode, retain its two-second timeout and all
+  assertions. Production probe/callback timeouts and validated code stay unchanged.
+  Three rounds consumed; the next independent round is4, with two after it.
+- Dev readiness tests6/6 passed. Author full Rust865+16 passed but does not
+  erase either independent failure. Source/build_mode correction is confirmed.
+- Updated production artifact892513e passed independent build-origin, actual
+  describe, all16 package/staged hashes and cutover:false checks. A test-only
+  successor may retain this binary only with an explicit unchanged-production
+  source proof, verified hashes and retained original build-origin SHA.
+- Corrector admitted for the one-file fixture correction. No main integration,
+  public push or live changes; earlier failures and privacy hold remain.
+
+## Release integration round 4 — 2026-10-09 (reserved)
+
+- Frozen source c825eea0bf01365d8040955fae80809edbb6e2a2 adds one line to
+  the existing maintenance test. Corrector's affected tests2/2 passed, exit0.
+- Three rounds consumed, round4 reserved, two further rounds remain after it.
+  Independent re-review checks the single fixture correction and the two
+  previously failing cases. No new broad audit or unchanged frontend testing.
+- Production artifact retains explicit build-origin892513e and its hash receipt;
+  independent unchanged-production-source/hash proof remains required.
+
+## Release integration round 4 result — 2026-10-09 (accepted)
+
+- Independent source verdict at c825eea0bf01365d8040955fae80809edbb6e2a2:
+  ACCEPT, zero confirmed or unresolved findings. Four rounds consumed, two
+  remain; all earlier failures and counterexamples remain retained above.
+- Both actual maintenance CLI/callback tests passed twice independently:
+  2/2 tests, exit0 on each run. The one-line accepted-stream correction fixes
+  the identified WouldBlock cause without changing production timeouts.
+- Production inputs are unchanged from build-origin892513e; all16 retained
+  artifact hashes match. The artifact was not rebuilt at the test-only successor.
+- Source and isolated artifact acceptance do not establish GUI, live recovery,
+  activation or login acceptance. Final AO gate and integration remain pending.
+- Receipt and focused logs retained in ignored evidence/.local. Completed
+  corrector and independent verifier exited; both owned tabs closed and absence
+  verified. No live changes or push; absolute publication hold remains.
