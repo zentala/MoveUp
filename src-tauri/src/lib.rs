@@ -52,6 +52,8 @@ mod app_lifecycle_runtime;
 #[cfg(test)] mod runtime_readiness_tests;
 pub mod startup_diagnostics;
 pub mod runtime_readiness;
+mod readiness_server;
+#[cfg(test)] mod readiness_server_tests;
 mod height_stabilizer;
 pub mod candidate_list;
 #[cfg(test)] mod candidate_list_tests;
