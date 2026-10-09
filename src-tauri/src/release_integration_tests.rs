@@ -224,4 +224,3 @@ fn release_status_and_invalid_maintenance_are_explicit() {
     assert!(execute(&["unknown".into()], |_| None).is_err());
     assert!(execute(&["status".into(), "--root".into(), "relative".into()], |_| None).is_err());
 }
-

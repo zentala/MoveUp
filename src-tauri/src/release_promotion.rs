@@ -73,9 +73,12 @@ pub fn promote(lock: &StoreLock, directory: &Path, get: impl Fn(&str) -> Option<
             }
             String::from_utf8(bytes).map_err(|e| e.to_string())
         })?;
-    validate_readiness(&body, &ExpectedReadiness { version: &id, pid: Some(pid),
+    let readiness = validate_readiness(&body, &ExpectedReadiness { version: &id, pid: Some(pid),
         run_id: Some(&record.identity.run_id), supervisor_run_id: Some(&run) })
         .map_err(|e| format!("readiness refused: {e:?}"))?;
+    if readiness.build_mode != "release" || readiness.build_mode != record.identity.build_mode {
+        return Err("fresh readiness build mode does not match the release artifact and active run".into());
+    }
     // Re-read process ownership after IO, before any marker mutation.
     let after = running(directory).map_err(|e| e.to_string())?.ok_or("owner exited during callback")?;
     if after.identity.run_id != record.identity.run_id || after.identity.pid != pid

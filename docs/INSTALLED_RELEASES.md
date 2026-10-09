@@ -90,7 +90,8 @@ execution inherits daemon environment, which cannot substitute for service env.
 Manual activation uses `desk.exe --release activate` with the same
 `DESK_SUPERVISION=pm3`, `DESK_PM3_SERVICE=moveup/desk`, `DESK_PM3_NODE` and
 `DESK_PM3_HOME` settings carried in installed `pm3.yaml`. It calls the selected
-public launcher with `start moveup/desk --json`; it does not bypass suspension
+public launcher with `start moveup/desk` and wraps its text response in JSON;
+it does not bypass suspension
 holds with a second app launcher. Missing or malformed configured mode fails.
 
 Validation comprises the full Rust library suite, real maintenance-process and

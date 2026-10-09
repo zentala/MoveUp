@@ -54,10 +54,11 @@ fn check_promotion(use_callback: bool) {
                     let mut request = [0; 2048]; stream.read(&mut request).unwrap();
                     let mut response = serde_json::to_value(&body).unwrap();
                     if requests == 0 { response["run_id"] = uuid::Uuid::new_v4().to_string().into(); }
+                    if requests == 1 { response["build_mode"] = "debug".into(); }
                     let text = serde_json::to_string(&response).unwrap();
                     write!(stream, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", text.len(), text).unwrap();
                     requests += 1;
-                    if requests == 2 { return true; }
+                    if requests == 3 { return true; }
                 },
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     if std::time::Instant::now() >= deadline { return false; }
@@ -96,6 +97,20 @@ fn check_promotion(use_callback: bool) {
     }
     assert!(!callback("0.6.1", None).status.success(), "foreign application run must fail");
     assert!(!root.join("last-known-good").exists());
+    // All fresh identities now match; debug readiness must not certify a release.
+    fs::write(root.join("last-known-good"), b"0.6.2\n").unwrap();
+    let marker_before = fs::read(root.join("last-known-good")).unwrap();
+    let legacy_before = fs::read(root.join("candidates")).unwrap();
+    let json_before = fs::read(root.join("candidates.json")).unwrap();
+    let debug = callback("0.6.1", None);
+    assert_eq!(debug.status.code(), Some(1), "debug readiness cannot promote a release");
+    let error: serde_json::Value = serde_json::from_slice(&debug.stderr).unwrap();
+    if use_callback { assert_eq!(error["error"], "Maintenance callback failed: 1"); }
+    else { assert!(error["error"].as_str().unwrap().contains("build mode")); }
+    assert_eq!(fs::read(root.join("last-known-good")).unwrap(), marker_before);
+    assert_eq!(fs::read(root.join("candidates")).unwrap(), legacy_before);
+    assert_eq!(fs::read(root.join("candidates.json")).unwrap(), json_before);
+    assert_eq!(fs::read(run.join("lifecycle.json")).unwrap(), before);
     let success = callback("0.6.1", None); let reached = server.join().unwrap();
     assert!(success.status.success(), "stdout={} stderr={}", String::from_utf8_lossy(&success.stdout), String::from_utf8_lossy(&success.stderr));
     assert!(reached, "callback never reached readiness");
