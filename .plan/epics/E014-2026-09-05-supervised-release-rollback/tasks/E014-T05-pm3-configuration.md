@@ -27,6 +27,14 @@ or the current working directory. Keep installation opt-in until live cutover.
 Document the minimum PM3 capability and fail with an actionable error if missing.
 Do not silently start an old CLI against unsupported configuration.
 
+Use the actual flat readiness contract: service-level expectJson is
+`{ app_id: "io.zntl.desk", ready: true }`; each candidate additionally pins
+`version`. Configure `instance.pidField: pid` and
+`instance.runIdField: supervisor_run_id`: the app's separate `run_id` is its
+own diagnostic UUID, while `supervisor_run_id` echoes the validated PM3_RUN_ID.
+The foreign dev instance may pass service health without a supervisor identity,
+but must never satisfy owned-child promotion. Test that distinction explicitly.
+
 Before implementation, record the selected design in ADR024: readiness uses a
 dedicated loopback-only listener in the same application process, independent of
 remote_lan_enabled and the optional LAN display server. Preserve the existing

@@ -50,9 +50,10 @@ unknown result or unperformed login remains incomplete; keep the goal active. ‚Å
    retire direct Run registration only after PM3 login ownership is proven.
 
 Route is attended AO (total 53) from Herdr; every run has explicit manifest,
-ledger, isolated worktree and independent review. PM3 reconnaissance is read-only
-and not an implementation run. Do not treat headless source inspection as a
-verified dispatch. Preserve other agents and the running desk process.
+ledger, isolated worktree and independent review. Initial PM3 reconnaissance
+was read-only; its owner now coordinates the generic dependency implementation
+in that repository. Source acceptance and live release are separate gates.
+Preserve other agents and the running desk process.
 
 The coordinator owns plan edits. Workers own only their task write sets.
 Do not change the ergonomic state engine, public relay or personal health data.

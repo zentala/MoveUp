@@ -29,3 +29,22 @@
   source was preserved and a fresh compatible client committed it. rustfmt exit
   1 remains an unavailable-tool limitation, with no toolchain installation.
 - No merge, task closure, live application change or login acceptance yet.
+
+## Lifecycle round 2 — 2026-10-09 (source accepted)
+
+- Frozen source: `0f06e4bef0a0f814b6f1f1e4f3313223a158337e`.
+- Independent reviewer inspected the five-file correction and the author logs.
+  F1 PASS: contention preserves known initialization, while absent/poisoned DB
+  and failed/uninitialized lifecycle remain unready. F2 PASS: an explicit prior
+  failure yields PreviousRun::Failed and a correlated previous_failed event;
+  unfinished, corrupt and Quit-intent-only records remain interrupted/unknown.
+- Confirmed blocking findings remaining: zero. Disputed findings: zero.
+  F3 is explicitly scheduled in T05; optional observations remain in backlog.
+- Author checks: 12 focused tests, 833 library tests and 4 child-process tests,
+  all exit 0. Coordinator AO verification re-ran the library gate at this HEAD,
+  exit 0, and separately re-ran all four child-process tests, exit 0.
+- Live GUI, actual user log and login acceptance remain NOT_CHECKED. This
+  accepts lifecycle source for integration, not deployment or epic completion.
+- Retained refusal: a test-log write to system Temp failed checkout validation;
+  the tests had not started. Logging to the same worktree's ignored target
+  directory succeeded without changing the guard or approval controls.

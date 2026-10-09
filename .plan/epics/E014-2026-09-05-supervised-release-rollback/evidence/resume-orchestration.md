@@ -1,120 +1,47 @@
-# Resume orchestration evidence
+# Supervised recovery execution evidence
 
-- 2026-10-09: source plan committed at `9c9057e`; original 43 points plus
-  accepted lifecycle/readiness task 8 points = 51, attended AO in Herdr.
-- Manifest readiness first failed (exit 1) on structured integration commands
-  and missing waves; corrected. Second failed (exit 1) on undeclared created
-  paths; corrected with supported creates/allows annotations. Third passed.
-- First run `E014-20261009-lifecycle` created isolated integration and worker
-  worktrees but stopped before provider invocation: `epicId must be a non-empty
-  string`. Readiness accepted a manifest that runtime could not dispatch.
-  Corrective action: supply task epicId and lowercase portable role. No
-  application code or live service was changed. Retain the original failure.
-- Owned execution tab: MoveUp workspace `w2R`, tab `w2R:t2`, pane `w2R:p2`.
-  PM3 read-only reconnaissance: workspace `w2X`, tab `w2X:t2`, pane `w2X:p2`,
-  agent `moveup-pm3-recon`. Neither is another operator session.
-- Worker and integration paths are recorded by AO under `.plan/worktrees/ao/`.
-  Runtime ledger is `evidence/.local/lifecycle-ledger.json`; final verification
-  and review evidence must be preserved outside disposable worktrees.
-# Retained attempt 1 and attended correction — 2026-10-09
+## Lifecycle source
 
-AO attempt 1 produced `7f0b248` but failed its write-set gate: it wrote an
-unauthorized implementation summary and left required runtime files untouched.
-The summary incorrectly called bootstrap/setup/exit/readiness wiring outside
-T11. Source inspection confirms the new modules are unused except declarations;
-this is an incomplete implementation, not an accepted task.
+The initial attempt failed its write-set and runtime integration checks. It is
+retained as failed; a later correction does not replace that evidence. A bounded
+attended recovery completed lifecycle wiring in an isolated worker branch.
 
-The AO command recorded its Rust gate as exit 0; that does not prove the missing
-runtime behavior. Preserve both that result and the failed write-set gate.
+Corrected source passed the orchestration source gate and a fresh four-test
+child-process integration run. Independent review then confirmed two defects:
+database lock contention incorrectly cleared readiness, and an explicitly
+failed prior run was classified as an unknown interruption. See
+[review rounds](../review-rounds.md) for correction and acceptance status.
+No live application change or login acceptance is implied by source tests.
 
-Following the implement skill's bounded failed-worker recovery, a corrective
-agent `moveup-lifecycle-repair` was opened in the retained attempt-1 worktree,
-owned Herdr tab `w2R:t3`, pane `w2R:p3`. It must first report its effective
-filesystem access before any edit. The brief explicitly requires all original
-runtime acceptance, deletion of its false report (retained in Git), and no live
-application changes. AO remains the execution ledger: gate-only verification
-and independent review must pass on the corrected branch before any merge.
-This direct corrective dispatch is recorded as attended recovery, not as a
-fresh AO execution. Original attempt 0 and its admission failure remain retained.
+Execution limitations retained: the first worktree commit attempt failed with
+exit 128 because the Git index was protected. Source was preserved and a fresh
+compatible execution profile completed the commit. Formatting failed with exit
+1 because rustfmt was unavailable; no global toolchain was installed. A later
+log redirection outside the worktree was refused by checkout validation; logs
+were instead kept in the worktree's ignored build-output directory, without
+changing the guard. Detailed operational records remain in ignored local evidence.
 
-The corrective Claude session reported an unknown effective filesystem profile.
-A bounded temporary-file probe succeeded and left a clean tree, but this does
-not establish the required profile or all writable roots. Per the delegation
-preflight contract, source editing was not admitted. The owned session is being
-closed and replaced with a native Codex session that must attest its actual
-runtime profile; launch flags alone will not be accepted as evidence. No tool
-approval refusal occurred and no permission bypass was used.
+## Baseline checks
 
-The first Codex preflight reported workspace-write but omitted the shared Git
-and Cargo cache roots, so it also exited without source edits. The replacement
-Codex session `01a11e52-cfa9-70f3-aa5b-13fe73a82ce9` attested its actual runtime
-workspace-write profile including the retained worktree, same-repository shared
-Git directory and normal Cargo cache. That concrete profile was admitted and
-implementation resumed. Shell profiles are disabled for task commands because
-the user's profile attempts unrelated global Git configuration writes.
+| Check | Observed result | Done |
+|---|---|---|
+| Frontend typecheck | Exit 0 | Yes |
+| Frontend lint | Exit 0, 16 pre-existing warnings | Yes |
+| Rust library baseline | 815 tests, exit 0 | Yes |
+| First frontend coverage run | Exit 1: three timeouts, 467 passed | Failed |
+| Focused single-worker retry | 23 tests, exit 0 | Yes |
+| Full single-worker coverage retry | 57 files, 470 tests, exit 0 | Yes |
 
-That worker completed runtime wiring and observed 830 library tests, four
-child-process tests and release checking all exit 0. Its git add then failed
-with exit 128: the worktree index remained protected despite the reported Git
-write root. It stopped and exited, preserving all source edits. The runtime's
-root attestation therefore did not prove access to its protected subpaths.
-Formatting also failed with exit 1 because rustfmt was unavailable; no global
-toolchain installation was attempted.
+The retry retained the original failure and changed neither assertions nor
+timeout settings. Coverage: statements 89.70%, branches 80.57%, functions
+85.45%, lines 91.76%. These are baseline checks, not acceptance of later work.
 
-Following the operator's explicit fresh-profile recovery rule, an owned
-commit-finishing client was launched with the same filesystem mode available
-to the coordinator, retaining normal provider approval settings. It must attest
-the effective profile before any mutation. Its task is bounded to inspecting
-and committing the already-tested source, not publishing or touching live state.
-No approval-review rejection was received or overridden. An actual approval
-refusal in the finishing client must remain a refusal, with no alternate route.
+## Integration boundaries
 
-The finishing client attested unrestricted filesystem access, the coordinator's
-existing mode, and was admitted for the bounded finish only. Source inspection
-also justified optional write-set paths: main.rs already delegates to run();
-EventLogger APIs are reused; legacy health_probe_tests.rs remains a compatibility
-suite. The manifest now marks those paths optional and requires the new typed
-health-probe module explicitly. Runtime setup, tray, server and lib wiring remain
-required, and behavioral acceptance is unchanged. This avoids gratuitous edits
-to satisfy path coverage; the first incomplete attempt remains rejected.
-
-Corrected source was committed at `26d4618588de3714e8642d38c2e8295ce88e3b8d`.
-The finishing session exited; its owned tab was closed and verified absent.
-A fresh read-only reviewer started in owned tab `w2R:t4`, pane `w2R:p4`, against
-that frozen HEAD. AO verify on attempt 1 now records gate PASS and cargo exit 0;
-no merge occurred. The coordinator independently reran application_lifecycle:
-four tests passed, exit 0. The facade still shows execution_attention from the
-retained history; the current verification projection is the authoritative
-gate result. Independent review and later integration remain pending.
-
-The PM3 owner recorded its generic contract in the private plan, including
-process/run binding, lost-ack reconciliation and independently owned suspension
-holds. Its source implementation remains in progress and live release remains
-held. MoveUp integration task files were committed at `78af58d`.
-
-Baseline frontend checks on root `78af58d`: `pnpm typecheck` exit 0;
-`pnpm lint` exit 0 with 16 existing warnings, no errors. These are baseline
-results, not verification of the unfinished Rust implementation.
-
-The baseline `pnpm test:coverage` failed with exit 1: 3 tests timed out at 5s
-in App.test.tsx, useRemoteDesk.test.ts and useRemoteDeskExtra.test.ts;
-467 passed, 3 failed across 57 files. Full output is retained in the ignored
-local evidence directory. A bounded retry targets only those three files with
-one worker; its result does not erase the original failure.
-
-That targeted retry (`vitest run --config vite.config.ts --maxWorkers 1` with
-the three filenames) passed: 23 tests, exit 0, 4.13 seconds. The full integrated
-frontend coverage gate will use bounded concurrency. Baseline Rust library
-tests passed: 815 tests, exit 0. No source files changed during these checks.
-
-The bounded full coverage retry (`vitest run --config vite.config.ts --coverage
---maxWorkers 1`) also passed: 57 files, 470 tests, exit 0, 96.76 seconds.
-Coverage: statements 89.70%, branches 80.57%, functions 85.45%, lines 91.76%.
-The original three-timeout failure remains recorded above. No timeout setting
-or test assertion was changed to obtain the passing result.
-
-Publication check: the existing MoveUp remote is PUBLIC. The local AO manifest
-currently embeds a machine-specific repository root. Before publishing any of
-this session's commits, replace it with a portable root and ensure unpublished
-commit history also excludes that new local path; retain execution evidence
-privately. Do not publish private PM3 plan contents or raw agent transcripts.
+The process manager's generic recovery dependency is being implemented in its
+own repository. Source review, isolated daemon tests and live release are
+separate gates. MoveUp still needs independent loopback readiness, the verified
+supervision adapter, installed release integration and runtime/login acceptance.
+The current application and direct-login bridge remain in place until the
+replacement passes the required checks. No production data migration or failure
+injection is authorized by the fixture results.
