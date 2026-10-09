@@ -53,6 +53,40 @@ Git directory and normal Cargo cache. That concrete profile was admitted and
 implementation resumed. Shell profiles are disabled for task commands because
 the user's profile attempts unrelated global Git configuration writes.
 
+That worker completed runtime wiring and observed 830 library tests, four
+child-process tests and release checking all exit 0. Its git add then failed
+with exit 128: the worktree index remained protected despite the reported Git
+write root. It stopped and exited, preserving all source edits. The runtime's
+root attestation therefore did not prove access to its protected subpaths.
+Formatting also failed with exit 1 because rustfmt was unavailable; no global
+toolchain installation was attempted.
+
+Following the operator's explicit fresh-profile recovery rule, an owned
+commit-finishing client was launched with the same filesystem mode available
+to the coordinator, retaining normal provider approval settings. It must attest
+the effective profile before any mutation. Its task is bounded to inspecting
+and committing the already-tested source, not publishing or touching live state.
+No approval-review rejection was received or overridden. An actual approval
+refusal in the finishing client must remain a refusal, with no alternate route.
+
+The finishing client attested unrestricted filesystem access, the coordinator's
+existing mode, and was admitted for the bounded finish only. Source inspection
+also justified optional write-set paths: main.rs already delegates to run();
+EventLogger APIs are reused; legacy health_probe_tests.rs remains a compatibility
+suite. The manifest now marks those paths optional and requires the new typed
+health-probe module explicitly. Runtime setup, tray, server and lib wiring remain
+required, and behavioral acceptance is unchanged. This avoids gratuitous edits
+to satisfy path coverage; the first incomplete attempt remains rejected.
+
+Corrected source was committed at `26d4618588de3714e8642d38c2e8295ce88e3b8d`.
+The finishing session exited; its owned tab was closed and verified absent.
+A fresh read-only reviewer started in owned tab `w2R:t4`, pane `w2R:p4`, against
+that frozen HEAD. AO verify on attempt 1 now records gate PASS and cargo exit 0;
+no merge occurred. The coordinator independently reran application_lifecycle:
+four tests passed, exit 0. The facade still shows execution_attention from the
+retained history; the current verification projection is the authoritative
+gate result. Independent review and later integration remain pending.
+
 The PM3 owner recorded its generic contract in the private plan, including
 process/run binding, lost-ack reconciliation and independently owned suspension
 holds. Its source implementation remains in progress and live release remains
