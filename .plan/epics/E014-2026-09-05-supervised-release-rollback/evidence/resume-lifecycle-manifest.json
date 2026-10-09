@@ -1,0 +1,28 @@
+{
+  "contractVersion": "ao-v1",
+  "strictContract": true,
+  "workId": "E014-20261009-lifecycle",
+  "projectId": "MoveUp",
+  "repository": { "root": "C:/Users/zentala/code/MoveUp" },
+  "baseRef": "main",
+  "execution": { "mode": "attended", "unattended": false, "autoMerge": false, "maxTasksPerWave": 1 },
+  "integrationVerificationCommands": [{"command": "cargo", "args": ["test", "--manifest-path", "src-tauri/Cargo.toml", "--lib"]}],
+  "waves": [{"id": "lifecycle", "tasks": ["E014-T11"]}],
+  "tasks": [{
+    "id": "E014-T11",
+    "status": "ready",
+    "dependencies": [],
+    "profile": "ts-dev",
+    "role": "Implementer",
+    "executor": "claude",
+    "budgetMinutes": 90,
+    "taskRef": ".plan/epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T11-lifecycle-readiness.md",
+    "handoffRef": ".plan/epics/E014-2026-09-05-supervised-release-rollback/RESUME.md",
+    "acceptanceRef": ".plan/epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T11-lifecycle-readiness.md",
+    "outputContract": ["changed files", "test exit codes and counts", "known failures", "remaining scope gaps"],
+    "writeSet": ["creates:src-tauri/src/app_lifecycle*.rs", "allows:src-tauri/src/startup_diagnostics*.rs", "creates:src-tauri/src/runtime_readiness*.rs", "src-tauri/src/main.rs", "src-tauri/src/lib.rs", "src-tauri/src/setup_helpers.rs", "src-tauri/src/tray.rs", "src-tauri/src/remote_server.rs", "src-tauri/src/health_probe*.rs", "src-tauri/src/event_logger.rs", "creates:src-tauri/tests/*lifecycle*.rs", ".arch/ARCHITECTURE.md", "creates:.arch/ADR/024-application-lifecycle-readiness.md"],
+    "claims": ["src-tauri/src/lib.rs", "src-tauri/src/setup_helpers.rs", "src-tauri/src/tray.rs", "src-tauri/src/remote_server.rs", "src-tauri/src/health_probe.rs"],
+    "verificationCommands": ["cargo test --manifest-path src-tauri/Cargo.toml --lib"],
+    "boundaries": ["No ergonomic engine edits", "No live app or PM3 state mutation", "No database migration or production test", "No autostart cutover", "No dependency changes"]
+  }]
+}

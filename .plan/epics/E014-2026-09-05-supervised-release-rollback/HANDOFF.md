@@ -4,10 +4,19 @@ type: handoff
 epic: E014
 created: 2026-09-05
 plan: ./PLAN.md
-points: 43
+points: 51
 ---
 
 # E014 handoff — supervised release rollback
+
+## Active continuation — 2026-10-09
+
+Read [RESUME.md](RESUME.md) first. It supersedes stale live-state claims below,
+preserves the integrated tasks, and adds T11 before the remaining integration.
+The full epic now totals 51 points, routed through attended AO in Herdr.
+The historical AO block at the bottom describes the completed September run;
+do not redispatch those completed tasks. Each continuation run gets an explicit
+manifest and ledger under this epic's evidence directory.
 
 ## TLDR
 

@@ -30,7 +30,7 @@ to `.plan/BACKLOG.md` §"E001-E009 audit leftovers".
 | E011 | `E011-2026-05-07-autostart-hardening` | done | Code-complete 2026-05-07, ceremony closed — `.plan/STATE.md` |
 | E012 | `E012-2026-05-16-analyst-dashboard` | done | Shipped v0.5.0; last 3 tasks (T09-T11) landed later under E018 — `.plan/BACKLOG.md` |
 | E013 | `E013-2026-08-28-signed-tauri-pm3-deployment` | superseded | Docs/licensing/CI absorbed by E017, rollback content by E014 — `.plan/BACKLOG.md` |
-| E014 | `E014-2026-09-05-supervised-release-rollback` | blocked | Waves 1-2 done (promoted `d12412a`); waves 3-4 wait on `pm3-mcp` backlog — `.plan/BACKLOG.md` |
+| E014 | `E014-2026-09-05-supervised-release-rollback` | in progress | 51 points, attended AO in Herdr. Waves 1-2 integrated at `d12412a`; October continuation adds lifecycle/readiness, verifies PM3 prerequisites and completes integration. See [RESUME](E014-2026-09-05-supervised-release-rollback/RESUME.md). |
 | E015 | `E015-2026-09-06-engine-single-truth` | done | Promoted `7a8bbf3`, v0.6.0; T05 closed on automated evidence (`e015_` Rust scenario test), Paweł accepted it instead of a browser pass 2026-09-13 |
 | E016 | `E016-2026-09-06-plan-hygiene-and-ao-readiness` | done | AO run E016-20260906-0348, promoted `0995f42` — `.plan/BACKLOG.md` |
 | E017 | `E017-2026-09-06-release-readiness` | done | AO run E017-20260906-0622, promoted `91b3572`, all 8 tasks merged, build gate ran for real — `.plan/STATE.md` |
