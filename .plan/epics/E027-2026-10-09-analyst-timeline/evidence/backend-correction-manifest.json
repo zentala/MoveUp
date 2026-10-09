@@ -52,14 +52,18 @@
         "src-tauri/src/serial_periodic*.rs",
         "src-tauri/src/app_lifecycle_runtime.rs",
         "src-tauri/src/db_sessions.rs",
-        "src-tauri/src/db_queries.rs"
+        "src-tauri/src/db_queries.rs",
+        "src-tauri/src/db_tests_break_credit.rs",
+        "src-tauri/src/today_totals.rs"
       ],
       "writeSet": [
         "src-tauri/src/session_*.rs",
         "src-tauri/src/serial_periodic*.rs",
         "src-tauri/src/app_lifecycle_runtime.rs",
         "src-tauri/src/db_sessions.rs",
-        "src-tauri/src/db_queries.rs"
+        "src-tauri/src/db_queries.rs",
+        "src-tauri/src/db_tests_break_credit.rs",
+        "src-tauri/src/today_totals.rs"
       ],
       "verificationCommands": [
         "cargo test --manifest-path src-tauri/Cargo.toml --lib session_ --offline",
@@ -67,6 +71,7 @@
         "cargo test --manifest-path src-tauri/Cargo.toml --lib app_lifecycle_runtime --offline"
       ],
       "boundaries": [
+        "Fixture extension changes only db_tests_break_credit.rs tests and today_totals.rs cfg(test) module; production code/imports and semantic assertions unchanged; retain original failed exits and current deadline",
         "Read canonical design and own task; preserve candidate refs and existing global review budget",
         "No live data, servers, secrets, push, main promotion or foreign-history changes",
         "No release/autostart code changes",
