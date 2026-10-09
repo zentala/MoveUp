@@ -43,6 +43,11 @@ probe, compare candidate/version/PID/supervisor run identity with PM3's callback
 evidence, then update app-owned state. This is identity revalidation, not a
 second watchdog or a second promotion timer. Unknown or mismatched evidence
 must leave the marker unchanged.
+The callback path for a healthy fallback must remain usable when the newest
+artifact cannot execute. Do not bind all maintenance callbacks exclusively to
+the unverified newest executable. Test the actual callback dispatch with that
+artifact broken and a healthy retained candidate; preserve structured arguments
+and the app-owned maintenance boundary.
 
 Update the existing version policy consistently for the new installable patch.
 Never build over or replace the currently running executable. Expose clear
