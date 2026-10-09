@@ -89,3 +89,22 @@
 - Bounded correction is followed by the third/final review. PM3 owner source
   acceptance and real offline CLI interoperability remain pending. No merge,
   live change or desktop/login acceptance occurred.
+
+## Readiness/configuration round 3 — 2026-10-09 (source accepted)
+
+- Frozen source: 76f4d5e3044f942a0aa04028e81ae50f84723dbf.
+- Independent read-only verifier accepted the remaining cleanup correction.
+  Successful publication returns its actual result plus cleanup warnings;
+  failed publication retains the original exception and reports secondary
+  cleanup failures separately. Neither branch deletes the final output.
+- Six new injected failure cases cover unlink/rmdir after success, alongside
+  a conflicting publication, and alongside offline validation refusal. They
+  assert unchanged candidate bytes, preserved foreign files and original
+  error identity. Confirmed mandatory findings remaining: zero; disputed: zero.
+- Author checks: generator 19/19 and adapter 18/18, exit 0. Coordinator reran
+  generator 19/19, exit 0. Adapter and Rust source did not change. Final AO
+  gate projection records cargo exit 0; aggregate verify still exits 1 from
+  previous execution attention, retained explicitly pending normal integration.
+- PM3 owner acceptance and actual public-launcher interoperability remain
+  separate pending gates before merge. Source acceptance is not live runtime
+  or login verification.
