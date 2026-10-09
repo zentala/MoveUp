@@ -141,13 +141,16 @@ pub const DEFAULT_PORT: u16 = 3390;
 /// Starts the HTTP+WS server on the given port.
 /// Spawned as a tokio task from lib.rs setup (non-blocking).
 /// Gracefully handles port binding failure (logs error, does NOT crash app).
-pub async fn start(state: RemoteState, port: u16) {
-    let app = build_router(state);
+pub async fn start(state: RemoteState, port: u16,
+    readiness: crate::runtime_readiness::ReadinessReader,
+    lifecycle: Arc<crate::app_lifecycle::AppLifecycle>) {
+    let app = build_router(state).merge(crate::runtime_readiness::routes(readiness));
     let addr = format!("0.0.0.0:{}", port);
 
     let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(l) => l,
         Err(e) => {
+            lifecycle.event("remote_bind_failed");
             log::error!(
                 "Remote display server failed to bind on {}: {}. \
                  Remote display will be unavailable. \
@@ -161,9 +164,13 @@ pub async fn start(state: RemoteState, port: u16) {
     };
 
     log::info!("Remote display server listening on {}", addr);
+    lifecycle.remote_listening.store(true, Ordering::Release);
+    lifecycle.event("remote_listening");
     if let Err(e) = axum::serve(listener, app).await {
         log::error!("Remote display server stopped: {}", e);
     }
+    lifecycle.remote_listening.store(false, Ordering::Release);
+    lifecycle.event("remote_stopped");
 }
 
 /// Builds the axum router. Separated for testability.

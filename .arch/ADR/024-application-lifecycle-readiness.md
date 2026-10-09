@@ -2,186 +2,130 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-09
-- **Epic**: E014 (supervised release and rollback) — task T11
-- **Related**: [ADR 015](015-pure-ergo-engine.md) (engine purity and ownership),
-  [ADR 018](018-supervised-startup.md) (startup recovery),
-  [ADR 019](019-supervised-runtime.md) (runtime restart bounds)
-
-## Context
-
-When MoveUp crashes or fails to start, PM3 needs to know:
-1. **What stage did it reach?** (setup, DB, serial, ready)
-2. **Did it crash, or did the user quit?** (decide whether to restart)
-3. **Is it actually ready?** (validate before promotion)
-
-The existing session engine is pure and stateless about initialization. The tray
-and serial connections are independent. Early failures (panic, DB corruption)
-have no recovery path — they just disappear into the event log.
-
-Three gaps needed closing:
-
-- **No per-run identifier.** Multiple restarts blend together in logs.
-- **No readiness surface.** PM3 must infer readiness from HTTP polls to
-  `/display/api`, which may return stale data if the app dies before flushing.
-- **No startup failure diagnostics.** A panic during setup leaves no trace,
-  so PM3 cannot distinguish a crash loop from a slow startup.
+- **Related**: [ADR 015](015-pure-ergo-engine.md), [ADR 018](018-pm3-app-ownership-split.md),
+  [ADR 019](019-release-store-layout.md)
 
 ## Decision
 
-Implement three independent modules outside the session engine:
+The application owns lifecycle evidence and a typed readiness contract outside
+the ergonomic engine. PM3 supervision, restart policy, Quit suspension, release
+selection and autostart cutover remain separate tasks.
 
-### 1. `app_lifecycle.rs` — Per-run tracking
+### Runtime ownership and events
 
-Tracks lifecycle stages and quit intent. Records:
-- **RunId**: PID + version + build_mode + startup_timestamp, stable across one run.
-- **LifecycleStage**: Starting → Initializing → {TrayReady, DatabaseReady,
-  SerialReady, RemoteReady} → Ready, or → QuitRequested or → Failed.
-- **Quit intent flag**: Distinguishes explicit user quit from crash.
-- **Failure reason**: Optional message if the app failed.
+`lib::run` installs diagnostics before dotenv, plugins or application state.
+The single-instance plugin initializes first. Application setup then claims
+`{app_data_dir}/lifecycle.owner` with an exclusive OS file lock, retained for
+the process lifetime. This second guard handles activation races in the existing
+plugin (a mutex can exist before its message window). A competing claimant
+cannot read or replace the owner's run record. Normal secondary activation only
+focuses the existing window and logs `secondary_activation` in the owner.
 
-Owned by the coordinator and updated at key setup milestones. Persistence
-happens after singleton ownership is established, so a second-instance
-activation cannot overwrite the first instance's record.
+Only after ownership, `app_lifecycle_store` reads the previous record and writes
+`lifecycle.json` through a sibling temporary file, sync and atomic rename.
+The record contains a UUID run ID, numeric PID, version, debug/release mode,
+optional bounded `PM3_RUN_ID`, outcome, Quit intent and flush result.
+Missing/corrupt/unreadable previous evidence or any outcome without
+`clean_exit` is `interrupted_unknown`; it never identifies a crash cause.
+An absent record is `previous_absent`. Quit intent alone is not a clean exit.
 
-### 2. `startup_diagnostics.rs` — Early failure capture
+`AppLifecycle` uses the existing `EventLogger::log` and daily
+`HH:MM:SS LIFECYCLE run=... pid=... version=... build_mode=... stage=...` format.
+It records started, previous outcome, tray/persistence readiness, ready,
+secondary activation, explicit tray Quit, failures and actual Tauri Exit.
+Essential DB initialization reuses `commands::ensure_initialized` during
+setup, after configuration restoration, rather than waiting for frontend IPC.
+The tray flag is set only after successful native tray construction.
 
-Writes to a minimal diagnostic log (`startup_diagnostics_<pid>.log`) if
-normal logging fails. Designed to never panic or poison state:
+Tauri Exit retains the existing persisted-engine-state save and in-progress
+session insertion. Each leg reports saved, failed, not_needed, or a specific
+skipped reason (missing store/DB or unavailable lock). A clean process exit
+does not imply that either flush succeeded. Observed failure remains failed.
+Neither the session engine nor its persistence format changes.
 
-- File creation is optional; absence of a log is itself a diagnostic.
-- Writers lock per-attempt; a deadlock returns silently.
-- Panic hook integration: `record_panic(message, backtrace)` captures the trace.
+### Earliest failure and panic sink
 
-Called early in `main()` before Tauri setup. Stays dormant if setup succeeds;
-PM3 ignores it when the app starts normally.
+A per-invocation `moveup-startup-<pid>-<uuid>.log` in the OS temporary directory
+is independent of application paths and locks. Each write opens in append mode;
+there is no truncating create, shared writer mutex, logger call, panic payload,
+backtrace, environment dump or arbitrary error text in the panic path.
+Only generated identity and bounded event codes are written. All IO is best effort;
+failed diagnostics do not crash an otherwise working app.
 
-### 3. `runtime_readiness.rs` — Explicit readiness status
+The hook marks a sticky atomic failure, records panic and calls the previous
+hook. It does not catch-and-continue, suppress unwind/abort, or claim to observe
+external termination. It never tries to update the shared run file while
+application/persistence locks might be held. A killed or panicking run without
+Exit is therefore interrupted/unknown on next launch; the independent panic log
+is additional evidence, not a guessed exit cause. OS temporary-file retention
+applies to the early sink; normal EventLogger retention is unchanged.
 
-Validates readiness state independent of health sources. Exposed through
-`/display/api` as an additive field (preserves existing API shape).
+### Dedicated readiness endpoint
+
+`GET /display/readiness` is a separate axum route on the existing LAN server.
+`/display/api`, its aggregate, and the public legacy health probe remain unchanged.
+The LAN enable switch, bind address and port behavior are preserved. Disabled LAN
+or a failed bind means this endpoint is unavailable, not that another process
+may be inferred ready. Listener state is set only after successful bind and
+cleared when serving ends.
+
+Example response (all fields are flat):
 
 ```json
 {
-  "readiness": {
-    "app_id": "io.zntl.desk",
-    "version": "0.6.0",
-    "build_mode": "release",
-    "state": "ready|initializing|degraded|failed",
-    "reason": "sensor_missing|database_not_ready|...",
-    "tray_initialized": true,
-    "database_initialized": true,
-    "serial_scanned": true,
-    "remote_listening": true
-  }
+  "app_id": "io.zntl.desk",
+  "version": "0.6.0",
+  "pid": 1234,
+  "run_id": "81c9c6f0-5b23-482f-902d-a8c645818e7b",
+  "supervisor_run_id": "pm3-example",
+  "build_mode": "release",
+  "ready": true,
+  "state": "degraded",
+  "reason": "sensor_missing",
+  "tray_initialized": true,
+  "persistence_initialized": true,
+  "setup_complete": true,
+  "remote_listening": true,
+  "sensor_present": false,
+  "session_store_available": false,
+  "quit_requested": false
 }
 ```
 
-**Key rules:**
-- **Sensor absence is degraded, not failed.** User can still interact without
-  the device.
-- **No outbound health calls.** Readiness answers from local state only.
-- **compute_state(sensor_present)** updates the verdict based on
-  initialization flags.
+Readiness requires successful tray construction, essential SQLite initialization
+and completed setup, with neither failure nor Quit intent. `persistence_initialized`
+means the existing SQLite open/schema path succeeded and the connection remains
+present, not that every future write is guaranteed to succeed.
+The optional session-store flag reports actual availability; this change neither
+invents a new store path nor claims that the existing optional store was loaded.
 
-## Rationale
+The reader uses atomic lifecycle evidence and nonblocking `try_lock` on the live
+DB and sensor connection. DB contention conservatively reports not-ready; sensor
+absence or contention yields ready+degraded, reason `sensor_missing`, once
+essential prerequisites hold. It never calls the session aggregate, takes its
+locks or calls an outbound provider. Fixed schema and bounded identity keep
+responses small. HTTP availability never sets the tray flag.
 
-### Why three separate modules?
+States are lowercase `initializing`, `ready`, `degraded`, `failed`.
+Failure is sticky across recomputation. Missing sensor is restart-ineligible.
+Quit clears readiness before `app.exit(0)`.
 
-1. **Lifecycle** is owned by the coordinator and wired at app startup. It
-   tracks initialization progression.
-2. **Diagnostics** must be available even if logging fails, so it's
-   independent and minimal.
-3. **Readiness** is a query, not a store. It computes state from
-   initialization flags, answering PM3's "is it ready yet?" question.
+`health_probe::validate_readiness` deserializes the typed schema, caps input at
+4096 bytes, checks app/version and optional expected PID/run/supervisor IDs,
+requires ready/listening and consistent essential flags, state and reason.
+Arbitrary JSON and stale or contradictory flags cannot pass. Existing
+`probe`, `HttpDisplayApi` and `/display/api` callers keep their old behavior;
+new supervision adapters must explicitly call the typed validator.
 
-### Why per-run ID?
+## Verification boundary
 
-Multiple crash-restart cycles would otherwise be indistinguishable in logs.
-PID + version + timestamp lets PM3 correlate events with a specific run and
-detect restart loops (same version restarting within seconds).
+Sibling library tests exercise lifecycle correlation, atomic replacement
+failures, previous interrupted/corrupt records, secondary ownership, sticky
+failure, truthful flush results and bounded readiness under contended locks.
+The integration harness starts actual child processes for pre-setup failure,
+panic before/after ownership, secondary activation, forced termination and clean
+exit. Every fixture uses temporary files and in-memory databases. The existing
+EventLogger implementation is exercised without modification.
 
-### Why explicit quit flag?
-
-`process.exit(0)` via `app.exit()` leaves Tauri to flush the session, but
-there's no signal that this was intentional. Without the flag, PM3 sees a
-zero exit code and cannot distinguish between:
-- User quit via tray menu → don't restart.
-- App reached Ready and exited normally → okay to restart.
-- Crash that happened to exit 0 (unlikely but possible) → probably should
-  restart.
-
-The flag makes it explicit: `quit_requested=true` means "don't restart this
-session."
-
-### Why sensor absence is degraded?
-
-A missing serial device is recoverable — the user can plug it in. An
-uninitialized database is not. So:
-- **Initializing**: Required subsystems (tray, DB, remote) are still starting.
-- **Degraded**: All required subsystems ready, but sensor is missing.
-- **Ready**: All required + sensor present.
-- **Failed**: Some required subsystem failed (DB corruption, panic during
-  startup).
-
-## Implementation
-
-### Wiring in setup_helpers.rs
-
-```rust
-let lifecycle = Arc::new(AppLifecycle::new(APP_VERSION, build_mode()));
-lifecycle.advance_stage(LifecycleStage::Initializing);
-app.manage(lifecycle.clone());
-// After each major step:
-lifecycle.advance_stage(LifecycleStage::TrayReady);
-lifecycle.advance_stage(LifecycleStage::DatabaseReady);
-// ...
-lifecycle.advance_stage(LifecycleStage::Ready);
-```
-
-### Wiring in remote_server.rs
-
-Add readiness to the `/display/api` response:
-
-```rust
-let readiness = ReadinessStatus::new(APP_ID, APP_VERSION, build_mode());
-readiness.tray_initialized = /* from lifecycle */;
-readiness.database_initialized = /* from lifecycle */;
-readiness.remote_listening = /* true at this point */;
-readiness.compute_state(/* sensor_present */);
-
-json!({ ..., readiness })
-```
-
-### Event logging
-
-Lifecycle events go through the existing `event_logger`:
-
-```rust
-event_logger.log(&format!("LIFECYCLE {} started", lifecycle.run_id()));
-event_logger.log("LIFECYCLE ready");
-event_logger.log("LIFECYCLE quit_requested"); // vs. clean_exit
-```
-
-## Constraints
-
-- No changes to the session engine (`session_*.rs`).
-- No dependencies on external modules except `event_logger`, `snapshot_logger`.
-- Modules stay under 250 lines each, with sibling test modules.
-- Readiness does not outbound-call health sources; it reports local state only.
-- Startup diagnostics never panic, even if file creation fails.
-
-## Verification
-
-1. **Unit tests**: Lifecycle stage progression, quit flag, failure recording.
-2. **Startup diagnostics tests**: File creation, panic capture, failure-to-create
-   gracefully handled.
-3. **Readiness tests**: State computation, sensor-absent degradation,
-   serialization.
-4. **Integration**: Tray initialization marks stage, DB open marks stage,
-   lifecycle.ready() unblocks PM3 polling.
-
----
-
-This work is task E014-T11 of the supervised release and rollback epic. PM3
-contract changes (listening for readiness, detecting quit intent) are in E014
-tasks T05/T06 and beyond.
+No full GUI run against production data, PM3 restart or real login acceptance
+is implied by these fixtures. Those remain attended integration gates.

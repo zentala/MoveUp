@@ -45,12 +45,18 @@ mod today_totals;
 mod desk_events;
 pub mod event_logger;
 pub mod app_lifecycle;
+pub mod app_lifecycle_store;
+mod app_lifecycle_runtime;
+#[cfg(test)] mod app_lifecycle_tests;
+#[cfg(test)] mod app_lifecycle_runtime_tests;
+#[cfg(test)] mod runtime_readiness_tests;
 pub mod startup_diagnostics;
 pub mod runtime_readiness;
 mod height_stabilizer;
 pub mod candidate_list;
 #[cfg(test)] mod candidate_list_tests;
 pub mod health_probe;
+mod health_probe_readiness;
 #[cfg(test)] mod health_probe_tests;
 pub mod last_known_good;
 #[cfg(test)] mod last_known_good_tests;
@@ -188,17 +194,22 @@ pub(crate) struct Loggers {
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let lifecycle = app_lifecycle_runtime::bootstrap();
     // Best-effort load of Google Fit credentials; absence treated as "not configured".
     let _ = dotenv::from_filename(".env.local");
     let _ = dotenv::dotenv();
     tauri::Builder::default()
+        .manage(lifecycle.clone())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(lifecycle) = app.try_state::<Arc<app_lifecycle::AppLifecycle>>() {
+                lifecycle.event("secondary_activation");
+            }
+            if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.set_focus(); }
+        }))
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.set_focus(); }
-        }))
         .manage(AppState {
             conn: Arc::new(ConnectionState::default()),
             session: Arc::new(Mutex::new(SessionManager::new())),
@@ -311,7 +322,14 @@ pub fn run() {
                 ]
             }
         })
-        .setup(|app| setup_helpers::perform_app_setup(app))
+        .setup(|app| {
+            let result = setup_helpers::perform_app_setup(app);
+            if result.is_err() {
+                app.state::<Arc<app_lifecycle::AppLifecycle>>()
+                    .fail(startup_diagnostics::Diagnostic::SetupFailed);
+            }
+            result
+        })
         .on_window_event(|window, event| {
             // T038: Hide the popup window when it loses focus (click outside).
             if window.label() == "main" {
@@ -321,10 +339,13 @@ pub fn run() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("error building Desk")
+        .unwrap_or_else(|_| {
+            lifecycle.fail(startup_diagnostics::Diagnostic::BuildFailed);
+            panic!("error building Desk");
+        })
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
-                setup_helpers::flush_session_on_shutdown(app);
+                app_lifecycle_runtime::shutdown(app);
             }
         });
 }

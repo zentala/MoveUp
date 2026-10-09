@@ -383,6 +383,25 @@ Supervision itself (`pm3.yaml`, demotion wiring, retiring the `Run` key) is
 blocked on PM3 gaining candidate lists — see
 [E014](../.plan/epics/E014-2026-09-05-supervised-release-rollback/PLAN.md).
 
+## Application Lifecycle and Readiness
+
+The runtime installs an independent, append-only early diagnostic sink before
+Tauri setup. After single-instance ownership, an OS file lock protects atomic
+last-run evidence in `lifecycle.json`. Lifecycle stages use the existing
+`EventLogger`, correlated by run UUID/PID/version/build mode. Tray Quit records
+intent before exit; actual Exit records clean/failed outcome and separate
+session-store/database flush results. Missing clean-exit evidence remains
+interrupted/unknown.
+
+`GET /display/readiness` is a dedicated flat bounded route with actual tray,
+SQLite, setup, listener and sensor evidence. It uses nonblocking local reads,
+without the session/health aggregate behind the unchanged `/display/api`.
+Sensor absence is ready+degraded; failed initialization is sticky and not ready.
+The legacy probe remains compatible; new adapters use
+`health_probe::validate_readiness` for identity, version, flags and run matching.
+See [ADR 024](ADR/024-application-lifecycle-readiness.md) for the schema,
+ownership boundary, failure semantics and fixture coverage.
+
 ## Key Architectural Decisions
 
 | Decision | Rationale | Reference |
