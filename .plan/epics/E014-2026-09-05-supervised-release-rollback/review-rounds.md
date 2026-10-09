@@ -149,3 +149,22 @@
   subsequent commands used login:false. No approval controls changed.
 - Correct only F1/F2/F3, then freeze and admit round 2. Real GUI/exit/flush,
   supervision cycles and login are NOT_CHECKED here. No integration yet.
+
+## Intent round 2 — 2026-10-09 (source accepted and integrated)
+
+- Frozen source: ba1e3ab4f77fd994a8fda18ef4dc3f7c75ecef07. Independent verifier
+  accepted all three corrections; zero unresolved or disputed source findings.
+  Production behavior is unchanged by the six-file correction except whitespace.
+- Independent checks with all three Node overrides absent: 15 Rust tests and
+  41 PowerShell assertions, exit 0; transport coverage remains active. Both
+  whitespace comparisons pass. Author full library: 853 pass, exit 0; explicit
+  test override: 4 Rust/41 PowerShell pass. Prior failures remain above.
+- Final AO source/scope gate passed with cargo and pwsh exit 0. Aggregate verify
+  exited 2 from retained earlier execution attention, not relabelled as command
+  success. Normal merge recorded 6940bd4 (aggregate exit 2, cleanup unknown);
+  promote exited 0 at 25c1edc, task completion 1e15589.
+- The reviewer's initial multiline report-write command was refused before
+  execution by the path-verification hook. Its recommended direct file edit
+  completed the report; no permission/hook change or rejected-command retry.
+- Native GUI, real Quit/flush, daemon recovery and login remain NOT_CHECKED.
+  T07 may now proceed; no installed application or live PM3 change occurred.

@@ -14,7 +14,9 @@ current_wave:
     The real-timing fixture passed, but the earlier plain-service cleanup
     failure reproduced in one of three final-source smoke runs (baseline
     three passed); causality remains open. T06/T07 handoffs are prepared,
-    with T06 ready for dispatch. T06/T07/T08/T10 and live login cutover remain open.
+    and T06 is now integrated at 25c1edc/completed 1e15589 after round2 acceptance.
+    Its full Rust853 and PowerShell41 checks pass, including ordinary Node PATH
+    discovery. T07 release integration is next; T07/T08/T10 and login remain open.
     Current application and Run bridge unchanged. Lifecycle worker cleanup
     failed on its already-durable AO session junction; source/evidence retained,
     owning lifecycle defect recorded. Public push held for unpublished-history

@@ -42,8 +42,10 @@ accepted it, and integrated library (833) / child-process (4) tests passed.
 Real desktop/login evidence in the acceptance matrix remains outstanding.
 T05 source at 76f4d5e passed independent round 3 and public-launcher validation
 against accepted PM3 source 5be48d7 with all fixture isolation keys applied.
-AO integrated it at b8f0c3d and completed its source task at fa628af. T06 is next;
-real supervision, desktop behavior and login remain separate acceptance gates.
+AO integrated it at b8f0c3d and completed its source task at fa628af. T06 source
+ba1e3ab passed independent round 2 and the final source gate; integrated at
+25c1edc and completed at 1e15589. T07 is next. Real supervision, desktop behavior
+and login remain separate acceptance gates.
 
 1. T11 (8 points, High): MoveUp lifecycle diagnostics and readiness, independent
    of the PM3 contract. Preserve current Run registration until cutover.
