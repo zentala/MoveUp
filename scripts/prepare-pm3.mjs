@@ -31,6 +31,9 @@ export function prepare(options, { io = fs, execute } = {}) {
   const temporaryFile = path.join(temporaryDirectory, 'pm3.yaml');
   let validation = { status: 'pending-not-validated',
     reason: 'No offline PM3 validator selected. Supply --pm3-node ABS and --pm3-home ABS after owner acceptance.' };
+  const cleanupWarnings = [];
+  let failed = false;
+  let primaryError;
   try {
     const fd = io.openSync(temporaryFile, 'wx');
     try {
@@ -43,12 +46,28 @@ export function prepare(options, { io = fs, execute } = {}) {
     // Hard-link publication is atomic and fails if any competing output exists.
     // rename would overwrite on POSIX; writing destination directly exposes partial bytes.
     io.linkSync(temporaryFile, destination);
+  } catch (error) {
+    failed = true;
+    primaryError = error;
   } finally {
     // This invocation owns the newly created directory and this one temporary file.
-    if (fs.existsSync(temporaryFile)) fs.unlinkSync(temporaryFile);
-    fs.rmdirSync(temporaryDirectory);
+    // Cleanup must never change the publication outcome or remove the final path.
+    for (const [operation, target] of [['unlinkSync', temporaryFile], ['rmdirSync', temporaryDirectory]]) {
+      try {
+        io[operation](target);
+      } catch (error) {
+        if (error.code !== 'ENOENT') cleanupWarnings.push({ operation, path: target,
+          code: error.code ?? null, message: error.message });
+      }
+    }
   }
-  return { files: [destination], candidatesFile, validation, readyToInstall: false,
+  if (failed) {
+    // Preserve the original thrown value, even when it cannot carry diagnostics.
+    try { primaryError.cleanupWarnings = cleanupWarnings; } catch { /* Non-extensible error. */ }
+    throw primaryError;
+  }
+  return { publication: 'published', cleanupWarnings,
+    files: [destination], candidatesFile, validation, readyToInstall: false,
     integration: 'pending-pm3-owner-acceptance', registration: 'not-performed' };
 }
 
@@ -64,6 +83,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     } else console.log(JSON.stringify(prepare(values), null, 2));
   } catch (error) {
     console.error(`PM3 preparation refused: ${error.message}`);
+    for (const warning of error.cleanupWarnings ?? []) {
+      console.error(`PM3 cleanup warning: ${JSON.stringify(warning)}`);
+    }
     process.exitCode = 1;
   }
 }

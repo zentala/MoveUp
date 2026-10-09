@@ -77,6 +77,8 @@ test('draft requires no PM3 dependency, preserves input bytes and points to futu
   assert.equal(result.integration, 'pending-pm3-owner-acceptance');
   assert.equal(result.registration, 'not-performed');
   assert.deepEqual(result.files, [f.destination]);
+  assert.equal(result.publication, 'published');
+  assert.deepEqual(result.cleanupWarnings, []);
   assert.deepEqual(fs.readdirSync(f.outputDirectory), ['pm3.yaml']);
   assert.equal(fs.readFileSync(f.candidatesFile, 'utf8'), f.bytes);
   const configured = JSON.parse(fs.readFileSync(f.destination)).services[0].supervised.candidatesFile;
@@ -152,6 +154,81 @@ for (const operation of ['openSync', 'writeFileSync', 'fsyncSync', 'linkSync']) 
     assert.equal(fs.readFileSync(f.candidatesFile, 'utf8'), f.bytes);
     prepare(f.cli);
     assert.equal(JSON.parse(fs.readFileSync(f.destination)).name, 'moveup');
+  });
+}
+
+for (const operation of ['unlinkSync', 'rmdirSync']) {
+  function cleanupFailure(f) {
+    const foreign = path.join(f.outputDirectory, '.moveup-pm3-foreign');
+    fs.mkdirSync(foreign);
+    fs.writeFileSync(path.join(foreign, 'keep'), 'foreign');
+    const calls = [];
+    const io = { ...fs };
+    for (const cleanup of ['unlinkSync', 'rmdirSync']) {
+      io[cleanup] = target => {
+        calls.push({ operation: cleanup, path: target });
+        assert.notEqual(target, f.destination);
+        assert.notEqual(target, foreign);
+        if (cleanup === operation) throw Object.assign(new Error(`injected ${operation} failure`), { code: 'EACCES' });
+        return fs[cleanup](target);
+      };
+    }
+    return { io, check(warnings) {
+      assert.deepEqual(calls.map(c => c.operation), ['unlinkSync', 'rmdirSync']);
+      const injected = warnings.find(w => w.operation === operation);
+      assert.equal(injected.code, 'EACCES');
+      assert.equal(injected.message, `injected ${operation} failure`);
+      assert.equal(injected.path, calls.find(c => c.operation === operation).path);
+      assert.equal(warnings.length, operation === 'unlinkSync' ? 2 : 1);
+      assert.equal(fs.existsSync(path.dirname(calls[0].path)), true);
+      assert.equal(fs.existsSync(calls[0].path), operation === 'unlinkSync');
+      assert.equal(fs.readFileSync(path.join(foreign, 'keep'), 'utf8'), 'foreign');
+      assert.equal(fs.readFileSync(f.candidatesFile, 'utf8'), f.bytes);
+    } };
+  }
+
+  test(`${operation} cleanup failure reports published output with warnings and refuses replacement`, t => {
+    const f = fixture(t);
+    const cleanup = cleanupFailure(f);
+    const result = prepare(f.cli, { io: cleanup.io });
+    assert.equal(result.publication, 'published');
+    assert.deepEqual(result.files, [f.destination]);
+    assert.equal(result.validation.status, 'pending-not-validated');
+    assert.equal(result.readyToInstall, false);
+    cleanup.check(result.cleanupWarnings);
+    const published = fs.readFileSync(f.destination, 'utf8');
+    assert.deepEqual(JSON.parse(published), createConfiguration(f.options).config);
+    assert.throws(() => prepare(f.cli), /already exists/);
+    assert.equal(fs.readFileSync(f.destination, 'utf8'), published);
+  });
+
+  test(`${operation} cleanup failure preserves primary publication refusal and foreign output`, t => {
+    const f = fixture(t);
+    const cleanup = cleanupFailure(f);
+    let primary;
+    cleanup.io.linkSync = (source, destination) => {
+      fs.writeFileSync(destination, 'racing writer', { flag: 'wx' });
+      try { fs.linkSync(source, destination); } catch (error) { primary = error; throw error; }
+    };
+    assert.throws(() => prepare(f.cli, { io: cleanup.io }), error => {
+      assert.equal(error, primary);
+      assert.equal(error.code, 'EEXIST');
+      cleanup.check(error.cleanupWarnings);
+      return true;
+    });
+    assert.equal(fs.readFileSync(f.destination, 'utf8'), 'racing writer');
+  });
+
+  test(`${operation} cleanup failure preserves offline validation refusal without publication`, t => {
+    const f = fixture(t);
+    const cleanup = cleanupFailure(f);
+    assert.throws(() => prepare(f.validatedCli, { io: cleanup.io,
+      execute: () => { throw { status: 2 }; } }), error => {
+      assert.match(error.message, /Offline PM3 validation did not pass \(usage-or-unsupported\)/);
+      cleanup.check(error.cleanupWarnings);
+      return true;
+    });
+    assert.equal(fs.existsSync(f.destination), false);
   });
 }
 

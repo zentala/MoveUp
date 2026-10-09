@@ -84,6 +84,34 @@ and promotion callback, and supervised logon cutover. This task intentionally
 omits the promotion callback: no last-known-good marker is changed by preparation.
 No public domain is registered for this process-metadata-only local endpoint.
 
+## Developer verification — cleanup outcome correction, 2026-10-09
+
+Correction base: `1befee770ff94484ff08937ebf4a507fff360647`.
+Successful hard-link publication now returns `publication: published` even if
+temporary-file or directory cleanup fails. `cleanupWarnings` separately lists
+the failed operation, owned temporary path, error code and message. Both cleanup
+operations use the injected IO seam and are attempted independently. The published
+output is never removed; a retry still refuses an existing destination.
+Before publication, the original exception is rethrown unchanged in identity,
+with cleanup warnings attached when the exception can carry diagnostics. The CLI
+reports that primary refusal and its cleanup warnings separately.
+
+- `node scripts/pm3-config.test.mjs`: 19 passed, 0 failed/skipped, exit 0.
+  Added unlink/rmdir failures after success, alongside a real racing-writer
+  publication refusal, and alongside an offline validation refusal. Checks retain
+  candidate bytes, foreign files, published output and primary refusal identity.
+- `node scripts/pm3-validation.test.mjs`: 18 passed, 0 failed/skipped, exit 0.
+- Logs: `src-tauri/target/e014-t05-round2-generator.log` and
+  `src-tauri/target/e014-t05-round2-adapter.log` (ignored local build output).
+- `git diff --check` and `git fetch`: exit 0. The diff against the correction
+  base for `src-tauri`, `package.json` and `pnpm-lock.yaml` is empty (exit 0).
+- Shell startup emitted global Git configuration lock warnings during the first
+  suite launch; both Node processes exited 0. No global configuration repair was
+  attempted; subsequent verification uses a shell without the startup profile.
+- Rust, dependencies and runtime/registry state are unchanged. No real PM3
+  process ran. PM3 owner certification and all external acceptance gates above
+  remain pending, as does the coordinator's independent final source review.
+
 ## Developer verification — generator correction, 2026-10-09
 
 These checks are development evidence, separate from the setup instructions.
