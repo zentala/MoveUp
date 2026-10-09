@@ -89,6 +89,8 @@
       <file name="app_lifecycle_runtime.rs">Tauri adapters for persistence flush and bounded readiness; database contention preserves known initialization</file>
       <file name="startup_diagnostics.rs">Best-effort early failure evidence and panic hook without engine or persistence locks</file>
       <file name="runtime_readiness.rs">Flat typed application readiness route; sensor absence degrades status without invalidating essential readiness</file>
+      <file name="readiness_server.rs">Dedicated loopback-only readiness listener, DESK_READINESS_PORT (3391); independent of LAN display, with explicit configuration and bind failure</file>
+      <file name="readiness_server_tests.rs">Local port validation, loopback binding, LAN disabled and occupied ports, readiness bind failure, and preserved display routes</file>
       <file name="health_probe_readiness.rs">Bounded typed readiness probe with application identity and version validation</file>
       <file name="app_lifecycle_tests.rs">Run ownership, prior outcomes and correlated lifecycle event regression tests</file>
       <file name="app_lifecycle_runtime_tests.rs">Persistence flush and readiness under database contention, missing connection and poison</file>
@@ -375,6 +377,12 @@
   </architecture>
 
   <testing>
+    <layer name="pm3-supervision-config" path="scripts/pm3-config.test.mjs" runner="node scripts/pm3-config.test.mjs">
+      <note>Isolated synthetic installation; exact readiness/PID/run config, app-owned candidate bytes and pathname, pending drafts, atomic exclusive publication, failure/retry and racing output preservation. No live actions.</note>
+    </layer>
+    <layer name="pm3-offline-validation" path="scripts/pm3-validation.test.mjs" runner="node scripts/pm3-validation.test.mjs">
+      <note>Injected process boundary checks public launcher argv, no shell, hidden window, timeout/output bounds and failed/unsupported reports. Real PM3 owner acceptance remains pending.</note>
+    </layer>
     <strategy coverage-gate="80%">3-layer: Unit to Integration to E2E</strategy>
 
     <layer name="unit-rust" path="src-tauri/src/" runner="cargo test">
@@ -419,6 +427,9 @@
   </testing>
 
   <config-files>
+    <file name="scripts/pm3-config.mjs">Pure opt-in PM3 config pointing to app-owned candidate JSON with local readiness identity</file>
+    <file name="scripts/prepare-pm3.mjs">Atomic exclusive draft-config publication; candidate input unchanged, no service registration or overwrite</file>
+    <file name="scripts/pm3-validation.mjs">Optional bounded public offline CLI adapter; no source loader, missing capability and owner acceptance remain explicit</file>
     <file name="tauri.conf.json">Window config, bundle, CSP, welcome window</file>
     <file name="Cargo.toml">Rust deps: tauri2, rusqlite, serialport, chrono, tokio, window-vibrancy, windows</file>
     <file name="vite.config.ts">Vite + Vitest, 80% coverage gate, welcome entry</file>
@@ -426,6 +437,7 @@
   </config-files>
 
   <project-management>
+    <file path="docs/PM3_SUPERVISION.md">Supervision preparation, minimum PM3 capability, verification evidence and pending live integration gates</file>
     <file path="TASKS.md">Task board with P0-P4 priorities</file>
     <file path="BACKLOG.md">Unscheduled backlog</file>
     <file path="DDD.md">Domain-driven design glossary</file>

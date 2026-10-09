@@ -64,12 +64,21 @@ applies to the early sink; normal EventLogger retention is unchanged.
 
 ### Dedicated readiness endpoint
 
-`GET /display/readiness` is a separate axum route on the existing LAN server.
-`/display/api`, its aggregate, and the public legacy health probe remain unchanged.
-The LAN enable switch, bind address and port behavior are preserved. Disabled LAN
-or a failed bind means this endpoint is unavailable, not that another process
-may be inferred ready. Listener state is set only after successful bind and
-cleared when serving ends.
+`GET /display/readiness` uses a dedicated axum listener in the same application
+process, bound only to IPv4 loopback. Its default port is 3391, configurable by
+`DESK_READINESS_PORT` (integer 1–65535). Invalid values and bind failures are
+explicit failures: there is no fallback port. Failure is logged and prevents
+readiness while the desktop remains available for diagnosis.
+
+Start the listener independently of `remote_lan_enabled` and `DESK_REMOTE_PORT`.
+Remove readiness from the LAN router so process/run metadata is not exposed
+there. Preserve `/display/api`, WebSocket, health and voice routes and the LAN
+setting semantics. Optional LAN failure and sensor absence are not essential
+readiness failures. This adds no process, private watchdog or engine change.
+
+The 2026-10-09 supervision amendment replaces the earlier shared-LAN listener
+design and ADR 018/019's display endpoint as supervision evidence: an optional
+display cannot reliably prove that the essential application is running.
 
 Example response (all fields are flat):
 
@@ -117,10 +126,46 @@ Quit clears readiness before `app.exit(0)`.
 
 `health_probe::validate_readiness` deserializes the typed schema, caps input at
 4096 bytes, checks app/version and optional expected PID/run/supervisor IDs,
-requires ready/listening and consistent essential flags, state and reason.
+requires ready and consistent essential flags, state and reason. The optional
+`remote_listening` field remains diagnostic and is not a readiness prerequisite.
 Arbitrary JSON and stale or contradictory flags cannot pass. Existing
 `probe`, `HttpDisplayApi` and `/display/api` callers keep their old behavior;
 new supervision adapters must explicitly call the typed validator.
+
+### PM3 preparation boundary
+
+Generate an explicit opt-in configuration with absolute installed paths,
+structured candidate argv, the same readiness port in child environment and
+probe URL, two misses spaced 60 seconds apart, and stand-down enabled.
+Service health requires exactly `app_id: io.zntl.desk` and `ready: true`.
+Candidate health additionally pins `version`. Owned-child evidence binds
+`pid` and `supervisor_run_id`; the separate `run_id` is an application diagnostic
+UUID. A healthy foreign dev process without PM3 identity permits stand-down,
+never owned-child promotion.
+
+The 2026-10-09 generator correction removes the custom PM3 source/VM loader.
+The application owns the candidate JSON projection: preparation takes its absolute
+path unchanged, never regenerates or copies candidates, and points the config at
+that same path so later application publications remain visible.
+
+Preparation writes only a draft config with `boot: false`. It flushes a private
+temporary file in the output directory and publishes it with an exclusive hard
+link, giving atomic visibility without overwriting a racing writer. Filesystems
+without hard-link support fail explicitly; only invocation-owned temporary
+artifacts are cleaned, and no partial destination is left on a pre-publication
+failure. No unsafe rename/write fallback is used.
+
+Optional offline validation uses an explicit absolute Node executable and the
+stable `<PM3_HOME>/releases/launch.mjs` entrypoint with structured
+`candidates validate FILE --config FILE --service desk --json` arguments.
+It has no shell, uses a hidden window and bounded time/output, and never imports
+PM3 internals. Missing selection yields `pending-not-validated`; invalid,
+unsupported or failed validation prevents publication. Even a valid offline
+report is not owner acceptance: the PM3 owner must certify supervision, instance
+binding and independent suspension holds before integration. Installation,
+registration, promotion callback and login cutover remain separate work; the
+Run bridge stays intact.
+See [preparation and evidence](../../docs/PM3_SUPERVISION.md).
 
 ## Verification boundary
 

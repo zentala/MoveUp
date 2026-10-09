@@ -142,9 +142,8 @@ pub const DEFAULT_PORT: u16 = 3390;
 /// Spawned as a tokio task from lib.rs setup (non-blocking).
 /// Gracefully handles port binding failure (logs error, does NOT crash app).
 pub async fn start(state: RemoteState, port: u16,
-    readiness: crate::runtime_readiness::ReadinessReader,
     lifecycle: Arc<crate::app_lifecycle::AppLifecycle>) {
-    let app = build_router(state).merge(crate::runtime_readiness::routes(readiness));
+    let app = build_router(state);
     let addr = format!("0.0.0.0:{}", port);
 
     let listener = match tokio::net::TcpListener::bind(&addr).await {
