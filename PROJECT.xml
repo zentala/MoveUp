@@ -85,6 +85,11 @@
       <file name="lib.rs">App entry — plugins, AppState, setup hook (tray, blur, serial, welcome)</file>
       <file name="main.rs">Binary entry — calls lib::run()</file>
       <file name="app_lifecycle.rs">Per-run identity, essential readiness, setup/failure/Quit/exit events; separate from the ergonomic engine</file>
+      <file name="supervision.rs">Frozen public PM3 intent configuration, strict acknowledgement/readback classification and bounded reconciliation</file>
+      <file name="supervision_process.rs">Hidden Node public-launcher invocation with inherited fixture environment, deadline and output limits</file>
+      <file name="supervision_quit.rs">Responsive tray Quit guard; existing flush/exit only after confirmed own login hold, actionable notification on failure</file>
+      <file name="supervision_tests.rs">Isolated Quit acknowledgement, lost acknowledgement, unknown applicability, deadline, configuration and argument tests</file>
+      <file name="supervision_process_tests.rs">Synthetic Node launcher tests for structured argv, inherited fixture environment, output caps and timeout</file>
       <file name="app_lifecycle_store.rs">OS-locked primary-run record; distinguishes prior clean exit, recorded failure and unknown interruption</file>
       <file name="app_lifecycle_runtime.rs">Tauri adapters for persistence flush and bounded readiness; database contention preserves known initialization</file>
       <file name="startup_diagnostics.rs">Best-effort early failure evidence and panic hook without engine or persistence locks</file>
@@ -377,6 +382,13 @@
   </architecture>
 
   <testing>
+    <layer name="pm3-supervision-intent" path="src-tauri/src/supervision_tests.rs" runner="cargo test --offline --lib supervision">
+      <note>Strict frozen acknowledgement/readback, owned intent retries, unknown applicability, bounded output and deadline. No production pipe.</note>
+    </layer>
+    <layer name="development-intent" path="scripts/test-tauri-dev.ps1" runner="pwsh -NoProfile -File scripts/test-tauri-dev.ps1">
+      <note>Synthetic processes and injected PM3 operations: previous and nested holds, alternate port, startup/registration failure, lost acknowledgement and finally restoration.</note>
+    </layer>
+    <fixture path="tests/fixtures/supervision-launcher.mjs">Synthetic PM3 launcher boundary for Rust and PowerShell; no IPC or daemon access</fixture>
     <layer name="pm3-supervision-config" path="scripts/pm3-config.test.mjs" runner="node scripts/pm3-config.test.mjs">
       <note>Isolated synthetic installation; exact readiness/PID/run config, app-owned candidate bytes and pathname, pending drafts, atomic exclusive publication, failure/retry and racing output preservation. No live actions.</note>
     </layer>
@@ -427,6 +439,9 @@
   </testing>
 
   <config-files>
+    <file name="scripts/tauri-dev.ps1">Guarded development entry point; exact process identity, configured PM3 suspension before replacement, bridge restoration</file>
+    <file name="scripts/tauri-dev-session.ps1">Injectable development session with intent-scoped finally cleanup</file>
+    <file name="scripts/tauri-dev-supervision.ps1">Frozen public PM3 launcher adapter with strict responses and bounded hidden child processes</file>
     <file name="scripts/pm3-config.mjs">Pure opt-in PM3 config pointing to app-owned candidate JSON with local readiness identity</file>
     <file name="scripts/prepare-pm3.mjs">Atomic exclusive draft-config publication; candidate input unchanged, no service registration or overwrite</file>
     <file name="scripts/pm3-validation.mjs">Optional bounded public offline CLI adapter; no source loader, missing capability and owner acceptance remain explicit</file>
