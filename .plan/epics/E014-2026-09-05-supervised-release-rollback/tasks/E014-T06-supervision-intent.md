@@ -3,11 +3,12 @@ formatVersion: 1
 id: E014-T06
 title: Respect Quit and development sessions under supervision
 epic: E014
-status: pending
+status: completed
 points: 3
 importance: High
 dependencies: [E014-T05, E014-T11]
 ---
+<!-- pm3-plan-completion: E014-T06 2a673dc8c5a0d83cdbc2778f34c3de0f5658b2a7d5cfa0c9714eda8997ec05f4 -->
 
 # Explicit stop intent and development coexistence
 
