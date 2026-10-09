@@ -198,3 +198,16 @@
   Crash/power-loss publication behavior, daemon recovery, GUI and login remain
   NOT_CHECKED. Correct only the confirmed findings and existing task gaps,
   then freeze and obtain independent round 2.
+
+## Release integration round 2 — 2026-10-09 (reserved, not yet accepted)
+
+- Correction source frozen at 6c846fddfe435d7fc284dfc3a3fbccbba46351ba.
+  Scope remains the five confirmed round1 findings and existing entrypoint,
+  coverage and isolated artifact acceptance gaps. No new product scope.
+- Campaign allowance: six automatic rounds, one used, round2 reserved,
+  four further rounds remain after this attempt. A failed dispatch consumes
+  this reservation as NOT_CHECKED; prior failures are retained above.
+- Corrector reports passing coverage and actual-entrypoint checks; independent
+  source review and final isolated release artifact evidence are pending.
+  Build collection may continue without source edits while review runs.
+- No integration, promotion, public push, installed release or live changes.
