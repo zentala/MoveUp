@@ -22,6 +22,14 @@ not proof of no suspension: reconcile through status. An unsupported or failed
 suspend must produce a visible actionable error and must not claim successful
 session suspension. Unsupervised bridge mode retains ordinary Quit behavior.
 
+Read all three PM3 contract amendments. Status readback confirms suspension
+only when the named service has a supervision.suspension.holds entry matching
+this request's intentId. Missing service or supervision, incomplete/malformed
+JSON and transport errors are UNKNOWN, never proof that no hold exists. Retry
+the same intent or read status within a bounded deadline; never Quit on UNKNOWN.
+Use structured process arguments with no shell interpolation and hide helper
+console windows. Do not import PM3 internal source modules into MoveUp.
+
 The PowerShell development launcher must explicitly suspend supervision before
 replacing an installed process, including when DESK_REMOTE_PORT is changed. Use
 try/finally to restore only the supervisor intent this invocation changed. Never

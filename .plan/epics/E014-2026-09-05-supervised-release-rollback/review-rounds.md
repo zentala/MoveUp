@@ -48,3 +48,25 @@
 - Retained refusal: a test-log write to system Temp failed checkout validation;
   the tests had not started. Logging to the same worktree's ignored target
   directory succeeded without changing the guard or approval controls.
+
+## Readiness/configuration round 1 — 2026-10-09 (correction required)
+
+- Frozen source: e41d2f6ea6c94a4e2142bbba74169bd50816ac08, base21aa490.
+- Fresh independent read-only source reviewer accepted the dedicated loopback
+  listener, LAN independence, typed identity and degraded sensor semantics.
+- Three mandatory generator findings were independently confirmed:
+  F1 High/5: ordinary configuration imports a custom TypeScript/VM loader of
+  PM3 internals; use the public offline CLI boundary, keeping unavailable
+  validation pending. F2 High/3: a second candidate projection competes with
+  T07; consume the app-owned JSON path instead. F3 Medium/3: failure during
+  two-file publication leaves a partial result; publish the sole config safely
+  after F2, preserving input and existing output and testing failure/retry.
+- Corrective scope contains those generator findings only. Rust source remains
+  unchanged and accepted for this round; no source merge or PM3 acceptance yet.
+- Existing evidence: author838 Rust library/12 focused/5 configuration tests
+  passed. AO cargo gate exit0; initial write-set gate failed on filename
+  mismatches. Manifest scope was reconciled to actual legitimate files, then
+  gate-only verification passed. That scope repair did not certify behavior.
+- Retained failures: Node child test runner spawnEPERM, initial source loader
+  failure, and initial write-set gate. Later passing checks do not erase them.
+- Live supervision, GUI and login remain NOT_CHECKED.
