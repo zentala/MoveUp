@@ -37,6 +37,9 @@ daemon or registers a project. It returns exit 0 with `{state:"known", name,
 supervision}` or exit 3 with `{state:"unknown", name, reason, detail}`. Check the
 service name and matching hold; an exit code alone is insufficient. Suspend
 success has no `ok` field; require its acknowledged service, intent and scope.
+Tolerate additional status fields, but an explicitly unknown supervision mode
+cannot authorize Quit even if a previously stored matching hold is visible:
+PM3 may be unable to establish whether that hold applies to the current login.
 The contract is frozen at PM3 source 02531ee, pending owner source acceptance.
 Do not merge or claim compatibility before that independent acceptance arrives.
 
