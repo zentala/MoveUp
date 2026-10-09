@@ -49,3 +49,20 @@ Authority: operator-requested investigation, fixes and independent Herdr verific
   then reserve the next round on the corrected frontend and frozen backend.
   Pending T03 provenance/Unknown rendering and T07 trajectory signs/local-time
   remain separate task dependencies, not accepted by this review.
+
+## Round 4 — frozen frontend and backend (reserved)
+
+- Prospective scope: full corrected T02 data candidate86a3204c598ab8f8aab59ba19249daa8522b8527
+  including the round3 async-loading correction, and full T06 backend candidate
+  1d27595deedde1f50732a03182ebd70cc05da34e including the accepted test-fixture extension.
+  Both exact HEADs and clean trees independently inspected before dispatch.
+- Review all earlier in-scope source findings and meaningful regressions; source
+  read-only, generated test outputs permitted only after compatible effective
+  filesystem preflight for both worker roots. No permission escalation, GUI,
+  live data, integration or publication. Native gaps remain explicit.
+- Three rounds consumed, round4 reserved, two further rounds after this attempt.
+  A missing/failed review is NOT_CHECKED and consumes the reserved attempt.
+  No retroactive change to frontend-only round3, task split or campaign reset.
+- Author evidence: frontend typecheck0, targeted164/21files0, full504/57files0;
+  backend filtered225/12/8/47/6/14 all0, overlapping counts not summed. Earlier
+  failed tests and report-write refusal retained. These are not independent acceptance.
