@@ -22,13 +22,23 @@ not proof of no suspension: reconcile through status. An unsupported or failed
 suspend must produce a visible actionable error and must not claim successful
 session suspension. Unsupervised bridge mode retains ordinary Quit behavior.
 
-Read all three PM3 contract amendments. Status readback confirms suspension
+Read all four PM3 contract amendments. Status readback confirms suspension
 only when the named service has a supervision.suspension.holds entry matching
 this request's intentId. Missing service or supervision, incomplete/malformed
 JSON and transport errors are UNKNOWN, never proof that no hold exists. Retry
 the same intent or read status within a bounded deadline; never Quit on UNKNOWN.
 Use structured process arguments with no shell interpolation and hide helper
 console windows. Do not import PM3 internal source modules into MoveUp.
+
+The frozen consumer CLI uses an explicit absolute Node executable and the stable
+PM3_HOME/releases/launch.mjs launcher. Read back with `supervision <service>
+--json`, not the general status command: this dedicated command never starts a
+daemon or registers a project. It returns exit 0 with `{state:"known", name,
+supervision}` or exit 3 with `{state:"unknown", name, reason, detail}`. Check the
+service name and matching hold; an exit code alone is insufficient. Suspend
+success has no `ok` field; require its acknowledged service, intent and scope.
+The contract is frozen at PM3 source 02531ee, pending owner source acceptance.
+Do not merge or claim compatibility before that independent acceptance arrives.
 
 The PowerShell development launcher must explicitly suspend supervision before
 replacing an installed process, including when DESK_REMOTE_PORT is changed. Use

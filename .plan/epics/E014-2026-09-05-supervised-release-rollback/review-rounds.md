@@ -70,3 +70,22 @@
 - Retained failures: Node child test runner spawnEPERM, initial source loader
   failure, and initial write-set gate. Later passing checks do not erase them.
 - Live supervision, GUI and login remain NOT_CHECKED.
+
+## Readiness/configuration round 2 — 2026-10-09 (one correction remains)
+
+- Frozen source: 1befee770ff94484ff08937ebf4a507fff360647.
+- Independent read-only source review accepted F1 (public offline CLI adapter)
+  and F2 (unchanged app-owned candidate document). Atomic publication and
+  concurrent-writer protection also passed source review.
+- Remaining confirmed finding: F3 Medium/2. Cleanup after successful hard-link
+  publication can throw, report preparation refused and suppress the published
+  result even though the complete configuration exists. Separate publication
+  and cleanup outcomes; preserve primary pre-publication errors. Add injected
+  unlink/rmdir failure coverage without deleting an already-published output.
+- Author and coordinator independently ran generator 13/13 and adapter 18/18,
+  exit 0. Rust is unchanged. AO gate projection reports cargo exit 0, while its
+  aggregate command still exits 1 from retained earlier execution attention;
+  that nonzero command result remains recorded, not relabelled as success.
+- Bounded correction is followed by the third/final review. PM3 owner source
+  acceptance and real offline CLI interoperability remain pending. No merge,
+  live change or desktop/login acceptance occurred.
