@@ -1,0 +1,84 @@
+{
+  "contractVersion": "ao-v1",
+  "strictContract": true,
+  "workId": "E027-20261009-backend-correction",
+  "projectId": "MoveUp",
+  "repository": {
+    "root": "."
+  },
+  "baseRef": "main",
+  "execution": {
+    "mode": "attended",
+    "unattended": false,
+    "autoMerge": false,
+    "maxTasksPerWave": 1
+  },
+  "integrationVerificationCommands": [
+    {
+      "args": [
+        "test",
+        "--manifest-path",
+        "src-tauri/Cargo.toml",
+        "--lib",
+        "session_",
+        "--offline"
+      ],
+      "command": "cargo"
+    }
+  ],
+  "waves": [
+    {
+      "id": "backend-correction",
+      "tasks": [
+        "E027-T06"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "E027-T06",
+      "epicId": "E027",
+      "taskRef": ".plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T06.md",
+      "handoffRef": ".plan/epics/E027-2026-10-09-analyst-timeline/HANDOFF.md",
+      "acceptanceRef": ".plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T06.md",
+      "role": "implementer",
+      "profile": "ts-dev",
+      "executor": "codex",
+      "status": "ready",
+      "dependencies": [],
+      "budgetMinutes": 60,
+      "claims": [
+        "src-tauri/src/session_*.rs",
+        "src-tauri/src/serial_periodic*.rs",
+        "src-tauri/src/app_lifecycle_runtime.rs",
+        "src-tauri/src/db_sessions.rs",
+        "src-tauri/src/db_queries.rs"
+      ],
+      "writeSet": [
+        "src-tauri/src/session_*.rs",
+        "src-tauri/src/serial_periodic*.rs",
+        "src-tauri/src/app_lifecycle_runtime.rs",
+        "src-tauri/src/db_sessions.rs",
+        "src-tauri/src/db_queries.rs"
+      ],
+      "verificationCommands": [
+        "cargo test --manifest-path src-tauri/Cargo.toml --lib session_ --offline",
+        "cargo test --manifest-path src-tauri/Cargo.toml --lib serial_periodic --offline",
+        "cargo test --manifest-path src-tauri/Cargo.toml --lib app_lifecycle_runtime --offline"
+      ],
+      "boundaries": [
+        "Read canonical design and own task; preserve candidate refs and existing global review budget",
+        "No live data, servers, secrets, push, main promotion or foreign-history changes",
+        "No release/autostart code changes",
+        "Do not self-certify: independent source/browser acceptance remains controller-owned"
+      ],
+      "outputContract": [
+        "source SHA",
+        "changed files",
+        "test counts and exact exits",
+        "known failures retained",
+        "uncertainty and native NOT_CHECKED"
+      ]
+    }
+  ]
+}
