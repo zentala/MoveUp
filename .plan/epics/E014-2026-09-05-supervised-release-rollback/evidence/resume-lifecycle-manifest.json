@@ -3,7 +3,7 @@
   "strictContract": true,
   "workId": "E014-20261009-lifecycle",
   "projectId": "MoveUp",
-  "repository": { "root": "C:/Users/zentala/code/MoveUp" },
+  "repository": { "root": "." },
   "baseRef": "main",
   "execution": { "mode": "attended", "unattended": false, "autoMerge": false, "maxTasksPerWave": 1 },
   "integrationVerificationCommands": [{"command": "cargo", "args": ["test", "--manifest-path", "src-tauri/Cargo.toml", "--lib"]}],
