@@ -55,3 +55,34 @@ to T08. No user process is stopped while developing or unit-testing this task.
 Allowed scope: new small supervision adapter and tests, tray/lib glue,
 scripts/tauri-dev.ps1 and its tests, documentation. No ergonomic engine, production
 data, live daemon or registry changes. Read DESIGN.md before any visual change.
+
+## Implementation handoff
+
+Dispatch begins only after T05 is integrated and the PM3 owner supplies accepted
+source evidence. The coordinator supplies read-only PM3_SOURCE and
+PM3_SUPERVISION_CONTRACT references at runtime; never publish their private paths.
+Keep the process invocation and response classification independently testable,
+separate from tray/Tauri glue. Define explicit supervision configuration; partial
+or invalid configured mode cannot silently become an ordinary unsupervised Quit.
+Use the accepted public launcher with the configured PM3_HOME in its child
+environment. Bound elapsed time and output size, and keep UI event handling
+responsive. Duplicate Quit clicks must not create an unbounded set of holds.
+
+Preserve the existing flush path after acknowledgement. On failure the app stays
+running and gives a visible, actionable error through existing UI/notification
+mechanisms; do not introduce a new visual design or falsely record a clean exit.
+Record the adapter decision in ADR024 before implementation and update PROJECT.xml.
+
+The development launcher must not kill all processes sharing the executable name.
+Inspect and preserve process identity, stop only the identified instance this
+invocation is replacing, and keep release restoration and hold ownership inside
+the same try/finally scope. A failed suspend must precede and prevent replacement.
+Tests use injected operations and synthetic processes only, including alternate
+ports, nested holds, failed dev startup and lost acknowledgement. Provide a
+self-contained `scripts/test-tauri-dev.ps1` runner without installing a new test
+framework; it must return a nonzero exit for a failed assertion.
+
+Run focused Rust adapter tests, the complete Rust library suite and the developer
+launcher runner. Do not run the real tauri-dev launcher or alter the installed
+application during verification. Keep logs in the worktree's ignored target
+directory; report exact counts/exits, a frozen commit and any pending runtime gates.
