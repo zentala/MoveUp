@@ -168,3 +168,33 @@
   completed the report; no permission/hook change or rejected-command retry.
 - Native GUI, real Quit/flush, daemon recovery and login remain NOT_CHECKED.
   T07 may now proceed; no installed application or live PM3 change occurred.
+
+## Release integration round 1 — 2026-10-09 (five corrections required)
+
+- Frozen source f52f6a33bf15e75c007f448cf87c229c0cfdb68a, base 6e81da3.
+  Independent source verdict FAIL; five confirmed findings, zero disputed.
+  This is round 1 of the updated six-round automatic maximum. Earlier frozen
+  PM3 acceptance is not reopened by that default change.
+- F1 High/3: activation parses JSON although public PM3 start returns text.
+  F2 High/3: activation does not identify the installed project configuration;
+  generic start resolves configuration from environment/current directory.
+- F3 Medium/3: private Node executable paths in the new tests prevent portable
+  execution. F4 Medium/2: new modules/tests are absent from PROJECT.xml.
+  F5 High/3: publication restoration silently discards write/rename/remove errors,
+  so failed rollback can leave changed candidates without reporting uncertainty.
+- Independent real maintenance/callback verification: 2 pass, zero fail, exit 0.
+  Node 43 pass, exit 0; typecheck exit 0; lint exit 0 with 16 existing warnings.
+  The bounded frontend coverage attempt failed before tests with exit 1 because
+  the runner configuration loader did not define __dirname; zero tests is not PASS.
+- Retained author failures: library 862 pass/1 fail exit 101, corrected to
+  863 pass/0 fail exit 0; actual callback latest 1 pass/1 fail exit 101 from
+  child spawn EPERM; both earlier frontend attempts exited 1. Successful
+  independent callback checks do not erase these observed failures.
+- Initial AO cargo command exited 0, but the overall source gate FAILED the
+  scope/missing-file checks. Coordinator reconciled legitimate module names;
+  PROJECT.xml remains a real required correction. No integration or promotion.
+- Remaining acceptance: actual-executable negative cases (most existing cases
+  call Rust execute directly), passing coverage and isolated release artifact.
+  Crash/power-loss publication behavior, daemon recovery, GUI and login remain
+  NOT_CHECKED. Correct only the confirmed findings and existing task gaps,
+  then freeze and obtain independent round 2.

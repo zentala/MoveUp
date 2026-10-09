@@ -44,7 +44,9 @@ T05 source at 76f4d5e passed independent round 3 and public-launcher validation
 against accepted PM3 source 5be48d7 with all fixture isolation keys applied.
 AO integrated it at b8f0c3d and completed its source task at fa628af. T06 source
 ba1e3ab passed independent round 2 and the final source gate; integrated at
-25c1edc and completed at 1e15589. T07 is next. Real supervision, desktop behavior
+25c1edc and completed at 1e15589. T07 source f52f6a3 requires five confirmed
+round1 corrections; see review-rounds.md. Independent real callback passed;
+coverage and the isolated release artifact remain open. Real supervision, desktop behavior
 and login remain separate acceptance gates.
 
 1. T11 (8 points, High): MoveUp lifecycle diagnostics and readiness, independent
