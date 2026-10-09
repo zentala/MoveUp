@@ -5,7 +5,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use log::{error, info, warn};
+use log::{info, warn};
 use tauri::{AppHandle, Listener, Manager};
 use window_vibrancy::apply_acrylic;
 
@@ -24,6 +24,17 @@ use crate::ws_broadcaster::{self, DisplayEvent};
 pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let app_data_dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&app_data_dir)?;
+    let lifecycle = app.state::<Arc<crate::app_lifecycle::AppLifecycle>>().inner().clone();
+    let previous = match lifecycle.claim_primary(&app_data_dir) {
+        Ok(previous) => previous,
+        // A second activation must never replace the owner's run record.
+        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => return Err(e.into()),
+        Err(_) => {
+            lifecycle.diagnostics.record(&lifecycle.identity.run_id,
+                crate::startup_diagnostics::Diagnostic::StateLockFailed);
+            crate::app_lifecycle_store::PreviousRun::InterruptedUnknown
+        }
+    };
     info!("App data dir: {:?}", app_data_dir);
 
     load_profiles(app.handle());
@@ -35,6 +46,7 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
     snapshot_logger.cleanup_old_logs(7);
     let event_logger = Arc::new(crate::event_logger::EventLogger::new(logs_dir));
     event_logger.log(&format!("START v{}", crate::APP_VERSION));
+    lifecycle.attach_logger(event_logger.clone(), previous);
     app.manage(crate::Loggers {
         snapshot: snapshot_logger.clone(),
         event: event_logger.clone(),
@@ -42,6 +54,8 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
 
     ensure_autostart(app.handle(), &event_logger);
     crate::tray::setup_tray(app.handle())?;
+    lifecycle.tray_initialized.store(true, std::sync::atomic::Ordering::Release);
+    lifecycle.event("tray_ready");
     crate::tray_controller::setup(app.handle());
     crate::tray_signal_exec::start_blink_thread(app.handle().clone());
     position_main_window(app.handle());
@@ -67,6 +81,16 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
         }
     }
 
+    // Initialize essential persistence during setup, not via a later frontend poll.
+    // This reuses the existing schema/load/restore path without a second engine.
+    let state = app.state::<AppState>();
+    match crate::commands::ensure_initialized(app.handle(), &state) {
+        Ok(()) => {
+            lifecycle.persistence_initialized.store(true, std::sync::atomic::Ordering::Release);
+            lifecycle.event("persistence_ready");
+        }
+        Err(_) => lifecycle.fail(crate::startup_diagnostics::Diagnostic::SetupFailed),
+    }
     setup_remote_display(app.handle());
 
     let state: tauri::State<'_, AppState> = app.state();
@@ -81,6 +105,7 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
     );
 
     setup_device_notifications(app.handle());
+    lifecycle.setup_finished();
     Ok(())
 }
 
@@ -244,6 +269,8 @@ pub fn setup_remote_display(app: &AppHandle) {
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(crate::remote_server::DEFAULT_PORT);
+    let readiness = crate::app_lifecycle_runtime::readiness_reader(app);
+    let lifecycle = app.state::<Arc<crate::app_lifecycle::AppLifecycle>>().inner().clone();
     tauri::async_runtime::spawn(async move {
         // Registration is async, so it happens here rather than at manage()
         // time; the inlet exists before the first request can arrive.
@@ -259,7 +286,7 @@ pub fn setup_remote_display(app: &AppHandle) {
             remote_token,
             voice,
         };
-        crate::remote_server::start(remote_state, port).await;
+        crate::remote_server::start(remote_state, port, readiness, lifecycle).await;
     });
     setup_broadcast_listeners(app);
 }
@@ -360,37 +387,6 @@ pub fn load_profiles(app: &AppHandle) {
     info!("Loaded communication + ergonomic profiles from {:?}", app_data_dir);
 }
 
-/// Persists session flags + credit and flushes in-progress session to DB on exit.
-pub fn flush_session_on_shutdown(app: &AppHandle) {
-    let state: tauri::State<'_, AppState> = app.state();
-    let (completed, state_label) = {
-        let Ok(sess) = state.session.try_lock() else {
-            warn!("Session lock held during shutdown — skipping flush");
-            return;
-        };
-        crate::session_persistence::save_via_app(app, &sess);
-        (sess.flush_current_session(), format!("{:?}", sess.current_state()))
-    };
-    let Some(ref completed) = completed else { return };
-    let Ok(db_lock) = state.db.try_lock() else {
-        warn!("DB lock held during shutdown — skipping flush");
-        return;
-    };
-    let Some(ref conn) = *db_lock else {
-        warn!("DB not initialized — cannot save session on shutdown");
-        return;
-    };
-    match crate::db_sessions::insert_session(
-        conn, &completed.started_at, &completed.ended_at,
-        &state_label, completed.duration_secs,
-    ) {
-        Ok(()) => info!(
-            "Graceful shutdown: saved {} session ({}s) to DB",
-            state_label, completed.duration_secs
-        ),
-        Err(e) => error!("Graceful shutdown: failed to save session: {}", e),
-    }
-}
 
 // ── Autostart helpers (release-only, placed after all pub fns) ───────────────
 
