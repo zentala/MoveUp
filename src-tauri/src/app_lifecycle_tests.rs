@@ -37,11 +37,34 @@ fn missing_exit_and_corrupt_record_are_interrupted_unknown() {
     let dir = tempdir().unwrap();
     let lifecycle = AppLifecycle::new("0.6.0", dir.path().join("early.log"));
     lifecycle.claim_primary(dir.path()).unwrap();
+    drop(lifecycle);
+    assert_eq!(RunStore::claim(dir.path()).unwrap().1, PreviousRun::InterruptedUnknown);
+    let lifecycle = AppLifecycle::new("0.6.0", dir.path().join("early.log"));
+    lifecycle.claim_primary(dir.path()).unwrap();
     lifecycle.request_quit(); // Intent alone does not prove a clean exit.
     drop(lifecycle);
     assert_eq!(RunStore::claim(dir.path()).unwrap().1, PreviousRun::InterruptedUnknown);
     fs::write(dir.path().join("lifecycle.json"), "{broken").unwrap();
     assert_eq!(RunStore::claim(dir.path()).unwrap().1, PreviousRun::InterruptedUnknown);
+}
+
+#[test]
+fn recorded_failure_is_reported_as_previous_failed_on_next_run() {
+    let dir = tempdir().unwrap();
+    let lifecycle = AppLifecycle::new("0.6.0", dir.path().join("early.log"));
+    lifecycle.claim_primary(dir.path()).unwrap();
+    lifecycle.fail(Diagnostic::SetupFailed);
+    drop(lifecycle); // A recorded failure needs no clean-exit callback.
+    let (store, previous) = RunStore::claim(dir.path()).unwrap();
+    assert_eq!(previous, PreviousRun::Failed);
+    drop(store);
+    let next = AppLifecycle::new("0.6.0", dir.path().join("next.log"));
+    let previous = next.claim_primary(dir.path()).unwrap();
+    next.attach_logger(Arc::new(EventLogger::new(dir.path().join("logs"))), previous);
+    let day = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let log = fs::read_to_string(dir.path().join("logs").join(day).join("events.log")).unwrap();
+    assert!(log.lines().any(|line| line.contains(&next.identity.run_id)
+        && line.contains("stage=previous_failed")), "{log}");
 }
 
 #[test]

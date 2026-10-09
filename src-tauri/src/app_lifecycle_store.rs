@@ -10,11 +10,11 @@ pub struct RunRecord {
     pub flush: String,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum PreviousRun { None, Clean, InterruptedUnknown }
+pub enum PreviousRun { None, Clean, Failed, InterruptedUnknown }
 impl PreviousRun {
     pub fn as_str(self) -> &'static str {
         match self { Self::None => "previous_absent", Self::Clean => "previous_clean_exit",
-            Self::InterruptedUnknown => "previous_interrupted_unknown" }
+            Self::Failed => "previous_failed", Self::InterruptedUnknown => "previous_interrupted_unknown" }
     }
 }
 pub struct RunStore { directory: PathBuf, _ownership: File }
@@ -32,8 +32,11 @@ impl RunStore {
                 let record = file.take(8193).read_to_end(&mut bytes).ok()
                     .filter(|_| bytes.len() <= 8192)
                     .and_then(|_| serde_json::from_slice::<RunRecord>(&bytes).ok());
-                if record.is_some_and(|r| r.outcome == "clean_exit") { PreviousRun::Clean }
-                else { PreviousRun::InterruptedUnknown }
+                match record.as_ref().map(|r| r.outcome.as_str()) {
+                    Some("clean_exit") => PreviousRun::Clean,
+                    Some("failed") => PreviousRun::Failed,
+                    _ => PreviousRun::InterruptedUnknown,
+                }
             }
             Err(_) => PreviousRun::InterruptedUnknown,
         };

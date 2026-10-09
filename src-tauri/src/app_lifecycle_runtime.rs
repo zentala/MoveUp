@@ -1,5 +1,5 @@
 //! Tauri adapters; all engine persistence stays in its existing owners.
-use std::sync::{Arc, Mutex, atomic::Ordering};
+use std::sync::{Arc, Mutex, TryLockError, atomic::Ordering};
 use tauri::{AppHandle, Manager};
 use crate::{app_lifecycle::AppLifecycle, commands::AppState,
     runtime_readiness::{ReadinessReader, ReadinessStatus},
@@ -30,7 +30,12 @@ pub(crate) fn local_readiness(lifecycle: &AppLifecycle,
     store_available: bool) -> ReadinessStatus {
     let mut status = ReadinessStatus::snapshot(lifecycle);
     // Never wait on session/DB/COM mutexes or invoke a health provider.
-    status.persistence_initialized &= db.try_lock().is_ok_and(|db| db.is_some());
+    match db.try_lock() {
+        Ok(db) => status.persistence_initialized &= db.is_some(),
+        // Ordinary writes/queries do not invalidate known initialization.
+        Err(TryLockError::WouldBlock) => {},
+        Err(TryLockError::Poisoned(_)) => status.persistence_initialized = false,
+    }
     status.sensor_present = port.try_lock().is_ok_and(|port| port.is_some());
     status.session_store_available = store_available;
     status.compute_state();

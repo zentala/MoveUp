@@ -25,9 +25,11 @@ Only after ownership, `app_lifecycle_store` reads the previous record and writes
 `lifecycle.json` through a sibling temporary file, sync and atomic rename.
 The record contains a UUID run ID, numeric PID, version, debug/release mode,
 optional bounded `PM3_RUN_ID`, outcome, Quit intent and flush result.
-Missing/corrupt/unreadable previous evidence or any outcome without
-`clean_exit` is `interrupted_unknown`; it never identifies a crash cause.
-An absent record is `previous_absent`. Quit intent alone is not a clean exit.
+An absent record is `previous_absent`. A recorded `clean_exit` is
+`previous_clean_exit`; an explicitly recorded `failed` outcome is
+`previous_failed`. Corrupt/unreadable evidence and all other outcomes are
+`previous_interrupted_unknown`; they never identify a crash cause.
+Quit intent alone is not a clean exit.
 
 `AppLifecycle` uses the existing `EventLogger::log` and daily
 `HH:MM:SS LIFECYCLE run=... pid=... version=... build_mode=... stage=...` format.
@@ -100,8 +102,11 @@ The optional session-store flag reports actual availability; this change neither
 invents a new store path nor claims that the existing optional store was loaded.
 
 The reader uses atomic lifecycle evidence and nonblocking `try_lock` on the live
-DB and sensor connection. DB contention conservatively reports not-ready; sensor
-absence or contention yields ready+degraded, reason `sensor_missing`, once
+DB and sensor connection. DB contention preserves the last known initialization
+flag without waiting; it cannot promote an uninitialized or failed app to ready.
+An acquired DB lock with no connection, or a poisoned DB mutex, clears the
+response's persistence flag and readiness. Sensor absence or contention yields
+ready+degraded, reason `sensor_missing`, once
 essential prerequisites hold. It never calls the session aggregate, takes its
 locks or calls an outbound provider. Fixed schema and bounded identity keep
 responses small. HTTP availability never sets the tray flag.
@@ -120,7 +125,7 @@ new supervision adapters must explicitly call the typed validator.
 ## Verification boundary
 
 Sibling library tests exercise lifecycle correlation, atomic replacement
-failures, previous interrupted/corrupt records, secondary ownership, sticky
+failures, previous failed/interrupted/corrupt records, secondary ownership, sticky
 failure, truthful flush results and bounded readiness under contended locks.
 The integration harness starts actual child processes for pre-setup failure,
 panic before/after ownership, secondary activation, forced termination and clean

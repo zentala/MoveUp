@@ -23,20 +23,67 @@ async fn live_readiness_is_bounded_under_db_and_sensor_contention() {
     assert_eq!(read().state, ReadinessState::Ready);
     let db_held = db.lock().unwrap();
     let port_held = port.lock().unwrap();
+    let route_read = read.clone();
     let response = tokio::time::timeout(std::time::Duration::from_millis(500),
-        runtime_readiness::routes(read.clone()).oneshot(
-            axum::http::Request::builder().uri(runtime_readiness::PATH)
-                .body(axum::body::Body::empty()).unwrap())).await.unwrap().unwrap();
+        tokio::task::spawn_blocking(move || {
+            tokio::runtime::Handle::current().block_on(
+                runtime_readiness::routes(route_read).oneshot(
+                    axum::http::Request::builder().uri(runtime_readiness::PATH)
+                        .body(axum::body::Body::empty()).unwrap()))
+        })).await;
+    // Release locks even on timeout so a blocking regression cannot hang teardown.
+    drop(db_held); drop(port_held);
+    let response = response.unwrap().unwrap().unwrap();
     let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
     let status: runtime_readiness::ReadinessStatus = serde_json::from_slice(&body).unwrap();
-    assert!(!status.ready);
-    assert!(!status.persistence_initialized);
-    drop(db_held); drop(port_held);
+    assert!(status.ready);
+    assert!(status.persistence_initialized);
+    assert_eq!(status.state, ReadinessState::Degraded);
+    assert_eq!(status.reason.as_deref(), Some("sensor_missing"));
     *port.lock().unwrap() = None;
     assert_eq!(read().state, ReadinessState::Degraded);
     assert!(read().ready);
     *db.lock().unwrap() = None;
-    assert!(!read().ready);
+    let status = read();
+    assert!(!status.ready);
+    assert!(!status.persistence_initialized);
+    assert_eq!(status.reason.as_deref(), Some("persistence_not_ready"));
+}
+
+#[test]
+fn db_contention_cannot_certify_uninitialized_or_failed_persistence() {
+    let lifecycle = initialized();
+    let db = Mutex::new(Some(rusqlite::Connection::open_in_memory().unwrap()));
+    let port = Mutex::new(Some("fixture".to_owned()));
+    lifecycle.persistence_initialized.store(false, Ordering::Release);
+    // Even an available connection is insufficient without successful initialization.
+    assert!(!local_readiness(&lifecycle, &db, &port, false).ready);
+    let held = db.lock().unwrap();
+    let status = local_readiness(&lifecycle, &db, &port, false);
+    assert!(!status.ready);
+    assert!(!status.persistence_initialized);
+    lifecycle.persistence_initialized.store(true, Ordering::Release);
+    lifecycle.failed.store(true, Ordering::Release);
+    let status = local_readiness(&lifecycle, &db, &port, false);
+    assert!(!status.ready);
+    assert_eq!(status.state, ReadinessState::Failed);
+    assert_eq!(status.reason.as_deref(), Some("observed_failure"));
+    drop(held);
+}
+
+#[test]
+fn poisoned_db_cannot_report_ready_despite_known_initialization() {
+    let lifecycle = initialized();
+    let db = Arc::new(Mutex::new(Some(rusqlite::Connection::open_in_memory().unwrap())));
+    let poison_db = db.clone();
+    assert!(std::thread::spawn(move || {
+        let _held = poison_db.lock().unwrap();
+        panic!("fixture: poison database mutex");
+    }).join().is_err());
+    let status = local_readiness(&lifecycle, &db, &Mutex::new(None), false);
+    assert!(!status.ready);
+    assert!(!status.persistence_initialized);
+    assert_eq!(status.reason.as_deref(), Some("persistence_not_ready"));
 }
 
 fn sitting() -> Mutex<SessionManager> {
