@@ -50,7 +50,7 @@ Authority: operator-requested investigation, fixes and independent Herdr verific
   Pending T03 provenance/Unknown rendering and T07 trajectory signs/local-time
   remain separate task dependencies, not accepted by this review.
 
-## Round 4 — frozen frontend and backend (reserved)
+## Round 4 — frozen frontend and backend (functional PASS; hygiene findings retained)
 
 - Prospective scope: full corrected T02 data candidate86a3204c598ab8f8aab59ba19249daa8522b8527
   including the round3 async-loading correction, and full T06 backend candidate
@@ -66,3 +66,25 @@ Authority: operator-requested investigation, fixes and independent Herdr verific
 - Author evidence: frontend typecheck0, targeted164/21files0, full504/57files0;
   backend filtered225/12/8/47/6/14 all0, overlapping counts not summed. Earlier
   failed tests and report-write refusal retained. These are not independent acceptance.
+
+- Final independent verdict: T02 and T06 source/functionality PASS, execution
+  PASS, no blocking defect in the accepted contracts. Exact candidates unchanged
+  and both trees clean after checks. Four rounds consumed, two remain.
+- Independent serial execution: frontend typecheck exit0; full Vitest504/57files
+  exit0; backend full Rust library869/869 exit0; additional first frontend Rust
+  commands_analyst filter16passed/839filtered exit0. The last check verifies that
+  branch's optional query fields; backend tests do not certify frontend additions.
+- H1 Low/1p retained: cumulative frontend CRLF in explorer-day-kpis.test.ts,
+  explorer-day-kpis.ts, explorer-derivations.ts and hooks/useSnapshotsRange.ts.
+  H2 Low/1p retained: correction-manifest.json and backend-correction-manifest.json
+  CRLF; backend has no flagged Rust source. All flagged blobs are unchanged by
+  final commits versus their direct parents; H1 still belongs to full T02 scope.
+  No trailing spaces/tabs after line terminators are removed. No normalization or
+  Git configuration changes performed. Both original broad diff-check command
+  exits1 remain FAILED; separate raw Git diagnostic exit2 does not replace them.
+- These hygiene findings are nonblocking for functional acceptance, not a clean
+  hygiene verdict. Legacy height-chart empty presentation belongs to accepted
+  T04 removal; no shared loading regression found. T03/T04/T07 and native/browser,
+  real-store restart, integration and publication remain outstanding.
+- Reviewer receipt path references were corrected against frozen source before
+  final closure; source never changed. No new round or repeated runtime suite.
