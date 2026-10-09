@@ -88,6 +88,12 @@
         "src/analyst/charts/KpiDonut.test.tsx"
       ],
       "writeSet": [
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/evidence/correction-manifest.json",
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T02.md",
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T03.md",
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T04.md",
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T06.md",
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T07.md",
         "src/analyst/AnalystWindow.tsx",
         "src/analyst/AnalystWindow.test.tsx",
         "src/analyst/ExplorerTab.tsx",
@@ -110,6 +116,7 @@
         "pnpm typecheck"
       ],
       "boundaries": [
+        "Six exact plan paths are historical audit allowances only for frozen attempt 0; implementers may not edit metadata or rerun this completed source task under these allowances",
         "Read canonical design and own task; preserve candidate refs and existing global review budget",
         "No live data, servers, secrets, push, main promotion or foreign-history changes",
         "No release/autostart code changes",

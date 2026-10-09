@@ -57,6 +57,12 @@
         "src-tauri/src/today_totals.rs"
       ],
       "writeSet": [
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/evidence/correction-manifest.json",
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T02.md",
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T03.md",
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T04.md",
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T06.md",
+        "allows:.plan/epics/E027-2026-10-09-analyst-timeline/tasks/E027-T07.md",
         "src-tauri/src/session_*.rs",
         "src-tauri/src/serial_periodic*.rs",
         "src-tauri/src/app_lifecycle_runtime.rs",
@@ -71,6 +77,7 @@
         "cargo test --manifest-path src-tauri/Cargo.toml --lib app_lifecycle_runtime --offline"
       ],
       "boundaries": [
+        "Six exact plan paths are historical audit allowances only for frozen attempt 0; implementers may not edit metadata or rerun this completed source task under these allowances",
         "Fixture extension changes only db_tests_break_credit.rs tests and today_totals.rs cfg(test) module; production code/imports and semantic assertions unchanged; retain original failed exits and current deadline",
         "Read canonical design and own task; preserve candidate refs and existing global review budget",
         "No live data, servers, secrets, push, main promotion or foreign-history changes",
