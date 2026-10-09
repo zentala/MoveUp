@@ -3,7 +3,7 @@ formatVersion: 1
 id: E014-T11
 title: Lifecycle diagnostics and explicit application readiness
 epic: E014
-status: pending
+status: completed
 priority: high
 effort: large
 points: 8
@@ -13,6 +13,7 @@ tags: [task, reliability, E014]
 created_at: 2026-10-09
 commit: "feat(reliability): record lifecycle and explicit readiness [E014-T11]"
 ---
+<!-- pm3-plan-completion: E014-T11 e8033f6af399ce451f7669413a3db4eda780b463973c746f67690e88722f3b0c -->
 
 # E014-T11: Lifecycle diagnostics and explicit readiness
 
