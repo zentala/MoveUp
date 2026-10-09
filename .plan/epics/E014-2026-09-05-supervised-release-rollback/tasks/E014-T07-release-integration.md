@@ -3,11 +3,12 @@ formatVersion: 1
 id: E014-T07
 title: Connect installed releases to candidate recovery and promotion
 epic: E014
-status: pending
+status: completed
 points: 8
 importance: High
 dependencies: [E014-T05, E014-T06, E014-T11]
 ---
+<!-- pm3-plan-completion: E014-T07 cf36dce8fe2a74ecf9687c2540a49987b0c8f693564412fc5b4ba0ef310cb28d -->
 
 # Installed release integration
 
