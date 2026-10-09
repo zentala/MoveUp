@@ -125,3 +125,5 @@
   source gate. AO promote exited 0, integrated at b8f0c3d and closed T05 at
   fa628af. Cleanup remains pending; historical failures above remain retained.
 - T06 may proceed. Runtime recovery, GUI and real-login acceptance remain open.
+- Integrated main library check: 838 passed, zero failed, exit 0. No source
+  changed during that check; later plan-only edits do not replace its scope.
