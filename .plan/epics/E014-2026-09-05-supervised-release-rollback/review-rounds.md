@@ -127,3 +127,25 @@
 - T06 may proceed. Runtime recovery, GUI and real-login acceptance remain open.
 - Integrated main library check: 838 passed, zero failed, exit 0. No source
   changed during that check; later plan-only edits do not replace its scope.
+
+## Intent round 1 — 2026-10-09 (three corrections required)
+
+- Frozen source: 85e59e1d1f3719b782a2821234d3c7f368d6ca6c, base 800e2d4.
+- Independent source verifier confirmed F1 High/3: ordinary Rust/PowerShell
+  tests require PM3 Node environment despite Node being on PATH. Negative
+  reproductions failed with exit 101 (one Rust test) and exit 1 (PowerShell
+  after 32 assertions). Explicit Node runs passed four transport tests and
+  41 assertions; those passes do not replace the failures.
+- F2 Medium/2: duplicate ADR024 instead of amending the canonical lifecycle/
+  readiness decision. F3 Low/1: five new module-registration lines fail
+  git diff --check (exit 2). All three are confirmed; no disputed findings.
+- Author: 15 focused/853 full Rust tests and 41 PowerShell assertions, exit 0.
+  AO cargo and pwsh gates also exited 0. Aggregate verification FAILED its
+  write-set check. Legitimate dev helper/fixture paths were added to the
+  coordinator manifest; the duplicate ADR remains a required source correction.
+- Independent PowerShell 5.1 forwarding proof passed after two reviewer probe
+  errors (exit 1, then 64), retained as reviewer harness failures. Source was
+  unchanged. Profile initialization's unrelated gitconfig refusal is retained;
+  subsequent commands used login:false. No approval controls changed.
+- Correct only F1/F2/F3, then freeze and admit round 2. Real GUI/exit/flush,
+  supervision cycles and login are NOT_CHECKED here. No integration yet.
