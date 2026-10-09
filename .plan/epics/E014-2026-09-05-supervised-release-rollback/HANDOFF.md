@@ -19,6 +19,11 @@ The historical AO block at the bottom describes the completed September run;
 do not redispatch those completed tasks. Each continuation run gets an explicit
 manifest and ledger under this epic's evidence directory.
 
+T11 is now integrated at `9c552e3`, with task completion recorded at `7c1a81c`.
+Independent review round2 and integrated 833 library / 4 process tests passed.
+T05's isolated readiness implementation is active. PM3-dependent integration,
+release wiring, runtime acceptance and login cutover remain outstanding.
+
 ## TLDR
 
 You are implementing MoveUp's half of a two-repo change. MoveUp keeps several

@@ -37,6 +37,12 @@ unknown result or unperformed login remains incomplete; keep the goal active. ‚Å
 
 ## Delivery order and reservations
 
+Checkpoint: T11 source is integrated at `9c552e3`; independent review round2
+accepted it, and integrated library (833) / child-process (4) tests passed.
+Real desktop/login evidence in the acceptance matrix remains outstanding.
+T05 preparation is now active in an isolated AO worker; PM3 owner acceptance
+is still required before integrating the supervisor-dependent configuration.
+
 1. T11 (8 points, High): MoveUp lifecycle diagnostics and readiness, independent
    of the PM3 contract. Preserve current Run registration until cutover.
 2. PM3 owner implements/verifies missing generic dependency in its own plan.

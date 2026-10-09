@@ -67,7 +67,8 @@
         ".arch/ADR/024-application-lifecycle-readiness.md",
         "allows:.arch/ADR/018-pm3-owns-supervision.md",
         "allows:.arch/ARCHITECTURE.md",
-        "PROJECT.xml"
+        "PROJECT.xml",
+        "allows:src-tauri/src/health_probe_readiness.rs"
       ],
       "epicId": "E014",
       "role": "implementer",

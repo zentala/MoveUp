@@ -1,9 +1,18 @@
 ---
-updated: 2026-09-28T02:42:41Z
-active_epic: none (E011, E012, E016-E022 done or code-complete — see epics/INDEX.md for the real per-epic status table, created 2026-09-08; E014 waves 1-2 code complete, waves 3-4 blocked on pm3-mcp; E015 done 2026-09-13, T05 closed on automated evidence; E022's T16 deploy deliberately deferred, decision E022-D6; E023 relay security hardening and E024 sensor connection diagnostics planned 2026-09-13, readiness ready, wave 6 in parallel)
+updated: 2026-10-09
+active_epic: E014 (supervised recovery continuation; see its RESUME.md and epics/INDEX.md; unrelated epic history below is preserved)
 planning_epic: E026
 planning_epic_path: ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-vector-library
 current_wave:
+  - E014 T11 integrated through AO at 9c552e3 and completed at 7c1a81c.
+    Independent round2 accepted the corrected source; integrated Rust library
+    833 tests and child-process integration 4 tests passed. T05 independent
+    loopback readiness is running in isolation. T06/T07/T08/T10 remain open;
+    PM3 dependency source acceptance and live login cutover are still pending.
+    Current application and Run bridge unchanged. Lifecycle worker cleanup
+    failed on its already-durable AO session junction; source/evidence retained,
+    owning lifecycle defect recorded. Public push held for unpublished-history
+    privacy cleanup before release.
   - E016 done — ran through AO run E016-20260906-0348, promoted to main at
     0995f42, all 5 tasks merged and verified (2026-09-06).
   - E015 code-complete via AO run E015-20260906-0449 (3rd attempt after
