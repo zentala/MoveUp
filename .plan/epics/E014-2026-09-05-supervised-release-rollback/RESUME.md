@@ -44,12 +44,14 @@ T05 source at 76f4d5e passed independent round 3 and public-launcher validation
 against accepted PM3 source 5be48d7 with all fixture isolation keys applied.
 AO integrated it at b8f0c3d and completed its source task at fa628af. T06 source
 ba1e3ab passed independent round 2 and the final source gate; integrated at
-25c1edc and completed at 1e15589. T07 source 6c846fd resolves all five round1
-findings, but round2 independently reproduced fresh debug readiness incorrectly
-promoting a release record. Two smaller documentation/diff findings also need
-correction before round3; two of six rounds are consumed. Coverage and the
-isolated production artifact at 6c846fd passed, including independent metadata
-and all16 staging hashes; the corrected SHA needs a newly bound artifact.
+25c1edc and completed at 1e15589. T07 source c825eea passed independent round4,
+with zero unresolved findings and four of six rounds consumed. Final AO source
+gate passed at that exact SHA; normal local promotion d6d96d4 and completion
+a05c327 retain source equality with the accepted candidate. Aggregate verify
+and merge exit2 retained historical execution/cleanup state; the actual gate
+was PASS with cargo exit0, and promotion exited0. Earlier failures remain.
+The isolated production artifact retains build-origin892513e; the test-only
+successor has unchanged production inputs and all16 artifact hashes match.
 See review-rounds.md. Real supervision, desktop behavior and login remain
 separate acceptance gates.
 

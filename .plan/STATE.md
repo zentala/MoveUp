@@ -16,14 +16,15 @@ current_wave:
     three passed); causality remains open. T06/T07 handoffs are prepared,
     and T06 is now integrated at 25c1edc/completed 1e15589 after round2 acceptance.
     Its full Rust853 and PowerShell41 checks pass, including ordinary Node PATH
-    discovery. T07 source 6c846fd resolved all five round1 findings, but independent
-    round2 reproduced promotion accepting fresh debug readiness for a release
-    record. Two smaller documentation/diff issues also remain. Corrector is
-    applying those three findings before round3 (two of six rounds consumed).
-    Rust881, Node44, frontend470/coverage and production build passed; independent
-    artifact metadata and all16 staging hashes passed. Corrected source requires
-    a newly bound artifact before integration; see the epic review-rounds.md.
-    T07/T08/T10 and login remain open.
+    discovery. T07 source c825eea passed independent round4 with zero unresolved
+    findings; four of six rounds consumed. The final AO source gate passed,
+    normal local promotion completed at d6d96d4 and task completion at a05c327.
+    Integrated source/build inputs equal the accepted candidate. Rust881, Node44,
+    frontend470/coverage and production build passed; both maintenance cases
+    passed twice independently after the test socket correction. The retained
+    artifact keeps build-origin892513e, with unchanged production inputs and
+    all16 hashes verified. Earlier failed checks remain in review-rounds.md.
+    T08 isolated runtime acceptance, T10 and real login remain open.
     Current application and Run bridge unchanged. Lifecycle worker cleanup
     failed on its already-durable AO session junction; source/evidence retained,
     owning lifecycle defect recorded. Public push held for unpublished-history
