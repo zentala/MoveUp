@@ -50,6 +50,7 @@ fn check_promotion(use_callback: bool) {
         loop {
             match listener.accept() {
                 Ok((mut stream, _)) => {
+                    stream.set_nonblocking(false).unwrap();
                     stream.set_read_timeout(Some(std::time::Duration::from_secs(2))).unwrap();
                     let mut request = [0; 2048]; stream.read(&mut request).unwrap();
                     let mut response = serde_json::to_value(&body).unwrap();
