@@ -88,6 +88,12 @@ mod overlay_standing;
 #[cfg(test)] mod overlay_standing_tests;
 mod overlay_variants;
 pub mod release_store;
+pub mod release_cli;
+mod release_paths;
+mod release_install;
+mod release_projection;
+mod release_promotion;
+#[cfg(test)] mod release_integration_tests;
 #[cfg(test)] mod release_store_tests;
 pub mod relay_auth;
 #[cfg(test)] mod relay_auth_tests;
@@ -201,6 +207,7 @@ pub(crate) struct Loggers {
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if let Some(code) = release_cli::dispatch() { std::process::exit(code); }
     let lifecycle = app_lifecycle_runtime::bootstrap();
     // Best-effort load of Google Fit credentials; absence treated as "not configured".
     let _ = dotenv::from_filename(".env.local");

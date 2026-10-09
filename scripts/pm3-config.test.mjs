@@ -57,6 +57,48 @@ test('configuration preserves readiness, identity, port and opt-in supervision',
   assert.equal(service.supervised.candidatesFile, f.candidatesFile);
 });
 
+test('installed configuration pins structured fallback callback and supervision environment', t => {
+  const f = fixture(t);
+  const callbackFile = path.join(f.outputDirectory, 'release-callback.mjs');
+  const runDirectory = path.join(f.root, 'app run evidence');
+  fs.mkdirSync(runDirectory);
+  const { config } = createConfiguration({ ...f.options, callbackFile, runDirectory,
+    nodeExecutable: process.execPath, pm3Home: path.join(f.root, 'pm3 home') });
+  const service = config.services[0];
+  assert.deepEqual(service.supervised.promote.callback,
+    [process.execPath, callbackFile, path.dirname(f.candidatesFile), runDirectory, path.join(f.root, 'pm3 home'), '43391']);
+  assert.equal(service.env.DESK_SUPERVISION, 'pm3');
+  assert.equal(service.env.DESK_PM3_NODE, process.execPath);
+  assert.equal(service.env.DESK_PM3_SERVICE, 'moveup/desk');
+  assert.equal(service.supervised.promote.afterMs, 30000);
+  assert.equal(service.supervised.promote.callbackTimeoutMs, 10000);
+  assert.throws(() => createConfiguration({ ...f.options, runDirectory }), /requires/);
+  const result = prepare({ ...f.validatedCli, 'run-directory': runDirectory }, {
+    execute: () => JSON.stringify(f.report),
+  });
+  assert.deepEqual(result.files, [f.destination, callbackFile]);
+  assert.match(fs.readFileSync(callbackFile, 'utf8'), /PM3_CANDIDATE_ID/);
+  const published = JSON.parse(fs.readFileSync(f.destination));
+  assert.deepEqual(published.services[0].supervised.promote.callback,
+    [process.execPath, callbackFile, path.dirname(f.candidatesFile), runDirectory, f.validatedCli['pm3-home'], '43391']);
+});
+
+test('callback publication is rolled back if final configuration publication fails', t => {
+  const f = fixture(t);
+  const runDirectory = path.join(f.root, 'run evidence'); fs.mkdirSync(runDirectory);
+  const callbackFile = path.join(f.outputDirectory, 'release-callback.mjs');
+  const io = { ...fs, linkSync(source, destination) {
+    if (destination === f.destination) throw new Error('config publication failed');
+    fs.linkSync(source, destination);
+  } };
+  assert.throws(() => prepare({ ...f.validatedCli, 'run-directory': runDirectory }, {
+    io, execute: () => JSON.stringify(f.report),
+  }), /config publication failed/);
+  assert.equal(fs.existsSync(callbackFile), false);
+  assert.deepEqual(fs.readdirSync(f.outputDirectory), []);
+  assert.equal(fs.readFileSync(f.candidatesFile, 'utf8'), f.bytes);
+});
+
 test('invalid ports and relative paths are refused', t => {
   const f = fixture(t);
   for (const port of [0, 65536, 3.5, NaN, '3391']) {

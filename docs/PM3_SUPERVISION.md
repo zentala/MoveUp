@@ -220,6 +220,12 @@ These checks are development evidence, separate from the setup instructions.
 
 ## Developer verification — historical baseline, 2026-10-09
 
+Installed-release maintenance now has a separate application-owned path; see
+[Installed releases](INSTALLED_RELEASES.md) and the dated ADR 019 amendment.
+Supplying `--run-directory` together with the explicit Node/home selection adds
+the stable observed-candidate callback and installed supervision environment.
+The earlier draft-only mode and its omitted callback remain supported.
+
 The following evidence belongs to baseline `e41d2f6ea6c94a4e2142bbba74169bd50816ac08`.
 The source loader described here was subsequently removed; these results do not
 certify the replacement public CLI boundary. Earlier failures remain failures.

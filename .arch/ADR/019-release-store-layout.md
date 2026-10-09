@@ -94,6 +94,58 @@ More builds cost disk and prove nothing extra.
 - The store's path is Windows-specific (`%LOCALAPPDATA%`). Cross-platform
   supervision is explicitly out of scope for E014.
 
+## Installed contract amendment — 2026-10-09
+
+The original `/display/api` thirty-second `health_probe::probe` remains a legacy
+API, not certification for installed typed-readiness releases. Version 0.6.1
+introduces the application-owned `desk.exe --release` maintenance entrypoint.
+It dispatches before lifecycle diagnostics, dotenv, singleton plugins, GUI and
+session database initialization, and never replaces the active lifecycle record.
+
+Each immutable version directory contains `desk.exe`, the complete adjacent
+`dist/` tree (including both HTML entrypoints and their assets), and explicit
+`release.json` metadata declaring app ID, version, release mode and readiness
+contract 1. Canonical numeric versions greater than 0.6.0 are required; no
+readiness capability is inferred from directory names or copying an executable.
+Legacy/unknown artifacts stay outside the new candidate projection and are
+protected from automatic removal because their active identity is unknown.
+
+`candidates` retains its newline format; `last-known-good` retains its single
+version line. The additional `candidates.json` is PM3 candidate-file v1:
+`{version:1,candidates:[{id,argv,health:{expectJson:{version,build_mode}}}]}`.
+The existing candidate ordering function supplies newest, known-good, older,
+without duplicates. Each file is published through a synced sibling temporary
+file and atomic rename. JSON is the PM3 commit surface; the compatibility list
+is restored if JSON publication fails. These are individual atomic files,
+not a multi-file filesystem transaction or a power-loss journal.
+
+One OS file lock serializes stage, candidate publication and promotion, refusing
+contention immediately. Staging uses an invocation-owned directory on the same
+filesystem; an existing release cannot be replaced. Retention keeps three,
+protecting the marker, active lifecycle identity, new installation and executing
+maintenance binary. Eligible retired directories are renamed out of the store
+before publication and restored on failure. Unknown artifacts are protected;
+when protected releases prevent the three-release bound, staging fails closed.
+Post-publication cleanup failure may leave an ignored `.retired-*` directory,
+never a candidate or an invitation to delete a running artifact.
+
+PM3 owns the entire continuous thirty-second observation window, ownership,
+polling, demotion and callback dispatch. Inside its ten-second callback deadline,
+MoveUp performs one fresh 800 ms bounded loopback readiness request and compares
+candidate version, owned/observed PID, supervisor run ID, application UUID and
+the locked active run record. Missing or mismatched evidence preserves the
+marker. Promotion uses ADR 024 readiness, including healthy sensor degradation;
+it never invokes the legacy thirty-second probe or creates a second watchdog.
+
+The installed callback is a stable Node script selected through structured argv.
+It dispatches maintenance on the observed retained candidate, so an unexecutable
+newest binary cannot prevent promotion of a healthy retained candidate. Node and
+the public `<PM3_HOME>/releases/launch.mjs` boundary are explicitly configured;
+no PM3 private source imports are used. Manual activation uses that same public
+launcher and rejects malformed supervision rather than dropping into bridge mode.
+Staging is not live cutover; daemon recovery and attended login remain separate
+acceptance gates. No database migration or downgrade occurs.
+
 ## References
 
 - [E014 PLAN.md](../../.plan/epics/E014-2026-09-05-supervised-release-rollback/PLAN.md)
