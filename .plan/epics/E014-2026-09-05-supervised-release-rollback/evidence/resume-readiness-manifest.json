@@ -1,0 +1,88 @@
+{
+  "contractVersion": "ao-v1",
+  "strictContract": true,
+  "workId": "E014-20261009-readiness",
+  "projectId": "MoveUp",
+  "repository": {
+    "root": "."
+  },
+  "baseRef": "main",
+  "execution": {
+    "mode": "attended",
+    "unattended": false,
+    "autoMerge": false,
+    "maxTasksPerWave": 1
+  },
+  "integrationVerificationCommands": [
+    {
+      "command": "cargo",
+      "args": [
+        "test",
+        "--manifest-path",
+        "src-tauri/Cargo.toml",
+        "--lib"
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "tasks": [
+        "E014-T05"
+      ],
+      "id": "readiness"
+    }
+  ],
+  "tasks": [
+    {
+      "claims": [
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/setup_helpers.rs",
+        "src-tauri/src/remote_server.rs"
+      ],
+      "id": "E014-T05",
+      "outputContract": [
+        "changed files",
+        "test exit codes and counts",
+        "known failures",
+        "PM3 source revision and external acceptance pending"
+      ],
+      "taskRef": ".plan/epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T05-pm3-configuration.md",
+      "verificationCommands": [
+        "cargo test --manifest-path src-tauri/Cargo.toml --lib"
+      ],
+      "budgetMinutes": 60,
+      "writeSet": [
+        "creates:src-tauri/src/readiness_server*.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/setup_helpers.rs",
+        "src-tauri/src/remote_server.rs",
+        "allows:src-tauri/src/remote_server_tests.rs",
+        "allows:src-tauri/src/runtime_readiness*.rs",
+        "allows:src-tauri/src/app_lifecycle*.rs",
+        "creates:pm3.example.yaml",
+        "creates:scripts/supervision*.ps1",
+        "creates:scripts/supervision*.mjs",
+        "creates:tests/scripts/supervision*.test.*",
+        "creates:docs/SUPERVISION.md",
+        ".arch/ADR/024-application-lifecycle-readiness.md",
+        "allows:.arch/ADR/018-pm3-owns-supervision.md",
+        "allows:.arch/ARCHITECTURE.md",
+        "PROJECT.xml"
+      ],
+      "epicId": "E014",
+      "role": "implementer",
+      "boundaries": [
+        "T05 only; no Quit/dev intent or release CLI",
+        "No live state changes or process stop",
+        "No dependencies or ergonomic engine changes",
+        "PM3 source read-only; owner acceptance pending"
+      ],
+      "acceptanceRef": ".plan/epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T05-pm3-configuration.md",
+      "profile": "ts-dev",
+      "status": "ready",
+      "executor": "codex",
+      "handoffRef": ".plan/epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T05-pm3-configuration.md",
+      "dependencies": []
+    }
+  ]
+}

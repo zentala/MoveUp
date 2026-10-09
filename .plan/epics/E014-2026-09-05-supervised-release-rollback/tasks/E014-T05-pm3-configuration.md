@@ -16,8 +16,11 @@ route shares an optional LAN server, so disabling remote display would cause
 false supervision failures. The full epic is now 53 points; its AO route is unchanged.
 
 Read ../RESUME.md and ADR 018/019 before implementation. This task serves the
-existing always-available tracker vision. PM3 source acceptance is a prerequisite;
-an example schema or unshipped CLI is not a working runtime dependency.
+existing always-available tracker vision. PM3 source acceptance is a prerequisite
+for integrating its adapter, not for implementing the independent local listener.
+Preparation against the owner's frozen interface is permitted in isolation; an
+example schema or unshipped CLI is not a working runtime dependency. Record the
+exact source revision validated and keep dependency acceptance explicitly pending.
 
 Generate an explicit PM3 service configuration using its accepted supervised
 candidate-file contract, typed readiness, two misses spaced 60 seconds, and
@@ -56,3 +59,26 @@ Allowed scope: repository pm3 configuration/template, scripts for local setup,
 readiness runtime and server wiring, setup_helpers.rs, focused readiness/server
 tests, ADR024 and deployment documentation. No live registration,
 daemon replacement, Scheduled Task changes or Run-key removal.
+Update PROJECT.xml for added modules/tests. Preserve the existing Run bridge.
+
+## Implementation handoff
+
+The coordinator supplies PM3_SOURCE and PM3_SUPERVISION_CONTRACT environment
+variables for read-only source/contract inspection. The contract includes both
+amendments (instance identity and independent suspension holds). Do not write
+that repository or publish its private plan. The PM3 owner has not yet certified
+its implementation; record actual validation separately from that pending gate.
+Implement T05 only; T06 owns Quit/dev intent and T07 owns release maintenance.
+No installation, process termination, service registration or machine changes.
+
+Use a dedicated readiness_server module, preserving the existing app lifecycle
+and pure engine boundaries. Keep implementation files under the repository's
+line limits and reuse existing axum/tokio dependencies. Logs and scratch test
+output belong in the worktree's ignored target directory. Test fixtures use
+temporary directories and isolated local ports, never the installed application.
+
+Run focused readiness/server tests and the complete Rust library suite. A
+configuration fixture must verify exact readiness keys and process/run binding,
+and validate against PM3's actual source when its standalone validator is usable.
+An unavailable PM3 validation step is a named pending gate, not success.
+Return changed files, exact exits/counts and remaining external acceptance.
