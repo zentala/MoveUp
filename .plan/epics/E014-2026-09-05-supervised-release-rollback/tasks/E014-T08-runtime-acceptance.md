@@ -15,6 +15,15 @@ Execute the acceptance matrix in ../RESUME.md against reviewed integrated source
 Use a separate PM3 home, ports, synthetic executables/releases and app data. Keep
 the real user's application, profile, database and active PM3 daemon untouched.
 
+The current app resolves data through Tauri's `app.path().app_data_dir()` at
+multiple call sites; no application data-directory override was found in the
+current runtime. Do not assume setting APPDATA alone isolates it. Establish a
+test-specific application identity or another verified fixture mechanism, and
+prove the resolved data directory, singleton identity and disabled autostart
+before launching a GUI fixture. Keep sensor access and outbound integration
+isolated as well. Record fixture/build differences; a fixture cannot replace
+the final installed-release desktop/login check.
+
 Prove the actual daemon path handles a broken newest candidate, two 60-second
 misses, fallback, persistent demotion, fixed-artifact retry and marker promotion.
 Prove foreign healthy stand-down over at least two complete poll intervals,
