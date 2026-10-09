@@ -19,3 +19,17 @@ Authority: operator-requested investigation, fixes and independent Herdr verific
 - Executed counterexamples rollback, sleep_credit, midnight and persistence each failed exit101; these failures remain retained. Author225 passing Rust tests do not close them. Native lifecycle/runtime remains NOT_CHECKED.
 - Disposition HOLD. First four findings return to backend correction in the same epic. Legacy uncertainty remains cross-task acceptance owned by shared timeline T03; do not add guessed provenance or mutate historical rows. A backend source correction alone cannot close that criterion.
 - Remaining automatic rounds:4. Frontend source still awaits independent review. No main source integration or push.
+
+## Round 3 — corrected data candidate (reserved)
+
+- Frozen frontend candidate9b9a17371cafed4d7ad2e282745a8e46c4afc51c;
+  review covers the full T02 data change and retained round1 findings, not only
+  the final four-file correction. Author156 frontend tests/typecheck passed;
+  earlier failed checks remain retained and do not certify source acceptance.
+- Two rounds consumed, round3 reserved, three further rounds after this attempt.
+  Backend remains moving and outside this verdict unless separately frozen and
+  explicitly supplied before review closes. Legacy timeline provenance remains
+  outstanding T03 scope. No implicit acceptance of other tasks or native UI.
+- Independent reviewer receives source-read-only scope, normal frontend checks
+  and explicit filesystem preflight. Failed dispatch is NOT_CHECKED and consumes
+  this reservation. No integration/publication under this reservation alone.
