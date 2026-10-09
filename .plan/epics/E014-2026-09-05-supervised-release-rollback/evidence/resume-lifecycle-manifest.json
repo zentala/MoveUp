@@ -10,10 +10,11 @@
   "waves": [{"id": "lifecycle", "tasks": ["E014-T11"]}],
   "tasks": [{
     "id": "E014-T11",
+    "epicId": "E014",
     "status": "ready",
     "dependencies": [],
     "profile": "ts-dev",
-    "role": "Implementer",
+    "role": "implementer",
     "executor": "claude",
     "budgetMinutes": 90,
     "taskRef": ".plan/epics/E014-2026-09-05-supervised-release-rollback/tasks/E014-T11-lifecycle-readiness.md",
