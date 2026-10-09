@@ -116,7 +116,11 @@ version line. The additional `candidates.json` is PM3 candidate-file v1:
 The existing candidate ordering function supplies newest, known-good, older,
 without duplicates. Each file is published through a synced sibling temporary
 file and atomic rename. JSON is the PM3 commit surface; the compatibility list
-is restored if JSON publication fails. These are individual atomic files,
+is restored if JSON publication fails and restoration succeeds. Compound failure
+retains the primary publication error, reports failed restoration and identifies
+candidate state as uncertain. If prior bytes were written but restoration rename
+failed, the diagnostic names their retained temporary file for manual recovery;
+no automatic recovery or power-loss guarantee is added. These are individual atomic files,
 not a multi-file filesystem transaction or a power-loss journal.
 
 One OS file lock serializes stage, candidate publication and promotion, refusing

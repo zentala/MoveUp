@@ -29,6 +29,7 @@ export function prepare(options, { io = fs, execute } = {}) {
   if (runDirectory !== undefined && (!fs.statSync(absolutePath(runDirectory, '--run-directory')).isDirectory()
       || fs.existsSync(callbackFile))) throw new Error('Run directory must exist and callback output must be new');
   const { config } = createConfiguration({ installRoot, candidatesFile, port: Number(portText),
+    configFile: path.join(outputDirectory, 'pm3.yaml'),
     ...(runDirectory === undefined ? {} : { nodeExecutable, pm3Home, callbackFile, runDirectory }) });
   const destination = path.join(outputDirectory, 'pm3.yaml');
   if (fs.existsSync(destination)) throw new Error('Output pm3.yaml already exists; use a new isolated output directory');

@@ -85,6 +85,13 @@
       <file name="lib.rs">App entry — plugins, AppState, setup hook (tray, blur, serial, welcome)</file>
       <file name="main.rs">Binary entry — calls lib::run()</file>
       <file name="app_lifecycle.rs">Per-run identity, essential readiness, setup/failure/Quit/exit events; separate from the ergonomic engine</file>
+      <file name="release_cli.rs">Pre-GUI describe/stage/status/candidates/promote/activate maintenance dispatch with JSON errors</file>
+      <file name="release_activation.rs">Generated installed configuration validation, explicit PM3_CONFIG and working directory; truthful public text start acknowledgement without readiness certification</file>
+      <file name="release_paths.rs">Canonical versions, containment and recursive symlink/junction rejection</file>
+      <file name="release_install.rs">Complete immutable executable/dist/metadata staging, OS mutation lock and protected retention</file>
+      <file name="release_projection.rs">Candidate-file v1 JSON and legacy newline publication; compound restoration diagnostics</file>
+      <file name="release_promotion.rs">Fresh bounded readiness revalidation binding candidate, process and run before app-owned marker publication</file>
+      <file name="release_integration_tests.rs">Synthetic staging, retention, containment, publication and promotion tests</file>
       <file name="supervision.rs">Frozen public PM3 intent configuration, strict acknowledgement/readback classification and bounded reconciliation</file>
       <file name="supervision_process.rs">Hidden Node public-launcher invocation with inherited fixture environment, deadline and output limits</file>
       <file name="supervision_quit.rs">Responsive tray Quit guard; existing flush/exit only after confirmed own login hold, actionable notification on failure</file>
@@ -382,6 +389,13 @@
   </architecture>
 
   <testing>
+    <layer name="installed-release-entrypoints" path="src-tauri/tests/" runner="cargo test --manifest-path src-tauri/Cargo.toml --test release_maintenance --test release_entrypoints --test release_activation">
+      <files>release_maintenance.rs, release_entrypoints.rs, release_activation.rs, support/node.rs</files>
+      <note>Actual maintenance binary: failed install, immutable paths, ordering, protected retention, identity rejection, callback fallback, successful promotion and installed activation; portable Node discovery and synthetic stores only</note>
+    </layer>
+    <layer name="release-callback" path="scripts/release-callback.test.mjs" runner="node --test scripts/release-callback.test.mjs">
+      <note>Stable callback dispatches the observed retained binary rather than the newest candidate</note>
+    </layer>
     <layer name="pm3-supervision-intent" path="src-tauri/src/supervision_tests.rs" runner="cargo test --offline --lib supervision">
       <note>Strict frozen acknowledgement/readback, owned intent retries, unknown applicability, bounded output and deadline. No production pipe.</note>
     </layer>
@@ -441,6 +455,11 @@
   <config-files>
     <file name="scripts/tauri-dev.ps1">Guarded development entry point; exact process identity, configured PM3 suspension before replacement, bridge restoration</file>
     <file name="scripts/tauri-dev-session.ps1">Injectable development session with intent-scoped finally cleanup</file>
+    <file name="scripts/stage-release.ps1">Stages complete isolated artifacts through the maintenance executable</file>
+    <file name="scripts/release-callback.mjs">Bounded callback adapter for the observed retained candidate</file>
+    <file name="scripts/prepare-pm3.mjs">Offline atomic preparation of installed config and callback; binds final DESK_PM3_CONFIG</file>
+    <file name="scripts/pm3-config.mjs">Pure installed configuration with explicit Node/home/service/config environment</file>
+    <file name="scripts/pm3-validation.mjs">Offline validation through the selected public launcher</file>
     <file name="scripts/tauri-dev-supervision.ps1">Frozen public PM3 launcher adapter with strict responses and bounded hidden child processes</file>
     <file name="scripts/pm3-config.mjs">Pure opt-in PM3 config pointing to app-owned candidate JSON with local readiness identity</file>
     <file name="scripts/prepare-pm3.mjs">Atomic exclusive draft-config publication; candidate input unchanged, no service registration or overwrite</file>

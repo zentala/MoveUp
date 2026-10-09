@@ -6,6 +6,15 @@ import path from 'node:path';
 import { createConfiguration } from './pm3-config.mjs';
 import { prepare } from './prepare-pm3.mjs';
 
+test('installed configuration pins its final path, not validator temporary path', t => {
+  const f = fixture(t);
+  const run = path.join(f.outputDirectory, 'runtime'); fs.mkdirSync(run);
+  const result = prepare({ ...f.validatedCli, 'run-directory': run }, { execute: () => JSON.stringify(f.report) });
+  assert.equal(result.publication, 'published');
+  const config = JSON.parse(fs.readFileSync(f.destination, 'utf8'));
+  assert.equal(config.services[0].env.DESK_PM3_CONFIG, f.destination);
+});
+
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'moveup-pm3-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

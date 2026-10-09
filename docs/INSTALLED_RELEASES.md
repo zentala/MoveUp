@@ -1,5 +1,25 @@
 # Installed release maintenance
 
+## Correction verification continuation (2026-10-09)
+
+Manual activation requires `DESK_PM3_CONFIG` pointing to the final generated
+installation `pm3.yaml`; preparation carries it in the service environment.
+Activation validates the generated JSON/YAML, explicit service/Node/home and
+installation paths before invoking the selected public launcher. It supplies
+`PM3_CONFIG` and a deterministic child working directory. Generic PM3 start
+output is text; MoveUp wraps it in JSON with command completion and
+`readiness:not-checked`, preserving held/no-candidate output without falsely
+claiming a running application. Nonzero and unknown outcomes remain explicit.
+
+Candidate publication attempts to restore prior compatibility bytes after
+JSON publication failure. If restore write, rename or removal fails, the error
+retains both publication and restoration evidence and reports uncertain state.
+This is not a cross-file power-loss transaction.
+
+The historical failed checks below remain retained. A later successful check
+does not erase their exit codes. The correction work also updates PROJECT.xml
+under the coordinator's explicit expanded write scope.
+
 MoveUp 0.6.1 maintains complete immutable builds. Maintenance commands run before
 GUI, singleton ownership, diagnostics and live database access. All commands
 emit JSON; failures emit JSON on stderr and exit nonzero. Nothing here removes

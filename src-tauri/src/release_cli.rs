@@ -1,6 +1,8 @@
 //! Maintenance dispatch must precede lifecycle, singleton, dotenv and database IO.
 use std::{collections::BTreeMap, path::PathBuf};
 use crate::{release_install::{BuildMetadata, StoreLock}, release_paths};
+#[path = "release_activation.rs"]
+mod activation;
 
 pub fn execute(args: &[String], get: impl Fn(&str) -> Option<String>) -> Result<serde_json::Value, String> {
     let action = args.first().ok_or("missing release action")?;
@@ -22,14 +24,7 @@ pub fn execute(args: &[String], get: impl Fn(&str) -> Option<String>) -> Result<
     };
     if options.keys().any(|k| !allowed.contains(k)) { return Err("unknown release option".into()); }
     if action == "activate" {
-        let config = crate::supervision::Configuration::from_env(get)?.ok_or("activation requires PM3 configuration")?;
-        return tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?
-            .block_on(async {
-                use crate::supervision::Transport;
-                let response = crate::supervision_process::PublicLauncher.invoke(&config, "start", "", crate::supervision::DEADLINE).await?;
-                if response.exit != 0 { return Err(format!("PM3 activation failed: {}", response.exit)); }
-                serde_json::from_slice(&response.stdout).map_err(|e| e.to_string())
-            });
+        return activation::execute(get);
     }
     let value = |key| options.get(key).copied().ok_or_else(|| format!("missing {key}"));
     let root = PathBuf::from(value("--root")?);

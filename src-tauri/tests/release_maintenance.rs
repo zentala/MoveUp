@@ -2,6 +2,7 @@
 use std::{fs, io::{Read, Write}, net::TcpListener, path::Path, process::Command};
 use desk_lib::{app_lifecycle::RunId, app_lifecycle_store::{RunStore, RunRecord},
     runtime_readiness::{ReadinessStatus, ReadinessState}};
+#[path = "support/node.rs"] mod node;
 
 fn stage(source: &Path, root: &Path, run: &Path, version: &str) {
     fs::write(source.join("release.json"), serde_json::to_vec(&serde_json::json!({
@@ -45,14 +46,18 @@ fn check_promotion(use_callback: bool) {
     let server = std::thread::spawn(move || {
         listener.set_nonblocking(true).unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(12);
+        let mut requests = 0;
         loop {
             match listener.accept() {
                 Ok((mut stream, _)) => {
                     stream.set_read_timeout(Some(std::time::Duration::from_secs(2))).unwrap();
                     let mut request = [0; 2048]; stream.read(&mut request).unwrap();
-                    let text = serde_json::to_string(&body).unwrap();
+                    let mut response = serde_json::to_value(&body).unwrap();
+                    if requests == 0 { response["run_id"] = uuid::Uuid::new_v4().to_string().into(); }
+                    let text = serde_json::to_string(&response).unwrap();
                     write!(stream, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", text.len(), text).unwrap();
-                    return true;
+                    requests += 1;
+                    if requests == 2 { return true; }
                 },
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     if std::time::Instant::now() >= deadline { return false; }
@@ -61,9 +66,9 @@ fn check_promotion(use_callback: bool) {
             }
         }
     });
-    let node = std::env::var("MOVEUP_TEST_NODE").unwrap_or_else(|_| "C:/nvm4w/nodejs/node.exe".into());
+    let node = node::fixture_node();
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("scripts/release-callback.mjs");
-    let callback = |id: &str| {
+    let callback = |id: &str, wrong: Option<(&str, &str)>| {
         let mut command = if use_callback {
             let mut command = Command::new(&node);
             command.arg(&script).arg(&root).arg(&run).arg(&run).arg(port.to_string()); command
@@ -79,14 +84,23 @@ fn check_promotion(use_callback: bool) {
             .env("DESK_SUPERVISION", "pm3").env("DESK_PM3_SERVICE", "moveup/desk")
             .env("DESK_PM3_NODE", &node).env("DESK_PM3_HOME", &run)
             .env("DESK_READINESS_PORT", port.to_string())
-            .env("PM3_PROBE_URL", format!("http://127.0.0.1:{port}/display/readiness"))
-            .output().unwrap()
+            .env("PM3_PROBE_URL", format!("http://127.0.0.1:{port}/display/readiness"));
+        if let Some((key, value)) = wrong { command.env(key, value); }
+        command.output().unwrap()
     };
-    let success = callback("0.6.1"); let reached = server.join().unwrap();
+    assert!(!callback("0.6.9", None).status.success());
+    assert!(!root.join("last-known-good").exists());
+    for (key, value) in [("PM3_OBSERVED_PID", "1"), ("PM3_OBSERVED_RUN_ID", "foreign")] {
+        assert!(!callback("0.6.1", Some((key, value))).status.success());
+        assert!(!root.join("last-known-good").exists());
+    }
+    assert!(!callback("0.6.1", None).status.success(), "foreign application run must fail");
+    assert!(!root.join("last-known-good").exists());
+    let success = callback("0.6.1", None); let reached = server.join().unwrap();
     assert!(success.status.success(), "stdout={} stderr={}", String::from_utf8_lossy(&success.stdout), String::from_utf8_lossy(&success.stderr));
     assert!(reached, "callback never reached readiness");
     assert_eq!(fs::read(root.join("last-known-good")).unwrap(), b"0.6.1\n");
-    let failure = callback("0.6.2"); assert!(!failure.status.success());
+    let failure = callback("0.6.2", None); assert!(!failure.status.success());
     assert_eq!(fs::read(root.join("last-known-good")).unwrap(), b"0.6.1\n");
     assert_eq!(fs::read(run.join("lifecycle.json")).unwrap(), before);
 }

@@ -1,6 +1,7 @@
 use std::{fs, path::PathBuf, collections::HashMap, io::{Read, Write}, net::TcpListener};
 use crate::{release_cli::execute, release_install::BuildMetadata, app_lifecycle::RunId,
     app_lifecycle_store::{RunStore, RunRecord}, runtime_readiness::{ReadinessStatus, ReadinessState}};
+#[path = "../tests/support/node.rs"] mod node;
 
 struct Fixture { _temp: tempfile::TempDir, root: PathBuf, source: PathBuf, run: PathBuf }
 impl Fixture {
@@ -151,7 +152,7 @@ fn promotion_env(f: &Fixture, pid: u32, port: u16) -> HashMap<String, String> {
         ("PM3_OBSERVED_PID", pid.to_string()), ("PM3_RUN_ID", "owned-run".into()),
         ("PM3_OBSERVED_RUN_ID", "owned-run".into()), ("PM3_SERVICE", "moveup/desk".into()),
         ("DESK_SUPERVISION", "pm3".into()), ("DESK_PM3_SERVICE", "moveup/desk".into()),
-        ("DESK_PM3_NODE", std::env::var("MOVEUP_TEST_NODE").unwrap_or_else(|_| "C:/nvm4w/nodejs/node.exe".into())),
+        ("DESK_PM3_NODE", node::fixture_node().to_string_lossy().into()),
         ("DESK_PM3_HOME", f.run.to_string_lossy().into()), ("DESK_READINESS_PORT", port.to_string()),
         ("PM3_PROBE_URL", format!("http://127.0.0.1:{port}/display/readiness"))]
         .into_iter().map(|(k,v)| (k.into(),v)).collect()

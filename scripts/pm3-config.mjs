@@ -12,7 +12,7 @@ export function absolutePath(value, label) {
 }
 
 export function createConfiguration({ installRoot, candidatesFile, port = DEFAULT_READINESS_PORT,
-  nodeExecutable, pm3Home, callbackFile, runDirectory }) {
+  nodeExecutable, pm3Home, callbackFile, runDirectory, configFile }) {
   installRoot = absolutePath(installRoot, 'installRoot');
   candidatesFile = absolutePath(candidatesFile, 'candidatesFile');
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -47,9 +47,10 @@ export function createConfiguration({ installRoot, candidatesFile, port = DEFAUL
     pm3Home = absolutePath(pm3Home, 'pm3Home');
     callbackFile = absolutePath(callbackFile, 'callbackFile');
     runDirectory = absolutePath(runDirectory, 'runDirectory');
+    configFile = absolutePath(configFile ?? path.join(path.dirname(callbackFile), 'pm3.yaml'), 'configFile');
     const service = config.services[0];
     Object.assign(service.env, { DESK_SUPERVISION: 'pm3', DESK_PM3_SERVICE: 'moveup/desk',
-      DESK_PM3_NODE: nodeExecutable, DESK_PM3_HOME: pm3Home });
+      DESK_PM3_NODE: nodeExecutable, DESK_PM3_HOME: pm3Home, DESK_PM3_CONFIG: configFile });
     // PM3 callbacks inherit daemon env, not the candidate's service env.
     service.supervised.promote.callback = [nodeExecutable, callbackFile, path.dirname(candidatesFile), runDirectory,
       pm3Home, String(port)];
