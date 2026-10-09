@@ -1,5 +1,91 @@
 # Prepare MoveUp supervision
 
+## Quit and development intent
+
+The adapter implements supervised-application v1 amendments 1–5 frozen at PM3
+source `5be48d773f1138301718858a965b8f4b038aa578`. This is a source contract;
+the live two-poll-cycle stand-down and logon/cutover checks are still pending.
+
+Configure the installed process and development parent explicitly:
+
+```powershell
+$env:DESK_SUPERVISION = 'pm3'
+$env:DESK_PM3_SERVICE = 'moveup/desk'
+$env:DESK_PM3_NODE = 'C:/example/node.exe'
+$env:PM3_HOME = 'C:/example/pm3-home'
+```
+
+Use the actual absolute Node executable and PM3 home. `PM3_SERVICE` supplied by
+the supervisor also selects supervised mode; `PM3_DAEMON_NODE` may supply the
+explicit Node path. `DESK_PM3_HOME` overrides `PM3_HOME`; otherwise home defaults
+to `%USERPROFILE%/.pm3`. Invalid or incomplete configured mode blocks Quit and
+development replacement. No supplied app supervision configuration means bridge
+mode. `DESK_SUPERVISION=bridge` explicitly selects ordinary Quit.
+
+Quit runs asynchronously with a single stable intent across duplicate clicks and
+retries. It allows eight seconds total, at most four two-second helper attempts,
+and caps each output stream at 64 KiB. It requires an acknowledged login hold or
+a complete known-mode `supervision moveup/desk --json` response containing that
+intent. An unknown inner mode, missing service, malformed response or exhausted
+deadline keeps the app running and displays an actionable notification. Only
+confirmed intent enters the existing lifecycle/flush/exit path.
+
+The development launcher suspends before replacing an identified instance even
+with a different `DESK_REMOTE_PORT`. It refuses multiple or unrecognized
+instances and rechecks PID, executable path and start time before stopping the
+single target. Finally releases only its own fresh intent, including a possibly
+stored hold with a lost acknowledgement. User and nested launcher holds survive;
+it never uses `--all`. After replacement PM3 receives intent-scoped `resume
+--start`; PM3 alone owns recovery. Bridge mode instead restores the exact release
+it replaced, including on dev startup or notification-registration failure.
+Dev children use explicit bridge mode because their parent owns the hold.
+
+The launcher uses PowerShell 7's structured process arguments and hidden helper
+windows. Existing `powershell -File` package commands forward their flags to
+installed `pwsh`; no package installation is performed. Missing PowerShell 7
+fails before replacement. Helpers inherit the full supplied environment,
+including all fixture IPC/run/pidfile overrides, and never start a PM3 daemon.
+
+Verification requires Node on PATH. Synthetic transport tests also accept an
+absolute `MOVEUP_TEST_NODE` override, followed by the existing `PM3_DAEMON_NODE`
+and `DESK_PM3_NODE` overrides. Invalid supplied paths fail explicitly; transport
+coverage is never skipped. Discovery is test-only and does not enable production
+supervision or change its explicit configuration requirements.
+
+```powershell
+cargo test --offline --lib supervision --manifest-path src-tauri/Cargo.toml
+cargo test --offline --lib --manifest-path src-tauri/Cargo.toml
+pwsh -NoProfile -File scripts/test-tauri-dev.ps1
+```
+
+Tests use injected operations or the synthetic launcher fixture; they never
+contact PM3 or stop a user process. Do not run `tauri-dev.ps1` as a test.
+
+Implementation verification, 2026-10-09: focused Rust adapter suite **15 passed**,
+complete Rust library suite **853 passed**, PowerShell runner **41 assertions**;
+all exits 0. The final library run supplied all three synthetic fixture environment
+overrides to verify inheritance. Logs are ignored local artifacts in
+`src-tauri/target/e014-t06-rust-focused.log`, `e014-t06-rust-library.log` and
+`e014-t06-launcher.log`. The library retains four pre-existing compiler warnings
+in session timer tests. No dependency, generated binding, installed app or daemon
+changes were made. Independent review and real desktop/runtime gates are pending.
+
+Correction verification, 2026-10-09: with `PM3_DAEMON_NODE`, `DESK_PM3_NODE`
+and `MOVEUP_TEST_NODE` absent and Node on PATH, focused Rust adapter tests
+passed **15/15** (838 filtered), the full Rust library passed **853/853**
+(none filtered), and the PowerShell runner passed **41 assertions**. All exits
+were 0, with no failed or ignored Rust tests. A separate explicit
+`MOVEUP_TEST_NODE` run passed **4/4** transport tests (849 filtered) and
+**41 PowerShell assertions**, both exit 0. Logs are
+`src-tauri/target/e014-t06-correction-rust-focused.log`,
+`e014-t06-correction-rust-library.log`, `e014-t06-correction-pwsh-path.log`,
+`e014-t06-correction-rust-override.log` and `e014-t06-correction-pwsh-override.log`.
+The four pre-existing compiler warnings remain. Previous failed review logs
+remain intact; these correction checks do not replace the independent review
+or certify the coordinator's aggregate write-set gate. The intent decision is
+preserved in the dated amendment to canonical
+[ADR 024](../.arch/ADR/024-application-lifecycle-readiness.md).
+
 MoveUp exposes flat application readiness on a dedicated loopback listener at
 `127.0.0.1:3391/display/readiness`. Set `DESK_READINESS_PORT` to an integer from
 1 to 65535 to choose another port; set the same value for every installed/dev
@@ -60,7 +146,7 @@ satisfy service health, but never proves ownership or permits promotion.
 
 PM3 must implement supervised candidate-file v1, bounded typed HTTP health,
 stand-down, miss spacing, instance PID/run binding, and independent suspension
-holds (the two amendments to its frozen supervision contract). Its current
+holds (all five amendments to its frozen supervision contract). Its current
 package version alone does not identify that capability.
 
 After the owner supplies and accepts the offline capability, optional validation
@@ -74,13 +160,12 @@ Invalid candidates, unavailable/unsupported CLI, timeout, process errors,
 malformed or unsupported JSON all refuse publication. A valid v1 response reports
 `offline-valid`, but `readyToInstall` stays false pending owner acceptance.
 
-This offline capability is currently **pending owner certification**. The
-correction tests use an injected synthetic process boundary; they do not invoke
-installed PM3 and cannot establish that the real CLI is available or accepted.
+Source capability is accepted at the frozen commit named above. The historical
+correction tests below use an injected synthetic process boundary; they do not
+invoke installed PM3 and do not establish the live release or login flow.
 
-External gates remain **pending**: PM3 owner certification (including suspension
-holds and runtime promotion), Quit/dev intent integration, release maintenance
-and promotion callback, and supervised logon cutover. This task intentionally
+External gates remain **pending**: live suspension/stand-down and runtime promotion,
+release maintenance and promotion callback, and supervised logon cutover. This task intentionally
 omits the promotion callback: no last-known-good marker is changed by preparation.
 No public domain is registered for this process-metadata-only local endpoint.
 
