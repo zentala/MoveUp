@@ -117,4 +117,4 @@ Jedyne, co Paweł może chcieć zobaczyć, to priorytet dwóch wpisów w backlog
 
 Pełny plan techniczny: [`PLAN.md`](./PLAN.md).
 Wpisy w backlogu PM3, na których czeka ten epik:
-`int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md`.
+`pm3-mcp/.plan/BACKLOG.md`.

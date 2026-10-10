@@ -116,3 +116,10 @@ Authority: operator-requested investigation, fixes and independent Herdr verific
   without enforcing execution.autoMerge=false as an independent-review pause.
   No uncontrolled resume, fake failure/result, runtime edit or approval override.
   Final UI, combined runtime, browser/native and delivery remain NOT_CHECKED.
+
+## Prospective joint source review — 2026-10-10 (not reserved)
+
+- Four of six Analyst rounds remain consumed. No new review occurred or was reserved by this administrative amendment.
+- T03, T04 and T07 remain distinct 8-point tasks with separate provisional source/test checkpoints in one intended sequential 24-point wave. No provisional source may be integrated.
+- After a supported source sequence and final freeze, prospective round 5 covers all three original task criteria and their interactions at one exact final tip, with per-task dispositions and one joint verdict. Round 6 remains for any confirmed correction; no reset or per-task campaign is granted.
+- Current manifest dependencies, statuses, old source/verdict snapshots and failed checks remain intact. Provisional source is not completed or accepted. Legacy-run continuation, no-cap execution and supported provisional dependencies remain dispatch prerequisites. Browser/native/source-binding evidence remains required separately.

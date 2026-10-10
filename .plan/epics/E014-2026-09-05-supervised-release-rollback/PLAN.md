@@ -293,7 +293,7 @@ candidate-list reader specifically:
 
 - Building a PM3 candidate-list feature inside this repo. That code lives in
   `pm3-mcp` and is tracked in that repo's own backlog
-  (`int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md`).
+  (`pm3-mcp/.plan/BACKLOG.md`).
 - Replacing the Windows `Run` key as the login mechanism (D2).
 - Any change to ergonomics, sensor, or dashboard product behavior.
 - Code signing, CI release pipeline, and `moveup.internal` domain
@@ -315,9 +315,9 @@ candidate-list reader specifically:
 - `src-tauri/src/lib.rs:136` — `tauri-plugin-single-instance` wiring
 - `src-tauri/src/setup_helpers.rs` — `ensure_autostart` no-op in debug builds
 - `scripts/tauri-dev.ps1` — dev launcher process guard (kills installed build)
-- `int://mATX.lan/C:/code/pm3-mcp/src/config-schema.ts:47-62,76-78` — PM3's
+- `pm3-mcp/src/config-schema.ts:47-62,76-78` — PM3's
   existing `health`/`autorestart`/`backoff` schema, today single-candidate only
-- `int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md` — the two PM3 backlog
+- `pm3-mcp/.plan/BACKLOG.md` — the two PM3 backlog
   items this epic's Waves 3-4 are blocked on
 - [`.claude/rules/versioning.md`](../../../.claude/rules/versioning.md) —
   epic version-bump convention (0.6.0)

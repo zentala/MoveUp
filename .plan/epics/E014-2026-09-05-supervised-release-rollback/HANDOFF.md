@@ -45,7 +45,7 @@ Four facts drive every task below. Verify none of them by reading old
 documents; they were checked on 2026-09-05.
 
 1. **Login start is a registry value.** `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\MoveUp`
-   holds `C:\Users\zentala\AppData\Local\MoveUp\desk.exe --minimized`. The app
+   holds `%LOCALAPPDATA%\MoveUp\desk.exe --minimized`. The app
    writes it itself in `ensure_autostart`, `src-tauri/src/setup_helpers.rs:104`.
    That function is a deliberate no-op in debug builds, so a dev run never
    touches the registry.
@@ -99,7 +99,7 @@ key. T10 additionally waits on PM3's own at-logon Scheduled Task; see below.
 
 ## What blocks waves 3 and 4
 
-Two items in `int://mATX.lan/C:/code/pm3-mcp/.plan/BACKLOG.md`, section
+Two items in `pm3-mcp/.plan/BACKLOG.md`, section
 "2026-09-05 — Nadzór z powrotem do poprzedniego builda":
 
 - **Kandydaci i degradacja do poprzedniego builda** (8 points) blocks T05 and T07.

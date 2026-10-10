@@ -52,3 +52,11 @@ Total: **47 points**. Route: Agent Orchestrator with Herdr execution/supervision
 ## Data impact
 
 Read-only history queries; no migration, correction, restore or deletion of live data. Review reports with personal runtime details stay untracked locally.
+
+## Accepted provisional source sequence — 2026-10-10
+
+T03, T04 and T07 remain three separate 8-point tasks, a sequential 24-point wave within this 47-point epic. Each author records its own provisional commit, changed paths and meaningful checks. T04 may consume the explicitly identified provisional T03 source, and T07 the provisional T04 source, only through an owner-supported sequence with preserved task custody. These author inputs are not independently accepted dependencies.
+
+No provisional source is integrated. One joint independent review examines the exact final tip against all three task contracts and interactions before any integration. Analyst review accounting remains 4/6 consumed: prospective joint round 5, then correction round 6 if required. Reservation happens at actual review admission. Browser, combined backend/native and delivery evidence remain separate required gates.
+
+Execution remains held until the supported route preserves the existing run and legacy history, represents provisional sequencing without false completion and supports the operator's removal of agent work-time caps. Current dependencies/statuses stay unchanged; no unsupported manifest field, alternate run or completed-task label is a substitute. The three task files and current manifest now list finite source paths. Their former 60-minute task caps are retired; historical executable allowance fields remain held, not operative authorization. All original product criteria and publication/privacy holds remain binding.
