@@ -1,4 +1,8 @@
-# Analyst correction AO handoff
+# Analyst correction handoff
+
+## Current execution — 2026-10-15
+
+PO accepted DIRECT sequential Herdr execution for the existing overlapping T03/T04/T07 source chain: one isolated author, three separate 8-point provisional checkpoints, one joint independent review before integration. Full epic remains 47 points; Analyst review remains 4/6 consumed. No new queue, AO run/adoption, manifest or dispatcher. Preserve the legacy ledger and all prior failures; old routing, source pins and admission instructions below are inactive historical context where superseded here. Do not compute/compare hashes, maintain SHA pins/receipts or revive Harness repair. Use existing project tests/typecheck and ordinary final source diffs. Compatible effective filesystem access precedes source edits. Native/GUI/live/login/publication boundaries remain separate.
 
 Outcome: same truthful compact/detail chronology, immediate current-day data, coherent heading/Range/timeline/day-donut navigation and corrected optional details. Read root AGENTS.md, legacy CLAUDE.md, DESIGN.md, VISION.md, PLAN.md and the exact task before source work.
 
@@ -16,4 +20,4 @@ This section supersedes the older per-task integration order and review-count as
 
 The intended author sequence is T03 provisional source/checkpoint, T04 on that exact provisional source, then T07 on the exact T04 checkpoint. Keep each task's criteria, scope, changed-file evidence and source provenance distinct. Nothing is independently accepted or integrated merely because an author finishes. One final frozen tip must pass joint independent review against all three tasks and their interactions before any integration. Analyst 4/6 is unchanged; prospective round 5 is joint and round 6 correction, not reserved or consumed now.
 
-SUPPORTED-ROUTE HOLD: dispatch requires an owner-supported same-queue contract for the retained legacy run, separate task custody on provisional source and no agent work-time cap, plus actual prepared identity and effective filesystem preflight. Keep existing manifest dependencies and statuses; do not fabricate completedTaskIds, satisfiedExternalPrerequisites or a new batch field. Do not convert old workers or replace their ledger. The former 60-minute author caps are retired; unchanged historical executable allowances are held until the supported representation exists. Finite claims/writeSets in the current task files and manifest narrow source rights; no metadata rights are granted to authors.
+The former SUPPORTED-ROUTE HOLD is retired by the 2026-10-15 direct sequential acceptance. Keep existing manifest dependencies/statuses and legacy worker records unchanged; do not fabricate completedTaskIds, satisfiedExternalPrerequisites or a batch field. Historical executable allowances are inactive; no agent work timer applies. Finite source paths in the task files remain binding; no metadata rights are granted to authors.
