@@ -7,7 +7,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { api, newDesk, pairViewer, testDb, type Desk } from "../helpers";
+import { pair } from "../../src/http/pairing";
+import { api, env, newDesk, pairViewer, testDb, url, type Desk } from "../helpers";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -65,6 +66,61 @@ describe("issuing a code", () => {
 });
 
 describe("redeeming a code", () => {
+  it("e023: two admitted requests race for one slot in real D1", async () => {
+    const desk = await newDesk({ maxViewers: 1 });
+    let arrived = 0;
+    let release!: () => void;
+    let firstReady!: () => void;
+    const ready = new Promise<void>((resolve) => { firstReady = resolve; });
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    // Delay only execution: both handlers still redeem real codes and execute
+    // their actual SQL against D1. No admission result is fabricated.
+    const database = new Proxy(testDb(), {
+      get(target, key) {
+        if (key !== "prepare") return Reflect.get(target, key, target);
+        return (sql: string) => {
+          const wrap = (statement: D1PreparedStatement): D1PreparedStatement => new Proxy(statement, {
+            get(stmt, method) {
+              if (method === "bind") return (...args: unknown[]) => wrap(stmt.bind(...args));
+              if (method === "run" && sql.startsWith("INSERT INTO viewers")) return async () => {
+                arrived += 1;
+                if (arrived === 1) firstReady();
+                if (arrived === 2) release();
+                await gate;
+                return stmt.run();
+              };
+              const value = Reflect.get(stmt, method, stmt);
+              return typeof value === "function" ? value.bind(stmt) : value;
+            },
+          });
+          return wrap(target.prepare(sql));
+        };
+      },
+    });
+    const request = (code: string) => pair(new Request(url("/v1/pair"), {
+      method: "POST",
+      headers: { "CF-Connecting-IP": crypto.randomUUID(), "content-type": "application/json" },
+      body: JSON.stringify({ desk_id: desk.deskId, code }),
+    }), { ...env, DB: database });
+    const first = request(await codeFor(desk));
+    try {
+      await ready;
+      const second = request(await codeFor(desk));
+      const responses = await Promise.all([first, second]);
+      expect(responses.map((r) => r.status).sort()).toEqual([201, 409]);
+      await expect(responses.find((r) => r.status === 409)!.json()).resolves.toMatchObject({
+        error: { code: "viewer_limit" },
+      });
+      const row = await testDb().prepare(
+        "SELECT COUNT(*) AS n FROM viewers WHERE desk_id = ? AND revoked_at IS NULL",
+      ).bind(desk.deskId).first<{ n: number }>();
+      expect(row?.n).toBe(1);
+    } finally {
+      release();
+      await first;
+    }
+  });
+
   it("happy: a phone gets a viewer id, a token and the desk's name", async () => {
     const desk = await newDesk();
     const response = await api("/v1/pair", {

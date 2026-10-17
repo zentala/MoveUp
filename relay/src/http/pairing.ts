@@ -76,13 +76,18 @@ export async function pair(request: Request, env: Env): Promise<Response> {
 
   const viewerId = crypto.randomUUID();
   const token = mintToken("viewer");
-  await db(env)
+  const inserted = await db(env)
     .prepare(
       "INSERT INTO viewers (viewer_id, desk_id, token_hash, device_name, paired_at, last_seen, revoked_at)" +
-        " VALUES (?, ?, ?, ?, ?, NULL, NULL)",
+        " SELECT ?, ?, ?, ?, ?, NULL, NULL" +
+        " WHERE (SELECT COUNT(*) FROM viewers WHERE desk_id = ? AND revoked_at IS NULL) < ?",
     )
-    .bind(viewerId, deskId, await hashToken(token), deviceName, Date.now())
+    .bind(viewerId, deskId, await hashToken(token), deviceName, Date.now(), deskId, license.max_viewers)
     .run();
+
+  if (inserted.meta.changes !== 1) {
+    return fail("viewer_limit", `this desk allows ${license.max_viewers} paired device(s)`, 409);
+  }
 
   return json({ viewer_id: viewerId, viewer_token: token, desk_name: desk.desk_name }, 201);
 }
