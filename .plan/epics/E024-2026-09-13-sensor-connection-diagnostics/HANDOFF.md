@@ -8,11 +8,9 @@ status: todo
 
 ## TLDR
 
-Read only this file and [`PLAN.md`](PLAN.md). 18 points → run through AO
-(`ao plan`, then `ao run`; skill `ao`). Strictly sequential: the seam first,
+Read this file and [`PLAN.md`](PLAN.md), including the 2026-10-17 freshness amendment. 18 points → direct Herdr through the sole DM. Strictly sequential: the seam first,
 then the emulator IPC, then each diagnostic with its own tests, then docs and
-verify. Bump version to **0.8.0** before T01 if E023 already took 0.7.0,
-otherwise 0.7.0 (`.claude/rules/versioning.md`).
+verify. Start after E025 and after overlapping E027/E014 branches are merged or explicitly parked; take the next free minor version in that merge order (`.claude/rules/versioning.md`).
 
 ## Mental model
 
@@ -22,7 +20,7 @@ otherwise 0.7.0 (`.claude/rules/versioning.md`).
   (`serial.rs:70-132`) until the port dies, then logs `DEVICE lost`.
 - Events: `desk:device-connected` (`serial.rs:176`), `desk:device-lost`
   (`:105`), `desk:device-missing` (`:204`, empty payload today). Rust listener
-  in `setup_helpers.rs:185`; TS consumers `src/hooks/deskReducer.ts`,
+  in `setup_helpers.rs:211/:225` (broadcast listeners `:342/:353`); TS consumers `src/hooks/deskReducer.ts`,
   `useDesk.ts`, `useRemoteDesk.ts`. `communication_policy.rs:61` already greys
   the tray when `sensor_connected` is false — do not duplicate that; the
   unstable warning is a tooltip line on top of it.
@@ -31,7 +29,7 @@ otherwise 0.7.0 (`.claude/rules/versioning.md`).
   `EventSink` trait rather than a real file.
 - Gating pattern to copy: `inject_reading` is `#[cfg(any(test,
   debug_assertions))]` (`commands.rs:217`) and registered only in the debug
-  handler list (`lib.rs:220` vs `:266`).
+  handler list (`lib.rs:201` vs `:258`).
 - TS emulator today (`tests/emulator/DeskDeviceEmulator.ts`,
   `scenarios.ts`) only formats strings. T02 gives it `SerialScenario` names
   that map 1:1 to the Rust emulator scripts.
@@ -93,6 +91,8 @@ and each test layer builds on the previous seam. E023 may run at the same time:
 no shared files.
 
 ## AO
+
+INACTIVE historical template: the 2026-10-17 accepted route is direct sequential Herdr through the sole DM, AFTER E025 and after the E027/E014 merge-or-park gate in PLAN. Do not execute the old AO commands/budgets below. Use existing project commands, independent review and ordinary push. Version is the next free minor in actual merge order. Static lint remains useful and does not authorize AO execution.
 
 ```yaml
 project: MoveUp

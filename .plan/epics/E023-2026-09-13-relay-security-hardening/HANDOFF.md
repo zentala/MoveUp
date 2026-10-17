@@ -6,6 +6,10 @@ status: todo
 
 # E023 Handoff — relay security hardening
 
+## Controlling operator handoff — 2026-10-17
+
+Accepted for immediate delivery by the sole MoveUp DM, independently of parked away-accounting work. Read PLAN's dated freshness section first. E022 code-complete T01–T14 suffices; no relay deployment. Use ordinary project commands/direct Herdr, at most current host capacity, and independent security/source review before integration. Push verified delivered commits. Current versions are 0.6.1: take 0.7.0 unless another delivered epic has already consumed it. Old threshold, immediate unreviewed merge and hash-reporting wording below is superseded. No new procedure or hash machinery.
+
 ## TLDR
 
 Read only this file and [`PLAN.md`](PLAN.md). Six independent fixes (T01-T06)

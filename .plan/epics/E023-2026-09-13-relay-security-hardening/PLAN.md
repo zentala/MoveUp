@@ -13,6 +13,10 @@ blocked-by: ""
 
 # E023 — Relay security hardening
 
+## Accepted freshness and delivery — 2026-10-17
+
+Operator accepted immediate delivery through the sole MoveUp DM. Freshness review found all F1–F6 still present and no intervening edits to the affected files since 2026-09-13. E022 code-complete T01–T14 is sufficient; its deployment T15/T16 is not a dependency. Relay deployment remains out of scope. Current versions are 0.6.1; take 0.7.0 unless the actual delivery baseline has advanced. Use direct Herdr delegation, existing project checks and independent security review, then push verified delivered commits. This supersedes obsolete orchestration thresholds and hash-based reporting below. No new tooling or procedures. Analyst investigation is parked with its source preserved; E023 may proceed independently, coordinating shared version files.
+
 Source: the six deferred findings of the E022 security review,
 [`../E022-2026-09-06-cross-device-phone-relay/reports/2026-09-07-security-review.md`](../E022-2026-09-06-cross-device-phone-relay/reports/2026-09-07-security-review.md)
 (Medium #3, #4; Low #5-#8). Moved here from `.plan/BACKLOG.md` §"E022 security

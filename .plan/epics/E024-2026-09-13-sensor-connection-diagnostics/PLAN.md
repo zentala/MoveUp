@@ -6,12 +6,22 @@ readiness: ready
 points: 18
 agent: ts-dev
 wave: 6
-parallel: [E023]
+parallel: []
 depends-on: []
 blocked-by: ""
 ---
 
 # E024 — Sensor connection diagnostics
+
+## Accepted freshness amendments — 2026-10-17
+
+Operator accepted refreshed delivery after E023 then E025, serialized against E025 and only after overlapping E027/E014 branches are accepted and merged or explicitly parked. All source/history/dirty changes must be preserved. No task is done. The 18p epic serves reliable sensor feedback in the existing ergonomics product; use direct sequential Herdr delegation through the sole DM, existing checks and independent review. The old >13 AO routing and elapsed-budget template are inactive, not admission requirements. No hashes/new procedures. Push verified delivered commits.
+
+Freshness findings confirmed in current main: debug command lists are at lib.rs:201/:258; device missing/lost listeners at setup_helpers.rs:211/:225 and broadcast listeners at :342/:353. serial.rs:164–205 still collapses enumeration failure with zero ports and emits unqualified missing status; retain the emulator-based acceptance criteria rather than treating line references as implementation proof.
+
+Requested existing static lint was run on 2026-10-17 and FAILED exit1: legacy AO template lacks waves/claims and T06; current STATE still identifies E014. These are stale AO-contract diagnostics, not source or product verdicts and not a reason to rebuild the rejected execution route. It also identifies src/events.test.ts as a relevant consumer regression for T03/T04: include that existing test when changing event contracts. The PairScreen.test.tsx suggestion is inferred merely from shared fixture literals, not established semantic dependency; inspect only if actual changes require it. Do not broaden source scope solely to satisfy that warning. Direct delivery remains subject to the explicit merge-or-park gate and normal source/test review, not AO dispatch.
+
+T01 serial_periodic.rs and serial_periodic_tests.rs overlap fix/analyst-breaks-20261009 and fix/analyst-individual-history-20261015; lib.rs/Cargo.toml overlap fix/runtime-fixture-isolation-20261015. These named branches and the remaining related Analyst branches must be merged after acceptance or deliberately parked before this epic starts. E025 also overlaps lib.rs, commands.rs, tray_controller.rs and src/test/scenarios.ts. Work from actual main after those gates. Take the next free minor after E025, not a preallocated 0.8.0. Re-run existing `ao lint --epic` after plan edits as static plan validation only; do not dispatch AO or create a new runtime.
 
 Source: two `.plan/BACKLOG.md` §"Sensor & Readings" findings (2026-09-05 and
 2026-09-06, both from the "sensor plugged in, app does not see it" diagnosis),

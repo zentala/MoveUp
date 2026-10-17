@@ -9,9 +9,9 @@ status: todo
 ## TLDR
 
 Read only this file and [`PLAN.md`](PLAN.md). 10 points → subagents, each in
-its own worktree (`wt-add`). Wave 1: T01 + T03 in parallel (disjoint files).
+its own worktree (`wt-add`). Wave 1: T01 then T03 (shared commands.rs).
 Wave 2: T02 (needs T01). Wave 3: T04. Bump the minor epic version before T01
-(next free `0.X.0` after E023/E024, `.claude/rules/versioning.md`).
+(0.7.0, or next free after E023/E024, `.claude/rules/versioning.md`).
 
 ## Mental model
 
@@ -29,7 +29,7 @@ Wave 2: T02 (needs T01). Wave 3: T04. Bump the minor epic version before T01
   `longest_session.rs` are the pattern. Yesterday totals:
   `db_sessions.rs:224` `get_yesterday_totals`. Tooltips: `KPI_TOOLTIPS` used at
   `src/widgets/one-bar/KpiStrip.tsx:44`.
-- Do not touch: `session_*.rs` (ADR 015), `serial*.rs` (E024), `relay/**` (E023).
+- Do not touch: `session_*.rs` (ADR 015), serial transport/parser or `relay/**`. T03 may update `serial_periodic_reset.rs` solely to supply the shared metric context; T01 may update the desktop `relay_commands.rs` acknowledgement path/comment and its tests to preserve exactly-once dismiss semantics.
 
 ## Tasks
 
@@ -59,6 +59,8 @@ Wave 2: T02 (needs T01). Wave 3: T04. Bump the minor epic version before T01
   [task](tasks/T04-verify-and-close.md)
 
 ## Waves
+
+Controlling amendment, 2026-10-17: sole DM delivers this epic AFTER E023 and BEFORE E024, only after overlapping Analyst/release work is merged or explicitly parked. T01/T03 are serialized because both may touch commands.rs. T03 builds on current main, not the old unmerged KpiBadge branch. Read PLAN's dated freshness findings and both amended task scopes before writes. Use direct Herdr, existing commands, independent verification, then push; take 0.7.0 or the next free minor after preceding merges. No hash-based evidence or new machinery.
 
 Fala 1: T01 + T03 — T01 touches `alert_popup*.rs`, `tray_controller*.rs`;
 T03 touches `metrics/**`, `remote_display_state.rs`, `src/widgets/one-bar/**`,

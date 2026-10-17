@@ -6,12 +6,24 @@ readiness: ready
 points: 10
 agent: ts-dev
 wave: 6
-parallel: [E023, E024]
+parallel: []
 depends-on: []
 blocked-by: ""
 ---
 
 # E025 — Alert dismiss without sensor + yesterday comparison
+
+## Accepted freshness amendments — 2026-10-17
+
+Operator accepted this refreshed plan for delivery after E023, before E024, and only after overlapping E027/E014 branches are accepted and merged or explicitly parked with all source preserved. No current task is done. This serves the vision of configurable motivation and truthful comparable daily totals. Existing 10p estimate is retained; report any concrete estimate change rather than silently widening it.
+
+Freshness findings: Metric::compute at metrics/mod.rs:57–62 receives only SessionState and ErgonomicProfile, not yesterday data. T03 must provide an explicit optional yesterday context through MetricEngine and all four production call sites: commands.rs:187, commands_share.rs:32, remote_display_state.rs:60, serial_periodic_reset.rs:55. Preserve existing metrics and distinguish missing/error from an observed zero; derive context in adapters from existing cached/query data, not by reading DB or clock in the pure metric. Any required additional producer/type path must be reconciled before writing.
+
+T03 builds on then-current main after the branch gate; it does not import the unmerged fix/analyst-ui-20261009 KpiBadge rewrite. That branch remains preserved/parked, not silently abandoned. remote_display_state.rs:95–96 currently hard-codes yesterday totals to zero; tests must use nonzero, equal, missing and error contexts and prove desktop/LAN/relay parity, not reuse that fixture unchanged.
+
+T01 also owns relay_commands.rs ack_alert comment/path and relay_commands_tests.rs acknowledgement regression: removing take_user_dismissed must preserve exactly one snooze step per relay acknowledgement, with or without sensor traffic.
+
+Version: 0.7.0, or next free after E023/E024; one minor bump per epic in actual merge order (planned E023 → E025 → E024). Direct Herdr delivery and existing checks replace obsolete orchestration recipes; no elapsed work caps, hashes or new admission machinery. Push verified delivered commits.
 
 Source: the E001-E009 status audit of 2026-09-13 found two items marked done
 that are not in the running app. Moved here from `.plan/BACKLOG.md`
