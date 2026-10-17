@@ -39,8 +39,10 @@ import {
 } from "./commands";
 import {
   CLOSE_CODES,
+  MAX_FRAME_BYTES,
   encode,
   errorFrame,
+  frameBytes,
   isFailure,
   readFrame,
   type KnownMessage,
@@ -163,6 +165,10 @@ export class DeskRoom implements DurableObject, RoomOps, CommandBox {
   // ─── Frames ───────────────────────────────────────────────────────────────
 
   async webSocketMessage(ws: WebSocket, raw: ArrayBuffer | string): Promise<void> {
+    if (frameBytes(raw) > MAX_FRAME_BYTES) {
+      ws.close(1009, "frame exceeds 16 KiB");
+      return;
+    }
     if (typeof raw !== "string") {
       ws.close(CLOSE_CODES.PROTOCOL_ERROR, "binary frames are not part of v1");
       return;
