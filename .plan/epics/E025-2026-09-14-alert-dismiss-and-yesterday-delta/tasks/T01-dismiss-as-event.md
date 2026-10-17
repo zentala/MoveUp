@@ -5,7 +5,7 @@ id: E025-T01
 epic: E025
 status: todo
 agent: ts-dev
-points: 3
+points: 5
 model: standard
 effort: focused
 confidence: 4
@@ -15,6 +15,8 @@ created: 2026-09-14
 # E025-T01: T01-dismiss-as-event
 
 ## Acceptance
+
+Estimate updated 2026-10-17 from 3p to 5p after actual author analysis; existing product acceptance and task history remain.
 
 2026-10-17 scope addition: `src-tauri/src/relay_commands.rs` (ack_alert and its stale flag comment) and `src-tauri/src/relay_commands_tests.rs` are in this task's write set alongside alert_popup*.rs, tray_controller*.rs and event wiring. Preserve exactly one policy dismiss/snooze step for a relay acknowledgement; test without sensor traffic and ensure the event path cannot double-advance snooze. No relay Worker changes.
 

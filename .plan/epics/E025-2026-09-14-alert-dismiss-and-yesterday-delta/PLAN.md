@@ -3,7 +3,7 @@ formatVersion: 1
 type: epic
 status: todo
 readiness: ready
-points: 10
+points: 17
 agent: ts-dev
 wave: 6
 parallel: []
@@ -15,7 +15,7 @@ blocked-by: ""
 
 ## Accepted freshness amendments — 2026-10-17
 
-Operator accepted this refreshed plan for delivery after E023, before E024, and only after overlapping E027/E014 branches are accepted and merged or explicitly parked with all source preserved. No current task is done. This serves the vision of configurable motivation and truthful comparable daily totals. Existing 10p estimate is retained; report any concrete estimate change rather than silently widening it.
+Operator accepted this refreshed plan for delivery after E023, before E024, and only after overlapping E027/E014 branches are accepted and merged or explicitly parked with all source preserved. No current task is done. This serves the vision of configurable motivation and truthful comparable daily totals. Original estimate was 10p; actual author analysis disclosed T01 3→5p and T03 3→8p, making the current total 17p (5+3+8+1). PO accepts this technical estimate correction within the same product scope; direct Herdr routing and task history are unchanged.
 
 Freshness findings: Metric::compute at metrics/mod.rs:57–62 receives only SessionState and ErgonomicProfile, not yesterday data. T03 must provide an explicit optional yesterday context through MetricEngine and all four production call sites: commands.rs:187, commands_share.rs:32, remote_display_state.rs:60, serial_periodic_reset.rs:55. Preserve existing metrics and distinguish missing/error from an observed zero; derive context in adapters from existing cached/query data, not by reading DB or clock in the pure metric. Any required additional producer/type path must be reconciled before writing.
 
@@ -44,7 +44,7 @@ and shows them nowhere — the March `TodayStats` arrow was unmounted by the
 widget rewrite and later deleted as dead code (E001-T12). This epic fixes the
 dismiss path with an event instead of a sensor-driven poll, adds the missing
 alert-flow integration test (E004-T04), and brings the yesterday comparison
-back as a KPI in the existing strip. 4 tasks, 10 points, subagents.
+back as a KPI in the existing strip. 4 tasks, 17 points after the disclosed 2026-10-17 scope analysis, direct Herdr.
 
 ## Problem
 

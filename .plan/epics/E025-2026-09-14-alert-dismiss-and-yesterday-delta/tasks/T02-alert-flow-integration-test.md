@@ -16,6 +16,8 @@ created: 2026-09-14
 
 ## Acceptance
 
+2026-10-17 facility assessment: current Node Vitest setup calls Tauri invoke without a cross-process bridge; existing Playwright launches Chrome and relies on obsolete Tauri globals. Normal tauri-dev mock/demo still uses production identity/AppData/serial/remote. These are not qualified isolated native proof. Do not run them as acceptance evidence or create a replacement bridge/framework. Actual runtime remains NOT_CHECKED pending completion and independent acceptance of the existing isolation source plus explicit real-native observation/control admission. Parked partial fixture source and held Store patch are preserved, not implicitly reopened by this task. T01/T03 source work proceeds independently; the epic cannot close without this runtime criterion or an explicit operator scope decision.
+
 PLAN criterion 2. tests/integration/alert_flow.test.ts against the running debug app; debug-only dismiss IPC if needed; test count > 0.
 
 ## Verify

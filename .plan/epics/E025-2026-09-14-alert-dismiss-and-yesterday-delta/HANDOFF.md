@@ -8,7 +8,7 @@ status: todo
 
 ## TLDR
 
-Read only this file and [`PLAN.md`](PLAN.md). 10 points → subagents, each in
+Read only this file and [`PLAN.md`](PLAN.md). 17 points → direct Herdr, each author in
 its own worktree (`wt-add`). Wave 1: T01 then T03 (shared commands.rs).
 Wave 2: T02 (needs T01). Wave 3: T04. Bump the minor epic version before T01
 (0.7.0, or next free after E023/E024, `.claude/rules/versioning.md`).
@@ -35,7 +35,7 @@ Wave 2: T02 (needs T01). Wave 3: T04. Bump the minor epic version before T01
 
 2026-10-17 producer amendment: read PLAN's accepted producer scope and T03's exact fifteen added paths before author preflight. Missing observations/error must remain distinct from observed zero through query, cache, generated wire and all metric consumers. Tooltip is owned by KpiStrip.tsx. No schema/session-engine/live-data changes or new test transport. T02 still requires actual safe native alert behavior, independently of T01/T03 source progress.
 
-- [ ] **T01** (3, ts-dev, Rust) — `alert:user-dismissed` event path (D1),
+- [ ] **T01** (5, ts-dev, Rust; originally 3) — `alert:user-dismissed` event path (D1),
   remove the polling path. Tests `e025_dismiss_*` in
   `tray_controller_tests.rs`: dismiss without sensor reaches policy; dismiss
   with sensor still works. Verify:
@@ -47,7 +47,7 @@ Wave 2: T02 (needs T01). Wave 3: T04. Bump the minor epic version before T01
   (gate like `commands.rs:217`). Verify: running debug app (PM3,
   `--owner worktree:<path>`) + `pnpm test:integration`, test count > 0.
   [task](tasks/T02-alert-flow-integration-test.md)
-- [ ] **T03** (3, ts-dev) — `metrics/vs_yesterday.rs` (D2), registered in the
+- [ ] **T03** (8, ts-dev; originally 3) — `metrics/vs_yesterday.rs` (D2), registered in the
   engine, tooltip text, `vs-yesterday` mockup scenario, snapshot carries it.
   Tests: `metrics/tests.rs` (5 cases from PLAN), `KpiStrip.test.tsx`,
   `remote_display_state` test. Verify:

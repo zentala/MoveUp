@@ -5,7 +5,7 @@ id: E025-T03
 epic: E025
 status: todo
 agent: ts-dev
-points: 3
+points: 8
 model: standard
 effort: focused
 confidence: 4
@@ -15,6 +15,12 @@ created: 2026-09-14
 # E025-T03: T03-vs-yesterday-metric
 
 ## Acceptance
+
+Estimate updated 2026-10-17 from 3p to 8p after actual producer/consumer analysis; full epic now 17p, same queue and acceptance criteria. This supersedes the historical 3p retention wording below.
+
+Additional authored test accepted: `src/hooks/useDesk.test.ts`, replacing absent-yesterday zeros with null and testing the real desktop hook transport's missing versus observed-zero behavior. This mocked transport regression is not native runtime evidence.
+
+Existing exporter output permission is accepted for exactly these existing files under `src/generated/`: AppConfig.ts, BreakCredit.ts, ClientInfo.ts, Command.ts, CommandResult.ts, DashboardState.ts, DeskRecord.ts, DeskState.ts, DeskStatus.ts, ErrorBody.ts, ErrorKind.ts, HealthSnapshot.ts, HealthView.ts, Hello.ts, MetricLevel.ts, MetricResult.ts, MetricSnapshot.ts, PairingCode.ts, PortInfo.ts, RelayState.ts, RelayStatus.ts, Role.ts, SessionRow.ts, SessionStateDto.ts, StateChangedPayload.ts, TodaySummary.ts, Viewer.ts, VoiceNoteRow.ts, Welcome.ts. Run only the existing Rust exporter after fresh path access preflight. TodaySummary.ts is the intended semantic change; all other files may be rewritten identically by that exporter, not manually changed. Any additional content difference or new output path returns for assessment before acceptance. No new generator or provenance tooling.
 
 Additional producer scope accepted by PO on 2026-10-17 after actual source inspection (not a new product decision):
 
