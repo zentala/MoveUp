@@ -1,6 +1,6 @@
 [package]
 name = "desk"
-version = "0.6.1"
+version = "0.7.0"
 description = "MoveUp — sit/stand desk ergonomics tracker driven by a VL53L1X ToF sensor"
 authors = ["zentala"]
 license = "MIT"
