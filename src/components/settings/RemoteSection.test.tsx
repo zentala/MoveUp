@@ -75,6 +75,8 @@ describe("RemoteSection — relay-disabled", () => {
       expect(screen.getByTestId("relay-state")).toHaveTextContent("not registered");
     });
     expect(screen.getByLabelText("Licence key")).toBeInTheDocument();
+    expect(screen.getByLabelText("Licence key")).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("Licence key")).toHaveAttribute("autocomplete", "off");
     expect(screen.queryByText("Paired phones")).not.toBeInTheDocument();
     expect(invoke).not.toHaveBeenCalledWith("relay_list_viewers");
   });
