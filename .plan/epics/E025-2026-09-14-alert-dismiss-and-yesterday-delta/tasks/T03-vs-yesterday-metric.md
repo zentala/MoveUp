@@ -16,6 +16,8 @@ created: 2026-09-14
 
 ## Acceptance
 
+2026-10-18 test-only scope amendment: `src-tauri/src/commands_tests.rs` is accepted solely to update the existing exact poison-safe lock count and its message from 14 to 15. Actual commands.rs now adds one yesterday-cache lock with unwrap_or_else recovery; no unsafe lock().unwrap site was introduced. Preserve the no-unsafe-lock assertion and real poisoned-state recovery test unchanged. This remains within T03 8p; no production or contract expansion. Retain failed full-check/Cargo101 as observed, then run the relevant regression and required final checks after fresh effective path access.
+
 Estimate updated 2026-10-17 from 3p to 8p after actual producer/consumer analysis; full epic now 17p, same queue and acceptance criteria. This supersedes the historical 3p retention wording below.
 
 Additional authored test accepted: `src/hooks/useDesk.test.ts`, replacing absent-yesterday zeros with null and testing the real desktop hook transport's missing versus observed-zero behavior. This mocked transport regression is not native runtime evidence.
