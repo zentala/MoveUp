@@ -1,7 +1,7 @@
 ---
 formatVersion: 1
 type: handoff
-status: todo
+status: done
 ---
 
 # E023 Handoff — relay security hardening
@@ -40,31 +40,31 @@ if E024 started first and took 0.7.0, take 0.8.0). Deploy nothing.
 
 ## Tasks
 
-- [ ] **T01** (2, ts-dev, Rust) — F1: `relay_base_allowed`, loopback-only
+- [x] **T01** (2, ts-dev, Rust) — F1: `relay_base_allowed`, loopback-only
   `ws://`/`http://`, refusal surfaces as `last_error`. Tests `e023_` in
   `relay_client_tests.rs`: remote `ws://` refused, remote `http://` refused,
   loopback `ws://` allowed, `wss://` allowed, empty → default URL.
   Verify: `cargo test --manifest-path src-tauri/Cargo.toml --lib -- e023_`.
   [task](tasks/T01-desk-refuse-plain-ws.md)
-- [ ] **T02** (3, ts-dev) — F2: conditional viewer insert, `409 viewer_limit`
+- [x] **T02** (3, ts-dev) — F2: conditional viewer insert, `409 viewer_limit`
   when `changes === 0`. Test: concurrent pair race in `pair.test.ts`.
   Verify: `just relay-test`. [task](tasks/T02-pair-viewer-cap-atomic.md)
-- [ ] **T03** (1, ts-dev) — F3: `type="password"`, `autoComplete="off"` on the
+- [x] **T03** (1, ts-dev) — F3: `type="password"`, `autoComplete="off"` on the
   licence key input. Test in `RemoteSection.test.tsx`.
   Verify: `npx vitest run --config vite.config.ts src/components/settings/RemoteSection`.
   [task](tasks/T03-licence-key-masked.md)
-- [ ] **T04** (2, ts-dev) — F4: trust only `CF-Connecting-IP`; missing →
+- [x] **T04** (2, ts-dev) — F4: trust only `CF-Connecting-IP`; missing →
   `500 relay_misconfigured`. Tests in `router.test.ts`; `helpers.ts` gains
   `ip: null`. Verify: `just relay-test`. [task](tasks/T04-client-ip-fail-closed.md)
-- [ ] **T05** (2, ts-dev) — F5: `MAX_FRAME_BYTES = 16 * 1024` checked before
+- [x] **T05** (2, ts-dev) — F5: `MAX_FRAME_BYTES = 16 * 1024` checked before
   parse, close `1009`. Tests in `handshake.test.ts` (over, exact, empty).
   Verify: `just relay-test`. [task](tasks/T05-room-frame-size-limit.md)
-- [ ] **T06** (1, ts-dev) — F6: unknown and expired licence both
+- [x] **T06** (1, ts-dev) — F6: unknown and expired licence both
   `403 invalid_license`, same message. Test in `register.test.ts`.
   Verify: `just relay-test`. [task](tasks/T06-register-uniform-error.md)
-- [ ] **T07** (2, verify + security-reviewer) — full `just check`,
+- [x] **T07** (2, verify + security-reviewer) — full `just check`,
   `just relay-test`; `security-reviewer` confirms F1-F6 closed; update the
-  review report statuses to `NAPRAWIONE` with commit shas; append D1-D5 to
+  review report statuses to `FIXED` with source/test references; append D1-D5 to
   `.plan/decisions.jsonl`; set E023 `done` in `epics/INDEX.md`.
   [task](tasks/T07-verify-and-rereview.md)
 

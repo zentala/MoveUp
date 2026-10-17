@@ -58,6 +58,8 @@ enumeration) moved 2026-09-13 to epic
 [E023 — relay security hardening](epics/E023-2026-09-13-relay-security-hardening/PLAN.md)
 §Problem, with full text, `path:line` and a test per finding.
 
+Closed by E023 on 2026-10-17: all six fixes integrated as 0.7.0 after independent source and regression acceptance. See its [journal](epics/E023-2026-09-13-relay-security-hardening/JOURNAL.md) for retained failures and final checks. Relay deployment remains deferred.
+
 ## E022 evidence contract — most records still missing (2026-09-07)
 
 Agent `verify` (T15) found `.plan/epics/E022-2026-09-06-cross-device-phone-relay/evidence/records/`

@@ -294,3 +294,9 @@ re-verified on `main` (620 Rust + 3 integration + 304 TS tests).
 PM3's own candidate-list feature and stand-down logic have to land in
 `pm3-mcp`'s backlog first. This epic is code-complete for its unblocked
 half only, not fully done.
+
+## E023 — Relay security hardening (2026-10-17, v0.7.0)
+
+The desk now refuses insecure non-loopback relay URLs before connecting. Pairing enforces its device cap with an atomic conditional insert. Settings masks the license key, rate limiting requires the trusted edge address, room frames are limited to 16 KiB before parsing, and unknown/expired license refusals are identical.
+
+The direct Herdr author and independent verifier used existing project tests. Independent review rounds 1–2 accepted all six fixes; the second closed a missing behavioral Rust regression demonstration without changing the candidate. `just check` passed 470 frontend, 868 Rust library and 16 Rust integration tests. Independent `just relay-test` passed 180 tests. Earlier failures, including the timing-sensitive relay test failure, remain in the [journal](epics/E023-2026-09-13-relay-security-hardening/JOURNAL.md). Source is integrated into main; relay deployment, real credentials and live data were not exercised. [Plan](epics/E023-2026-09-13-relay-security-hardening/PLAN.md).

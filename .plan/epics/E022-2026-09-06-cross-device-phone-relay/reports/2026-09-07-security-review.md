@@ -41,29 +41,28 @@ część Medium wymagały zamknięcia przed publicznym uruchomieniem
    z Settings; `ws://` zamiast `wss://` wysłałoby token przez czysty TCP.
    Domyślny URL jest bezpieczny (`https://relay.desk.zentala.io`), ale nic nie
    blokuje ręcznego/błędnego ustawienia `ws://`.
-   - **Status: BACKLOG** — niskie ryzyko operacyjne, nie blokuje deployu.
+   - **Status: FIXED in E023 (2026-10-17)** — parsed transport validation refuses insecure non-loopback connections before sending the token; independent source and regression checks passed.
 
 4. **TOCTOU na limicie widzów (`max_viewers`)** —
    `relay/src/http/pairing.ts:61-65` sprawdza limit przed zużyciem kodu
    parowania bez serializacji dwóch równoczesnych żądań. Może przekroczyć
    `max_viewers` o jeden.
-   - **Status: BACKLOG** — ograniczenie biznesowe/licencyjne, nie luka
-     poufności danych.
+   - **Status: FIXED in E023 (2026-10-17)** — conditional D1 insertion enforces the final slot; the competing-request regression passed against real SQL.
 
 ### Low
 
 5. **Klucz licencyjny bez maskowania w UI** —
    `src/components/settings/RemoteSection.tsx:52-60`, pole bez
-   `type="password"`. — **BACKLOG**.
+   `type="password"`. — **FIXED in E023 (2026-10-17): password input and autocomplete off, component regression passed**.
 6. **`clientIp` fallback do wspólnego kubełka `"unknown"`** —
    `relay/src/http/rate-limit.ts:53-54`, teoretyczne na Cloudflare Workers
-   (nagłówek zawsze ustawiany przez edge). — **BACKLOG**.
+   (nagłówek zawsze ustawiany przez edge). — **FIXED in E023 (2026-10-17): only the edge header is trusted; missing and XFF-only requests fail closed**.
 7. **Brak twardego limitu rozmiaru ramki WS w `DeskRoom`** —
    `relay/src/room/desk-room.ts`/`messages.ts`, REST już ma limit 2 KiB, WS
-   nie. — **BACKLOG**.
+   nie. — **FIXED in E023 (2026-10-17): 16 KiB byte limit before parsing, including Unicode and binary-frame regressions**.
 8. **Niespójne kody błędów `register` (nieistniejący vs wygasły klucz)** —
    `relay/src/http/desks.ts:56-64`, minimalne user enumeration na kluczach o
-   256-bit entropii. — **BACKLOG**, kosmetyczne.
+   256-bit entropii. — **FIXED in E023 (2026-10-17): identical 403 status and body for both refusals**.
 
 ## Co uznano za solidne (bez zastrzeżeń)
 
@@ -81,6 +80,8 @@ część Medium wymagały zamknięcia przed publicznym uruchomieniem
 - RPC wewnętrzny (`/__room/*`) nieosiągalny z zewnątrz.
 
 ## Verdict
+
+2026-10-17 update: findings 3–8 are closed by independently accepted E023 source in version 0.7.0. Normal relay tests passed 180/180 and project checks passed; preceding failures remain recorded in [E023 JOURNAL](../../E023-2026-09-13-relay-security-hardening/JOURNAL.md). This updates source security status only; relay deployment remains deferred. The original dated verdict below is retained as history.
 
 **Po naprawie High #1 i Medium #2 (ta sesja, 2026-09-07): bezpiecznie
 deployować.** Medium #3, #4 i wszystkie Low idą do `.plan/BACKLOG.md` do

@@ -1,7 +1,7 @@
 ---
 formatVersion: 1
 type: epic
-status: todo
+status: done
 readiness: ready
 points: 13
 agent: ts-dev
@@ -12,6 +12,10 @@ blocked-by: ""
 ---
 
 # E023 — Relay security hardening
+
+## Accepted source completion — 2026-10-17
+
+All six fixes and their regression tests are integrated into main as version 0.7.0 after independent review rounds 1–2. Final verdict PASS with no unresolved findings. `just check` passed (470 frontend, 868 Rust library and 16 Rust integration tests); independent `just relay-test` passed all 180 tests. The initial failures, timing-sensitive relay failure and successful behavioral Rust RED/GREEN remain in [JOURNAL.md](JOURNAL.md). No relay deployment or live operation was performed.
 
 ## Accepted freshness and delivery — 2026-10-17
 

@@ -3,7 +3,7 @@ formatVersion: 1
 type: task
 id: E023-T03
 epic: E023
-status: todo
+status: done
 agent: ts-dev
 points: 1
 model: standard
