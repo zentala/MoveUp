@@ -80,13 +80,30 @@ impl RelayConfig {
 /// The socket URL for a desk. `https`/`http` are upgraded to `wss`/`ws` so a
 /// user who pastes a browser URL into Settings still gets a working relay.
 pub fn ws_url(base: &str, desk_id: &str) -> String {
-    let base = base.trim_end_matches('/');
+    let base = crate::relay_auth::effective_url(base);
     let base = match base.split_once("://") {
         Some(("https", rest)) => format!("wss://{rest}"),
         Some(("http", rest)) => format!("ws://{rest}"),
         _ => base.to_string(),
     };
     format!("{base}/v1/desks/{desk_id}/ws")
+}
+
+/// Refuses insecure remote transport before the first connection attempt.
+/// Never include the configured URL in an error: it may contain credentials.
+pub fn relay_base_allowed(base: &str) -> Result<(), &'static str> {
+    let base = crate::relay_auth::effective_url(base);
+    let url = reqwest::Url::parse(&base).map_err(|_| "invalid relay URL")?;
+    if !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() {
+        return Err("relay URL must not contain credentials or a fragment");
+    }
+    let host = url.host_str().ok_or("relay URL must have a host")?;
+    match url.scheme() {
+        "https" | "wss" => Ok(()),
+        "http" | "ws" if matches!(host, "localhost" | "127.0.0.1" | "[::1]") => Ok(()),
+        "http" | "ws" => Err("relay URL requires HTTPS or WSS outside loopback"),
+        _ => Err("relay URL must use HTTPS or WSS (HTTP or WS on loopback only)"),
+    }
 }
 
 /// Whether the client may start at all.
@@ -210,6 +227,10 @@ async fn run(
     commands: Option<Arc<dyn CommandExecutor>>,
     mut ctl_rx: mpsc::UnboundedReceiver<Ctl>,
 ) {
+    if let Err(error) = relay_base_allowed(&cfg.url) {
+        enter(&deps.status, RelayState::Error, Some(error.to_string()));
+        return;
+    }
     let mut backoff = Backoff::new();
     loop {
         enter(&deps.status, RelayState::Connecting, None);
