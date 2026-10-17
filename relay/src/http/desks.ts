@@ -63,10 +63,10 @@ export async function register(request: Request, env: Env): Promise<Response> {
 
   const keyHash = await sha256Hex(licenseKey);
   const license = await findLicense(env, keyHash);
-  if (license === null) return fail("invalid_license", "no such license key", 400);
-
   const now = Date.now();
-  if (!isActive(license, now)) return fail("invalid_license", "this license has expired", 403);
+  if (license === null || !isActive(license, now)) {
+    return fail("invalid_license", "this license is not active", 403);
+  }
 
   if ((await countDesks(env, keyHash)) >= license.max_desks) {
     return fail("license_exhausted", `this license allows ${license.max_desks} desk(s)`, 409);
