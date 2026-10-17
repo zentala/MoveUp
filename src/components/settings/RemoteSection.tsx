@@ -53,6 +53,8 @@ const RemoteSection: FC<RemoteSectionProps> = ({ settings, onChange }) => {
           <label className="settings-panel__label" htmlFor="relay-license-key">Licence key</label>
           <input
             id="relay-license-key"
+            type="password"
+            autoComplete="off"
             className="settings-panel__input"
             value={licenseKey}
             disabled={relay.busy}

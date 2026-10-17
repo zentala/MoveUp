@@ -10,6 +10,16 @@ const register = (body: unknown, ip?: string) =>
   api("/v1/desks/register", { method: "POST", body, ip });
 
 describe("register", () => {
+  it("e023: unknown and expired keys have identical refusal status and body", async () => {
+    const key = await seedLicense({ expiresAt: Date.now() - 1_000 });
+    const unknown = await register({ license_key: "mu_lic_unknown" });
+    const expired = await register({ license_key: key });
+    expect(unknown.status).toBe(403);
+    expect(expired.status).toBe(unknown.status);
+    const body = await unknown.json();
+    expect(body).toMatchObject({ error: { code: "invalid_license" } });
+    expect(await expired.json()).toEqual(body);
+  });
   it("happy: a valid license yields a desk id, a token and the plan", async () => {
     const key = await seedLicense({ plan: "founder", maxDesks: 2, expiresAt: null });
     const response = await register({
@@ -69,7 +79,7 @@ describe("register", () => {
 
   it("error: an unknown license is refused", async () => {
     const response = await register({ license_key: "mu_lic_not-a-real-key" });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({
       error: { code: "invalid_license" },
     });

@@ -11,6 +11,50 @@ import { CLOSE_CODES } from "@app/remote/protocol";
 
 import { connect, helloPayload, joinDesk, joinViewer, newDesk, pairViewer } from "../helpers";
 
+describe("e023 frame byte limit", () => {
+  const limit = 16 * 1024;
+
+  it("oversize malformed text closes 1009 before JSON parsing or authentication", async () => {
+    const socket = await connect("e023-oversize-pending");
+    socket.raw("{".repeat(limit + 1));
+    await expect(socket.closed()).resolves.toMatchObject({ code: 1009 });
+  });
+
+  it("counts UTF-8 bytes rather than characters", async () => {
+    const { socket } = await joinDesk(await newDesk());
+    const text = JSON.stringify({ v: 1, type: "ping", id: "utf8", ts: 0, payload: null,
+      padding: "é".repeat(limit / 2) });
+    expect(text.length).toBeLessThan(limit);
+    socket.raw(text);
+    await expect(socket.closed()).resolves.toMatchObject({ code: 1009 });
+  });
+
+  it.each(["ascii", "unicode"])("a valid %s frame at exactly 16 KiB is processed", async (kind) => {
+    const { socket } = await joinDesk(await newDesk());
+    const base = JSON.stringify({ v: 1, type: "ping", id: "boundary", ts: 0, payload: null,
+      padding: kind === "unicode" ? "é".repeat(100) : "" });
+    const raw = base + " ".repeat(limit - new TextEncoder().encode(base).byteLength);
+    expect(new TextEncoder().encode(raw).byteLength).toBe(limit);
+    socket.raw(raw);
+    await expect(socket.next()).resolves.toMatchObject({ type: "pong", id: "boundary" });
+    socket.ws.close();
+  });
+
+  it.each([limit, limit + 1])("binary frame of %i bytes respects size before binary policy", async (bytes) => {
+    const socket = await connect(`e023-binary-${bytes}`);
+    socket.ws.send(new ArrayBuffer(bytes));
+    await expect(socket.closed()).resolves.toMatchObject({
+      code: bytes > limit ? 1009 : CLOSE_CODES.PROTOCOL_ERROR,
+    });
+  });
+
+  it("empty text keeps the existing malformed-JSON close", async () => {
+    const socket = await connect("e023-empty");
+    socket.raw("");
+    await expect(socket.closed()).resolves.toMatchObject({ code: CLOSE_CODES.PROTOCOL_ERROR });
+  });
+});
+
 describe("hello / welcome", () => {
   it("happy: a desk is welcomed and told it is online", async () => {
     const desk = await newDesk();

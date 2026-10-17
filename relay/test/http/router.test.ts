@@ -7,7 +7,29 @@ import { describe, expect, it } from "vitest";
 
 import { REST_ROUTES, matchPath } from "../../src/http/rest";
 import { RPC } from "../../src/room/rpc";
-import { url } from "../helpers";
+import { api, url } from "../helpers";
+
+describe("e023 trusted client address", () => {
+  it.each(["/v1/pair", "/v1/desks/register"])("%s fails closed without CF-Connecting-IP", async (path) => {
+    const response = await api(path, { method: "POST", body: {}, ip: null });
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "relay_misconfigured" } });
+  });
+
+  it.each(["/v1/pair", "/v1/desks/register"])("%s ignores a spoofed forwarding header", async (path) => {
+    const response = await SELF.fetch(url(path), {
+      method: "POST", headers: { "X-Forwarded-For": "192.0.2.10" }, body: "{}",
+    });
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "relay_misconfigured" } });
+  });
+
+  it("a trusted address reaches the normal handler", async () => {
+    const response = await api("/v1/desks/register", { body: {}, ip: "192.0.2.11" });
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "invalid_license" } });
+  });
+});
 
 describe("GET /healthz", () => {
   it("reports the running version so a deploy can be told from a redeploy", async () => {

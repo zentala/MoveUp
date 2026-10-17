@@ -48,7 +48,9 @@ export async function requireDesk(
 
 /** `POST /v1/desks/register` — licence key in, desk credential out. */
 export async function register(request: Request, env: Env): Promise<Response> {
-  const verdict = await take(env, `register:${clientIp(request)}`, REGISTER_LIMIT);
+  const ip = clientIp(request);
+  if (ip === null) return fail("relay_misconfigured", "trusted client address is missing", 500);
+  const verdict = await take(env, `register:${ip}`, REGISTER_LIMIT);
   if (!verdict.allowed) {
     return fail("rate_limited", "too many registrations from this address", 429);
   }
@@ -61,10 +63,10 @@ export async function register(request: Request, env: Env): Promise<Response> {
 
   const keyHash = await sha256Hex(licenseKey);
   const license = await findLicense(env, keyHash);
-  if (license === null) return fail("invalid_license", "no such license key", 400);
-
   const now = Date.now();
-  if (!isActive(license, now)) return fail("invalid_license", "this license has expired", 403);
+  if (license === null || !isActive(license, now)) {
+    return fail("invalid_license", "this license is not active", 403);
+  }
 
   if ((await countDesks(env, keyHash)) >= license.max_desks) {
     return fail("license_exhausted", `this license allows ${license.max_desks} desk(s)`, 409);

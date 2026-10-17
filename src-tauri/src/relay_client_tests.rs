@@ -23,7 +23,7 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{accept_async, WebSocketStream};
 
 use crate::relay_client::{
-    should_run, spawn_with_commands, ws_url, ClientDeps, ClientHandle, RelayConfig, Sleeper,
+    relay_base_allowed, should_run, spawn_with_commands, ws_url, ClientDeps, ClientHandle, RelayConfig, Sleeper,
     SnapshotSource,
 };
 use crate::relay_commands::CommandExecutor;
@@ -34,6 +34,47 @@ use crate::remote_protocol::{
 };
 
 type ServerWs = WebSocketStream<TcpStream>;
+
+#[test]
+fn e023_relay_url_requires_tls_except_exact_loopback_hosts() {
+    for base in ["https://relay.example", "wss://relay.example", "", "  ",
+        "ws://localhost:8787", "http://127.0.0.1:8787", "ws://[::1]:8787"] {
+        assert!(relay_base_allowed(base).is_ok(), "must allow {base:?}");
+    }
+    for base in ["ws://relay.example", "http://relay.example", "ws://127.0.0.2",
+        "http://localhost.example", "http://127.0.0.1.example", "ws://[::ffff:127.0.0.1]",
+        "ftp://localhost", "not a URL", "ws://user:secret@localhost", "ws://localhost/#fragment"] {
+        assert!(relay_base_allowed(base).is_err(), "must refuse {base:?}");
+    }
+    assert_eq!(ws_url("", "d1"), "wss://relay.desk.zentala.io/v1/desks/d1/ws");
+}
+
+#[tokio::test]
+async fn e023_refusal_sets_last_error_without_connecting_or_retrying() {
+    let (addr, conns) = serve(|_n, _ws| async {}).await;
+    let fx = start(addr, conns, |cfg| cfg.url = format!("ftp://{addr}"));
+    assert!(until(|| fx.handle.is_finished()).await);
+    assert_eq!(fx.state(), RelayState::Error);
+    let error = fx.status.lock().unwrap().last_error.clone().expect("refusal reason");
+    assert!(error.contains("relay URL"), "{error}");
+    assert!(!error.contains("mu_d_test"));
+    assert_eq!(fx.attempts(), 0);
+    assert!(fx.sleeps().is_empty());
+    fx.handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn e023_insecure_nonpermitted_loopback_never_reaches_tcp_listener() {
+    let listener = TcpListener::bind("127.0.0.2:0").await.expect("decoy listener");
+    let addr = listener.local_addr().unwrap();
+    let fx = start(addr, Arc::new(AtomicUsize::new(0)), |_| {});
+    assert!(until(|| fx.handle.is_finished()).await);
+    assert_eq!(fx.state(), RelayState::Error);
+    assert!(fx.status.lock().unwrap().last_error.as_ref().unwrap().contains("HTTPS or WSS"));
+    assert!(tokio::time::timeout(Duration::from_millis(50), listener.accept()).await.is_err());
+    assert!(fx.sleeps().is_empty());
+    fx.handle.shutdown().await;
+}
 
 // ─── Fakes ──────────────────────────────────────────────────────────────────
 

@@ -37,6 +37,12 @@ export {
  */
 export const IDLE_CLOSE_CODE = 1001;
 
+export const MAX_FRAME_BYTES = 16 * 1024;
+
+/** Measure the transport bytes before any decoding or JSON parsing. */
+export const frameBytes = (raw: string | ArrayBuffer): number =>
+  typeof raw === "string" ? new TextEncoder().encode(raw).byteLength : raw.byteLength;
+
 /** Builds an outbound envelope. `id` is echoed by replies, so callers may pin it. */
 export function envelope<T>(type: MessageType, payload: T, id?: string): Envelope<T> {
   return {

@@ -34,7 +34,9 @@ const REDEEM_FAILURES: Record<Exclude<RedeemReply["status"], "ok">, number> = {
 
 /** `POST /v1/pair` — the phone submits a code and receives a viewer token. */
 export async function pair(request: Request, env: Env): Promise<Response> {
-  const verdict = await take(env, `pair:${clientIp(request)}`, PAIR_LIMIT);
+  const ip = clientIp(request);
+  if (ip === null) return fail("relay_misconfigured", "trusted client address is missing", 500);
+  const verdict = await take(env, `pair:${ip}`, PAIR_LIMIT);
   if (!verdict.allowed) {
     return fail("rate_limited", "too many pairing attempts from this address", 429);
   }
@@ -76,13 +78,18 @@ export async function pair(request: Request, env: Env): Promise<Response> {
 
   const viewerId = crypto.randomUUID();
   const token = mintToken("viewer");
-  await db(env)
+  const inserted = await db(env)
     .prepare(
       "INSERT INTO viewers (viewer_id, desk_id, token_hash, device_name, paired_at, last_seen, revoked_at)" +
-        " VALUES (?, ?, ?, ?, ?, NULL, NULL)",
+        " SELECT ?, ?, ?, ?, ?, NULL, NULL" +
+        " WHERE (SELECT COUNT(*) FROM viewers WHERE desk_id = ? AND revoked_at IS NULL) < ?",
     )
-    .bind(viewerId, deskId, await hashToken(token), deviceName, Date.now())
+    .bind(viewerId, deskId, await hashToken(token), deviceName, Date.now(), deskId, license.max_viewers)
     .run();
+
+  if (inserted.meta.changes !== 1) {
+    return fail("viewer_limit", `this desk allows ${license.max_viewers} paired device(s)`, 409);
+  }
 
   return json({ viewer_id: viewerId, viewer_token: token, desk_name: desk.desk_name }, 201);
 }
