@@ -118,7 +118,13 @@ deliberately left.
 | 4 | Rust unit | `remote_display_state::build` snapshot contains `sitting_vs_yesterday` | `src-tauri/src/remote_display_state.rs` tests |
 
 Error path: DB read of yesterday fails → metric absent and one `warn!`, never
-`0`. Each new test is run once against reverted code and must fail.
+`0`. Regression tests must demonstrate the repaired behaviors. The blanket historical requirement to run every new test against reverted source is superseded by the proportional 2026-10-18 disposition below.
+
+### Proportional regression evidence — 2026-10-18
+
+Independent source review found no confirmed defect. Three source-compatible old bodies can meaningfully demonstrate failure: MetricEngine::with_defaults registration, EMPTY_TODAY_SUMMARY, and KPI_TOOLTIPS. The same author may temporarily restore only these exact old bodies, run their relevant behavioral assertions, then restore the accepted implementation and confirm GREEN/clean source. Serialize this with browser QA: no source mutation while the preview is being judged. Preserve failed exits and distinguish assertion failures from compilation/loader failures.
+
+T01's historical polling/field API is incompatible with the new callback/listener API; rebuilding an obsolete multi-file implementation solely to make every new test run is unnecessary. Retain the observed listener-disabled mutation result explicitly as mutation evidence, alongside actual callback/listener regressions and independent source inspection; do not relabel it exact-old-source RED. Existing meaningful negative controls and review replace the blanket per-test reconstruction requirement. This removes an unnecessary procedure under the operator's lean-delivery direction; it does not waive real no-sensor behavior, cooldown, native T02, browser checks or independent final acceptance. No new framework, counter or admission machinery.
 
 ## Constraints
 

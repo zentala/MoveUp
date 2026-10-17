@@ -70,5 +70,4 @@ T03 touches `metrics/**`, `remote_display_state.rs`, `src/widgets/one-bar/**`,
 
 ## Done means
 
-All five acceptance criteria hold, every new test seen failing on reverted
-code, INDEX row `done`, `.plan/HISTORY.md` entry written.
+All five acceptance criteria hold, meaningful regression evidence satisfies PLAN's dated 2026-10-18 proportional disposition, INDEX row `done`, `.plan/HISTORY.md` entry written. Three compatible exact-old-body checks are bounded and serialized after browser QA, with exact restoration and GREEN. Do not reconstruct incompatible T01 history solely for per-test RED; mutation evidence retains its actual classification. Native acceptance is still required.
