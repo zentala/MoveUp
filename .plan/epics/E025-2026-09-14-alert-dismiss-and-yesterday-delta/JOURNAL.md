@@ -26,5 +26,25 @@ The same independent reviewer checked the existing synthetic mockup gallery in d
 
 PO's dated PLAN/HANDOFF disposition retires the blanket per-test historical reconstruction requirement and admits exactly three compatible old-body checks after browser QA releases the source. T01's listener-disabled result remains a mutation, not historical RED. Required native no-sensor/cooldown behavior and final independent acceptance are unchanged. The same author is entering fresh three-path preflight; no result is implied by this authorization.
 
+## Source evidence review round 2 — 2026-10-18
+
+The author completed the three admitted exact-old-body checks sequentially with the preview stopped. Each produced a behavioral assertion failure (0 passes, 1 failure, observed shell exit 1), followed by the same command passing (1 pass, exit 0) after exact ordinary restoration of only that file. The old metric registry returned 4 metrics rather than 5; the old empty summary fabricated yesterday zeros rather than null; the old tooltip map fell back to `vs yesterday` instead of the explanation containing `30 min more`. No compilation or loader failure was counted as RED.
+
+Commands: Cargo lib filter `e025_yesterday_levels_and_signed_minutes_use_raw_totals`; `pnpm test:unit --maxWorkers=4 src/hooks/deskReducer.test.ts -t "daily-reset zeroes the daily counters and empties today's summary"`; and `pnpm test:unit --maxWorkers=4 src/widgets/one-bar/KpiStrip.test.tsx -t "renders the vs-yesterday scenario with its explanatory tooltip"`. Each command ran for RED and restored GREEN; 878 Rust tests were filtered out, and 21/7 frontend tests were skipped by their respective focused selectors.
+
+The author and DM observed clean restored source, unchanged commits and ordinary diff checks passing. Independent round 2 is admitted to assess this evidence against the revised acceptance contract and close or retain R1-1; verdict pending. Browser/native gates remain separate and open.
+
+Round 2 result: independent source acceptance PASS, R1-1 closed as completed under the amended contract. The reviewer compared all three actual old bodies, current source and assertions, then independently reran the same three targeted commands: each passed 1 test with exit 0. Full diff-check, source-restoration diff and clean status passed; the same two source commits remain, with no running Cargo/test jobs. There are zero confirmed or unresolved source findings. Round 1's original gap and all historical failures remain valid history. Browser PARTIAL and native NOT_CHECKED are not closed by this source verdict.
+
+## Scoped browser acceptance and cleanup — 2026-10-18
+
+After exact source restoration and independent round 2 closure, the same reviewer completed the existing mockup demonstration. Filter sequence primary → secondary → all → primary produced badge counts 0 → 1 → 1 → 0. The synthetic 60-minute today / 85-minute yesterday case rendered the real green −25 min badge, full explanatory title and actual hover, without badge clipping at 1440×1000 and 420×360. Six screenshots were produced through the supported default MCP output and remain ignored in the review worktree. PO inspected the images and accepted this specific T03 demonstration.
+
+Limitations remain explicit: 390×844 portrait shows the existing rotate-to-landscape overlay; CDP did not capture native title-tooltip pixels. The development HMR proxy error and earlier favicon 404 are retained. The inspected 80 HTTP requests returned 200, with no real backend/relay traffic. The two earlier rejected screenshot destinations remain refused; neither destination was retried. This is mockup evidence, not whole-application, native transport, installed behavior or T02 acceptance.
+
+The owned preview was stopped and unregistered; its process and port listener were absent. The reviewer closed its QA tab. Both completed author and reviewer exited normally; process checks confirmed their native agents/support processes and terminal shells were gone, then their owned tabs were closed and absence verified. Source branches, worktree, native histories, ignored screenshots, prior failures and foreign sessions remain preserved. No speculative author/reviewer session remains.
+
+Next dependency is actual isolated native alert-flow acceptance. The existing finite source proposal and unresolved Store operation disposition remain unchanged; this browser acceptance grants no held-patch replay, native launch, source integration or E024 release. E025 remains incomplete.
+
 ## Finding 2026-09-14 — epic created
 → Planned from the E001-E009 audit leftovers (E004-T05, E004-T04, E001-T12) on request; BACKLOG entries replaced by a pointer.
