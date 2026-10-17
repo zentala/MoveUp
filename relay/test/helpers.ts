@@ -35,13 +35,12 @@ export interface ApiOptions {
   body?: unknown;
   /** Rate-limit bucket. Unique per call by default, so tests do not throttle
    * each other; a throttling test pins it deliberately. */
-  ip?: string;
+  ip?: string | null;
 }
 
 export async function api(path: string, options: ApiOptions = {}): Promise<Response> {
-  const headers: Record<string, string> = {
-    "CF-Connecting-IP": options.ip ?? crypto.randomUUID(),
-  };
+  const headers: Record<string, string> = {};
+  if (options.ip !== null) headers["CF-Connecting-IP"] = options.ip ?? crypto.randomUUID();
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
   if (options.body !== undefined) headers["content-type"] = "application/json";
 

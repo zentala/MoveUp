@@ -26,6 +26,7 @@ export const ERROR_CODES = [
   "not_implemented",
   "assets_unavailable",
   "internal",
+  "relay_misconfigured",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

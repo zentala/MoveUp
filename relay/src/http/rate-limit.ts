@@ -49,9 +49,9 @@ export async function take(
   return (await response.json()) as RateVerdict;
 }
 
-/** The client address a bucket is keyed by. Unknown callers share one bucket. */
-export const clientIp = (request: Request): string =>
-  request.headers.get("CF-Connecting-IP") ?? request.headers.get("X-Forwarded-For") ?? "unknown";
+/** Only the edge-provided address may select a rate-limit bucket. */
+export const clientIp = (request: Request): string | null =>
+  request.headers.get("CF-Connecting-IP")?.trim() || null;
 
 /**
  * One bucket. Addressed by name, so the object *is* the key and its whole state

@@ -34,7 +34,9 @@ const REDEEM_FAILURES: Record<Exclude<RedeemReply["status"], "ok">, number> = {
 
 /** `POST /v1/pair` — the phone submits a code and receives a viewer token. */
 export async function pair(request: Request, env: Env): Promise<Response> {
-  const verdict = await take(env, `pair:${clientIp(request)}`, PAIR_LIMIT);
+  const ip = clientIp(request);
+  if (ip === null) return fail("relay_misconfigured", "trusted client address is missing", 500);
+  const verdict = await take(env, `pair:${ip}`, PAIR_LIMIT);
   if (!verdict.allowed) {
     return fail("rate_limited", "too many pairing attempts from this address", 429);
   }

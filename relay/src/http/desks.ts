@@ -48,7 +48,9 @@ export async function requireDesk(
 
 /** `POST /v1/desks/register` — licence key in, desk credential out. */
 export async function register(request: Request, env: Env): Promise<Response> {
-  const verdict = await take(env, `register:${clientIp(request)}`, REGISTER_LIMIT);
+  const ip = clientIp(request);
+  if (ip === null) return fail("relay_misconfigured", "trusted client address is missing", 500);
+  const verdict = await take(env, `register:${ip}`, REGISTER_LIMIT);
   if (!verdict.allowed) {
     return fail("rate_limited", "too many registrations from this address", 429);
   }
