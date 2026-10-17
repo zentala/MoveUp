@@ -23,6 +23,10 @@ T03 builds on then-current main after the branch gate; it does not import the un
 
 T01 also owns relay_commands.rs ack_alert comment/path and relay_commands_tests.rs acknowledgement regression: removing take_user_dismissed must preserve exactly one snooze step per relay acknowledgement, with or without sensor traffic.
 
+### Producer scope accepted — 2026-10-17
+
+Source inspection confirmed get_yesterday_totals currently returns a numeric tuple, TodaySummary exposes numeric yesterday fields, and refresh_today_cache retains old context after query failure. T03 therefore also includes the fifteen exact paths listed in its amended task: query/type owners, cache and logger adapters, their existing consumers/tests and generated wire. Existing query becomes Result<Option<(i64, i64)>, String>: no recognized observations is None; observed zero is Some((0, 0)). Rust TodaySummary yesterday fields become Option<i64>. On refresh failure, warn and invalidate yesterday context without erasing the remaining cached data. Pure metrics still read neither database nor clock. Generate the TypeScript wire using the existing exporter. No schema or session-engine change, live database, new transport or framework. Nullable fields describe observation availability, not a new stored-data format. The actual runtime alert test remains required and NOT_CHECKED until a safe existing native route is established; logic-only tests cannot close it. E023 v0.7.0 is delivered; take the next free minor for E025.
+
 Version: 0.7.0, or next free after E023/E024; one minor bump per epic in actual merge order (planned E023 → E025 → E024). Direct Herdr delivery and existing checks replace obsolete orchestration recipes; no elapsed work caps, hashes or new admission machinery. Push verified delivered commits.
 
 Source: the E001-E009 status audit of 2026-09-13 found two items marked done

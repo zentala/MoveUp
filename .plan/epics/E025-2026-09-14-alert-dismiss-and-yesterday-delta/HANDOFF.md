@@ -33,6 +33,8 @@ Wave 2: T02 (needs T01). Wave 3: T04. Bump the minor epic version before T01
 
 ## Tasks
 
+2026-10-17 producer amendment: read PLAN's accepted producer scope and T03's exact fifteen added paths before author preflight. Missing observations/error must remain distinct from observed zero through query, cache, generated wire and all metric consumers. Tooltip is owned by KpiStrip.tsx. No schema/session-engine/live-data changes or new test transport. T02 still requires actual safe native alert behavior, independently of T01/T03 source progress.
+
 - [ ] **T01** (3, ts-dev, Rust) — `alert:user-dismissed` event path (D1),
   remove the polling path. Tests `e025_dismiss_*` in
   `tray_controller_tests.rs`: dismiss without sensor reaches policy; dismiss
