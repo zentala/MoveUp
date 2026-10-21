@@ -26,7 +26,7 @@ pub fn show_welcome_window(app: &tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn dismiss_welcome(dont_show_again: bool, app: tauri::AppHandle) -> Result<(), String> {
     if dont_show_again {
-        if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+        if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
             let mut config = AppConfig::load(store.inner());
             config.show_welcome_on_startup = false;
             config.save(store.inner())?;

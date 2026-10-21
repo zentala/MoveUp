@@ -31,7 +31,7 @@ pub const ENGINE_SCHEMA_VERSION: u32 = 1;
 /// Saves current session state to the store via AppHandle.
 /// Preserves `daily_reset_after` from previously persisted state.
 pub fn save_via_app(app: &tauri::AppHandle, session: &SessionManager) {
-    if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+    if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
         let reset = load_reset_after(store.inner());
         if let Err(e) = PersistedEngineState::from_session(session, reset).save(store.inner()) {
             log::error!("Failed to persist session state: {}", e);

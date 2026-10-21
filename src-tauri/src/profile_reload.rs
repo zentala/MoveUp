@@ -40,7 +40,7 @@ pub fn reload_profiles_if_changed(app: &AppHandle) {
     };
 
     let (active_comm_id, active_ergo_id) =
-        if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+        if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
             let comm = store
                 .get(KEY_COMM)
                 .and_then(|v| v.as_str().map(String::from))

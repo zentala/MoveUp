@@ -32,7 +32,7 @@ pub fn save_settings(
 
     // Save to store
     let store_state = app
-        .try_state::<tauri_plugin_store::Store<tauri::Wry>>()
+        .try_state::<crate::app_store::AppStore<tauri::Wry>>()
         .ok_or_else(|| "Failed to access store".to_string())?;
 
     clamped.save(store_state.inner())?;

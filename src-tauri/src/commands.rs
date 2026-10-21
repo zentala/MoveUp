@@ -68,7 +68,7 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
     // On first run (no reset_after in store), all today's sessions are loaded.
     // After the first daily reset with this code, the filter activates.
     let reset_after = app
-        .try_state::<tauri_plugin_store::Store<tauri::Wry>>()
+        .try_state::<crate::app_store::AppStore<tauri::Wry>>()
         .and_then(|store| crate::session_persistence::load_reset_after(store.inner()));
 
     if let Some(ref ts) = reset_after {
@@ -81,7 +81,7 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
     }
 
     // Restore persisted notification flags and credit-reduced sitting_seconds.
-    if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+    if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
         if let Some(persisted) = crate::session_persistence::PersistedSessionState::load(store.inner()) {
             state.session.lock().unwrap_or_else(|e| e.into_inner()).load_persisted_state(&persisted);
         }
@@ -90,7 +90,7 @@ pub fn ensure_initialized(app: &tauri::AppHandle, state: &AppState) -> Result<()
     *db_guard = Some(conn);
 
     let cfg = app
-        .try_state::<tauri_plugin_store::Store<tauri::Wry>>()
+        .try_state::<crate::app_store::AppStore<tauri::Wry>>()
         .map(|store| AppConfig::load(store.inner()))
         .unwrap_or_default();
     *state.config.lock().unwrap_or_else(|e| e.into_inner()) = Some(cfg.clone());

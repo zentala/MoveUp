@@ -37,6 +37,7 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
     };
     info!("App data dir: {:?}", app_data_dir);
 
+    crate::app_store::initialize(app.handle()).map_err(std::io::Error::other)?;
     load_profiles(app.handle());
     crate::db_backup::backup_database(&app_data_dir);
     info!("DB path: {}", app_data_dir.join("desk.db").display());
@@ -62,7 +63,7 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
 
     {
         let state: tauri::State<'_, AppState> = app.state();
-        if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+        if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
             let config = crate::config::AppConfig::load(store.inner());
             let ergo = state.comm_policy.lock().unwrap().ergo_profile().clone();
             let mut session = state.session.lock().unwrap_or_else(|e| e.into_inner());

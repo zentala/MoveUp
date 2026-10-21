@@ -98,6 +98,14 @@ pub(crate) fn pm3_owns_autostart(get: impl Fn(&str) -> Option<String>) -> bool {
 pub(crate) fn is_pm3_login_activation(command: &str, launcher: &std::path::Path) -> bool {
     let command = command.trim().replace('\\', "/").to_ascii_lowercase();
     let launcher = launcher.to_string_lossy().replace('\\', "/").to_ascii_lowercase();
-    command.ends_with(&format!("\"{launcher}\" start moveup/desk"))
-        || command.ends_with(&format!(" {launcher} start moveup/desk"))
+    // The supported cmd activation wraps cd/start in one outer quoted argument.
+    let activation = if command.contains("cmd.exe /d /s /c \"cd /d ") {
+        let Some(wrapped) = command.strip_suffix('"') else { return false; };
+        let Some((_, activation)) = wrapped.split_once(" && ") else { return false; };
+        activation
+    } else { command.as_str() };
+    // Only the final start is owned here, never a following shell command.
+    if activation.contains(['&', '|', '\r', '\n']) { return false; }
+    activation.ends_with(&format!("\"{launcher}\" start moveup/desk"))
+        || activation.ends_with(&format!(" {launcher} start moveup/desk"))
 }

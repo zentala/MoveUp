@@ -47,6 +47,8 @@ pub mod event_logger;
 pub mod app_lifecycle;
 pub mod app_lifecycle_store;
 mod app_lifecycle_runtime;
+mod app_store;
+#[cfg(test)] mod app_store_tests;
 mod supervision;
 mod supervision_process;
 mod supervision_quit;

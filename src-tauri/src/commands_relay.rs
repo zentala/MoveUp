@@ -23,7 +23,7 @@ use crate::relay_auth::{
 use crate::relay_client::{self, ClientDeps, RelayConfig, SnapshotSource, TokioSleeper};
 use crate::relay_status::{RelayState, RelayStatus};
 
-type StoreState = tauri_plugin_store::Store<tauri::Wry>;
+type StoreState = crate::app_store::AppStore<tauri::Wry>;
 
 // ─── Supervisor ─────────────────────────────────────────────────────────────
 

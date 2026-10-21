@@ -43,7 +43,7 @@ pub fn check_periodic(
         let _ = app.emit(DESK_DAILY_RESET, ());
         event_logger.log("RESET daily");
         // Clear stale persisted flags so they don't leak into tomorrow.
-        if let Some(store) = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+        if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
             crate::session_persistence::clear(store.inner());
         }
     }

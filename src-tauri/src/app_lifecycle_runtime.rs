@@ -19,7 +19,7 @@ pub fn readiness_reader(app: &AppHandle) -> ReadinessReader {
     let state = app.state::<AppState>();
     let db = state.db.clone();
     let conn = state.conn.clone();
-    let store_available = app.try_state::<tauri_plugin_store::Store<tauri::Wry>>().is_some();
+    let store_available = app.try_state::<crate::app_store::AppStore<tauri::Wry>>().is_some();
     Arc::new(move || {
         local_readiness(&lifecycle, &db, &conn.connected_port, store_available)
     })
@@ -121,7 +121,7 @@ pub fn shutdown(app: &AppHandle) {
 fn flush(app: &AppHandle, progress: &mut FlushProgress) -> String {
     let state = app.state::<AppState>();
     flush_state_progress(&state.session, &state.db, progress, |session| {
-        match app.try_state::<tauri_plugin_store::Store<tauri::Wry>>() {
+        match app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
             Some(store) => {
                 let reset = crate::session_persistence::load_reset_after(store.inner());
                 match crate::session_persistence::PersistedEngineState::from_session(session, reset)

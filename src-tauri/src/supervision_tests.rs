@@ -89,6 +89,27 @@ fn manual_release_preserves_existing_public_launcher_login_activation() {
     }
 }
 #[test]
+fn quoted_cmd_login_activation_preserves_only_the_selected_final_start() {
+    let launcher = std::path::Path::new("C:/fixture/pm3/releases/launch.mjs");
+    // Accepted static Run argv, with disposable fixture paths replacing the user paths.
+    let candidate = r#"C:\Windows\System32\conhost.exe --headless C:\Windows\System32\cmd.exe /d /s /c "cd /d C:\fixture\config && C:\fixture\node.exe C:\fixture\pm3\releases\launch.mjs start moveup/desk""#;
+    assert!(is_pm3_login_activation(candidate, launcher));
+    let direct = r#"C:\fixture\node.exe C:\fixture\pm3\releases\launch.mjs start moveup/desk"#;
+    assert!(is_pm3_login_activation(direct, launcher));
+    for invalid in [
+        candidate.replace("fixture\\pm3", "foreign\\pm3"),
+        candidate.replace("start moveup/desk", "start other/desk"),
+        candidate.replace("start moveup/desk", "start moveup/desk && echo unrelated"),
+        format!("{candidate} && echo unrelated"),
+        candidate.replace("start moveup/desk", &format!("start moveup/desk && {direct}")),
+        candidate.trim_end_matches('"').to_string(),
+        format!("{direct} && echo unrelated"),
+        format!("{direct} | echo unrelated"),
+    ] {
+        assert!(!is_pm3_login_activation(&invalid, launcher), "unexpectedly recognized {invalid}");
+    }
+}
+#[test]
 fn duplicate_quit_clicks_are_serialized_and_failure_allows_retry() {
     let gate = std::sync::Arc::new(QuitGate::new());
     let workers: Vec<_> = (0..16).map(|_| {

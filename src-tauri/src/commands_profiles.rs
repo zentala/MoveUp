@@ -58,7 +58,7 @@ pub(crate) fn validate_profile_id(id: &str) -> Result<(), String> {
 }
 
 fn get_active_id(app: &AppHandle, key: &str) -> String {
-    app.try_state::<tauri_plugin_store::Store<tauri::Wry>>()
+    app.try_state::<crate::app_store::AppStore<tauri::Wry>>()
         .and_then(|store| {
             store.get(key).and_then(|v| v.as_str().map(String::from))
         })
@@ -68,7 +68,7 @@ fn get_active_id(app: &AppHandle, key: &str) -> String {
 fn save_active_id(app: &AppHandle, key: &str, id: &str) -> Result<(), String> {
     use tauri::Manager;
     let store = app
-        .try_state::<tauri_plugin_store::Store<tauri::Wry>>()
+        .try_state::<crate::app_store::AppStore<tauri::Wry>>()
         .ok_or_else(|| "Failed to access store".to_string())?;
     store.set(key, serde_json::Value::String(id.to_string()));
     store.save().map_err(|e| format!("Failed to save store: {}", e))

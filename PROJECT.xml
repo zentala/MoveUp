@@ -44,6 +44,10 @@
     <feature name="persistence">
       <description>SQLite stores session history, today summaries</description>
     </feature>
+    <feature name="shared-session-store">
+      <description>One initialized plugin Store shared by settings, session save points and shutdown.</description>
+      <source path="src-tauri/src/app_store.rs" tests="src-tauri/src/app_store_tests.rs"/>
+    </feature>
     <feature name="settings">
       <description>Sit/stand limits, calibration, notification prefs, widget picker, profile selector — tauri-plugin-store</description>
     </feature>
