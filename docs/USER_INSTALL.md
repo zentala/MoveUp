@@ -91,9 +91,11 @@ and can force termination without a cooperative flush; persistence on that path
 remains an unresolved product requirement, even when the command returns success.
 
 The shared Store correction is delivered; it does not resolve forced termination.
-The PM3 login activation has not been registered in Windows Run: the existing
-direct entry is unchanged. A reviewed activation was executed manually by the
-operator, which proves neither registered autostart nor an actual subsequent login.
+The reviewed PM3 login activation is now registered in the existing Windows Run
+entry, with its REG_SZ type and exact value verified by readback after the reviewed
+build and native readiness checks. The previous value and type are retained for
+rollback. The earlier operator-triggered manual activation is separate evidence;
+no reboot was performed and an actual subsequent login remains NOT_CHECKED.
 
 ## Data Storage
 

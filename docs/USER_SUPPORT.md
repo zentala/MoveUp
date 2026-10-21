@@ -162,10 +162,12 @@ stop left flush=not_attempted and no clean_exit. Flush-before-stop on that path
 remains an unresolved product requirement; command exit zero is not persistence
 evidence. Do not infer graceful save from the label SIGTERM in supervisor records.
 
-The reviewed PM3 login activation has not been registered in Windows Run; the
-existing direct entry is unchanged. Only an operator-triggered manual activation
-has been observed. Registered autostart and a real subsequent login remain
-unverified, independently of successful process recovery.
+The reviewed PM3 login activation is now registered in the existing Windows Run
+entry. After the reviewed build and native readiness checks, readback verified
+the exact value and REG_SZ type; the previous value and type are retained for
+rollback. Registration did not execute the action again. The earlier manual
+activation remains separate evidence. No reboot was performed; an actual
+subsequent login remains NOT_CHECKED, independently of process recovery.
 
 The supervisor also depends on its Windows Scheduled Task lifetime. Battery
 conditions, interactive-user requirements, missed-trigger behavior and a task
