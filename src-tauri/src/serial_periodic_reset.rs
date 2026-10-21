@@ -13,6 +13,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use chrono::{DateTime, NaiveDate, Utc};
 use log::error;
 
 use crate::communication_profile::CommunicationProfile;
@@ -34,6 +35,29 @@ pub fn run_daily_reset(session: &Arc<Mutex<SessionManager>>, config: &AppConfig)
         crate::telemetry::send_telemetry_if_enabled(config, &sess);
     }
     sess.check_daily_reset()
+}
+
+/// Rolls over a changed local day before the current reading changes posture.
+/// The explicit instant/date/boundary keep the adapter deterministic, while
+/// the engine decides whether the reading extends known observation coverage.
+pub(crate) fn run_daily_reset_before_reading(
+    session: &Arc<Mutex<SessionManager>>,
+    config: &AppConfig,
+    now: DateTime<Utc>,
+    today_local: NaiveDate,
+    day_boundary: DateTime<Utc>,
+) -> bool {
+    let mut sess = session.lock().unwrap_or_else(|error| error.into_inner());
+    if sess.last_reset_date >= today_local {
+        return false;
+    }
+    let last_observation = sess.history_last_reading.into_iter()
+        .chain(sess.state.last_tick_ts).max();
+    if last_observation.is_some_and(|last| now < last) {
+        return false;
+    }
+    crate::telemetry::send_telemetry_if_enabled(config, &sess);
+    sess.check_daily_reset_at_observation(now, today_local, day_boundary)
 }
 
 /// Writes the per-minute JSON snapshot with computed KPI metrics.
@@ -107,19 +131,19 @@ pub fn collect_notification_intents(
 /// Saves a span that ended this tick to the sessions table.
 ///
 /// A break span carries the credit it earned; a sitting span carries none and
-/// the column stays NULL for it. A failed insert is logged, never propagated —
-/// losing one row must not kill the serial loop.
+/// the column stays NULL for it. A failed insert is returned so the queued span
+/// remains available for a later retry.
 pub fn persist_completed_session(
     db: &Arc<Mutex<Option<rusqlite::Connection>>>,
     completed: &CompletedSession,
     state_before: &DeskState,
     credit: Option<&BreakCredit>,
-) {
+) -> bool {
     let db_lock = db.lock().unwrap();
     let Some(ref conn) = *db_lock else {
-        return;
+        return false;
     };
-    if let Err(e) = crate::db_sessions::insert_session_with_credit(
+    if let Err(e) = crate::db_sessions::insert_session_once(
         conn,
         &completed.started_at,
         &completed.ended_at,
@@ -128,7 +152,35 @@ pub fn persist_completed_session(
         credit,
     ) {
         error!("Failed to save completed session: {}", e);
+        return false;
     }
+    true
+}
+
+/// Persist pending rows in order, acknowledging each only after its SQLite
+/// statement succeeds. The callback records rows this attempt actually inserted;
+/// deduplicated rows are not owned by the caller and must never be rolled back.
+pub(crate) fn persist_pending_history(
+    session: &mut SessionManager,
+    conn: &rusqlite::Connection,
+    mut on_insert: impl FnMut(&crate::session_types::PendingHistory, i64),
+) -> Result<(), rusqlite::Error> {
+    session.queue_interrupted_history();
+    while let Some(pending) = session.pending_history.first().cloned() {
+        let inserted_id = crate::db_sessions::insert_session_once(
+            conn,
+            &pending.span.started_at,
+            &pending.span.ended_at,
+            &format!("{:?}", pending.state),
+            pending.span.duration_secs,
+            pending.credit.as_ref(),
+        )?;
+        if let Some(id) = inserted_id {
+            on_insert(&pending, id);
+        }
+        session.pending_history.remove(0);
+    }
+    Ok(())
 }
 
 /// Formats the `STATE` event-log line for a state transition.

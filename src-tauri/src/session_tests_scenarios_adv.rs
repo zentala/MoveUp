@@ -74,6 +74,8 @@ mod tests {
     fn simulate_elapsed(m: &mut SessionManager, now: &mut DateTime<Utc>, secs: i64) {
         *now += Duration::seconds(secs);
         m.state.last_tick_ts = Some(*now);
+        // This fixture explicitly models uninterrupted sensor observations.
+        m.history_last_reading = Some(*now);
     }
 
     // ─── Scenario 5: App restart mid-session ─────────────────────────────

@@ -71,7 +71,6 @@ mod timer_tests {
     #[test]
     fn e015_t042_04_restart_from_db_seeds_credited_counter() {
         let mut m = SessionManager::new();
-        let mut now = base();
         m.load_today_totals(&crate::db_sessions::TodayTotals::from_secs(1800, 600));
         assert_eq!(m.state.sitting_seconds, 1800);
         assert_eq!(m.snapshot().limit_used_secs, 1800);
@@ -80,7 +79,6 @@ mod timer_tests {
     #[test]
     fn t042_05_restart_from_db_seeds_standing_break_zero() {
         let mut m = SessionManager::new();
-        let mut now = base();
         m.load_today_totals(&crate::db_sessions::TodayTotals::from_secs(1200, 900));
         assert_eq!(m.state.standing_seconds, 900);
         assert_eq!(m.state.break_seconds, 0);
@@ -112,6 +110,7 @@ mod timer_tests {
         let mut now = base();
         transition_to_sitting(&mut m, &mut now);
         m.state.sitting_started = Some(now - Duration::seconds(300));
+        m.history_span_started = m.state.sitting_started;
         let mut last = ReadingResult { state_change: None, completed_session: None, break_credit: None };
         for _ in 0..DEBOUNCE_COUNT {
             last = m.on_reading_at(1200, true, now);
@@ -218,6 +217,7 @@ mod timer_tests {
         let t = now - Duration::seconds(600);
         m.state.break_started = Some(t);
         m.state.standing_bout_started = Some(t);
+        m.history_span_started = Some(t);
         let mut last = ReadingResult { state_change: None, completed_session: None, break_credit: None };
         for _ in 0..DEBOUNCE_COUNT {
             last = m.on_reading_at(800, true, now);
@@ -236,6 +236,8 @@ mod timer_tests {
         transition_to_standing(&mut m, &mut now);
         transition_to_away(&mut m, &mut now);
         m.state.break_started = Some(now - Duration::seconds(900));
+        // History is the individual Away span, independent of total break age.
+        m.history_span_started = Some(now - Duration::seconds(900));
         let mut last = ReadingResult { state_change: None, completed_session: None, break_credit: None };
         for _ in 0..DEBOUNCE_COUNT {
             last = m.on_reading_at(800, true, now);

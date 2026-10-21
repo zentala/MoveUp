@@ -27,6 +27,70 @@ fn rows_for_day(conn: &Connection) -> Vec<SessionRow> {
     get_sessions_range(conn, DAY, DAY).unwrap()
 }
 
+fn assert_injected_local_day_totals(
+    zone: chrono_tz::Tz,
+    date: &str,
+    expected_start: chrono::NaiveTime,
+    expected_hours: i64,
+) {
+    let conn = test_conn();
+    let (start, end) = crate::db_sessions::local_date_bounds(&zone, date, date)
+        .expect("a local day must resolve to its first representable instant");
+    let local_start = start.with_timezone(&zone);
+    assert_eq!(local_start.date_naive().to_string(), date);
+    assert_eq!(local_start.time(), expected_start);
+    assert_eq!((end - start).num_hours(), expected_hours);
+
+    insert_session(
+        &conn,
+        &(start - chrono::Duration::seconds(20)).to_rfc3339(),
+        &(start + chrono::Duration::seconds(40)).to_rfc3339(),
+        "Sitting",
+        60,
+    ).unwrap();
+    insert_session(
+        &conn,
+        &(start + chrono::Duration::seconds(40)).to_rfc3339(),
+        &(start + chrono::Duration::seconds(100)).to_rfc3339(),
+        "Standing",
+        60,
+    ).unwrap();
+    insert_session(
+        &conn,
+        &(end - chrono::Duration::seconds(30)).to_rfc3339(),
+        &(end + chrono::Duration::seconds(20)).to_rfc3339(),
+        "Sitting",
+        50,
+    ).unwrap();
+
+    let rows = crate::db_queries::get_sessions_between(&conn, start, end).unwrap();
+    assert_eq!(rows.len(), 3, "the query includes each row intersecting the local day");
+    assert_eq!(crate::db_sessions::get_totals_for_date_in_zone(&conn, &zone, date).unwrap(),
+        (70, 60), "production daily totals clip crossing rows at injected local-day bounds");
+}
+
+#[test]
+fn r3_f01_db_query_totals_resolve_nonexistent_midnight_injected_zone() {
+    use chrono::{NaiveTime, TimeZone};
+    let day = chrono::NaiveDate::from_ymd_opt(2018, 11, 4).unwrap();
+    let zone = chrono_tz::America::Sao_Paulo;
+    assert!(matches!(zone.from_local_datetime(&day.and_hms_opt(0, 0, 0).unwrap()),
+        chrono::LocalResult::None));
+    assert_injected_local_day_totals(zone, "2018-11-04",
+        NaiveTime::from_hms_opt(1, 0, 0).unwrap(), 23);
+}
+
+#[test]
+fn r3_f01_db_query_totals_choose_first_ambiguous_midnight_injected_zone() {
+    use chrono::{NaiveTime, TimeZone};
+    let day = chrono::NaiveDate::from_ymd_opt(2015, 11, 1).unwrap();
+    let zone = chrono_tz::America::Havana;
+    assert!(matches!(zone.from_local_datetime(&day.and_hms_opt(0, 0, 0).unwrap()),
+        chrono::LocalResult::Ambiguous(_, _)));
+    assert_injected_local_day_totals(zone, "2015-11-01",
+        NaiveTime::from_hms_opt(0, 0, 0).unwrap(), 25);
+}
+
 // ─── break_credit column ─────────────────────────────────────────────────────
 
 #[test]
@@ -54,19 +118,25 @@ fn e015_break_credit_persists_applied_credit() {
 
 #[test]
 fn e015_break_credit_unknown_stays_null_not_none() {
+    use chrono::TimeZone;
     let conn = test_conn();
+    // Fixed local noon avoids midnight and DST transition fixtures. The query
+    // and both UTC wire instants derive from the same local date.
+    let date = chrono::NaiveDate::parse_from_str(DAY, "%Y-%m-%d").unwrap();
+    let start = chrono::Local.from_local_datetime(&date.and_hms_opt(12, 0, 0).unwrap())
+        .single().unwrap().with_timezone(&chrono::Utc);
+    let end = start + chrono::Duration::minutes(45);
     // A sitting span: no credit applies, so nothing is recorded.
     insert_session(
         &conn,
-        "2026-09-06T08:00:00Z",
-        "2026-09-06T08:45:00Z",
+        &start.to_rfc3339(),
+        &end.to_rfc3339(),
         "Sitting",
         2700,
     )
     .unwrap();
 
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let rows = get_sessions_range(&conn, &today, &today).unwrap();
+    let rows = rows_for_day(&conn);
     assert_eq!(rows.len(), 1);
     assert_eq!(
         rows[0].break_credit, None,

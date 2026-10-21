@@ -30,11 +30,17 @@ pub const ENGINE_SCHEMA_VERSION: u32 = 1;
 
 /// Saves current session state to the store via AppHandle.
 /// Preserves `daily_reset_after` from previously persisted state.
-pub fn save_via_app(app: &tauri::AppHandle, session: &SessionManager) {
-    if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
-        let reset = load_reset_after(store.inner());
-        if let Err(e) = PersistedEngineState::from_session(session, reset).save(store.inner()) {
-            log::error!("Failed to persist session state: {}", e);
+pub fn save_via_app(app: &tauri::AppHandle, session: &SessionManager) -> bool {
+    let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() else {
+        log::error!("Failed to persist session state: shared AppStore is missing");
+        return false;
+    };
+    let reset = load_reset_after(store.inner());
+    match PersistedEngineState::from_session(session, reset).save(store.inner()) {
+        Ok(()) => true,
+        Err(error) => {
+            log::error!("Failed to persist session state: {}", error);
+            false
         }
     }
 }
@@ -42,7 +48,10 @@ pub fn save_via_app(app: &tauri::AppHandle, session: &SessionManager) {
 /// Clears persisted session state on daily reset, but preserves the
 /// reset timestamp so that DB seeding after restart filters correctly.
 pub fn clear<R: Runtime>(store: &Store<R>) {
+    let pending = store.get(STORE_KEY).and_then(PersistedEngineState::from_stored_value)
+        .map(|state| state.pending_history).unwrap_or_default();
     let mut reset_state = PersistedEngineState::empty_for_today();
+    reset_state.pending_history = pending;
     reset_state.daily_reset_after = Some(chrono::Utc::now().to_rfc3339());
     match serde_json::to_value(&reset_state) {
         Ok(value) => {
@@ -87,6 +96,8 @@ pub struct PersistedEngineState {
     /// The whole engine state, verbatim. `None` for a v0 snapshot, which is
     /// why [`SessionManager::load_persisted_state`] keeps a scalar fallback.
     pub engine: Option<SessionState>,
+    /// Additive private retry envelope, independent of the daily counter guard.
+    pub(crate) pending_history: Vec<crate::session_types::PendingHistory>,
     // ── v0 mirror of `engine` + the hourly break tracker. Still written so an
     //    older build can read our file; readers prefer `engine` when present.
     pub sitting_seconds: i64,
@@ -122,9 +133,13 @@ impl PersistedEngineState {
         let tracker = &session.hourly_break_tracker;
         Self {
             schema_version: ENGINE_SCHEMA_VERSION,
-            date_local: today_local(),
+            // The counters belong to the last day the engine actually rolled
+            // into. A save before the first post-midnight reading must not
+            // relabel yesterday's counters as today's.
+            date_local: session.last_reset_date.format("%Y-%m-%d").to_string(),
             daily_reset_after: reset_after,
             engine: Some(session.state.clone()),
+            pending_history: session.pending_history.clone(),
             sitting_seconds: session.state.sitting_seconds,
             daily_score: session.state.daily_score,
             hours_with_break: tracker.hours_with_break.clone(),
@@ -165,14 +180,15 @@ impl PersistedEngineState {
         store.save().map_err(|e| format!("Failed to save store: {}", e))
     }
 
-    /// Loads persisted state from store. Returns None if missing, corrupt,
-    /// or from a different day (stale data after midnight reset).
+    /// Loads state; stale counters are ignored by the manager, while pending
+    /// history must survive midnight. Missing/corrupt snapshots return None.
     pub fn load<R: Runtime>(store: &Store<R>) -> Option<Self> {
         let state = Self::from_stored_value(store.get(STORE_KEY)?)?;
         let today = today_local();
         if state.date_local != today {
             info!("Discarding persisted state from {} (today is {})", state.date_local, today);
-            return None;
+            // Keep the original date so the manager can guard counter restore.
+            // Yesterday's unacknowledged history is still eligible for retry.
         }
         Some(state)
     }
@@ -186,6 +202,12 @@ impl SessionManager {
     /// flags, the hourly break tracker. Live timer anchors are dropped: the
     /// app was not running, so that gap is not sitting time.
     pub fn load_persisted_state(&mut self, persisted: &PersistedEngineState) {
+        for pending in &persisted.pending_history {
+            self.queue_history(pending.state.clone(), pending.span.clone(), pending.credit.clone());
+        }
+        if persisted.date_local != today_local() {
+            return;
+        }
         let from_db = self.state.clone();
         if let Some(engine) = &persisted.engine {
             self.state = engine.clone();
@@ -196,7 +218,15 @@ impl SessionManager {
                 .max(engine.sitting_seconds_total);
             self.clear_live_anchors();
         }
-        self.restore_credited_sitting(persisted.sitting_seconds, from_db.sitting_seconds);
+        // A failed history insert makes DB raw totals temporarily incomplete.
+        // The snapshot already includes those observed counters; do not turn
+        // positive credited load into zero just because its rows await retry.
+        let credit_ceiling = if persisted.pending_history.is_empty() {
+            from_db.sitting_seconds
+        } else {
+            from_db.sitting_seconds.max(self.state.sitting_seconds_total)
+        };
+        self.restore_credited_sitting(persisted.sitting_seconds, credit_ceiling);
         self.state.daily_score = persisted.daily_score;
         self.hourly_break_tracker = HourlyBreakTracker::restore(
             persisted.hours_with_break.clone(),
@@ -238,6 +268,11 @@ impl SessionManager {
 
     /// Drops every "started at" anchor a live counter measures from.
     fn clear_live_anchors(&mut self) {
+        self.history_span_started = None;
+        self.history_last_reading = None;
+        self.interrupted_history.clear();
+        self.sleep_break_credit = 0;
+        self.observed_break_secs = 0;
         self.state.sitting_started = None;
         self.state.break_started = None;
         self.state.standing_session_started = None;

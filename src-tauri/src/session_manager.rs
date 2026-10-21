@@ -10,6 +10,19 @@ use crate::session_types::*;
 /// Owns `SessionState` and drives state transitions.
 pub struct SessionManager {
     pub state: SessionState,
+    /// Current observed history span, independent of credit/counter anchors.
+    /// Runtime-only: restored counters never establish observed coverage.
+    pub(crate) history_span_started: Option<DateTime<Utc>>,
+    /// Last observation survives daily counter reset, but not process restart.
+    pub(crate) history_last_reading: Option<DateTime<Utc>>,
+    /// Spans interrupted by sleep, drained by the persistence adapter each tick.
+    pub(crate) interrupted_history: Vec<(DeskState, CompletedSession)>,
+    /// Unacknowledged history; an adapter removes rows only after SQLite success.
+    pub(crate) pending_history: Vec<crate::session_types::PendingHistory>,
+    /// Credit already applied during the current break's sleep gaps.
+    pub(crate) sleep_break_credit: i64,
+    /// Confirmed break seconds accumulated across observation gaps.
+    pub(crate) observed_break_secs: i64,
     /// Ergonomic limits currently in force — configuration, never state.
     ///
     /// Every engine function that needs a threshold reads it from here rather
@@ -56,6 +69,12 @@ impl SessionManager {
                 ..SessionState::default()
             },
             limits: Limits::default(),
+            history_span_started: None,
+            history_last_reading: None,
+            interrupted_history: Vec::new(),
+            pending_history: Vec::new(),
+            sleep_break_credit: 0,
+            observed_break_secs: 0,
             pending_state: None,
             pending_count: 0,
             sitting_height_cm: 72.0,
@@ -89,6 +108,12 @@ impl SessionManager {
                 ..SessionState::default()
             },
             limits: ergo.limits.clone(),
+            history_span_started: None,
+            history_last_reading: None,
+            interrupted_history: Vec::new(),
+            pending_history: Vec::new(),
+            sleep_break_credit: 0,
+            observed_break_secs: 0,
             pending_state: None,
             pending_count: 0,
             sitting_height_cm: config.sitting_mm as f32 / 10.0,

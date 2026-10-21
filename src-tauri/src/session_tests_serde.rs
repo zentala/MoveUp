@@ -4,6 +4,58 @@
 //! If these fail, the frontend state comparisons (e.g. `state === "Standing"`) will
 //! silently break — the UI will render but conditional logic won't fire.
 
+#[test]
+fn e027_pending_history_survives_failure_json_restore_and_commit_replay() {
+    use crate::session_types::DEBOUNCE_COUNT;
+    use crate::session_manager::SessionManager;
+    use crate::session_persistence::PersistedEngineState;
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::db::init_schema(&conn).unwrap();
+    conn.execute_batch("CREATE TRIGGER reject_history BEFORE INSERT ON sessions
+        BEGIN SELECT RAISE(FAIL, 'synthetic failure'); END;").unwrap();
+    let mut m = SessionManager::new();
+    m.state.sitting_seconds = 500;
+    let at = chrono::DateTime::parse_from_rfc3339("2026-10-09T10:00:00Z").unwrap()
+        .with_timezone(&chrono::Utc);
+    for (seconds, mm, active) in [(0, 1200, true), (60, 1200, false), (120, 800, true)] {
+        for _ in 0..DEBOUNCE_COUNT {
+            m.on_reading_at(mm, active, at + chrono::Duration::seconds(seconds));
+        }
+    }
+    assert!(crate::serial_periodic_reset::persist_pending_history(&mut m, &conn, |_, _| {}).is_err());
+    assert_eq!(m.pending_history.len(), 2);
+    let json = serde_json::to_value(PersistedEngineState::from_session(&m, None)).unwrap();
+    let snapshot = PersistedEngineState::from_stored_value(json).unwrap();
+    let mut restored = SessionManager::new();
+    restored.load_persisted_state(&snapshot);
+    assert_eq!(restored.pending_history.len(), 2);
+    assert!(restored.history_span_started.is_none());
+    conn.execute_batch("DROP TRIGGER reject_history;").unwrap();
+    crate::serial_periodic_reset::persist_pending_history(&mut restored, &conn, |_, _| {}).unwrap();
+    assert!(restored.pending_history.is_empty());
+    // Simulate a crash after SQLite commit but before the store ack save.
+    restored.load_persisted_state(&snapshot);
+    crate::serial_periodic_reset::persist_pending_history(&mut restored, &conn, |_, _| {}).unwrap();
+    let (count, sum): (i64, i64) = conn.query_row(
+        "SELECT COUNT(*), SUM(duration_seconds) FROM sessions", [],
+        |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    assert_eq!((count, sum), (2, 120));
+    assert!(restored.pending_history.is_empty());
+    let credit: String = conn.query_row("SELECT break_credit FROM sessions WHERE state='Away'",
+        [], |r| r.get(0)).unwrap();
+    assert_eq!(credit, "partial");
+    let mut stale = snapshot.clone();
+    stale.date_local = "2020-01-01".into();
+    let mut next_day = SessionManager::new();
+    next_day.load_today_totals(&crate::db_sessions::TodayTotals::from_secs(1000, 500));
+    next_day.load_persisted_state(&stale);
+    assert_eq!(next_day.state.sitting_seconds, 1000); // Stale counters cannot overwrite today.
+    assert_eq!(next_day.state.standing_seconds, 500);
+    assert_eq!(next_day.pending_history.len(), 2); // Retry envelope crosses midnight.
+    crate::serial_periodic_reset::persist_pending_history(&mut next_day, &conn, |_, _| {}).unwrap();
+    assert!(next_day.pending_history.is_empty());
+}
+
 #[cfg(test)]
 mod serde_contract_tests {
     use crate::session_types::*;

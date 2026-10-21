@@ -5,6 +5,46 @@
 //! `Utc::now()` here would make these tests pass or fail depending on the hour
 //! the suite runs at, because the local day rolls over before the UTC one.
 
+#[test]
+fn e027_local_day_intersection_midnight_dst_and_clipped_raw_totals() {
+    use chrono_tz::Europe::Warsaw;
+    use crate::db_sessions::{local_date_bounds, clipped_duration};
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::db::init_schema(&conn).unwrap();
+    for (date, expected) in [("2026-10-09", 86400), ("2026-03-29", 82800), ("2026-10-25", 90000)] {
+        let (start, end) = local_date_bounds(&Warsaw, date, date).unwrap();
+        assert_eq!((end - start).num_seconds(), expected);
+        let a = (start - chrono::Duration::seconds(60)).to_rfc3339();
+        let b = (start + chrono::Duration::seconds(60)).to_rfc3339();
+        crate::db_sessions::insert_session(&conn, &a, &b, "Standing", 120).unwrap();
+        let before = start.with_timezone(&Warsaw).date_naive().pred_opt().unwrap().to_string();
+        let (prior_start, prior_end) = local_date_bounds(&Warsaw, &before, &before).unwrap();
+        let prior = crate::db_queries::get_sessions_between(&conn, prior_start, prior_end).unwrap();
+        let current = crate::db_queries::get_sessions_between(&conn, start, end).unwrap();
+        assert_eq!((prior.len(), current.len()), (1, 1));
+        assert_eq!(clipped_duration(&prior[0], prior_start, prior_end), Some(60));
+        assert_eq!(clipped_duration(&current[0], start, end), Some(60));
+        assert_eq!(current[0].duration_seconds, Some(120)); // Raw wire unchanged.
+        assert_eq!(current[0].started_at, a);
+        assert_eq!(current[0].ended_at.as_deref(), Some(b.as_str()));
+        crate::db_sessions::insert_session(&conn, &start.to_rfc3339(), &b, "Sitting", 60).unwrap();
+        assert_eq!(crate::db_queries::get_sessions_between(&conn, prior_start, prior_end).unwrap().len(), 1);
+        assert_eq!(crate::db_queries::get_sessions_between(&conn, start, end).unwrap().len(), 2);
+    }
+    // Public local-date query and totals use the host timezone, not a guessed offset.
+    let (start, _) = local_date_bounds(&chrono::Local, "2026-10-09", "2026-10-09").unwrap();
+    let isolated = rusqlite::Connection::open_in_memory().unwrap();
+    crate::db::init_schema(&isolated).unwrap();
+    crate::db_sessions::insert_session(&isolated,
+        &(start - chrono::Duration::seconds(60)).to_rfc3339(),
+        &(start + chrono::Duration::seconds(60)).to_rfc3339(), "Standing", 120).unwrap();
+    for date in ["2026-10-08", "2026-10-09"] {
+        assert_eq!(crate::db_queries::get_sessions_range(&isolated, date, date).unwrap().len(), 1);
+        assert_eq!(crate::db_sessions::get_totals_for_date(&isolated, date).unwrap(), (0, 60));
+    }
+    assert!(crate::db_queries::get_sessions_range(&isolated, "invalid", "2026-10-09").is_err());
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};

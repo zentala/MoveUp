@@ -33,6 +33,7 @@ pub fn load_today_summary(
 
 #[cfg(test)]
 mod tests {
+    use chrono::TimeZone;
     use super::*;
     use crate::db::init_schema;
     use crate::db_sessions::{insert_session_with_date, insert_session};
@@ -43,15 +44,22 @@ mod tests {
         conn
     }
 
-    fn today() -> String {
-        chrono::Local::now().format("%Y-%m-%d").to_string()
+    fn local_noon_today() -> chrono::DateTime<chrono::Utc> {
+        // Production summary owns the real "today" clock, so these tests still
+        // depend on the host date. Capture one basis and use local noon to keep
+        // every endpoint in that day, away from midnight and DST transitions.
+        let day = chrono::Local::now().date_naive();
+        chrono::Local.from_local_datetime(&day.and_hms_opt(12, 0, 0).unwrap())
+            .single().unwrap().with_timezone(&chrono::Utc)
     }
 
     /// The live counter wins over the zero the DB query hard-codes.
     #[test]
     fn e019_t02_today_totals_live_position_changes_wins() {
         let conn = test_conn();
-        insert_session(&conn, "2026-09-06T09:00:00Z", "2026-09-06T09:30:00Z", "Sitting", 1800)
+        let start = local_noon_today();
+        insert_session(&conn, &start.to_rfc3339(),
+            &(start + chrono::Duration::minutes(30)).to_rfc3339(), "Sitting", 1800)
             .unwrap();
 
         let from_db = crate::db::get_today_summary(&conn).unwrap();
@@ -65,13 +73,16 @@ mod tests {
     #[test]
     fn e019_t02_today_totals_durations_come_from_db() {
         let conn = test_conn();
-        let day = today();
+        let start = local_noon_today();
+        let sitting_end = start + chrono::Duration::minutes(30);
+        let standing_end = sitting_end + chrono::Duration::minutes(10);
+        let day = start.with_timezone(&chrono::Local).format("%Y-%m-%d").to_string();
         insert_session_with_date(
-            &conn, "2026-09-06T09:00:00Z", "2026-09-06T09:30:00Z", "Sitting", 1800, &day,
+            &conn, &start.to_rfc3339(), &sitting_end.to_rfc3339(), "Sitting", 1800, &day,
         )
         .unwrap();
         insert_session_with_date(
-            &conn, "2026-09-06T09:30:00Z", "2026-09-06T09:40:00Z", "Standing", 600, &day,
+            &conn, &sitting_end.to_rfc3339(), &standing_end.to_rfc3339(), "Standing", 600, &day,
         )
         .unwrap();
 
