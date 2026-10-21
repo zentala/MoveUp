@@ -15,3 +15,7 @@ The selected day's heading and Range belong together above its timeline. A row o
 ## Secondary detail decision, 2026-10-09
 
 The owner accepted retaining both motivational score trajectory and break-credit histogram in an expandable details section, after correcting their calculations, missing-data handling and descriptions. The selected-day history and one composition donut per day remain the primary view.
+
+## Core reliability and architecture direction — 2026-10-21
+
+The owner explicitly commissioned implementation of the complete core-logic review, including its recommended proportional refactoring and the accepted undelivered Analyst details. The application should preserve observed time across gaps, day boundaries and restart; distinguish raw history from credited load; use one configurable decision for each notification; and carry local dates, observation quality and counters unchanged into the interface. Resolve uncertain cases through source and synthetic regressions rather than claiming defects without evidence. Prefer understandable existing modules and reusable current candidates over an application rewrite or new framework. Continue the shared timeline/day composition and expandable signed-score/recorded-credit direction. This is a reliability and comprehensibility goal, not a promise of medical or behavioral effectiveness. The owning execution plan is epics/E027-2026-10-09-analyst-timeline/PLAN.md; confirmed implementation authority and refusal boundaries are recorded privately by PO.

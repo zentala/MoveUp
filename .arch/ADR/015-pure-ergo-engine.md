@@ -125,3 +125,37 @@ Two supporting consequences of the same rule:
   its `_at` twin, reintroduces the untestable path.
 - Adding a new derived value that a UI needs means extending `PolicyInput`
   and `policy_input()`, never computing it in an adapter.
+
+## Accepted core reliability continuation — 2026-10-21
+
+The owner requested implementation of the complete core-logic review with proportional architectural refactoring. Retain the existing pure-core decision and migrate in tested slices; do not replace the application with a new event framework or shared package. The owning continuation is the existing E027 plan.
+
+### Responsibility boundaries
+
+`observation adapter -> engine/metrics -> communication policy -> channel executors`
+
+`engine -> versioned persistence/history -> wire adapter -> shared UI model -> rendering`
+
+- **Observation adapter (stable):** owns hardware/input activity and captures time/connection quality. Absence of a reading is not proof of a posture or an Away interval. No UI or third-party types enter engine rules.
+- **Engine (stable):** owns state transitions, one operation to close an observed interval at an explicit boundary, raw totals, and a separate exactly-once credit calculation. State transition, long gap and local midnight use the same boundary semantics. A gap must not erase the last observed interval or grant the same seconds twice.
+- **Metrics (stable):** owns definitions/units and local calendar boundaries. Hour coverage counts overlap with each hour rather than carrying a cumulative threshold into an unrelated bucket. Stabilization measures the declared elapsed time as well as coherent samples.
+- **Communication policy (stable):** owns whether/when/what to communicate, including device warnings, periodic notices, dismiss/snooze, profile reload and repeat schedule. One resolved intent is dispatched to the selected channels, log and optional webhook; adapters do not independently re-detect the same limit. Use an injected clock for deterministic policy tests.
+- **Executors (stable):** own side effects and transport errors, not business thresholds. Preserve native tray main-thread handle lifetime and existing appearance contract. Profile Silent suppresses notification intents across producers; diagnostic state may remain visible without an unsolicited notification.
+- **Persistence (stable):** owns versioned restart state and acknowledged history writes. Open observations, notification state and last successful checkpoint have explicit restore semantics; persistence errors stay errors and pending history is not silently discarded. SQLite raw history and Store credited/manager state retain their existing precedence.
+- **Wire adapter (stable):** translates domain outputs without inventing values. Preserve raw versus credited sitting, recorded credit, signed score, local date/timezone provenance, connection/quality, exact-versus-legacy history and producer event counter. Unknown and null are not zero, Sitting or Away.
+- **UI (stable):** renders one normalized chronology/day model in compact/detail forms and full local-day compositions. It owns interaction/loading/error presentation, not reconstructing a missing business counter or extending observations through arbitrary gaps.
+
+No neutral shared package is justified: these are MoveUp concepts with existing in-product consumers. Keep the helpers in their current domain modules; extract a small local primitive only when it removes duplicated responsibility, not for speculative reuse.
+
+### Behavioral decisions for uncertain cases
+
+1. Preserve the observed prefix up to the last valid sample before any gap. The gap itself remains Unknown. Preserve ADR008 proportional credit for a known suspend/resume or confirmed qualifying break; an unexplained USB/observation outage alone is not sufficient evidence. If an existing runtime supplies no trustworthy suspend signal, do not invent one: retain Unknown/no automatic gap credit and document that compatibility change with tests.
+2. Make the existing ADR010 maximum-four configurable reminder contract executable with an injected clock; preserve visual escalation and escalating silence rather than creating another competing notification type. Do not automatically increase reminders beyond the configured schedule. Missing/invalid channel values fail profile validation; `None` means no notification.
+3. Persist an active snooze and exhausted/repeat state using bounded, versioned restart-compatible data. Live policy uses a monotonic/injected clock; persisted wall-clock deadline is validated on restore so clock rollback or stale dates cannot create indefinite silence or uncontrolled replays. Keep compatibility with records without these optional fields.
+4. Bound abrupt-loss exposure using an ordinary periodic checkpoint at the existing minute cadence, plus current event/graceful-stop saves. Preserve observed/acknowledged history without filling stopped time. Define and test at-most-one-cadence loss under a functioning store; do not promise durability during IO failure or forced termination before a checkpoint. No live historical backfill or destructive migration.
+
+### Compatibility and recovery
+
+Additive fields default to unknown when absent. Keep legacy mixed rows visibly uncertain; only the new producer marks exact individual intervals. A nullable additive discriminator was already approved; do not relabel or UPDATE old rows. Reuse the existing generated bindings/exporter and current adapters. Validate older profiles/Store snapshots, nullable fields and malformed inputs with disposable fixtures. Preserve backups before installation and restore only through the owning recovery procedure; no manual live-row cleanup. Keep the reviewed previous executable/config for rollback. Unknown future data versions must not be rewritten by an older reader.
+
+Each slice starts with a regression that discriminates the observed defect, then required checks and independent review. UI acceptance additionally requires actual-host images under DESIGN.md. Ordinary forceful Windows supervisor stop remains outside a guarantee of cooperative flush; it is not fixed by changing metric/policy semantics. Existing access refusals and machine-setting holds remain binding.

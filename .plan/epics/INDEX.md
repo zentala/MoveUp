@@ -44,10 +44,16 @@ to `.plan/BACKLOG.md` §"E001-E009 audit leftovers".
 | E025 | `E025-2026-09-14-alert-dismiss-and-yesterday-delta` | planned | Sensor-independent dismiss, alert-flow integration and yesterday KPI; 17 pts (originally 10; disclosed producer/callback scope), **direct Herdr**, accepted next after E023; overlapping old branches explicitly parked — [HANDOFF](E025-2026-09-14-alert-dismiss-and-yesterday-delta/HANDOFF.md) |
 | E026 | `ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-vector-library` | planning | Icon studio sub-plan: [INDEX](../../ws/icon-studio/.plan/epics/INDEX.md), [PLAN](../../ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-vector-library/PLAN.md), [HANDOFF](../../ws/icon-studio/.plan/epics/E026-2026-09-27-reference-icon-vector-library/HANDOFF.md). Total **?** pending inventory; no dispatch. |
 
-| E027 | `E027-2026-10-09-analyst-timeline` | in-progress | Shared truthful timelines, corrected Analyst/day donuts, mixed-break history and expandable score/credit details. Total **47p**; AO selected, Herdr execution/supervision; prior direct candidates preserved, new AO admission pending. |
+| E027 | `E027-2026-10-09-analyst-timeline` | in-progress | Accepted full core/Analyst implementation2026-10-21; full115p (retained47+provenance/day8+new60). Explicit operator-approved DIRECT Herdr exception2026-10-21; current115p after accepted5p adapter necessity2026-10-22; soleDM/max3/LunaHIGH/independent-beforemerge. Selected AO conflict historical/not executed; preserved candidates/dirty work, app healthy. [PLAN](E027-2026-10-09-analyst-timeline/PLAN.md) |
 
 ## Sub-plans
 
 | Sub-plan | Scope |
 |---|---|
 | sub-plan: [`ws/iconforge/.plan/`](../../ws/iconforge/.plan/epics/INDEX.md) | IconForge — brief → IconSpec → deterministic SVG icons (incubated in the `ws/` monorepo, 2026-09-27) |
+
+## Current continuation execution — 2026-10-21
+
+| Epic | Full points | Dispatch | Admission | Done / not done |
+|---|---:|---|---|---|
+| E027 |115|DIRECT Herdr, explicit operator exception2026-10-21|Approved; first current15-path engine task (13p after source-qualified adapter amendment) released to sole DM for fresh preflight/regressions|Not done; persist through source/UI review, push and actual release/runtime|
