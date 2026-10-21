@@ -83,6 +83,18 @@ the existing direct Windows login entry until the replacement is proven; then
 record its rollback value before disabling it. Never run both launch paths as
 competing owners. See [Support](./USER_SUPPORT.md#pm3-startup-diagnostics).
 
+Current verification distinguishes three Windows termination paths. Native tray
+Quit saved Store state before PM3 stopped the app and it stayed stopped, although
+the final lifecycle summary did not complete. Native main-window close separately
+saved state and PM3 recovered the process. Ordinary Windows PM3 stop uses taskkill
+and can force termination without a cooperative flush; persistence on that path
+remains an unresolved product requirement, even when the command returns success.
+
+The shared Store correction is delivered; it does not resolve forced termination.
+The PM3 login activation has not been registered in Windows Run: the existing
+direct entry is unchanged. A reviewed activation was executed manually by the
+operator, which proves neither registered autostart nor an actual subsequent login.
+
 ## Data Storage
 
 Your sessions, settings and logs live in:

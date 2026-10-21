@@ -103,6 +103,19 @@ Source precedence checked: App imports globals; OneBarWidget imports one-bar CSS
 
 ## Decision history and acceptance
 
+### Native Windows tray contrast — 2026-10-21
+
+Use a dark desk silhouette (#161616) on the light Windows system tray and the
+existing white silhouette on the dark tray. Follow SystemUsesLightTheme,
+independently of the application's window theme. Preserve the current image,
+geometry, alpha, status colors, dot/no-dot and blink phase; do not replace PNG
+assets or change CommunicationPolicy. Recolor only the canonical white silhouette.
+Initial rendering and subsequent system-theme changes use the same transformation.
+Coalesce checks through the existing event loop/runtime, at most once per 500 ms;
+retain the last known theme if the system value cannot be read. Keep the complete
+tray-handle lookup/use/drop on the main thread. Native light/dark inspection remains
+NOT_CHECKED until independently observed; this decision changes no popup/Analyst theme.
+
 | Date | Change / previous direction | Reason | Status |
 |---|---|---|---|
 | Prior contract, date unknown | Warm oiled-steel, amber active/Standing, warm ink, monospace and borders-only | Bespoke desk instrument, not generic SaaS | Historical rationale retained; palette/Standing superseded |

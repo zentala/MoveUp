@@ -14,7 +14,7 @@ use tauri::{
 
 use crate::desk_events::{DESK_SHOW_SETTINGS, DESK_SHOW_WIDGET};
 use crate::session::DeskState;
-use crate::tray_icon::{generate_tray_icon, generate_tray_icon_no_dot};
+use crate::tray_icon::{generate_tray_icon, generate_tray_icon_no_dot, IconUpdate, TrayAppearance};
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -41,7 +41,9 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|p| Image::from_path(&p).ok())
         .or_else(|| generate_tray_icon(DeskState::Away, 0.0));
     if let Some(icon) = initial_icon {
-        builder = builder.icon(icon);
+        let appearance = TrayAppearance::new(icon, crate::tray_icon::system_tray_is_light().unwrap_or(false));
+        builder = builder.icon(appearance.render());
+        app.manage(std::sync::Mutex::new(appearance));
     }
 
     builder
@@ -85,7 +87,7 @@ pub fn update_tray(
     let icon = icon_path_for_state(app, state.clone(), progress_ratio).ok()
         .and_then(|path| Image::from_path(path).ok())
         .or_else(|| generate_tray_icon(state, progress_ratio));
-    queue_tray_update(app, Some(label.to_owned()), icon)?;
+    queue_tray_update(app, Some(label.to_owned()), IconUpdate::Frame(icon))?;
     Ok(())
 }
 
@@ -97,7 +99,7 @@ pub fn update_tray_no_dot(
     app: &AppHandle,
     label: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    queue_tray_update(app, (!label.is_empty()).then(|| label.to_owned()), generate_tray_icon_no_dot())?;
+    queue_tray_update(app, (!label.is_empty()).then(|| label.to_owned()), IconUpdate::Frame(generate_tray_icon_no_dot()))?;
     Ok(())
 }
 
@@ -109,17 +111,21 @@ pub fn update_tray_tooltip(
     app: &AppHandle,
     label: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    queue_tray_update(app, Some(label.to_owned()), None)?;
+    queue_tray_update(app, Some(label.to_owned()), IconUpdate::Frame(None))?;
     Ok(())
 }
 
 /// The entire Rc-backed handle lifetime belongs to the receiving main thread.
-fn queue_tray_update(app: &AppHandle, label: Option<String>, icon: Option<Image<'static>>) -> tauri::Result<()> {
+pub(crate) fn queue_tray_update(app: &AppHandle, label: Option<String>, icon: IconUpdate) -> tauri::Result<()> {
     let receiver = app.clone();
+    let renderer = app.clone();
     dispatch_tray_update(|task| app.run_on_main_thread(task),
         move || receiver.tray_by_id("main-tray"), move |tray| {
             if let Some(label) = label { let _ = tray.set_tooltip(Some(label)); }
-            if let Some(icon) = icon { let _ = tray.set_icon(Some(icon)); }
+            if let Some(state) = renderer.try_state::<std::sync::Mutex<TrayAppearance>>() {
+                let icon = state.lock().unwrap_or_else(|e| e.into_inner()).update(icon);
+                if let Some(icon) = icon { let _ = tray.set_icon(Some(icon)); }
+            }
         })
 }
 

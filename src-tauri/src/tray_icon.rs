@@ -5,6 +5,79 @@
 
 use tauri::image::Image;
 use crate::session::DeskState;
+use std::{sync::Mutex, time::Duration};
+use tauri::{AppHandle, Manager};
+
+/// Canonical pixels are retained so a theme change never resets the current
+/// state or blink phase. This state contains no native tray handle.
+pub(crate) struct TrayAppearance {
+    frame: Image<'static>,
+    light: bool,
+    check_pending: bool,
+}
+
+pub(crate) enum IconUpdate {
+    Frame(Option<Image<'static>>),
+    Theme(Option<bool>),
+}
+
+impl TrayAppearance {
+    pub(crate) fn new(frame: Image<'static>, light: bool) -> Self {
+        Self { frame, light, check_pending: false }
+    }
+
+    pub(crate) fn render(&self) -> Image<'static> {
+        let mut rgba = self.frame.rgba().to_vec();
+        for pixel in rgba.chunks_exact_mut(4) {
+            if pixel[..3] == [255, 255, 255] && pixel[3] != 0 {
+                pixel[..3].fill(if self.light { 22 } else { 255 });
+            }
+        }
+        Image::new_owned(rgba, self.frame.width(), self.frame.height())
+    }
+
+    pub(crate) fn update(&mut self, update: IconUpdate) -> Option<Image<'static>> {
+        match update {
+            IconUpdate::Frame(Some(frame)) => self.frame = frame,
+            IconUpdate::Theme(Some(light)) if self.light != light => self.light = light,
+            _ => return None,
+        }
+        Some(self.render())
+    }
+}
+
+/// The Windows taskbar follows the system preference, not AppsUseLightTheme.
+#[cfg(windows)]
+pub(crate) fn system_tray_is_light() -> Option<bool> {
+    let key = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize").ok()?;
+    match key.get_value::<u32, _>("SystemUsesLightTheme").ok()? {
+        0 => Some(false), 1 => Some(true), _ => None,
+    }
+}
+#[cfg(not(windows))]
+pub(crate) fn system_tray_is_light() -> Option<bool> { None }
+
+/// MainEventsCleared can be frequent. One pending timer coalesces all frames
+/// and provides a delayed check even when the app otherwise becomes idle.
+pub(crate) fn schedule_system_theme_check(app: &AppHandle) {
+    let Some(state) = app.try_state::<Mutex<TrayAppearance>>() else { return; };
+    {
+        let mut appearance = state.lock().unwrap_or_else(|e| e.into_inner());
+        if appearance.check_pending { return; }
+        appearance.check_pending = true;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let receiver = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let Some(state) = receiver.try_state::<Mutex<TrayAppearance>>() else { return; };
+            state.lock().unwrap_or_else(|e| e.into_inner()).check_pending = false;
+            let _ = crate::tray::queue_tray_update(&receiver, None, IconUpdate::Theme(system_tray_is_light()));
+        });
+    });
+}
 
 // ── Desk silhouette geometry ──────────────────────────────────────────────────
 

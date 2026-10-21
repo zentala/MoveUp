@@ -135,8 +135,9 @@ session persistence works. Preserve this limitation in diagnostic reports.
 Graceful Quit and native close currently require a successful session Store
 save as well as the database flush. If the Store is unavailable or its save
 fails, MoveUp reports the failure and remains running; core HTTP readiness
-alone does not establish that Quit works. This dependency needs a separate
-Store correction and native verification before this installation is complete.
+alone does not establish that Quit works. The shared Store correction is delivered
+and has passed real-plugin persistence tests; unavailable or failed Store state
+must still be treated as a persistence failure.
 The installed ordinary PM3 probe checks HTTP status rather than JSON identity;
 compare the returned PID and version with the actual supervised process during
 installation and recovery checks.
@@ -146,6 +147,25 @@ ordinary PM3 stop; stop removes boot restoration intent, so `boot: true` is
 insufficient to promise a return at next login. Verify the separate per-user
 login activation and development replacement before enabling this installation.
 A manually triggered activation demonstrates its action, not an actual login.
+
+Observed native tray Quit saved Store state before PM3 stopped the app, and the
+app stayed stopped. The supervisor terminated it before the final lifecycle
+summary completed, so that summary can still show ready/not_attempted rather
+than the observed pre-stop save. Final diagnostic completeness is unresolved.
+Native main-window close separately saved Store state, needed no database row,
+recorded clean exit and was automatically recovered by PM3. That recovery is
+expected: an exit without explicit user Quit intent remains restartable.
+
+Ordinary Windows PM3 stop is a different path: taskkill followed by force can
+terminate the process without running application cleanup. An observed successful
+stop left flush=not_attempted and no clean_exit. Flush-before-stop on that path
+remains an unresolved product requirement; command exit zero is not persistence
+evidence. Do not infer graceful save from the label SIGTERM in supervisor records.
+
+The reviewed PM3 login activation has not been registered in Windows Run; the
+existing direct entry is unchanged. Only an operator-triggered manual activation
+has been observed. Registered autostart and a real subsequent login remain
+unverified, independently of successful process recovery.
 
 The supervisor also depends on its Windows Scheduled Task lifetime. Battery
 conditions, interactive-user requirements, missed-trigger behavior and a task

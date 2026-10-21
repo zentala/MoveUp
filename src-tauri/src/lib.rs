@@ -371,6 +371,9 @@ pub fn run() {
             panic!("error building Desk");
         })
         .run(|app, event| {
+            if let tauri::RunEvent::MainEventsCleared = event {
+                tray_icon::schedule_system_theme_check(app);
+            }
             if let tauri::RunEvent::Exit = event {
                 app_lifecycle_runtime::shutdown(app);
             }
