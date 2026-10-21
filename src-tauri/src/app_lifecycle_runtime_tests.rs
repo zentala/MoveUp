@@ -94,23 +94,24 @@ fn sitting() -> Mutex<SessionManager> {
 }
 
 #[test]
-fn shutdown_preserves_session_insert_and_reports_store_failure() {
+fn shutdown_store_failure_never_commits_a_partial_history_row() {
     let session = sitting();
     let connection = rusqlite::Connection::open_in_memory().unwrap();
     crate::db::init_schema(&connection).unwrap();
     let db = Mutex::new(Some(connection));
-    assert_eq!(flush_state(&session, &db, |_| "failed"), "store=failed database=saved");
+    assert_eq!(flush_state(&session, &db, |_| "failed"), "store=failed database=not_attempted");
     let guard = db.lock().unwrap();
     let count: i64 = guard.as_ref().unwrap().query_row("SELECT COUNT(*) FROM sessions",
         [], |row| row.get(0)).unwrap();
-    assert_eq!(count, 1);
+    assert_eq!(count, 0);
 }
 
 #[test]
 fn shutdown_reports_skipped_and_failed_flush_without_invented_success() {
     let session = sitting();
     let db = Mutex::new(None);
-    assert!(flush_state(&session, &db, |_| "skipped_store_missing").contains("database=skipped_db_missing"));
+    assert_eq!(flush_state(&session, &db, |_| "skipped_store_missing"), "store=skipped_store_missing database=not_attempted");
+    assert!(flush_state(&session, &db, |_| "saved").contains("database=skipped_db_missing"));
     let held = db.lock().unwrap();
     assert!(flush_state(&session, &db, |_| "saved").contains("database=skipped_db_locked"));
     drop(held);
@@ -121,4 +122,81 @@ fn shutdown_reports_skipped_and_failed_flush_without_invented_success() {
     drop(held);
     assert!(flush_state(&Mutex::new(SessionManager::new()), &db, |_| "saved")
         .contains("database=not_needed"));
+}
+
+fn shutdown_database() -> Mutex<Option<rusqlite::Connection>> {
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::db::init_schema(&conn).unwrap();
+    crate::db_sessions::insert_session(&conn, "prior-start", "prior-end", "Walking", 9).unwrap();
+    Mutex::new(Some(conn))
+}
+
+#[test]
+fn failed_flush_then_changed_session_retries_current_state_without_duplicate_history() {
+    use crate::app_lifecycle_runtime::{FlushProgress, flush_state_progress};
+    let session = sitting(); let db = shutdown_database(); let mut progress = FlushProgress::new();
+    assert_eq!(flush_state_progress(&session, &db, &mut progress, |_| "failed"),
+        "store=failed database=not_attempted");
+    assert!(!progress.complete());
+    session.lock().unwrap().state.sitting_seconds = 234;
+    assert_eq!(flush_state_progress(&session, &db, &mut progress, |s| {
+        assert_eq!(s.state.sitting_seconds, 234); "saved"
+    }), "store=saved database=saved");
+    assert!(progress.complete());
+    assert_eq!(flush_state_progress(&session, &db, &mut progress, |_| panic!("already complete")),
+        "store=saved database=saved");
+    let conn = db.lock().unwrap();
+    assert_eq!(conn.as_ref().unwrap().query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get::<_, i64>(0)).unwrap(), 2);
+    assert_eq!(conn.as_ref().unwrap().query_row("SELECT duration_seconds FROM sessions WHERE started_at='prior-start'", [], |r| r.get::<_, i64>(0)).unwrap(), 9);
+}
+
+#[test]
+fn unfinished_and_cancelled_attempts_resave_manager_flags_and_reset_with_same_state() {
+    use crate::app_lifecycle_runtime::{FlushProgress, flush_state_progress};
+    let session = sitting(); let db = shutdown_database(); let mut progress = FlushProgress::new();
+    let before = serde_json::to_value(&session.lock().unwrap().state).unwrap();
+    let mut snapshots = vec![];
+    let held = db.lock().unwrap();
+    assert_eq!(flush_state_progress(&session, &db, &mut progress, |s| {
+        snapshots.push(crate::session_persistence::PersistedEngineState::from_session(s, None)); "saved"
+    }), "store=saved database=skipped_db_locked");
+    drop(held);
+    session.lock().unwrap().notify_inactivity_fired = true;
+    assert_eq!(serde_json::to_value(&session.lock().unwrap().state).unwrap(), before);
+    assert_eq!(flush_state_progress(&session, &db, &mut progress, |s| {
+        snapshots.push(crate::session_persistence::PersistedEngineState::from_session(s, Some("reset-1".into()))); "saved"
+    }), "store=saved database=saved");
+    progress.cancel(&db).unwrap();
+    session.lock().unwrap().notify_posture_balance_fired = true;
+    assert_eq!(serde_json::to_value(&session.lock().unwrap().state).unwrap(), before);
+    flush_state_progress(&session, &db, &mut progress, |s| {
+        snapshots.push(crate::session_persistence::PersistedEngineState::from_session(s, Some("reset-2".into()))); "saved"
+    });
+    assert_eq!(snapshots.len(), 3);
+    assert!(!snapshots[0].notify_inactivity_fired);
+    assert!(snapshots[1].notify_inactivity_fired);
+    assert!(snapshots[2].notify_posture_balance_fired);
+    assert_eq!(snapshots[2].daily_reset_after.as_deref(), Some("reset-2"));
+    let conn = db.lock().unwrap();
+    assert_eq!(conn.as_ref().unwrap().query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get::<_, i64>(0)).unwrap(), 2);
+}
+
+#[test]
+fn cancellation_is_retryable_and_never_removes_an_unrelated_or_changed_row() {
+    use crate::app_lifecycle_runtime::{FlushProgress, flush_state_progress};
+    let session = sitting(); let db = shutdown_database(); let mut progress = FlushProgress::new();
+    flush_state_progress(&session, &db, &mut progress, |_| "saved");
+    let held = db.lock().unwrap();
+    assert!(progress.cancel(&db).is_err());
+    assert!(!progress.complete());
+    drop(held);
+    session.lock().unwrap().state.sitting_seconds = 333;
+    flush_state_progress(&session, &db, &mut progress, |s| { assert_eq!(s.state.sitting_seconds, 333); "saved" });
+    {
+        let conn = db.lock().unwrap();
+        conn.as_ref().unwrap().execute("UPDATE sessions SET duration_seconds=777 WHERE started_at != 'prior-start'", []).unwrap();
+    }
+    assert!(progress.cancel(&db).is_err(), "identity changed; never delete the replacement");
+    let conn = db.lock().unwrap();
+    assert_eq!(conn.as_ref().unwrap().query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get::<_, i64>(0)).unwrap(), 2);
 }

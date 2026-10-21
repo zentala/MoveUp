@@ -5,3 +5,25 @@ Read the existing [repository contract](CLAUDE.md) before planning or editing. I
 The canonical visual contract is [DESIGN.md](DESIGN.md). Read it before changing popup, Analyst, settings, charts, colors, typography, spacing or icons. Record new visual decisions there before implementation. Compact and detailed timelines share chronological intervals and posture colors; credited sitting load remains separate from elapsed history.
 
 Read `.plan/VISION.md` before revising product plans. Preserve actual observations and identify missing data; never turn an unobserved interval into Away or use credited sitting load as a historical duration.
+
+## Startup supervision
+
+Prefer installed PM3 on development machines where available. Once registered,
+PM3 alone owns the MoveUp process: use its ordinary start/stop/restart and logs;
+do not launch a competing release executable. Preparation is documented in
+`docs/USER_INSTALL.md`; generating a file is not registration or runtime proof.
+Use the installed public CLI contract, not unsupported candidates, suspend,
+promotion callbacks or a second supervisor. Ordinary stop removes boot-restore
+intent; boot=true alone does not restore a deliberately stopped service.
+Quit, development replacement and login activation require separately verified
+flush-before-stop and ownership behavior before installation. Keep the existing
+direct login entry until supervised readiness and recovery have been proved.
+
+Readiness returns 503 when an existing essential prerequisite fails, and 200
+for core-ready operation even without a sensor. Its session_store_available
+field is separate evidence: core readiness does not certify session Store
+persistence. Do not repair or conceal that separate limitation in startup work.
+Retain the persistent application event log and PM3 disk lifecycle records;
+Windows GUI builds need not emit usable stdout/stderr. Do not enable a console
+to make the log tail look populated. Run `just check`, then obtain independent
+source review and the applicable actual Windows lifecycle checks before delivery.

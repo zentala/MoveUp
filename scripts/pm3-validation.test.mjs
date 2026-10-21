@@ -5,62 +5,43 @@ import { validateOffline, VALIDATION_MAX_BYTES, VALIDATION_TIMEOUT_MS } from './
 
 const options = { nodeExecutable: process.execPath,
   pm3Home: path.resolve('synthetic pm3 & home'),
-  candidatesFile: path.resolve('synthetic app', 'candidates.json'),
-  configFile: path.resolve('synthetic output', 'pm3.yaml') };
-const report = { ok: true, version: 1, problems: [], candidates: [{
-  id: '0.6.1', argv0: path.resolve('synthetic app', 'desk.exe'), artifact: null,
-  expectJson: { app_id: 'io.zntl.desk', ready: true, version: '0.6.1' },
-}] };
+  configFile: path.resolve('synthetic output', 'pm3.yaml'),
+  isolatedHome: path.resolve('synthetic isolated home') };
 
-test('public launcher uses explicit Node, structured argv, no shell, hidden window and finite bounds', () => {
+test('public lint uses structured hidden bounded process and isolated PM3 home', () => {
   const result = validateOffline(options, (executable, argv, settings) => {
     assert.equal(executable, process.execPath);
-    assert.deepEqual(argv, [path.join(options.pm3Home, 'releases', 'launch.mjs'),
-      'candidates', 'validate', options.candidatesFile, '--config', options.configFile,
-      '--service', 'desk', '--json']);
+    assert.deepEqual(argv, [path.join(options.pm3Home, 'releases', 'launch.mjs'), 'lint', options.configFile]);
     assert.equal(settings.shell, false);
     assert.equal(settings.windowsHide, true);
-    assert.equal(settings.timeout, 10000);
     assert.equal(settings.timeout, VALIDATION_TIMEOUT_MS);
-    assert.equal(settings.maxBuffer, 256 * 1024);
     assert.equal(settings.maxBuffer, VALIDATION_MAX_BYTES);
     assert.deepEqual(settings.stdio, ['ignore', 'pipe', 'pipe']);
     assert.equal(settings.cwd, path.dirname(options.configFile));
-    return JSON.stringify(report);
+    assert.equal(settings.env.PM3_HOME, options.isolatedHome);
+    assert.equal(settings.env.PM3_CONFIG, options.configFile);
+    return 'WARN portable path: lint warnings are non-blocking';
   });
-  assert.deepEqual(result, { status: 'offline-valid', report });
+  assert.deepEqual(result, { status: 'lint-passed', warningsAreNonBlocking: true, runtime: 'not-checked' });
 });
 
 for (const [name, error, expected] of [
   ['timeout', { code: 'ETIMEDOUT' }, /ETIMEDOUT/],
   ['missing executable', { code: 'ENOENT' }, /ENOENT/],
-  ['spawn permission', { code: 'EPERM' }, /EPERM/],
+  ['filesystem permission', { code: 'EPERM' }, /EPERM/],
   ['output overflow', { code: 'ENOBUFS' }, /ENOBUFS/],
-  ['invalid candidates', { status: 1 }, /invalid/],
+  ['lint failure', { status: 1 }, /failed/],
   ['unsupported command', { status: 2 }, /usage-or-unsupported/],
   ['signal termination', { status: null, signal: 'SIGTERM' }, /failed/],
 ]) {
-  test(`offline ${name} is a refusal, never a pending success`, () => {
+  test(name + ' is a failure, never successful validation', () => {
     assert.throws(() => validateOffline(options, () => { throw error; }), expected);
   });
 }
-
-for (const [name, value] of [
-  ['malformed JSON', 'not JSON'], ['null', 'null'],
-  ['false ok', JSON.stringify({ ...report, ok: false })],
-  ['unknown version', JSON.stringify({ ...report, version: 2 })],
-  ['reported problem', JSON.stringify({ ...report, problems: ['bad'] })],
-  ['missing candidates', JSON.stringify({ ok: true, version: 1, problems: [] })],
-  ['empty candidates', JSON.stringify({ ...report, candidates: [] })],
-  ['incomplete candidate', JSON.stringify({ ...report, candidates: [{ id: 'a' }] })],
-  ['oversize output', ' '.repeat(VALIDATION_MAX_BYTES + 1)],
-]) {
-  test(`refuses ${name}`, () => {
-    assert.throws(() => validateOffline(options, () => value), /malformed, unsupported or non-valid/);
-  });
-}
-
-test('relative paths never reach the process boundary', () => {
+test('invalid output and relative paths never appear validated', () => {
+  for (const output of [undefined, Buffer.from('text'), ' '.repeat(VALIDATION_MAX_BYTES + 1)]) {
+    assert.throws(() => validateOffline(options, () => output), /INVALID_OUTPUT/);
+  }
   for (const key of Object.keys(options)) {
     assert.throws(() => validateOffline({ ...options, [key]: 'relative' }, () => assert.fail('must not launch')), /absolute/);
   }

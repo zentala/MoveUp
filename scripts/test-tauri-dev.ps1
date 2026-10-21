@@ -1,173 +1,129 @@
-# Self-contained fixture runner. Never enumerates/stops real desk processes.
+# Ordinary PM3 development ownership fixtures; never touch a real service.
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/tauri-dev-supervision.ps1"
 . "$PSScriptRoot/tauri-dev-session.ps1"
 $script:checks = 0
 function Assert-That($Condition, [string]$Message) {
-    if (!$Condition) { throw "Assertion failed: $Message" }
-    $script:checks++
+    if (!$Condition) { throw "Assertion failed: $Message" }; $script:checks++
 }
 function Expect-Failure([scriptblock]$Action, [string]$Pattern) {
     $caught = $null
     try { & $Action } catch { $caught = $_.Exception.Message }
-    Assert-That ($caught -and $caught -like "*$Pattern*") "Expected failure: $Pattern; got $caught"
+    Assert-That ($caught -and $caught -like "*$Pattern*") "Expected $Pattern; got $caught"
 }
+$config = @{Service='moveup/desk'}
 function New-Fixture {
     $script:fixture = @{
-        Holds = @{ 'user-quit' = 'pre-existing' }; Calls = [Collections.Generic.List[object]]::new()
-        Events = [Collections.Generic.List[string]]::new(); Lost = $false; Refuse = $false
-        Unknown = $false; FailDev = $false; FailRegister = $false; ResumeLost = $false
-        Instances = @([pscustomobject]@{ Id = 42; Path = 'C:\fixture\release\desk.exe'; StartTime = [datetime]'2026-10-09' })
+        State='running'; ProcessId=42; Events=[Collections.Generic.List[string]]::new()
+        Instances=@([pscustomobject]@{Id=42;Path='C:\fixture\release\desk.exe';StartTime=[datetime]'2026-10-09'})
+        FailDev=$false; FailRegister=$false; RefuseStop=$false; BadAck=$false; LeaveDebug=$false
+        ForeignPid=$false; ForeignCmd=$false; FailStart=$false; StartCount=0
     }
     $script:ops = @{
         Enumerate = { $fixture.Instances }
         Confirm = { $true }
-        Stop = { param($instance) $fixture.Events.Add("stop:$($instance.Id)") }
+        Validate = { param($existing) $fixture.Events.Add("validate:$($existing.Id)") }
         Register = { $fixture.Events.Add('register'); if ($fixture.FailRegister) { throw 'register failed' } }
-        Dev = { $fixture.Events.Add("dev:$env:DESK_REMOTE_PORT"); if ($fixture.FailDev) { throw 'dev failed' } }
-        Restore = { param($path) $fixture.Events.Add("restore:$path") }
+        Dev = { $fixture.Events.Add('dev'); if ($fixture.LeaveDebug) { $fixture.Instances=@([pscustomobject]@{Id=99}) }; if ($fixture.FailDev) { throw 'dev failed' } }
         Transport = {
-            param($config, $argv, $timeout)
-            $fixture.Calls.Add(@($argv))
-            $action = $argv[0]
-            $intentIndex = [array]::IndexOf($argv, '--intent')
-            $intent = if ($intentIndex -ge 0) { $argv[$intentIndex + 1] } else { '' }
-            $v = $null
-            if ($action -eq 'suspend') {
-                $fixture.Events.Add('suspend')
-                if ($fixture.Refuse) { return @{ Exit = 1; Body = '{"outcome":"refused"}' } }
-                $fixture.Holds[$intent] = 'development'
-                if ($fixture.Lost -or $fixture.Unknown) { return @{ Exit = 3; Body = '{"outcome":"unknown"}' } }
-                $v = @{name=$config.Service; suspended=$true; scope='login'; loginId='L'; intentId=$intent; acknowledgedAt='now'; holds=$fixture.Holds.Count}
-            } elseif ($action -eq 'supervision') {
-                $mode = if ($fixture.Unknown) { 'unknown' } else { 'suspended' }
-                $holds = @($fixture.Holds.Keys | ForEach-Object { @{intentId=$_; acknowledgedAt='now'} })
-                $v = @{state='known'; name=$config.Service; supervision=@{mode=$mode; ownedChild=$false; observedLive=$false; activeCandidate=$null; promotedCandidate=$null; misses=0; demoted=@(); suspension=@{loginId='L'; holds=$holds}}}
-            } elseif ($action -eq 'resume') {
-                $fixture.Events.Add('resume')
-                $released = $fixture.Holds.ContainsKey($intent)
-                $fixture.Holds.Remove($intent)
-                if ($fixture.ResumeLost) { $fixture.ResumeLost=$false; return @{Exit=3; Body='{}'} }
-                $v = @{name=$config.Service; suspended=($fixture.Holds.Count -gt 0); released=$released; holds=$fixture.Holds.Count; status='suspended'}
-            } else { throw "Unexpected action $action" }
-            return @{ Exit=0; Body=($v | ConvertTo-Json -Depth 8 -Compress) }
+            param($cfg, $argv, $timeout)
+            $action=$argv[0]; $fixture.Events.Add($action)
+            if ($action -eq 'list') {
+                $entry=@{name=$cfg.Service;status=$fixture.State;pid=$fixture.ProcessId}
+                if ($fixture.ForeignPid) { $entry.pid=123 }
+                return @{Exit=0;Body=(@{services=@($entry)} | ConvertTo-Json -Depth 5 -Compress)}
+            }
+            if ($action -eq 'describe') {
+                $exe=if ($fixture.ForeignCmd) {'C:\foreign\desk.exe'} else {'C:\fixture\release\desk.exe'}
+                return @{Exit=0;Body=(@{name=$cfg.Service;cmd=@($exe,'--minimized')} | ConvertTo-Json -Compress)}
+            }
+            if ($action -eq 'stop') {
+                if ($fixture.RefuseStop) { return @{Exit=1;Body='refused'} }
+                $fixture.State='stopped'; $fixture.ProcessId=$null; $fixture.Instances=@()
+                return @{Exit=0;Body=$(if ($fixture.BadAck) {'unknown'} else {'desk: stopped'})}
+            }
+            if ($action -eq 'start') {
+                if ($fixture.FailStart) { return @{Exit=1;Body='restore refused'} }
+                $fixture.StartCount++; $fixture.State='running'; $fixture.ProcessId=84
+                $fixture.Instances=@([pscustomobject]@{Id=84;Path='C:\fixture\release\desk.exe'})
+                return @{Exit=0;Body='desk: running (pid 84)'}
+            }
+            throw "Unsupported fixture action $action"
         }
     }
 }
-$config = @{Service='moveup/desk'}
-function Run-Session($Supervision = $config) {
+function Run-Session($Supervision=$config) {
     Invoke-MoveUpDevSession -Operations $ops -Config $Supervision -ReleaseExe 'C:\fixture\release\desk.exe' -DebugExe 'C:\fixture\debug\desk.exe' -InstallRoot 'C:\fixture\installed' -Force
 }
 try {
-    New-Fixture
-    Run-Session
-    Assert-That ($fixture.Events[0] -eq 'suspend' -and $fixture.Events[1] -eq 'stop:42') 'suspend precedes replacement'
-    Assert-That ($fixture.Holds.Count -eq 1 -and $fixture.Holds.ContainsKey('user-quit')) 'preserve user hold'
-    Assert-That ($fixture.Events[-1] -eq 'resume') 'finally cleanup'
-    $suspendIntent = $fixture.Calls[0][3]
-    Assert-That ($fixture.Calls[-1][3] -eq $suspendIntent -and $fixture.Calls[-1] -notcontains '--all') 'resume own intent only'
-    Assert-That ($fixture.Events -notmatch '^restore:') 'PM3 owns supervised restoration'
-
+    New-Fixture; Run-Session
+    Assert-That ($fixture.StartCount -eq 1) 'restore the replaced PM3 instance once'
+    Assert-That ($fixture.Events.IndexOf('stop') -lt $fixture.Events.IndexOf('dev')) 'stop before development'
+    Assert-That ($fixture.Events.IndexOf('validate:42') -lt $fixture.Events.IndexOf('stop')) 'validate live identity before stopping'
     New-Fixture; $fixture.FailDev=$true
-    Expect-Failure { Run-Session } 'dev failed'
-    Assert-That ($fixture.Holds.Count -eq 1 -and $fixture.Events[-1] -eq 'resume') 'failed dev releases own hold'
+    Expect-Failure {Run-Session} 'dev failed'
+    Assert-That ($fixture.StartCount -eq 1) 'development failure restores only the replaced instance'
     New-Fixture; $fixture.FailRegister=$true
-    Expect-Failure { Run-Session } 'register failed'
-    Assert-That ($fixture.Events[-1] -eq 'resume') 'registration failure is inside finally'
-
-    New-Fixture; $fixture.Refuse=$true
-    Expect-Failure { Run-Session } 'suspension UNKNOWN'
-    Assert-That ($fixture.Events -notcontains 'stop:42' -and $fixture.Events -notcontains 'register') 'refused suspension prevents replacement'
-    Assert-That ($fixture.Calls[-1] -notcontains '--start') 'failed suspend cleanup does not start'
-    New-Fixture; $fixture.Lost=$true
-    Run-Session
-    Assert-That ($fixture.Calls[1][0] -eq 'supervision' -and $fixture.Events -contains 'stop:42') 'lost ack readback authorizes replacement'
-    New-Fixture; $fixture.Unknown=$true
-    Expect-Failure { Run-Session } 'suspension UNKNOWN'
-    Assert-That ($fixture.Holds.Count -eq 1 -and $fixture.Events -notcontains 'stop:42') 'unknown applicability prevents replacement and releases own hold'
-    New-Fixture; $fixture.ResumeLost=$true
-    Run-Session
-    Assert-That ($fixture.Calls[-2][3] -eq $fixture.Calls[-1][3]) 'lost resume retries same intent'
-
-    $oldPort=$env:DESK_REMOTE_PORT
-    try {
-        $env:DESK_REMOTE_PORT='4499'
-        New-Fixture; Run-Session
-        Assert-That ($fixture.Events[0] -eq 'suspend' -and $fixture.Events -contains 'dev:4499') 'alternate port still suspends'
-    } finally { $env:DESK_REMOTE_PORT=$oldPort }
-
-    New-Fixture; $fixture.Holds['other-dev']='nested'
-    Run-Session
-    Assert-That ($fixture.Holds.Count -eq 2 -and $fixture.Holds.ContainsKey('other-dev')) 'nested launcher hold survives'
-    New-Fixture; Run-Session $null
-    Assert-That ($fixture.Calls.Count -eq 0 -and $fixture.Events[-1] -like 'restore:*') 'ordinary bridge restores release'
-    New-Fixture; $fixture.FailDev=$true
-    Expect-Failure { Run-Session $null } 'dev failed'
-    Assert-That ($fixture.Events[-1] -like 'restore:*') 'bridge restores release on failure'
-    New-Fixture; $fixture.Instances += $fixture.Instances[0]
-    Expect-Failure { Run-Session } 'Multiple desk'
-    Assert-That ($fixture.Calls.Count -eq 0 -and $fixture.Events.Count -eq 0) 'ambiguous instances untouched'
-    New-Fixture; $fixture.Instances[0].Path='C:\unrelated\desk.exe'
-    Expect-Failure { Run-Session } 'Unrecognized desk'
-    Assert-That ($fixture.Events.Count -eq 0) 'unknown path untouched'
-
-    foreach ($body in @('{}', '{', '{"state":"known","name":"other"}', '{"state":"known","name":"moveup/desk","supervision":{}}')) {
-        Assert-That (!(Test-MoveUpHold @{Exit=0; Body=$body} 'supervision' 'moveup/desk' 'quit')) 'malformed status is unknown'
+    Expect-Failure {Run-Session} 'register failed'
+    Assert-That ($fixture.StartCount -eq 1) 'registration failure restores replaced instance'
+    foreach ($failure in @('FailDev', 'FailRegister')) {
+        New-Fixture; $fixture[$failure]=$true
+        if ($failure -eq 'FailDev') { $fixture.LeaveDebug=$true } else { $fixture.FailStart=$true }
+        $combined=$null
+        try { Run-Session } catch { $combined=$_.Exception }
+        Assert-That ($combined -is [AggregateException]) 'body and restoration failures remain separate exceptions'
+        $bodyMessage=if ($failure -eq 'FailDev') { 'dev failed' } else { 'register failed' }
+        $restoreMessage=if ($failure -eq 'FailDev') { 'avoid a duplicate' } else { 'PM3 start failed' }
+        Assert-That ($combined.InnerExceptions[0].Message -eq $bodyMessage) 'original body failure is retained'
+        Assert-That ($combined.InnerExceptions[1].Message -like "*$restoreMessage*") 'restoration failure is retained'
+        Assert-That ($combined.Message -like "*$bodyMessage*" -and $combined.Message -like "*$restoreMessage*") 'both failures are visible to the caller'
+        Assert-That ($fixture.StartCount -eq 0) 'combined failure never starts another process'
     }
-    $saved = @{}
-    $keys = @('DESK_SUPERVISION','DESK_PM3_SERVICE','PM3_SERVICE','DESK_PM3_NODE','DESK_PM3_HOME')
-    try {
-        foreach ($key in $keys) { $saved[$key]=[Environment]::GetEnvironmentVariable($key); [Environment]::SetEnvironmentVariable($key,$null) }
-        Assert-That ($null -eq (Get-MoveUpSupervision)) 'unconfigured is ordinary bridge'
-        $env:DESK_SUPERVISION='pm3'
-        Expect-Failure { Get-MoveUpSupervision } 'project/service'
-        $env:DESK_SUPERVISION='typo'
-        Expect-Failure { Get-MoveUpSupervision } 'pm3 or bridge'
-    } finally { foreach ($key in $keys) { [Environment]::SetEnvironmentVariable($key,$saved[$key]) } }
-    # Exercise the real hidden Node boundary against a fixture, never PM3.
-    $testRoot = Join-Path (Split-Path -Parent $PSScriptRoot) 'src-tauri/target'
-    $temp = Join-Path $testRoot ('supervision-fixture-' + [Guid]::NewGuid())
-    $releaseDir = Join-Path $temp 'releases'
-    $launcher = Join-Path $releaseDir 'launch.mjs'
-    $fixtureKeys = @('PM3_TEST_IPC_PATH','PM3_TEST_RUN_DIR','PM3_TEST_PIDFILE_PATH')
-    $savedFixture = @{}
+    New-Fixture; $fixture.State='stopped'; $fixture.ProcessId=$null; $fixture.Instances=@()
+    Run-Session
+    Assert-That ($fixture.StartCount -eq 0 -and $fixture.Events -notcontains 'stop') 'already stopped user choice remains stopped'
+    New-Fixture; $fixture.State='restarting'; $fixture.ProcessId=$null; $fixture.Instances=@()
+    Expect-Failure {Run-Session} 'not stopped'
+    Assert-That ($fixture.StartCount -eq 0 -and $fixture.Events -notcontains 'dev') 'backoff is not a verified replaceable instance'
+    foreach ($flag in @('ForeignPid','ForeignCmd','RefuseStop','BadAck')) {
+        New-Fixture; $fixture[$flag]=$true
+        Expect-Failure {Run-Session} $(switch ($flag) {'ForeignPid' {'not the selected'} 'ForeignCmd' {'identity mismatch'} 'RefuseStop' {'stop failed'} default {'acknowledgement unknown'}})
+        Assert-That ($fixture.StartCount -eq 0 -and $fixture.Events -notcontains 'dev') "$flag never starts another process"
+    }
+    New-Fixture; $fixture.LeaveDebug=$true
+    Expect-Failure {Run-Session} 'avoid a duplicate'
+    Assert-That ($fixture.StartCount -eq 0) 'leftover debug instance prevents restoration'
+    New-Fixture; $fixture.Instances += $fixture.Instances[0]
+    Expect-Failure {Run-Session} 'Multiple desk'
+    Assert-That ($fixture.Events.Count -eq 0) 'ambiguous instances untouched'
+    New-Fixture; Run-Session $null
+    throw 'Expected the unowned instance to be refused'
+} catch {
+    # The unowned-instance case is verified separately below.
+    if ($_.Exception.Message -notlike '*no verified PM3 owner*') { Write-Error $_ -ErrorAction Continue; exit 1 }
+}
+try {
+    Assert-That ($fixture.StartCount -eq 0 -and $fixture.Events.Count -eq 0) 'unowned instance untouched'
+    New-Fixture; $fixture.Instances=@(); Run-Session $null
+    Assert-That ($fixture.Events -contains 'dev' -and $fixture.StartCount -eq 0) 'unmanaged fresh development creates no restoration'
+    $testRoot=Join-Path (Split-Path -Parent $PSScriptRoot) 'src-tauri/target'
+    $temp=Join-Path $testRoot ('ordinary-pm3-fixture-' + [Guid]::NewGuid())
+    $releaseDir=Join-Path $temp 'releases'
     [IO.Directory]::CreateDirectory($releaseDir) | Out-Null
+    $launcher=Join-Path $releaseDir 'launch.mjs'
     try {
-        foreach ($key in $fixtureKeys) {
-            $savedFixture[$key]=[Environment]::GetEnvironmentVariable($key)
-            [Environment]::SetEnvironmentVariable($key, "synthetic-inherited-$key")
-        }
-        Copy-Item -LiteralPath "$PSScriptRoot/../tests/fixtures/supervision-launcher.mjs" -Destination $launcher
-        # Test-only discovery; never set the production supervision environment.
-        $node = $env:MOVEUP_TEST_NODE
-        if (!$node) { $node = $env:PM3_DAEMON_NODE }
-        if (!$node) { $node = $env:DESK_PM3_NODE }
-        if (!$node) {
-            $node = (Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
-        }
-        Assert-That ($node -and [IO.Path]::IsPathFullyQualified($node) -and (Test-Path -LiteralPath $node -PathType Leaf)) 'absolute fixture Node resolved'
-        $node = (Resolve-Path -LiteralPath $node).ProviderPath
-        $transportConfig = @{Node=$node; Home=$temp; Service='fixture/desk'}
-        $reply = Invoke-MoveUpPm3 $transportConfig @('suspend','fixture/desk','--intent','quit','--json')
-        Assert-That (Test-MoveUpHold $reply 'suspend' 'fixture/desk' 'quit') 'actual hidden transport acknowledgement'
-        $reply = Invoke-MoveUpPm3 $transportConfig @('suspend','fixture/argv','--intent','space & $ literal','--json')
-        $v = $reply.Body | ConvertFrom-Json -AsHashtable
-        Assert-That ($v.args[1] -ceq 'space & $ literal' -and $v.home -ceq $temp) 'structured argv and explicit PM3_HOME'
-        foreach ($pair in @(@('ipc','PM3_TEST_IPC_PATH'), @('run','PM3_TEST_RUN_DIR'), @('pidfile','PM3_TEST_PIDFILE_PATH'))) {
-            Assert-That ($v[$pair[0]] -ceq [Environment]::GetEnvironmentVariable($pair[1])) 'fixture environment inherits'
-        }
-        Expect-Failure { Invoke-MoveUpPm3 $transportConfig @('suspend','fixture/output') } 'output limit'
-        Expect-Failure { Invoke-MoveUpPm3 $transportConfig @('suspend','fixture/stderr') } 'output limit'
-        Expect-Failure { Invoke-MoveUpPm3 $transportConfig @('suspend','fixture/timeout') 150 } 'timed out'
+        [IO.File]::WriteAllText($launcher, "const [a,s,...args]=process.argv.slice(2); if(s==='fixture/timeout')setInterval(()=>{},1000); else if(s==='fixture/overflow')process.stdout.write('x'.repeat(131072)); else console.log(JSON.stringify({a,s,args,home:process.env.PM3_HOME}));")
+        $node=(Get-Command node -CommandType Application | Select-Object -First 1).Source
+        $transport=@{Node=$node;Home=$temp;Service='fixture/desk'}
+        $reply=Invoke-MoveUpPm3 $transport @('stop','fixture/desk')
+        $value=$reply.Body | ConvertFrom-Json -AsHashtable
+        Assert-That ($reply.Exit -eq 0 -and $value.a -ceq 'stop' -and $value.args.Count -eq 0 -and $value.home -ceq $temp) 'real hidden transport preserves ordinary argv and PM3 home'
+        Expect-Failure {Invoke-MoveUpPm3 $transport @('stop','fixture/overflow')} 'output limit'
+        Expect-Failure {Invoke-MoveUpPm3 $transport @('stop','fixture/timeout') 150} 'timed out'
     } finally {
-        foreach ($key in $fixtureKeys) { [Environment]::SetEnvironmentVariable($key,$savedFixture[$key]) }
         Remove-Item -LiteralPath $launcher -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $releaseDir -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $temp -ErrorAction SilentlyContinue
     }
     Write-Host "PASS: $script:checks assertions; synthetic operations only"
-    exit 0
-} catch {
-    Write-Error "FAIL after $script:checks assertions: $_" -ErrorAction Continue
-    exit 1
-}
+} catch { Write-Error $_ -ErrorAction Continue; exit 1 }

@@ -134,6 +134,10 @@ pub fn ensure_autostart(
     app: &AppHandle,
     event_logger: &Arc<crate::event_logger::EventLogger>,
 ) {
+    if crate::supervision::pm3_owns_autostart(|key| std::env::var(key).ok()) {
+        event_logger.log("AUTOSTART owner=pm3 direct_registration=skipped");
+        return;
+    }
     let autostart = app.autolaunch();
     let current_exe = std::env::current_exe().unwrap_or_default();
     let current_path = current_exe.display().to_string();
@@ -142,6 +146,13 @@ pub fn ensure_autostart(
     // The autostart plugin registers under the app name from tauri.conf.json
     // (`productName`), so the registry value must be read under that same name.
     let registered_path = read_autostart_registry_path(&app.package_info().name);
+    if let (Some(command), Some(home)) = (&registered_path, std::env::var_os("USERPROFILE")) {
+        let launcher = std::path::PathBuf::from(home).join(".pm3/releases/launch.mjs");
+        if crate::supervision::is_pm3_login_activation(command, &launcher) {
+            event_logger.log("AUTOSTART owner=pm3_activation direct_registration=skipped");
+            return;
+        }
+    }
 
     // [B] Self-heal: if enabled but registered path differs, re-register
     let needs_reregister = is_enabled

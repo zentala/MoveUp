@@ -1,15 +1,21 @@
-# Public PM3 adapter; dot-sourcing only defines functions.
+# Public ordinary PM3 adapter; dot-sourcing only defines functions.
 function Get-MoveUpSupervision {
     if ($env:DESK_SUPERVISION -eq 'bridge') { return $null }
-    $service = if ($env:DESK_PM3_SERVICE) { $env:DESK_PM3_SERVICE } else { $env:PM3_SERVICE }
-    if (!$service -and !$env:DESK_SUPERVISION -and !$env:DESK_PM3_NODE -and !$env:DESK_PM3_HOME) { return $null }
     if ($env:DESK_SUPERVISION -and $env:DESK_SUPERVISION -ne 'pm3') { throw 'DESK_SUPERVISION must be pm3 or bridge' }
-    if ($service -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'Set DESK_PM3_SERVICE to project/service' }
-    $node = if ($env:DESK_PM3_NODE) { $env:DESK_PM3_NODE } else { $env:PM3_DAEMON_NODE }
+    $service = if ($env:DESK_PM3_SERVICE) { $env:DESK_PM3_SERVICE } elseif ($env:PM3_SERVICE) { $env:PM3_SERVICE } else { 'moveup/desk' }
+    if ($service -notmatch '^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+$') { throw 'Set DESK_PM3_SERVICE to project/service' }
+    $node = if ($env:DESK_PM3_NODE) { $env:DESK_PM3_NODE } elseif ($env:PM3_DAEMON_NODE) { $env:PM3_DAEMON_NODE } else {
+        (Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+    }
     $homePath = if ($env:DESK_PM3_HOME) { $env:DESK_PM3_HOME } elseif ($env:PM3_HOME) { $env:PM3_HOME } else { Join-Path $env:USERPROFILE '.pm3' }
     if (!$node -or ![IO.Path]::IsPathFullyQualified($node) -or ![IO.Path]::IsPathFullyQualified($homePath)) { throw 'PM3 requires absolute Node and home paths' }
-    if (!(Test-Path -LiteralPath $node -PathType Leaf) -or !(Test-Path -LiteralPath (Join-Path $homePath 'releases/launch.mjs') -PathType Leaf)) { throw 'PM3 Node or public launcher is missing' }
-    return @{ Node = $node; Home = $homePath; Service = $service }
+    if (!(Test-Path -LiteralPath $node -PathType Leaf) -or !(Test-Path -LiteralPath (Join-Path $homePath 'releases/launch.mjs') -PathType Leaf)) {
+        if ($env:DESK_SUPERVISION -or $env:DESK_PM3_SERVICE -or $env:DESK_PM3_HOME) { throw 'Configured PM3 Node or public launcher is missing' }
+        return $null
+    }
+    $configFile = $env:DESK_PM3_CONFIG
+    if ($configFile -and (![IO.Path]::IsPathFullyQualified($configFile) -or !(Test-Path -LiteralPath $configFile -PathType Leaf))) { throw 'PM3 configuration must be an existing absolute file' }
+    return @{ Node = $node; Home = $homePath; Service = $service; ConfigFile = $configFile }
 }
 
 function Invoke-MoveUpPm3 {
@@ -24,6 +30,7 @@ function Invoke-MoveUpPm3 {
     foreach ($arg in $Arguments) { $info.ArgumentList.Add($arg) }
     # Inherit every supplied fixture key, including pipe/run/pidfile overrides.
     $info.Environment['PM3_HOME'] = $Config.Home
+    if ($Config.ConfigFile) { $info.Environment['PM3_CONFIG'] = $Config.ConfigFile; $info.WorkingDirectory = Split-Path -Parent $Config.ConfigFile }
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $info
     $started = $false
@@ -66,86 +73,41 @@ function Read-MoveUpPm3Output {
     } finally { $stdout.Dispose() }
 }
 
-function Test-MoveUpHold {
-    param($Response, [string]$Action, [string]$Service, [string]$Intent)
-    if ($Response.Exit -ne 0 -or $Response.Body.Length -gt 65536) { return $false }
-    try { $v = $Response.Body | ConvertFrom-Json -AsHashtable -ErrorAction Stop } catch { return $false }
-    if ($v -isnot [System.Collections.IDictionary] -or $v.name -cne $Service) { return $false }
-    if ($Action -eq 'suspend') {
-        return ($v.suspended -is [bool] -and $v.suspended -and $v.scope -ceq 'login' -and
-            $v.intentId -ceq $Intent -and $v.loginId -is [string] -and $v.loginId.Length -gt 0 -and
-            $v.acknowledgedAt -is [string] -and $v.acknowledgedAt.Length -gt 0 -and
-            $v.holds -is [long] -and $v.holds -gt 0)
-    }
-    $sup = $v.supervision
-    if ($v.state -cne 'known' -or $sup.mode -cnotin @('owned', 'standing-down', 'awaiting-misses', 'suspended', 'no-candidate', 'degraded')) { return $false }
-    if (!(Test-MoveUpStatusShape $sup)) { return $false }
-    if ($sup.suspension -isnot [System.Collections.IDictionary] -or $sup.suspension.loginId -isnot [string] -or !$sup.suspension.loginId -or $sup.suspension.holds -isnot [array]) { return $false }
-    $matched = $false
-    foreach ($hold in $sup.suspension.holds) {
-        if ($hold -isnot [System.Collections.IDictionary] -or $hold.intentId -isnot [string] -or !$hold.intentId -or $hold.acknowledgedAt -isnot [string] -or !$hold.acknowledgedAt) { return $false }
-        if ($hold.Contains('reason') -and $hold.reason -isnot [string]) { return $false }
-        if ($hold.intentId -ceq $Intent) { $matched = $true }
-    }
-    return $matched
+
+function Get-MoveUpPm3Service {
+    param($Config, [scriptblock]$Transport)
+    $response = & $Transport $Config @('list', '--all', '--json') 8000
+    if ($response.Exit -ne 0) { throw 'PM3 list failed; no process may be replaced' }
+    try { $value = $response.Body | ConvertFrom-Json -AsHashtable -ErrorAction Stop } catch { throw 'PM3 list returned invalid JSON' }
+    if (!$value.Contains('services') -or $value.services -isnot [array]) { throw 'PM3 service state unknown' }
+    $matches = @($value.services | Where-Object { $_.name -ceq $Config.Service })
+    if ($matches.Count -gt 1) { throw 'PM3 service identity ambiguous' }
+    if ($matches.Count -eq 0) { return $null }
+    $service = $matches[0]
+    if ($service.status -notin @('running','starting','stopped','crashed','restarting') -or
+        !$service.Contains('pid') -or ($null -ne $service.pid -and ($service.pid -isnot [long] -or $service.pid -le 0))) { throw 'PM3 service state unknown' }
+    return $service
 }
 
-function Test-MoveUpStatusShape {
-    param($Sup)
-    if ($Sup -isnot [System.Collections.IDictionary] -or $Sup.ownedChild -isnot [bool]) { return $false }
-    if ($Sup.observedLive -isnot [bool] -and $Sup.observedLive -cne 'unknown') { return $false }
-    foreach ($key in @('activeCandidate','promotedCandidate')) {
-        if (!$Sup.Contains($key) -or ($null -ne $Sup[$key] -and $Sup[$key] -isnot [string])) { return $false }
+function Confirm-MoveUpPm3Action {
+    param($Config, [string]$Action, [scriptblock]$Transport)
+    $response = & $Transport $Config @($Action, $Config.Service) 45000
+    if ($response.Exit -ne 0) { throw "PM3 $Action failed; outcome unconfirmed, no automatic retry" }
+    $names = @($Config.Service, ($Config.Service -split '/')[1])
+    $states = if ($Action -eq 'stop') { 'stopped' } else { '(running|starting)' }
+    $confirmed = $false
+    foreach ($name in $names) {
+        if ($response.Body.Trim() -match ('^' + [regex]::Escape($name) + ': ' + $states + '( \(pid [0-9]+\))?$')) { $confirmed = $true }
     }
-    if ($Sup.misses -isnot [long] -or $Sup.misses -lt 0 -or $Sup.demoted -isnot [array]) { return $false }
-    if ($Sup.Contains('detail') -and $Sup.detail -isnot [string]) { return $false }
-    foreach ($entry in $Sup.demoted) {
-        if ($entry -isnot [System.Collections.IDictionary] -or $entry.id -isnot [string] -or $entry.artifact -isnot [string] -or $entry.reason -isnot [string]) { return $false }
-    }
-    if ($Sup.Contains('persistence') -and ($Sup.persistence.ok -isnot [bool] -or $Sup.persistence.ok -or $Sup.persistence.detail -isnot [string])) { return $false }
-    if ($Sup.Contains('lastCallback')) {
-        $callback=$Sup.lastCallback
-        if ($callback -isnot [System.Collections.IDictionary] -or $callback.candidateId -isnot [string] -or $callback.ok -isnot [bool] -or ($callback.Contains('detail') -and $callback.detail -isnot [string])) { return $false }
-    }
-    return $true
+    if (!$confirmed) { throw "PM3 $Action acknowledgement unknown; no automatic retry" }
 }
 
-function Confirm-MoveUpSuspend {
-    param($Config, [string]$Intent, [scriptblock]$Transport, [int]$BudgetMs = 8000)
-    $clock = [Diagnostics.Stopwatch]::StartNew()
-    foreach ($action in @('suspend', 'supervision', 'suspend', 'supervision')) {
-        $remaining = $BudgetMs - $clock.ElapsedMilliseconds
-        if ($remaining -le 0) { break }
-        $argv = @($action, $Config.Service)
-        if ($action -eq 'suspend') { $argv += @('--intent', $Intent, '--reason', 'MoveUp development') }
-        $argv += '--json'
-        try {
-            $response = & $Transport $Config $argv ([int][Math]::Min(2000, $remaining))
-            if (Test-MoveUpHold $response $action $Config.Service $Intent) { return }
-        } catch { Write-Verbose $_ }
-    }
-    throw 'PM3 suspension UNKNOWN or refused. No process was replaced. Check supervision and retry.'
-}
-
-function Release-MoveUpHold {
-    param($Config, [string]$Intent, [bool]$Start, [scriptblock]$Transport)
-    $clock = [Diagnostics.Stopwatch]::StartNew()
-    $argv = @('resume', $Config.Service, '--intent', $Intent, '--json')
-    if ($Start) { $argv += '--start' }
-    for ($i = 0; $i -lt 4; $i++) {
-        $remaining = 8000 - $clock.ElapsedMilliseconds
-        if ($remaining -le 0) { break }
-        try {
-            $response = & $Transport $Config $argv ([int][Math]::Min(2000, $remaining))
-            $v = $response.Body | ConvertFrom-Json -AsHashtable -ErrorAction Stop
-            if ($response.Exit -eq 0 -and $v.name -ceq $Config.Service -and
-                $v.released -is [bool] -and $v.suspended -is [bool] -and
-                $v.holds -is [long] -and $v.holds -ge 0 -and $v.suspended -eq ($v.holds -gt 0) -and
-                $v.status -is [string] -and $v.status.Length -gt 0) {
-                if ($v.startError) { throw "Hold released but PM3 restart failed: $($v.startError)" }
-                return
-            }
-        } catch { Write-Verbose $_ }
-    }
-    throw "Could not confirm release of development hold $Intent. Retry PM3 resume with this exact --intent."
+function Assert-MoveUpPm3Owner {
+    param($Config, $Service, $Existing, [scriptblock]$Transport)
+    if (!$Service -or $Service.pid -ne $Existing.Id -or $Service.status -notin @('running','starting')) { throw 'Existing desk is not the selected PM3 instance; left untouched' }
+    $response = & $Transport $Config @('describe', $Config.Service, '--json') 8000
+    if ($response.Exit -ne 0) { throw 'PM3 describe failed; instance left untouched' }
+    try { $value = $response.Body | ConvertFrom-Json -AsHashtable -ErrorAction Stop } catch { throw 'PM3 description unknown' }
+    if ($value.name -cne $Config.Service -or $value.cmd -isnot [array] -or $value.cmd.Count -lt 1 -or
+        $value.cmd[0] -ine $Existing.Path) { throw 'PM3 executable identity mismatch; instance left untouched' }
 }

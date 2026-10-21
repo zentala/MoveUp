@@ -31,25 +31,22 @@ $operations = @{
         }
         return $true
     }
-    Stop = {
+    Validate = {
         param($existing)
         $current = Get-Process -Id $existing.Id -ErrorAction Stop
         if ($current.Path -ine $existing.Path -or $current.StartTime -ne $existing.StartTime) {
             throw 'Process identity changed; replacement refused.'
         }
-        Stop-Process -InputObject $current -Force -ErrorAction Stop
-        if (!$current.WaitForExit(2000)) { Write-Warning 'Desk exit is still pending; finally will restore its owner.' }
     }
     Register = { & "$PSScriptRoot/register-notifications.ps1" }
     Dev = {
         $previous = $env:DESK_SUPERVISION
         try {
-            $env:DESK_SUPERVISION = 'bridge' # The parent owns the dev hold.
+            $env:DESK_SUPERVISION = 'bridge' # Parent owns the stopped release and restoration.
             pnpm exec tauri dev
             if ($LASTEXITCODE -ne 0) { throw "Tauri development failed (exit $LASTEXITCODE)" }
         } finally { $env:DESK_SUPERVISION = $previous }
     }
-    Restore = { param($path) Start-Process -FilePath $path -ArgumentList '--minimized' -WindowStyle Hidden }
     Transport = { param($configuration, $arguments, $timeout) Invoke-MoveUpPm3 $configuration $arguments $timeout }
 }
 Invoke-MoveUpDevSession -Operations $operations -Config $config -ReleaseExe $releaseExe -DebugExe $debugExe -InstallRoot $installRoot -Force:$Force

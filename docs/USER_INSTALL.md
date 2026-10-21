@@ -52,6 +52,37 @@ On first launch MoveUp:
 3. shows the welcome window and asks you to calibrate your sitting and standing
    desk heights
 
+## Optional PM3 supervision on development machines
+
+Where PM3 is installed, prefer it as the sole owner of the running application.
+The repository can prepare an ordinary PM3 configuration without launching
+MoveUp or registering a service. Select the actual application executable;
+preparation does not select or promote release candidates.
+
+```powershell
+node scripts/prepare-pm3.mjs --install-root "C:/path/to/MoveUp" --executable "C:/path/to/MoveUp/desk.exe" --output-dir "C:/path/to/new-config-directory"
+```
+
+The output directory must already exist and must not contain `pm3.yaml`.
+All three paths must be absolute. Optional `--port` changes the local readiness
+port in both the application environment and PM3's HTTP probe. Optional
+`--pm3-node ABS --pm3-home ABS` runs the installed public `lint` command with
+an isolated PM3 home. Lint warnings are non-blocking and a successful lint is
+not a running-app check. No candidate file or callback is required.
+
+The configuration uses the exact executable, `--minimized`, automatic restart
+with capped delay, and boot restoration for services PM3 still desires to run.
+An unexpected exit, including exit code zero, is eligible for restart.
+Ordinary `stop` clears that restore intent. A separate per-user login activation
+must be verified if deliberate Quit should last only until the next login.
+
+Installation also requires verified flush-before-stop for Quit and development
+replacement, plus exactly one app process and actual recovery evidence. This
+preparation command does not implement or verify those lifecycle steps. Keep
+the existing direct Windows login entry until the replacement is proven; then
+record its rollback value before disabling it. Never run both launch paths as
+competing owners. See [Support](./USER_SUPPORT.md#pm3-startup-diagnostics).
+
 ## Data Storage
 
 Your sessions, settings and logs live in:

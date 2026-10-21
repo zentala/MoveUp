@@ -9,7 +9,8 @@ fn activation_selects_installed_config_and_consumes_public_plaintext() {
     let unrelated = root.join("unrelated"); let store = root.join("store");
     fs::create_dir_all(home.join("releases")).unwrap();
     for dir in [&installed, &unrelated, &store] { fs::create_dir(dir).unwrap(); }
-    fs::write(store.join("candidates.json"), r#"{"version":1,"candidates":[]}"#).unwrap();
+    let executable = store.join("desk.exe");
+    fs::write(&executable, "synthetic application, never executed").unwrap();
     let config_file = installed.join("pm3.yaml"); let node = node::fixture_node();
     let record = root.join("launcher-record.json");
     fs::write(home.join("releases/launch.mjs"), r#"
@@ -23,9 +24,9 @@ process.exitCode = Number(process.env.FIXTURE_EXIT);
     let module = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("scripts/pm3-config.mjs");
     // Generate through the real owner rather than asserting an invented shape.
     let out = Command::new(&node).args(["--input-type=module", "-e",
-        "import {pathToFileURL} from 'node:url'; import fs from 'node:fs'; const {createConfiguration}=await import(pathToFileURL(process.argv[1])); const [installRoot,candidatesFile,nodeExecutable,pm3Home,callbackFile,runDirectory,configFile]=process.argv.slice(2); fs.writeFileSync(configFile,JSON.stringify(createConfiguration({installRoot,candidatesFile,nodeExecutable,pm3Home,callbackFile,runDirectory,configFile}).config));"])
-        .arg(module).arg(&store).arg(store.join("candidates.json")).arg(&node).arg(&home)
-        .arg(installed.join("release-callback.mjs")).arg(&unrelated).arg(&config_file).output().unwrap();
+        "import {pathToFileURL} from 'node:url'; import fs from 'node:fs'; const {createConfiguration}=await import(pathToFileURL(process.argv[1])); const [installRoot,executable,nodeExecutable,pm3Home,configFile]=process.argv.slice(2); fs.writeFileSync(configFile,JSON.stringify(createConfiguration({installRoot,executable,nodeExecutable,pm3Home,configFile}).config));"])
+        .arg(module).arg(&store).arg(&executable).arg(&node).arg(&home)
+        .arg(&config_file).output().unwrap();
     assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
     let call = |output: &str, exit: &str, config: &std::path::Path| {
         Command::new(env!("CARGO_BIN_EXE_desk")).args(["--release", "activate"])
@@ -35,7 +36,7 @@ process.exitCode = Number(process.env.FIXTURE_EXIT);
             .env("FIXTURE_RECORD", &record).env("FIXTURE_OUTPUT", output).env("FIXTURE_EXIT", exit)
             .env("LOCALAPPDATA", root).env("APPDATA", root).env("TEMP", root).env("TMP", root).output().unwrap()
     };
-    for text in ["desk: running (pid 1234)", "desk: suspended", "desk: no-candidate"] {
+    for text in ["desk: running (pid 1234)", "desk: starting", "desk: restarting"] {
         let out = call(text, "0", &config_file);
         assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
         let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();

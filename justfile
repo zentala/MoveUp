@@ -39,8 +39,14 @@ lint:
 coverage:
     pnpm test:coverage
 
-# pre-commit gate: types, lint, then both unit suites
-check: typecheck lint test test-rust
+# Ordinary startup preparation regressions; fixtures never start real services.
+test-startup:
+    node --test scripts/pm3-config.test.mjs scripts/pm3-validation.test.mjs
+    pwsh -NoProfile -File scripts/test-tauri-dev.ps1
+
+# Types, lint, both unit suites and the startup preparation regressions.
+# Actual Windows Quit/recovery/login verification remains a delivery check.
+check: test-startup typecheck lint test test-rust
 
 # relay Worker (E022) — a standalone pnpm project in relay/, its own lockfile.
 # `pnpm --dir` keeps every one of these runnable from the repo root.

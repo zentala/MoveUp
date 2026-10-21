@@ -1,11 +1,9 @@
-# Injectable session operations. Tests supply synthetic process identities only.
+# Only an observed live instance owned by the selected PM3 service is replaced.
 function Invoke-MoveUpDevSession {
     param([hashtable]$Operations, $Config, [string]$ReleaseExe, [string]$DebugExe,
         [string]$InstallRoot, [switch]$Force)
-    $intent = 'dev-' + [Guid]::NewGuid().ToString()
-    $attempted = $false
     $replaced = $false
-    $restore = $null
+    $bodyFailure = $null
     try {
         $instances = @(& $Operations.Enumerate)
         if ($instances.Count -gt 1) { throw 'Multiple desk instances found; identify the owner before development.' }
@@ -19,23 +17,42 @@ function Invoke-MoveUpDevSession {
                 throw 'Unrecognized desk process identity; no process was replaced.'
             }
             if (!$Force -and !(& $Operations.Confirm $existing)) { throw 'Keeping existing instance; development aborted.' }
+            if (!$Config) { throw 'Existing desk has no verified PM3 owner; close it gracefully before development.' }
         }
         if ($Config) {
-            $attempted = $true # Also clean up a request whose acknowledgement was lost.
-            Confirm-MoveUpSuspend $Config $intent $Operations.Transport
+            $service = Get-MoveUpPm3Service $Config $Operations.Transport
+            if ($existing) {
+                Assert-MoveUpPm3Owner $Config $service $existing $Operations.Transport
+                & $Operations.Validate $existing
+                Confirm-MoveUpPm3Action $Config 'stop' $Operations.Transport
+                $replaced = $true
+                $stopped = Get-MoveUpPm3Service $Config $Operations.Transport
+                if (!$stopped -or $stopped.status -cne 'stopped' -or $null -ne $stopped.pid) { throw 'PM3 stop did not settle; development aborted.' }
+            } elseif ($service -and ($service.status -cne 'stopped' -or $null -ne $service.pid)) {
+                throw 'Selected PM3 service is not stopped; no observed instance can be safely replaced.'
+            }
         }
-        if ($existing) {
-            & $Operations.Stop $existing
-            $replaced = $true
-            if ($path -ieq $ReleaseExe -or $installed) { $restore = $path }
-        }
+        if (@(& $Operations.Enumerate).Count -ne 0) { throw 'A desk process is still present; development aborted.' }
         & $Operations.Register
         & $Operations.Dev
+    } catch {
+        $bodyFailure = $_
     } finally {
-        if ($Config -and $attempted) {
-            Release-MoveUpHold $Config $intent $replaced $Operations.Transport
-        } elseif ($replaced -and $restore) {
-            & $Operations.Restore $restore
+        try {
+            if ($Config -and $replaced) {
+                if (@(& $Operations.Enumerate).Count -ne 0) { throw 'Desk remains after development; PM3 restoration skipped to avoid a duplicate.' }
+                $current = Get-MoveUpPm3Service $Config $Operations.Transport
+                if (!$current -or $current.status -cne 'stopped' -or $null -ne $current.pid) { throw 'PM3 state changed; restoration skipped to protect the current owner.' }
+                Confirm-MoveUpPm3Action $Config 'start' $Operations.Transport
+            }
+        } catch {
+            if ($bodyFailure) {
+                throw [AggregateException]::new(
+                    "Development failed: $($bodyFailure.Exception.Message) Restoration failed: $($_.Exception.Message)",
+                    [Exception[]]@($bodyFailure.Exception, $_.Exception))
+            }
+            throw
         }
     }
+    if ($bodyFailure) { throw $bodyFailure }
 }

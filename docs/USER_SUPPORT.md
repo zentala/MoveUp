@@ -114,6 +114,44 @@ than 60 seconds earn no credit at all.
 
 ## Accessing Logs
 
+### PM3 startup diagnostics
+
+If MoveUp is registered with PM3, inspect `pm3 describe moveup/desk --json`,
+`pm3 health moveup/desk`, `pm3 events --json`, and `pm3 logs moveup/desk`.
+Use PM3 for process operations rather than starting another executable.
+An empty application stdout tail is possible for Windows GUI builds; it does
+not prove that the application is silent or stopped. Use the persistent
+application `events.log` and PM3's disk lifecycle records to correlate starts,
+exits and restarts. Early startup failures also have local
+`moveup-startup-*.log` files in the Windows temporary directory.
+
+The local readiness response returns HTTP 503 when database initialization,
+tray initialization or setup is incomplete, after an observed failure, or
+while quitting. Its JSON includes the reason and process identity. HTTP 200
+with `state: degraded` and `reason: sensor_missing` means the core application
+is ready without the sensor. `session_store_available: false` separately means
+the session settings Store is unavailable; HTTP 200 does not certify that
+session persistence works. Preserve this limitation in diagnostic reports.
+Graceful Quit and native close currently require a successful session Store
+save as well as the database flush. If the Store is unavailable or its save
+fails, MoveUp reports the failure and remains running; core HTTP readiness
+alone does not establish that Quit works. This dependency needs a separate
+Store correction and native verification before this installation is complete.
+The installed ordinary PM3 probe checks HTTP status rather than JSON identity;
+compare the returned PID and version with the actual supervised process during
+installation and recovery checks.
+
+PM3 restarts unexpected clean exits too. Deliberate Quit must flush state before
+ordinary PM3 stop; stop removes boot restoration intent, so `boot: true` is
+insufficient to promise a return at next login. Verify the separate per-user
+login activation and development replacement before enabling this installation.
+A manually triggered activation demonstrates its action, not an actual login.
+
+The supervisor also depends on its Windows Scheduled Task lifetime. Battery
+conditions, interactive-user requirements, missed-trigger behavior and a task
+execution time limit may interrupt supervision. Check the installed task;
+application configuration does not override those settings.
+
 Logs help diagnose problems. To find them:
 
 1. Open File Explorer.

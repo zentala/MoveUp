@@ -1,4 +1,4 @@
-//! UI glue: do not mark a clean Quit until suspension is confirmed.
+//! Explicit tray Quit flushes before the ordinary supervisor stop can kill us.
 use crate::supervision::{self, Configuration, QuitGate};
 
 static GATE: QuitGate = QuitGate::new();
@@ -9,19 +9,24 @@ pub fn request(app: &tauri::AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let result = match config {
-            Ok(None) => Ok(()),
+            Ok(None) => crate::app_lifecycle_runtime::prepare_shutdown(&app, true).map(|_| ()),
             Ok(Some(config)) => {
-                supervision::suspend(&config, GATE.intent(),
-                    &crate::supervision_process::PublicLauncher, supervision::DEADLINE).await
+                match crate::app_lifecycle_runtime::prepare_shutdown(&app, true) {
+                    Ok(_) => supervision::stop(&config,
+                        &crate::supervision_process::PublicLauncher, supervision::DEADLINE).await,
+                    Err(error) => Err(format!("Quit blocked: shutdown persistence incomplete ({error})")),
+                }
             }
             Err(error) => Err(format!("Quit blocked: {error}. Correct supervision configuration and retry.")),
         };
         match result {
             Ok(()) => {
-                crate::app_lifecycle_runtime::request_quit(&app);
-                app.exit(0); // Existing RunEvent::Exit owns the persistence flush.
+                app.exit(0); // Exit shares the already completed flush.
             }
             Err(error) => {
+                if let Err(cancel) = crate::app_lifecycle_runtime::cancel_shutdown(&app) {
+                    log::error!("Shutdown cancellation incomplete: {cancel}");
+                }
                 log::error!("{error}");
                 crate::notify::show("MoveUp could not quit", &error);
                 GATE.retry();

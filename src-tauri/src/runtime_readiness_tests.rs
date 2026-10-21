@@ -106,6 +106,48 @@ fn validator_rejects_arbitrary_json_identity_mismatch_and_forged_flags() {
 }
 
 #[tokio::test]
+async fn endpoint_reports_503_for_each_essential_failure_with_truthful_json() {
+    for prerequisite in ["tray", "persistence", "setup", "quit", "failure"] {
+        let mut status = fixture();
+        match prerequisite {
+            "tray" => status.tray_initialized = false,
+            "persistence" => status.persistence_initialized = false,
+            "setup" => status.setup_complete = false,
+            "quit" => status.quit_requested = true,
+            _ => status.state = ReadinessState::Failed,
+        }
+        status.compute_state();
+        let expected_reason = status.reason.clone();
+        let response = runtime_readiness::routes(Arc::new(move || status.clone()))
+            .oneshot(axum::http::Request::builder().uri(runtime_readiness::PATH)
+                .body(axum::body::Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), 503, "{prerequisite}");
+        let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+        let returned: ReadinessStatus = serde_json::from_slice(&body).unwrap();
+        assert!(!returned.ready);
+        assert_eq!(returned.reason, expected_reason);
+        assert_eq!(returned.app_id, runtime_readiness::APP_ID);
+    }
+}
+
+#[tokio::test]
+async fn sensor_degradation_keeps_200_and_store_limitation_explicit() {
+    let status = fixture();
+    assert!(!status.sensor_present);
+    assert!(!status.session_store_available);
+    let response = runtime_readiness::routes(Arc::new(move || status.clone()))
+        .oneshot(axum::http::Request::builder().uri(runtime_readiness::PATH)
+            .body(axum::body::Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), 200);
+    let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+    let returned: ReadinessStatus = serde_json::from_slice(&body).unwrap();
+    assert!(returned.ready);
+    assert_eq!(returned.state, ReadinessState::Degraded);
+    assert!(!returned.session_store_available);
+    assert!(returned.persistence_initialized);
+}
+
+#[tokio::test]
 async fn endpoint_is_flat_bounded_and_has_no_aggregate_dependencies() {
     let router = runtime_readiness::routes(Arc::new(fixture));
     let response = tokio::time::timeout(std::time::Duration::from_millis(500),

@@ -67,6 +67,9 @@ pub type ReadinessReader = Arc<dyn Fn() -> ReadinessStatus + Send + Sync>;
 pub fn routes(read: ReadinessReader) -> axum::Router {
     axum::Router::new().route(PATH, axum::routing::get(move || {
         let status = read();
-        async move { axum::Json(status) }
+        // Ordinary installed PM3 checks HTTP status, not the JSON ready field.
+        let code = if status.ready { axum::http::StatusCode::OK }
+            else { axum::http::StatusCode::SERVICE_UNAVAILABLE };
+        async move { (code, axum::Json(status)) }
     }))
 }

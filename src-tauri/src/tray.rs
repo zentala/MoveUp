@@ -82,18 +82,10 @@ pub fn update_tray(
     state: DeskState,
     progress_ratio: f32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(tray) = app.tray_by_id("main-tray") {
-        let _ = tray.set_tooltip(Some(label));
-        let icon = if let Ok(icon_path) = icon_path_for_state(app, state.clone(), progress_ratio) {
-            Image::from_path(&icon_path).ok()
-        } else {
-            None
-        };
-        let icon = icon.or_else(|| generate_tray_icon(state, progress_ratio));
-        if let Some(icon) = icon {
-            let _ = tray.set_icon(Some(icon));
-        }
-    }
+    let icon = icon_path_for_state(app, state.clone(), progress_ratio).ok()
+        .and_then(|path| Image::from_path(path).ok())
+        .or_else(|| generate_tray_icon(state, progress_ratio));
+    queue_tray_update(app, Some(label.to_owned()), icon)?;
     Ok(())
 }
 
@@ -105,14 +97,7 @@ pub fn update_tray_no_dot(
     app: &AppHandle,
     label: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(tray) = app.tray_by_id("main-tray") {
-        if !label.is_empty() {
-            let _ = tray.set_tooltip(Some(label));
-        }
-        if let Some(icon) = generate_tray_icon_no_dot() {
-            let _ = tray.set_icon(Some(icon));
-        }
-    }
+    queue_tray_update(app, (!label.is_empty()).then(|| label.to_owned()), generate_tray_icon_no_dot())?;
     Ok(())
 }
 
@@ -124,10 +109,29 @@ pub fn update_tray_tooltip(
     app: &AppHandle,
     label: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(tray) = app.tray_by_id("main-tray") {
-        let _ = tray.set_tooltip(Some(label));
-    }
+    queue_tray_update(app, Some(label.to_owned()), None)?;
     Ok(())
+}
+
+/// The entire Rc-backed handle lifetime belongs to the receiving main thread.
+fn queue_tray_update(app: &AppHandle, label: Option<String>, icon: Option<Image<'static>>) -> tauri::Result<()> {
+    let receiver = app.clone();
+    dispatch_tray_update(|task| app.run_on_main_thread(task),
+        move || receiver.tray_by_id("main-tray"), move |tray| {
+            if let Some(label) = label { let _ = tray.set_tooltip(Some(label)); }
+            if let Some(icon) = icon { let _ = tray.set_icon(Some(icon)); }
+        })
+}
+
+/// Small test seam: the handle need not be Send because lookup occurs in the task.
+pub(crate) fn dispatch_tray_update<T: 'static>(
+    schedule: impl FnOnce(Box<dyn FnOnce() + Send>) -> tauri::Result<()>,
+    lookup: impl FnOnce() -> Option<T> + Send + 'static,
+    update: impl FnOnce(&T) + Send + 'static,
+) -> tauri::Result<()> {
+    schedule(Box::new(move || {
+        if let Some(tray) = lookup() { update(&tray); }
+    }))
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

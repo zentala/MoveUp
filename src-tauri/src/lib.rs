@@ -347,6 +347,17 @@ pub fn run() {
         .on_window_event(|window, event| {
             // T038: Hide the popup window when it loses focus (click outside).
             if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    // Native PM3 soft-stop sends WM_CLOSE. This is not user Quit.
+                    match app_lifecycle_runtime::prepare_shutdown(window.app_handle(), false) {
+                        Ok(_) => window.app_handle().exit(0),
+                        Err(error) => {
+                            log::error!("Native close persistence incomplete: {error}");
+                            notify::show("MoveUp could not close", &error);
+                        }
+                    }
+                }
                 if let tauri::WindowEvent::Focused(false) = event {
                     let _ = window.hide();
                 }
