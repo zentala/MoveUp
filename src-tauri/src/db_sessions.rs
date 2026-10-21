@@ -2,7 +2,6 @@
 //!
 //! Provides insert and load functions for session state tracking.
 
-use log::error;
 use rusqlite::Connection;
 
 use crate::db::{break_credit_to_db_str, SessionRow};
@@ -11,8 +10,8 @@ use crate::session_types::{BreakCredit, DeskState};
 // ─── Insert operations ───────────────────────────────────────────────────────
 
 /// Inserts a completed session into the database with no break credit recorded.
-/// `date_local` is set to the LOCAL date at time of insert (timezone-safe queries).
-/// This means the date reflects the user's timezone when the session happened.
+/// `date_local` is derived from the span start, never the save clock.
+/// Range queries use intersection so crossings appear in both days.
 pub fn insert_session(
     conn: &Connection,
     started_at: &str,
@@ -36,7 +35,9 @@ pub fn insert_session_with_credit(
     duration_seconds: i64,
     break_credit: Option<&BreakCredit>,
 ) -> Result<(), rusqlite::Error> {
-    let date_local = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let date_local = chrono::DateTime::parse_from_rfc3339(started_at)
+        .map_err(|_| rusqlite::Error::InvalidParameterName("invalid session start".into()))?
+        .with_timezone(&chrono::Local).format("%Y-%m-%d").to_string();
     insert_session_with_date_and_credit(
         conn,
         started_at,
@@ -88,6 +89,24 @@ pub fn insert_session_with_date_and_credit(
 }
 
 
+/// Idempotent adapter insert. One SQLite statement holds the write lock for
+/// existence check and insert; replay needs no new index or schema migration.
+pub(crate) fn insert_session_once(conn: &Connection, started_at: &str, ended_at: &str,
+    state: &str, duration_seconds: i64, break_credit: Option<&BreakCredit>)
+    -> Result<Option<i64>, rusqlite::Error> {
+    let date = chrono::DateTime::parse_from_rfc3339(started_at)
+        .map_err(|_| rusqlite::Error::InvalidParameterName("invalid session start".into()))?
+        .with_timezone(&chrono::Local).format("%Y-%m-%d").to_string();
+    let credit = break_credit.map(break_credit_to_db_str);
+    let inserted = conn.execute("INSERT INTO sessions
+        (started_at, ended_at, state, duration_seconds, date_local, break_credit)
+        SELECT ?1, ?2, ?3, ?4, ?5, ?6 WHERE NOT EXISTS
+        (SELECT 1 FROM sessions WHERE started_at = ?1 AND ended_at = ?2
+          AND state = ?3 AND duration_seconds = ?4 AND break_credit IS ?6)",
+        rusqlite::params![started_at, ended_at, state, duration_seconds, date, credit])?;
+    Ok((inserted == 1).then(|| conn.last_insert_rowid()))
+}
+
 // ─── Load operations ─────────────────────────────────────────────────────────
 
 /// Today's totals restored from database on restart.
@@ -121,55 +140,27 @@ pub fn accumulate_state_duration(
     }
 }
 
-/// Loads today's total sitting and standing seconds from the database.
-/// Uses `date_local` column for timezone-safe queries. Falls back to
-/// `started_at LIKE` for rows without `date_local` (pre-migration).
-///
-/// `after` — optional ISO timestamp. If set, only sessions started AFTER
-/// this time are counted. Used to exclude pre-daily-reset sessions.
+/// Loads raw totals clipped to today's local calendar boundaries. An explicit
+/// reset cuts the range at its instant, including the tail of a crossing span.
 pub fn load_today_totals(conn: &Connection, after: Option<&str>) -> Result<TodayTotals, String> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    // Use a single query with started_at > ?3. When no after filter,
-    // pass empty string "" which is less than any ISO timestamp.
-    let after_val = after.unwrap_or("");
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT state, duration_seconds FROM sessions \
-             WHERE (date_local = ?1 OR (date_local IS NULL AND started_at LIKE ?2)) \
-             AND ended_at IS NOT NULL \
-             AND started_at > ?3",
-        )
-        .map_err(|e| {
-            let msg = format!("Failed to prepare query: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-    let rows = stmt
-        .query_map(
-            rusqlite::params![&today, format!("{}%", today), after_val],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
-        )
-        .map_err(|e| {
-            let msg = format!("Failed to query today's totals: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
+    let (mut start, end) = local_date_bounds(&chrono::Local, &today, &today)?;
+    if let Some(after) = after {
+        start = start.max(chrono::DateTime::parse_from_rfc3339(after)
+            .map_err(|e| format!("Invalid daily reset instant: {e}"))?
+            .with_timezone(&chrono::Utc));
+    }
+    let rows = crate::db_queries::get_sessions_between(conn, start, end)?;
 
     let mut sitting_secs = 0i64;
     let mut standing_secs = 0i64;
     let mut desk_state_rows = 0u32;
 
-    for row_result in rows {
-        let (state, duration) = row_result.map_err(|e| {
-            let msg = format!("Failed to read row: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-        if accumulate_state_duration(&state, duration, &mut sitting_secs, &mut standing_secs) {
-            desk_state_rows += 1;
+    for row in rows {
+        if let Some(duration) = clipped_duration(&row, start, end) {
+            if accumulate_state_duration(&row.state, duration, &mut sitting_secs, &mut standing_secs) {
+                desk_state_rows += 1;
+            }
         }
     }
 
@@ -183,38 +174,25 @@ pub fn load_today_totals(conn: &Connection, after: Option<&str>) -> Result<Today
 /// Loads sitting and standing totals for a given local date (YYYY-MM-DD).
 /// Away/unknown states are excluded from both totals.
 pub fn get_totals_for_date(conn: &Connection, date: &str) -> Result<(i64, i64), String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT state, duration_seconds FROM sessions \
-             WHERE (date_local = ?1 OR (date_local IS NULL AND started_at LIKE ?2)) \
-             AND ended_at IS NOT NULL",
-        )
-        .map_err(|e| {
-            let msg = format!("Failed to prepare query: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
+    get_totals_for_date_in_zone(conn, &chrono::Local, date)
+}
 
-    let rows = stmt
-        .query_map(rusqlite::params![date, format!("{}%", date)], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-        })
-        .map_err(|e| {
-            let msg = format!("Failed to query totals for {}: {}", date, e);
-            error!("{}", msg);
-            msg
-        })?;
+/// Loads one local date's totals using an explicit zone, so DST boundaries can
+/// be tested without changing the process timezone.
+pub(crate) fn get_totals_for_date_in_zone<Tz: chrono::TimeZone>(
+    conn: &Connection,
+    zone: &Tz,
+    date: &str,
+) -> Result<(i64, i64), String> {
+    let (start, end) = local_date_bounds(zone, date, date)?;
+    let rows = crate::db_queries::get_sessions_between(conn, start, end)?;
 
     let (mut sitting_secs, mut standing_secs) = (0i64, 0i64);
 
-    for row_result in rows {
-        let (state, duration) = row_result.map_err(|e| {
-            let msg = format!("Failed to read row: {}", e);
-            error!("{}", msg);
-            msg
-        })?;
-
-        accumulate_state_duration(&state, duration, &mut sitting_secs, &mut standing_secs);
+    for row in rows {
+        if let Some(duration) = clipped_duration(&row, start, end) {
+            accumulate_state_duration(&row.state, duration, &mut sitting_secs, &mut standing_secs);
+        }
     }
 
     Ok((sitting_secs, standing_secs))
@@ -222,10 +200,40 @@ pub fn get_totals_for_date(conn: &Connection, date: &str) -> Result<(i64, i64), 
 
 /// Loads yesterday's totals. Convenience wrapper around [`get_totals_for_date`].
 pub fn get_yesterday_totals(conn: &Connection) -> Result<(i64, i64), String> {
-    let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
+    let yesterday = chrono::Local::now().date_naive().pred_opt().ok_or("Invalid prior date")?
         .format("%Y-%m-%d")
         .to_string();
     get_totals_for_date(conn, &yesterday)
+}
+
+/// Calendar arithmetic, including 23/25-hour DST days and days whose first
+/// local wall-clock instant is missing or ambiguous.
+pub(crate) fn local_date_bounds<T: chrono::TimeZone>(zone: &T, from: &str, to: &str)
+    -> Result<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>), String> {
+    let from = chrono::NaiveDate::parse_from_str(from, "%Y-%m-%d")
+        .map_err(|e| format!("Invalid range start: {e}"))?;
+    let to = chrono::NaiveDate::parse_from_str(to, "%Y-%m-%d")
+        .map_err(|e| format!("Invalid range end: {e}"))?;
+    if from > to { return Err("Range start is after end".into()); }
+    let end = to.succ_opt().ok_or("Range end overflow")?;
+    let start = crate::session_daily::local_day_start_utc(zone, from)
+        .ok_or("Unresolvable local start of day")?;
+    let end = crate::session_daily::local_day_start_utc(zone, end)
+        .ok_or("Unresolvable local end of day")?;
+    Ok((start, end))
+}
+
+/// Limit daily raw totals to the intersection without changing stored rows.
+/// Mismatched legacy duration/endpoint rows cannot be safely divided by day.
+pub(crate) fn clipped_duration(row: &SessionRow, start: chrono::DateTime<chrono::Utc>,
+    end: chrono::DateTime<chrono::Utc>) -> Option<i64> {
+    let a = chrono::DateTime::parse_from_rfc3339(&row.started_at).ok()?.with_timezone(&chrono::Utc);
+    let b = chrono::DateTime::parse_from_rfc3339(row.ended_at.as_deref()?).ok()?.with_timezone(&chrono::Utc);
+    let duration = row.duration_seconds?;
+    if b <= a || duration < 0 { return None; }
+    if a >= start && b <= end { return Some(duration); }
+    if duration != (b - a).num_seconds() { return None; }
+    Some((b.min(end) - a.max(start)).num_seconds().max(0))
 }
 
 /// Maps a database row to a [`SessionRow`].

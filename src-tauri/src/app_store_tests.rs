@@ -118,3 +118,206 @@ fn real_flush_save_failure_and_retry_persist_current_state() {
     let restored = crate::session_persistence::PersistedEngineState::load(&reopened).unwrap();
     assert!(restored.notify_inactivity_fired);
 }
+
+fn pending_history_snapshot(date_local: String) -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": 1,
+        "date_local": date_local,
+        "daily_reset_after": null,
+        "engine": {
+            "sitting_seconds": 900,
+            "sitting_seconds_total": 900,
+            "standing_seconds": 600
+        },
+        "sitting_seconds": 900,
+        "pending_history": [{
+            "state": "Standing",
+            "span": {
+                "started_at": "2026-10-21T10:00:00+00:00",
+                "ended_at": "2026-10-21T10:00:50+00:00",
+                "duration_secs": 50
+            },
+            "credit": null
+        }]
+    })
+}
+
+#[test]
+fn pending_history_survives_fresh_real_store_reload() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let first_owner = app();
+    let first = crate::app_store::initialize_at(first_owner.handle(), &file).unwrap();
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    first.set("persisted_session_state", pending_history_snapshot(today));
+    first.save().unwrap();
+
+    let second_owner = app();
+    let reopened = crate::app_store::initialize_at(second_owner.handle(), &file).unwrap();
+    let restored = crate::session_persistence::PersistedEngineState::load(&reopened)
+        .expect("same-day snapshot must load");
+    let value = serde_json::to_value(restored).unwrap();
+    let pending = value["pending_history"].as_array()
+        .expect("unacknowledged history must survive a real Store reload");
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0]["state"], "Standing");
+    assert_eq!(pending[0]["span"]["duration_secs"], 50);
+}
+
+#[test]
+fn stale_snapshot_keeps_pending_history_without_overwriting_seeded_daily_totals() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let owner = app();
+    let store = crate::app_store::initialize_at(owner.handle(), &file).unwrap();
+    let yesterday = (chrono::Local::now().date_naive() - chrono::Duration::days(1))
+        .format("%Y-%m-%d").to_string();
+    store.set("persisted_session_state", pending_history_snapshot(yesterday));
+    store.save().unwrap();
+
+    let restored = crate::session_persistence::PersistedEngineState::load(&store)
+        .expect("stale counters must not discard unacknowledged history");
+    let value = serde_json::to_value(&restored).unwrap();
+    assert_eq!(value["pending_history"].as_array().unwrap().len(), 1);
+
+    let mut manager = crate::session::SessionManager::new();
+    manager.state.sitting_seconds = 20;
+    manager.state.sitting_seconds_total = 30;
+    manager.state.standing_seconds = 40;
+    manager.load_persisted_state(&restored);
+    assert_eq!(manager.state.sitting_seconds, 20);
+    assert_eq!(manager.state.sitting_seconds_total, 30);
+    assert_eq!(manager.state.standing_seconds, 40);
+}
+
+#[test]
+fn failed_cancellation_store_save_keeps_acknowledged_database_history_durable() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let owner = app();
+    let store = crate::app_store::initialize_at(owner.handle(), &file).unwrap();
+    let mut manager = crate::session::SessionManager::new();
+    let end = chrono::DateTime::parse_from_rfc3339("2026-10-21T10:01:00Z")
+        .unwrap().with_timezone(&chrono::Utc);
+    let start = end - chrono::Duration::seconds(60);
+    manager.state.state = crate::session_types::DeskState::Sitting;
+    manager.state.sitting_started = Some(start);
+    manager.history_span_started = Some(start);
+    manager.history_last_reading = Some(end);
+    manager.state.last_tick_ts = Some(end);
+    let session = Mutex::new(manager);
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::db::init_schema(&conn).unwrap();
+    let db = Mutex::new(Some(conn));
+    let mut progress = crate::app_lifecycle_runtime::FlushProgress::new();
+    let save = |manager: &crate::session::SessionManager| {
+        let snapshot = crate::session_persistence::PersistedEngineState::from_session(manager, None);
+        if snapshot.save(&store).is_ok() { "saved" } else { "failed" }
+    };
+    assert_eq!(crate::app_lifecycle_runtime::flush_state_progress_at(
+        &session, &db, &mut progress, end, save), "store=saved database=saved");
+    let acknowledged_copy = temp.path().join("acknowledged.json");
+    fs::copy(&file, &acknowledged_copy).unwrap();
+
+    fs::remove_file(&file).unwrap();
+    fs::create_dir(&file).unwrap();
+    let failed = progress.cancel(&session, &db, |manager| {
+        let snapshot = crate::session_persistence::PersistedEngineState::from_session(manager, None);
+        if snapshot.save(&store).is_ok() { "saved" } else { "failed" }
+    });
+    assert!(failed.is_err(), "the synthetic Store save failure must be observed");
+    assert!(session.lock().unwrap().pending_history.len() == 1,
+        "the in-memory queue remains available for retry");
+    let rows: i64 = db.lock().unwrap().as_ref().unwrap().query_row(
+        "SELECT COUNT(*) FROM sessions", [], |row| row.get(0),
+    ).unwrap();
+    assert_eq!(rows, 1, "a failed Store save must not delete the durable acknowledged row");
+
+    let reopened_owner = app();
+    let reopened = crate::app_store::initialize_at(reopened_owner.handle(), &acknowledged_copy).unwrap();
+    let restored = crate::session_persistence::PersistedEngineState::load(&reopened).unwrap();
+    assert!(restored.pending_history.is_empty(),
+        "the last durable Store snapshot is the acknowledged state; SQLite still owns the row");
+}
+
+#[test]
+fn shutdown_snapshot_before_first_new_day_reading_keeps_pending_and_stale_counters_separate() {
+    use chrono::TimeZone;
+
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let owner = app();
+    let store = crate::app_store::initialize_at(owner.handle(), &file).unwrap();
+    let today = chrono::Local::now().date_naive();
+    let previous_day = today.pred_opt().unwrap();
+    let previous_start = chrono::Local.from_local_datetime(
+        &previous_day.and_hms_opt(10, 0, 0).unwrap(),
+    ).single().unwrap().with_timezone(&chrono::Utc);
+
+    let mut manager = crate::session::SessionManager::new();
+    for _ in 0..crate::session_types::DEBOUNCE_COUNT {
+        manager.on_reading_at(800, true, previous_start);
+    }
+    for offset in 1..=crate::session_types::DEBOUNCE_COUNT {
+        manager.on_reading_at(1200, true,
+            previous_start + chrono::Duration::seconds(100 + offset as i64));
+    }
+    assert_eq!(manager.pending_history.len(), 1,
+        "the test obtains pending history from a real confirmed posture transition");
+    manager.last_reset_date = previous_day;
+    manager.state.sitting_seconds = 900;
+    manager.state.sitting_seconds_total = 900;
+    manager.state.standing_seconds = 700;
+    manager.state.daily_score = 17.0;
+    manager.notify_inactivity_fired = true;
+    let session = Mutex::new(manager);
+
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::db::init_schema(&conn).unwrap();
+    let today_label = today.format("%Y-%m-%d").to_string();
+    let today_start = chrono::Local.from_local_datetime(&today.and_hms_opt(10, 0, 0).unwrap())
+        .single().unwrap().with_timezone(&chrono::Utc);
+    crate::db_sessions::insert_session_with_date(
+        &conn, &today_start.to_rfc3339(), &(today_start + chrono::Duration::seconds(300)).to_rfc3339(),
+        "Sitting", 300, &today_label,
+    ).unwrap();
+    crate::db_sessions::insert_session_with_date(
+        &conn, &(today_start + chrono::Duration::seconds(300)).to_rfc3339(),
+        &(today_start + chrono::Duration::seconds(500)).to_rfc3339(), "Standing", 200, &today_label,
+    ).unwrap();
+    conn.execute_batch("CREATE TRIGGER reject_history BEFORE INSERT ON sessions
+        BEGIN SELECT RAISE(FAIL, 'synthetic new-day history failure'); END;").unwrap();
+    let db = Mutex::new(Some(conn));
+    let now = chrono::Utc::now();
+    let mut progress = crate::app_lifecycle_runtime::FlushProgress::new();
+    let save = |engine: &crate::session::SessionManager| {
+        let snapshot = crate::session_persistence::PersistedEngineState::from_session(engine, None);
+        if snapshot.save(&store).is_ok() { "saved" } else { "failed" }
+    };
+    assert_eq!(crate::app_lifecycle_runtime::flush_state_progress_at(
+        &session, &db, &mut progress, now, save,
+    ), "store=saved database=failed");
+
+    let fresh_owner = app();
+    let fresh_store = crate::app_store::initialize_at(fresh_owner.handle(), &file).unwrap();
+    let restored = crate::session_persistence::PersistedEngineState::load(&fresh_store)
+        .expect("the pre-ack history snapshot remains readable after reopening the Store");
+    assert_eq!(restored.date_local, previous_day.format("%Y-%m-%d").to_string(),
+        "a shutdown before a new-day reading must not label old counters as today");
+    assert_eq!(restored.pending_history.len(), 1,
+        "the actual observed span remains pending when its database insert fails");
+
+    let current_totals = {
+        let guard = db.lock().unwrap();
+        crate::db_sessions::load_today_totals(guard.as_ref().unwrap(), None).unwrap()
+    };
+    let mut recovered = crate::session::SessionManager::new();
+    recovered.load_today_totals(&current_totals);
+    recovered.load_persisted_state(&restored);
+    assert_eq!(recovered.state.sitting_seconds, 300);
+    assert_eq!(recovered.state.sitting_seconds_total, 300);
+    assert_eq!(recovered.state.standing_seconds, 200);
+    assert_eq!(recovered.state.daily_score, 0.0);
+    assert!(!recovered.notify_inactivity_fired);
+    assert_eq!(recovered.pending_history.len(), 1);
+}

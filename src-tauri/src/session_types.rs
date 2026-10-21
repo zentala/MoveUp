@@ -238,6 +238,14 @@ pub struct CompletedSession {
     pub duration_secs: i64,
 }
 
+/// Private persistence envelope; does not change the sessions wire or DB schema.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct PendingHistory {
+    pub state: DeskState,
+    pub span: CompletedSession,
+    pub credit: Option<BreakCredit>,
+}
+
 /// Result of processing a sensor reading.
 #[derive(Debug, Clone, Default)]
 pub struct ReadingResult {

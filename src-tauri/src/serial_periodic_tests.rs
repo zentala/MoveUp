@@ -20,8 +20,134 @@ use crate::serial_periodic_reset as steps;
 use crate::session::{BreakCredit, CompletedSession, DeskState, SessionManager};
 use crate::snapshot_logger::SnapshotLogger;
 
+#[test]
+fn e027_mixed_break_final_standing_row_carries_whole_break_credit() {
+    let conn = Connection::open_in_memory().unwrap();
+    init_schema(&conn).unwrap();
+    let db = Arc::new(Mutex::new(Some(conn)));
+    let mut session = SessionManager::new();
+    let start = chrono::DateTime::parse_from_rfc3339("2026-10-09T10:00:00Z")
+        .unwrap().with_timezone(&Utc);
+    session.state.sitting_seconds = 2000;
+    for (seconds, mm, active) in [(0, 800, true), (200, 1200, true),
+        (220, 1200, false), (300, 1200, true), (340, 800, true)] {
+        let before = session.current_state();
+        let now = start + chrono::Duration::seconds(seconds);
+        let mut result = session.on_reading_at(mm, active, now);
+        for _ in 1..crate::session::DEBOUNCE_COUNT {
+            result = session.on_reading_at(mm, active, now);
+        }
+        if let Some(span) = result.completed_session {
+            steps::persist_completed_session(&db, &span, &before,
+                result.break_credit.as_ref().map(|(credit, _)| credit));
+        }
+        if seconds == 340 {
+            assert_eq!(result.break_credit, Some((BreakCredit::Partial, 140)));
+        } else {
+            assert!(result.break_credit.is_none());
+        }
+    }
+    assert_eq!(session.state.sitting_seconds, 1920);
+    assert_eq!(session.state.standing_seconds, 60);
+    let guard = db.lock().unwrap();
+    let (state, duration, credit): (String, i64, String) = guard.as_ref().unwrap()
+        .query_row("SELECT state, duration_seconds, break_credit FROM sessions ORDER BY id DESC LIMIT 1",
+            [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+    assert_eq!((state.as_str(), duration, credit.as_str()), ("Standing", 40, "partial"));
+}
+
 fn shared_session() -> Arc<Mutex<SessionManager>> {
     Arc::new(Mutex::new(SessionManager::new()))
+}
+
+#[test]
+fn e027_reading_rollover_precedes_transition_and_preserves_only_known_coverage() {
+    use chrono::{Duration, NaiveDate};
+    use chrono_tz::Europe::Warsaw;
+
+    let boundary = chrono::DateTime::parse_from_rfc3339("2026-10-09T22:00:00Z")
+        .unwrap().with_timezone(&Utc);
+    let today = NaiveDate::from_ymd_opt(2026, 10, 10).unwrap();
+    assert_eq!(boundary.with_timezone(&Warsaw).date_naive(), today);
+    let config = AppConfig::default();
+    let session = shared_session();
+    {
+        let mut manager = session.lock().unwrap();
+        manager.last_reset_date = today.pred_opt().unwrap();
+        manager.last_reset_check = boundary - Duration::seconds(120);
+        manager.state.state = DeskState::Sitting;
+        manager.state.sitting_started = Some(boundary - Duration::seconds(40));
+        manager.history_span_started = Some(boundary - Duration::seconds(40));
+        manager.history_last_reading = Some(boundary - Duration::seconds(1));
+        manager.state.last_tick_ts = manager.history_last_reading;
+    }
+
+    let transition_at = boundary + Duration::seconds(20);
+    assert!(steps::run_daily_reset_before_reading(&session, &config, transition_at, today, boundary));
+    assert!(!steps::run_daily_reset_before_reading(
+        &session, &config, transition_at + Duration::seconds(1), today, boundary,
+    ), "the same local date cannot reset twice");
+
+    let mut result = crate::session::ReadingResult::default();
+    for _ in 0..crate::session::DEBOUNCE_COUNT {
+        result = session.lock().unwrap().on_reading_at(1200, true, transition_at);
+    }
+    assert_eq!(result.state_change.unwrap().state, DeskState::Standing);
+    {
+        let manager = session.lock().unwrap();
+        assert_eq!(manager.state.sitting_seconds_total, 20,
+            "the confirmed post-midnight Sitting prefix belongs to the new day");
+        assert_eq!(manager.state.standing_seconds, 0,
+            "the transition sample must not backdate Standing");
+        assert_eq!(manager.history_span_started, Some(transition_at));
+        assert_eq!(manager.state.standing_bout_started, Some(transition_at));
+    }
+
+    let conn = Connection::open_in_memory().unwrap();
+    init_schema(&conn).unwrap();
+    {
+        let mut manager = session.lock().unwrap();
+        manager.queue_interrupted_history();
+        let replay = crate::session_persistence::PersistedEngineState::from_session(&manager, None);
+        steps::persist_pending_history(&mut manager, &conn, |_, _| {}).unwrap();
+        manager.load_persisted_state(&replay);
+        steps::persist_pending_history(&mut manager, &conn, |_, _| {}).unwrap();
+    }
+    let mut stmt = conn.prepare(
+        "SELECT state, started_at, ended_at, duration_seconds FROM sessions ORDER BY id"
+    ).unwrap();
+    let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?,
+        row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, i64>(3)?)))
+        .unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+    assert_eq!(rows, vec![
+        ("Sitting".into(), (boundary - Duration::seconds(40)).to_rfc3339(), boundary.to_rfc3339(), 40),
+        ("Sitting".into(), boundary.to_rfc3339(), transition_at.to_rfc3339(), 20),
+    ], "acknowledgement replay must keep both exact split rows exactly once");
+
+    let unknown = shared_session();
+    let resume_at = boundary + Duration::seconds(700);
+    {
+        let mut manager = unknown.lock().unwrap();
+        manager.last_reset_date = today.pred_opt().unwrap();
+        manager.last_reset_check = boundary - Duration::seconds(120);
+        manager.state.state = DeskState::Sitting;
+        manager.state.sitting_started = Some(boundary - Duration::seconds(60));
+        manager.history_span_started = Some(boundary - Duration::seconds(60));
+        manager.history_last_reading = Some(boundary - Duration::seconds(10));
+        manager.state.last_tick_ts = manager.history_last_reading;
+    }
+    assert!(steps::run_daily_reset_before_reading(&unknown, &config, resume_at, today, boundary));
+    {
+        let mut manager = unknown.lock().unwrap();
+        assert!(manager.history_span_started.is_none(),
+            "an unknown gap must not create coverage from midnight");
+        for _ in 0..crate::session::DEBOUNCE_COUNT {
+            manager.on_reading_at(800, true, resume_at);
+        }
+        assert_eq!(manager.history_span_started, Some(resume_at),
+            "coverage resumes only at the actual post-gap reading");
+        assert_eq!(manager.state.sitting_seconds_total, 0);
+    }
 }
 
 fn read_events(dir: &TempDir) -> String {

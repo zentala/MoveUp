@@ -5,6 +5,94 @@
 //! `last_tick_ts` against one `Utc::now()` and then let `on_reading` read a
 //! second, later one, which is why some assertions here were inequalities.
 
+#[test]
+fn e027_sleep_credit_with_positive_load_is_applied_once_for_whole_break() {
+    use crate::session_types::DeskState;
+    let start = chrono::DateTime::parse_from_rfc3339("2026-10-09T10:00:00Z")
+        .unwrap().with_timezone(&chrono::Utc);
+    for (gaps, end, observed_break_secs) in [
+        (vec![(200, true), (800, false)], 850, 150),
+        (vec![(200, true), (550, true), (800, false)], 850, 400),
+        (vec![(200, true), (550, true), (900, false)], 950, 150),
+    ] {
+        let mut m = crate::session_manager::SessionManager::new();
+        m.state.sitting_seconds = 10000;
+        let mut events = vec![(0, 800, true), (100, 1200, true)];
+        events.extend(gaps.iter().map(|(t, active)| (*t, 1200, *active)));
+        events.push((end, 800, true));
+        for (t, mm, active) in events {
+            for _ in 0..crate::session_types::DEBOUNCE_COUNT {
+                m.on_reading_at(mm, active, start + chrono::Duration::seconds(t));
+            }
+        }
+        assert_eq!(m.current_state(), DeskState::Sitting);
+        assert_eq!(m.state.last_break_secs, observed_break_secs);
+        assert_eq!(m.state.sitting_seconds, 10100 - observed_break_secs * 2);
+        assert_eq!(m.state.sitting_seconds_total, 100);
+        assert_eq!(m.state.last_break_credit, crate::session_types::BreakCredit::Partial);
+    }
+}
+
+#[test]
+fn e027_gap_closes_forty_minutes_of_observed_sitting_without_crediting_gap() {
+    use chrono::{Duration, TimeZone, Utc};
+    use crate::session_manager::SessionManager;
+    use crate::session_types::{BreakCredit, DEBOUNCE_COUNT};
+
+    let start = Utc.with_ymd_and_hms(2026, 10, 9, 10, 0, 0).unwrap();
+    let mut m = SessionManager::new();
+    for _ in 0..DEBOUNCE_COUNT {
+        m.on_reading_at(800, true, start);
+    }
+    assert_eq!(m.current_state(), crate::session_types::DeskState::Sitting);
+    for minute in 1..=40 {
+        m.on_reading_at(800, true, start + Duration::minutes(minute));
+    }
+    let last_observed = start + Duration::minutes(40);
+    m.on_reading_at(800, true, last_observed + Duration::minutes(10));
+
+    assert_eq!(m.state.sitting_seconds_total, 40 * 60,
+        "the observed prefix must be committed before the unknown gap");
+    assert_eq!(m.state.sitting_seconds, 40 * 60,
+        "an unexplained gap must not earn sitting credit");
+    assert_eq!(m.state.last_break_credit, BreakCredit::None);
+    assert_eq!(m.pending_history.len(), 1);
+    assert_eq!(m.pending_history[0].span.duration_secs, 40 * 60);
+}
+
+#[test]
+fn e027_positive_sitting_load_standing_gap_return_credits_observed_break_once() {
+    use chrono::{Duration, TimeZone, Utc};
+    use crate::session_manager::SessionManager;
+    use crate::session_types::{BreakCredit, DEBOUNCE_COUNT};
+
+    let start = Utc.with_ymd_and_hms(2026, 10, 9, 10, 0, 0).unwrap();
+    let mut m = SessionManager::new();
+    m.state.sitting_seconds = 10_000;
+    for _ in 0..DEBOUNCE_COUNT { m.on_reading_at(800, true, start); }
+    for i in 1..=DEBOUNCE_COUNT {
+        m.on_reading_at(1200, true, start + Duration::seconds(100 + i as i64));
+    }
+    assert_eq!(m.current_state(), crate::session_types::DeskState::Standing);
+
+    for i in 1..=60 {
+        m.on_reading_at(1200, true, start + Duration::seconds(100 + DEBOUNCE_COUNT as i64 + i as i64));
+    }
+    let resumed = start + Duration::seconds(100 + DEBOUNCE_COUNT as i64 + 60 + 600);
+    for _ in 0..DEBOUNCE_COUNT { m.on_reading_at(1200, true, resumed); }
+    for i in 1..=DEBOUNCE_COUNT {
+        m.on_reading_at(800, true, resumed + Duration::seconds(i as i64));
+    }
+
+    assert_eq!(m.current_state(), crate::session_types::DeskState::Sitting);
+    assert_eq!(m.state.sitting_seconds_total, 105,
+        "the confirmed pre-standing Sitting prefix is retained as raw time");
+    assert_eq!(m.state.last_break_secs, 65,
+        "sixty observed Standing seconds plus five post-resume seconds qualify; the unknown gap is excluded");
+    assert_eq!(m.state.sitting_seconds, 10_105 - 130,
+        "the sixty-five observed break seconds earn exactly one proportional credit");
+    assert_eq!(m.state.last_break_credit, BreakCredit::Partial);
+}
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Duration, TimeZone, Utc};
@@ -96,67 +184,66 @@ mod tests {
         );
     }
 
-    // ── Break credit applied during sleep gap ──────────────────────────────
+    // ── Unknown sleep gaps preserve only the previously observed prefix ────
 
-    /// A 2-hour sleep gap while sitting should fully reset sitting_seconds
-    /// (2h × 2.0 multiplier = 4h credit > any reasonable sitting duration).
+    /// Unknown time cannot earn break credit; the known sitting prefix remains.
     #[test]
-    fn sleep_gap_full_credit_resets_sitting() {
+    fn sleep_gap_preserves_only_observed_sitting_prefix() {
         let mut m = SessionManager::new();
         let now = base();
         transition_to_sitting(&mut m, now - Duration::hours(3));
 
         m.state.sitting_seconds = 2400; // 40 min sitting
         m.state.sitting_seconds_total = 2400;
-        // Simulate 2-hour gap between last tick and now.
-        m.state.last_tick_ts = Some(now - Duration::hours(2));
+        let last_observed = now - Duration::hours(2);
+        m.state.last_tick_ts = Some(last_observed);
+        let known_prefix = (last_observed - m.state.sitting_started.unwrap()).num_seconds();
 
-        // The next reading triggers sleep gap detection → apply_break_credit(7200).
         let _ = m.on_reading_at(800, true, now);
 
         assert_eq!(
-            m.state.sitting_seconds, 0,
-            "2h gap × 2.0 multiplier should fully reset sitting_seconds (got {})",
+            m.state.sitting_seconds, 2400 + known_prefix,
+            "the known Sitting prefix is preserved and the unknown gap excluded (got {})",
             m.state.sitting_seconds
         );
         assert_eq!(
             m.state.last_break_credit,
-            BreakCredit::Full,
-            "break credit should be Full after oversized sleep gap"
+            BreakCredit::None,
+            "unknown time must not earn break credit"
         );
     }
 
-    /// A 10-minute sleep gap while sitting should give partial credit:
-    /// 2400 - (600 × 2.0) = 1200 remaining.
+    /// A 10-minute sleep gap earns no credit because its duration and posture
+    /// were not observed.
     #[test]
-    fn sleep_gap_partial_credit_reduces_sitting() {
+    fn sleep_gap_does_not_credit_unknown_sitting_time() {
         let mut m = SessionManager::new();
         let now = base();
         transition_to_sitting(&mut m, now - Duration::hours(1));
 
         m.state.sitting_seconds = 2400; // 40 min sitting
         m.state.sitting_seconds_total = 2400;
-        // Simulate 10-minute gap.
-        m.state.last_tick_ts = Some(now - Duration::minutes(10));
+        let last_observed = now - Duration::minutes(10);
+        m.state.last_tick_ts = Some(last_observed);
+        let known_prefix = (last_observed - m.state.sitting_started.unwrap()).num_seconds();
 
         let _ = m.on_reading_at(800, true, now);
 
-        // 600s × 2.0 = 1200s credit → 2400 - 1200 = 1200 remaining.
         assert_eq!(
-            m.state.sitting_seconds, 1200,
-            "10-min gap × 2.0 should reduce sitting to 1200s (got {})",
+            m.state.sitting_seconds, 2400 + known_prefix,
+            "only the observed prefix is counted (got {})",
             m.state.sitting_seconds
         );
         assert_eq!(
             m.state.last_break_credit,
-            BreakCredit::Partial,
-            "break credit should be Partial for 10-min gap"
+            BreakCredit::None,
+            "unknown time must not earn break credit"
         );
     }
 
-    /// Break credit multiplier of 1.0 should halve the reduction rate.
+    /// Changing the credit multiplier cannot make an unknown gap creditable.
     #[test]
-    fn sleep_gap_respects_custom_multiplier() {
+    fn sleep_gap_multiplier_does_not_credit_unknown_time() {
         let mut m = SessionManager::new();
         let now = base();
         transition_to_sitting(&mut m, now - Duration::hours(1));
@@ -164,23 +251,23 @@ mod tests {
         m.state.sitting_seconds = 2400; // 40 min sitting
         m.state.sitting_seconds_total = 2400;
         m.limits.break_credit_multiplier = 1.0; // slower reset
-        // Simulate 10-minute gap.
-        m.state.last_tick_ts = Some(now - Duration::minutes(10));
+        let last_observed = now - Duration::minutes(10);
+        m.state.last_tick_ts = Some(last_observed);
+        let known_prefix = (last_observed - m.state.sitting_started.unwrap()).num_seconds();
 
         let _ = m.on_reading_at(800, true, now);
 
-        // 600s × 1.0 = 600s credit → 2400 - 600 = 1800 remaining.
         assert_eq!(
-            m.state.sitting_seconds, 1800,
-            "10-min gap × 1.0 should reduce sitting to 1800s (got {})",
+            m.state.sitting_seconds, 2400 + known_prefix,
+            "the known Sitting prefix is preserved and the unknown gap excluded (got {})",
             m.state.sitting_seconds
         );
+        assert_eq!(m.state.last_break_credit, BreakCredit::None);
     }
 
-    /// Sleep gap while in Standing state should not crash and should not corrupt
-    /// sitting_seconds (which is already 0 in a fresh standing session).
+    /// A Standing gap resumes at the actual reading without crediting the gap.
     #[test]
-    fn sleep_gap_while_standing_is_harmless() {
+    fn sleep_gap_while_standing_rewinds_without_break_credit() {
         let mut m = SessionManager::new();
         let now = base();
         let t = transition_to_sitting(&mut m, now - Duration::hours(1));
@@ -188,48 +275,46 @@ mod tests {
         transition_to_standing(&mut m, t);
 
         m.state.standing_bout_started = Some(now - Duration::minutes(5));
-        // Simulate 30-minute sleep gap while standing.
+        let sitting_before_gap = m.state.sitting_seconds;
         m.state.last_tick_ts = Some(now - Duration::minutes(30));
 
-        // Should not panic; apply_break_credit(0) is called but credit is harmless.
         let _ = m.on_reading_at(1200, true, now);
 
-        assert_eq!(
-            m.state.sitting_seconds, 0,
-            "sitting_seconds must stay 0 after sleep gap in Standing state"
-        );
-        // standing_bout_started must have been rewound to prevent standing inflation.
+        assert_eq!(m.state.sitting_seconds, sitting_before_gap,
+            "an unknown Standing gap cannot alter sitting credit");
+        assert_eq!(m.state.last_break_credit, BreakCredit::None);
         assert_eq!(
             m.state.standing_bout_started,
-            Some(now - Duration::seconds(1)),
-            "standing_bout_started should be rewound to just before the reading"
+            Some(now),
+            "the Standing anchor resumes at the actual reading"
         );
     }
 
-    /// Sleep gap must NOT reduce sitting_seconds_total — that counter tracks raw
-    /// historical accumulation and must never be reduced by break credit.
+    /// Raw sitting includes the known prefix, but not unknown time or credit.
     #[test]
-    fn sleep_gap_preserves_sitting_seconds_total() {
+    fn sleep_gap_preserves_raw_sitting_prefix_without_credit() {
         let mut m = SessionManager::new();
         let now = base();
         transition_to_sitting(&mut m, now - Duration::hours(3));
 
         m.state.sitting_seconds = 2400;
         m.state.sitting_seconds_total = 2400;
-        // 2-hour sleep gap → full credit, sitting_seconds → 0.
-        m.state.last_tick_ts = Some(now - Duration::hours(2));
+        let last_observed = now - Duration::hours(2);
+        m.state.last_tick_ts = Some(last_observed);
+        let known_prefix = (last_observed - m.state.sitting_started.unwrap()).num_seconds();
 
         let _ = m.on_reading_at(800, true, now);
 
         assert_eq!(
-            m.state.sitting_seconds, 0,
-            "sitting_seconds should be reset (got {})",
+            m.state.sitting_seconds, 2400 + known_prefix,
+            "credited sitting preserves only its known prefix (got {})",
             m.state.sitting_seconds
         );
         assert_eq!(
-            m.state.sitting_seconds_total, 2400,
-            "sitting_seconds_total must not be affected by break credit (got {})",
+            m.state.sitting_seconds_total, 2400 + known_prefix,
+            "raw sitting includes only the known prefix (got {})",
             m.state.sitting_seconds_total
         );
+        assert_eq!(m.state.last_break_credit, BreakCredit::None);
     }
 }

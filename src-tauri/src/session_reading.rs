@@ -24,39 +24,41 @@ impl SessionManager {
     /// Pure with respect to the clock: `now` is the only source of time here,
     /// so a caller can replay a whole day of readings deterministically.
     pub fn on_reading_at(&mut self, mm: i32, active: bool, now: DateTime<Utc>) -> ReadingResult {
+        // Reject earlier observations before changing debounce, state or any
+        // anchor. Equal instants remain valid for deterministic debounce.
+        self.last_accumulate_ran = false;
+        if self.history_last_reading.into_iter().chain(self.state.last_tick_ts)
+            .chain(self.history_span_started)
+            .any(|last| now < last) {
+            return ReadingResult::default();
+        }
         if self.state.first_reading_at.is_none() {
             self.state.first_reading_at = Some(now);
         }
 
-        // Detect sleep/suspend: if gap since last reading > 5 minutes,
-        // the machine likely slept. Treat the gap as a break and apply credit.
-        if let Some(prev_tick) = self.state.last_tick_ts {
-            let gap_secs = (now - prev_tick).num_seconds();
-            if gap_secs > SLEEP_GAP_THRESHOLD_SECS {
-                info!(
-                    "Sleep gap detected: {}s since last reading. Applying break credit.",
-                    gap_secs
-                );
-                // Apply the sleep gap as break credit (the user was away).
-                self.apply_break_credit(gap_secs);
-                info!(
-                    "After sleep credit: sitting_seconds={}, credit={:?}",
-                    self.state.sitting_seconds, self.state.last_break_credit
-                );
-                // Rewind start timestamps to just before now, preserving committed values.
-                // This prevents handle_state_exit from adding hours of elapsed time.
-                let rewind_to = now - chrono::Duration::seconds(1);
-                if self.state.sitting_started.is_some() {
-                    self.state.sitting_started = Some(rewind_to);
+        // A long observation gap closes the last known prefix. Its duration is
+        // unknown, so it is neither posture time nor break credit.
+        let previous_observation = self.history_last_reading
+            .into_iter()
+            .chain(self.state.last_tick_ts)
+            .max();
+        if let Some(last) = previous_observation {
+            if (now - last).num_seconds() > SLEEP_GAP_THRESHOLD_SECS {
+                info!("Observation gap detected: {}s; preserving the known prefix", (now - last).num_seconds());
+                if let Some(started) = self.state.break_started {
+                    self.observed_break_secs += (last - started).num_seconds().max(0);
+                    self.state.break_started = Some(now);
+                    self.state.break_seconds = self.observed_break_secs;
                 }
-                if self.state.standing_bout_started.is_some() {
-                    self.state.standing_bout_started = Some(rewind_to);
+                let interrupted_state = self.current_state();
+                if let Some(span) = self.close_observed_boundary(last) {
+                    self.queue_history(interrupted_state.clone(), span.clone(), None);
+                    self.interrupted_history.push((interrupted_state, span));
                 }
-                if self.state.standing_session_started.is_some() {
-                    self.state.standing_session_started = Some(rewind_to);
-                }
+                self.open_observed_boundary(now);
             }
         }
+        self.history_last_reading = Some(now);
 
         self.state.last_tick_ts = Some(now);
 
@@ -114,6 +116,17 @@ impl SessionManager {
         self.pending_count = 0;
 
         if candidate == self.state.state {
+            // A restored/default state has no history coverage until confirmed
+            // by readings in this process. Do not restore history from counters.
+            self.history_span_started.get_or_insert(now);
+            match self.state.state {
+                DeskState::Sitting => { self.state.sitting_started.get_or_insert(now); }
+                DeskState::Standing => {
+                    self.state.standing_bout_started.get_or_insert(now);
+                    self.state.standing_session_started.get_or_insert(now);
+                }
+                DeskState::Walking | DeskState::Away => {}
+            }
             self.accumulate_ongoing(now);
             return ReadingResult {
                 state_change: None,
@@ -122,14 +135,21 @@ impl SessionManager {
             };
         }
 
+        let break_ended = candidate == DeskState::Sitting && self.state.break_started.is_some();
         let completed_session = self.handle_state_exit(&candidate, now);
 
         // Capture break credit if one was applied during this transition.
-        let break_credit = if self.state.last_break_credit != BreakCredit::None {
+        let break_credit = if break_ended
+            && self.state.last_break_credit != BreakCredit::None {
             Some((self.state.last_break_credit.clone(), self.state.last_break_secs))
         } else {
             None
         };
+
+        if let Some(span) = completed_session.as_ref() {
+            self.queue_history(self.current_state(), span.clone(),
+                break_credit.as_ref().map(|(credit, _)| credit.clone()));
+        }
 
         // Track posture changes: Sitting<->Standing desk transitions AND extended
         // Away resets (see accumulate_ongoing). Both count because the goal is to
@@ -151,6 +171,7 @@ impl SessionManager {
         );
 
         self.state.state = candidate;
+        self.open_observed_boundary(now);
 
         let live_sitting = self.get_live_sitting_seconds(now);
         let live_break = self.get_live_break_seconds(now);
@@ -221,8 +242,8 @@ impl SessionManager {
         match self.state.state {
             DeskState::Sitting => {} // committed on transition; live via snapshot()
             DeskState::Standing | DeskState::Walking | DeskState::Away => {
-                if let Some(bs) = self.state.break_started {
-                    self.state.break_seconds = (now - bs).num_seconds().max(0);
+                if self.state.break_started.is_some() {
+                    self.state.break_seconds = self.get_live_break_seconds(now);
                 }
             }
         }

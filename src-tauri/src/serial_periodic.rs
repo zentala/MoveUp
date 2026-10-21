@@ -42,9 +42,16 @@ pub fn check_periodic(
         info!("Daily reset occurred — in-memory counters cleared");
         let _ = app.emit(DESK_DAILY_RESET, ());
         event_logger.log("RESET daily");
-        // Clear stale persisted flags so they don't leak into tomorrow.
+        // Save the reset snapshot through the shared AppStore, retaining any
+        // unacknowledged spans while clearing the manager's daily flags.
         if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
-            crate::session_persistence::clear(store.inner());
+            let manager = session.lock().unwrap_or_else(|error| error.into_inner());
+            let snapshot = crate::session_persistence::PersistedEngineState::from_session(
+                &manager, Some(chrono::Utc::now().to_rfc3339()),
+            );
+            if let Err(error) = snapshot.save(store.inner()) {
+                log::error!("Failed to save daily reset and pending history: {}", error);
+            }
         }
     }
 
@@ -84,6 +91,27 @@ pub fn handle_reading(
     // One clock read per tick: the state machine and the score accumulator must
     // agree on the same instant, or a slow lock makes them disagree by a second.
     let now = chrono::Utc::now();
+    let today_local = crate::session_daily::local_date_of(now);
+    if let Some(day_boundary) = crate::session_daily::local_day_start_utc(&chrono::Local, today_local) {
+        if steps::run_daily_reset_before_reading(
+            session, _config, now, today_local, day_boundary,
+        ) {
+            info!("Daily reset occurred before sensor transition — in-memory counters cleared");
+            let _ = app.emit(DESK_DAILY_RESET, ());
+            event_logger.log("RESET daily");
+            if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
+                let sess = session.lock().unwrap_or_else(|error| error.into_inner());
+                let snapshot = crate::session_persistence::PersistedEngineState::from_session(
+                    &sess, Some(now.to_rfc3339()),
+                );
+                if let Err(error) = snapshot.save(store.inner()) {
+                    log::error!("Failed to save daily reset and pending history: {}", error);
+                }
+            }
+        }
+    } else {
+        log::warn!("daily reset deferred: local date {today_local} has no valid instant");
+    }
     let (state_before, result) = {
         let mut sess = session.lock().unwrap();
         // Config for this tick comes from the profile just loaded above, so an
@@ -94,8 +122,42 @@ pub fn handle_reading(
         if sess.last_accumulate_ran {
             sess.accumulate_score_tick_at(&ergo, now);
         }
+        sess.queue_interrupted_history();
         (before, res)
     };
+
+    let has_pending_history = session.lock().unwrap_or_else(|error| error.into_inner())
+        .pending_history.len() > 0;
+    let store_saved = if has_pending_history || result.state_change.is_some() {
+        save_session_state(app, session)
+    } else {
+        true
+    };
+    if has_pending_history {
+        if !store_saved {
+            log::error!("History remains pending because its shared Store snapshot was not saved");
+        } else {
+            let persisted = {
+                let database = db.lock().unwrap_or_else(|error| error.into_inner());
+                match database.as_ref() {
+                    None => Err("session database is unavailable".to_string()),
+                    Some(conn) => {
+                        let mut manager = session.lock().unwrap_or_else(|error| error.into_inner());
+                        steps::persist_pending_history(&mut manager, conn, |_, _| {})
+                            .map_err(|error| error.to_string())
+                    }
+                }
+            };
+            match persisted {
+                Ok(()) => {
+                    if !save_session_state(app, session) {
+                        log::error!("History rows were committed but Store acknowledgment save failed; replay remains idempotent");
+                    }
+                }
+                Err(error) => log::error!("History retry pending: {}", error),
+            }
+        }
+    }
 
     // Diagnostic: log idle time every ~30s when Standing to catch is_active() issues
     if state_before == DeskState::Standing && idle_secs > 30 {
@@ -113,9 +175,6 @@ pub fn handle_reading(
             idle_secs,
         ));
         let _ = app.emit(DESK_STATE_CHANGED, payload);
-
-        // Persist notification flags and credit-reduced sitting_seconds on state change.
-        save_session_state(app, session);
 
         if state_before == DeskState::Sitting && payload.state == DeskState::Standing {
             let praise = {
@@ -140,10 +199,8 @@ pub fn handle_reading(
 
     if let Some(ref completed) = result.completed_session {
         info!("Completed session: {:?}", completed);
-        // A break span that ended this tick carries the credit it earned; a
-        // sitting span carries none, and the column stays NULL for it.
-        let credit = result.break_credit.as_ref().map(|(c, _)| c);
-        steps::persist_completed_session(db, completed, &state_before, credit);
+        // The engine queued this individual span above; the Store-before-DB
+        // acknowledgment sequence owns persistence.
     }
 
     let alert = { session.lock().unwrap().should_alert() };
@@ -190,9 +247,9 @@ fn active_profiles(
 }
 
 /// Persists notification flags and credit-reduced sitting_seconds to the store.
-fn save_session_state(app: &AppHandle, session: &Arc<Mutex<SessionManager>>) {
+fn save_session_state(app: &AppHandle, session: &Arc<Mutex<SessionManager>>) -> bool {
     let sess = session.lock().unwrap();
-    crate::session_persistence::save_via_app(app, &sess);
+    crate::session_persistence::save_via_app(app, &sess)
 }
 
 // Profile hot-reload logic extracted to profile_reload.rs

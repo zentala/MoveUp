@@ -14,6 +14,7 @@
 #[cfg(test)]
 mod clock_tests {
     use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
+    use chrono_tz::America::Sao_Paulo;
     use chrono_tz::Europe::Warsaw;
     use chrono_tz::Tz;
 
@@ -35,6 +36,161 @@ mod clock_tests {
 
     fn local_day(tz: Tz, now: DateTime<Utc>) -> NaiveDate {
         now.with_timezone(&tz).date_naive()
+    }
+
+    #[test]
+    fn e027_midnight_closes_active_sitting_and_standing_at_explicit_boundary() {
+        let boundary = Utc.with_ymd_and_hms(2026, 10, 10, 0, 0, 0).unwrap();
+        let day = boundary.date_naive();
+        let start = boundary - Duration::minutes(40);
+
+        for active in [DeskState::Sitting, DeskState::Standing] {
+            let mut m = SessionManager::new();
+            m.state.state = active.clone();
+            m.state.sitting_started = (active == DeskState::Sitting).then_some(start);
+            m.state.standing_bout_started = (active == DeskState::Standing).then_some(start);
+            m.state.standing_session_started = (active == DeskState::Standing).then_some(start);
+            m.state.sitting_seconds = 2_400;
+            m.state.sitting_seconds_total = 2_400;
+            m.state.standing_seconds = 2_400;
+            m.state.last_tick_ts = Some(boundary);
+            m.history_span_started = Some(start);
+            m.history_last_reading = Some(boundary);
+            m.last_reset_date = day - Duration::days(1);
+            m.last_reset_check = boundary - Duration::seconds(120);
+
+            assert!(m.check_daily_reset_at_boundary(boundary, day, boundary));
+            assert_eq!(m.state.state, active);
+            assert_eq!(m.pending_history.len(), 1,
+                "the pre-boundary observed span must be queued once");
+            assert_eq!(m.pending_history[0].span.duration_secs, 2_400);
+            assert_eq!(m.pending_history[0].state, active);
+            if active == DeskState::Sitting {
+                assert_eq!(m.state.sitting_started, Some(boundary));
+            } else {
+                assert_eq!(m.state.standing_bout_started, Some(boundary));
+                assert_eq!(m.state.standing_session_started, Some(boundary));
+            }
+        }
+    }
+
+    #[test]
+    fn e027_active_postures_split_at_explicit_23_and_25_hour_local_midnights() {
+        let cases = [
+            (DeskState::Sitting, utc_at(Warsaw, 2026, 3, 29, 0, 0),
+                utc_at(Warsaw, 2026, 3, 30, 0, 0), 23 * 60 * 60),
+            (DeskState::Standing, utc_at(Warsaw, 2026, 10, 25, 0, 0),
+                utc_at(Warsaw, 2026, 10, 26, 0, 0), 25 * 60 * 60),
+        ];
+
+        for (posture, start, boundary, expected_secs) in cases {
+            assert_eq!((boundary - start).num_seconds(), expected_secs);
+            let mut m = SessionManager::new();
+            m.state.state = posture.clone();
+            m.state.sitting_started = (posture == DeskState::Sitting).then_some(start);
+            m.state.standing_bout_started = (posture == DeskState::Standing).then_some(start);
+            m.state.standing_session_started = (posture == DeskState::Standing).then_some(start);
+            m.history_span_started = Some(start);
+            m.history_last_reading = Some(boundary);
+            m.state.last_tick_ts = m.history_last_reading;
+            let old_day = start.with_timezone(&Warsaw).date_naive();
+            let new_day = boundary.with_timezone(&Warsaw).date_naive();
+            m.last_reset_date = old_day;
+            m.last_reset_check = boundary - Duration::seconds(120);
+
+            assert!(m.check_daily_reset_at_boundary(boundary, new_day, boundary));
+            assert_eq!(m.pending_history.len(), 1);
+            assert_eq!(m.pending_history[0].state, posture);
+            assert_eq!(m.pending_history[0].span.duration_secs, expected_secs);
+            assert_eq!(m.history_span_started, Some(boundary));
+            if posture == DeskState::Sitting {
+                assert_eq!(m.state.sitting_started, Some(boundary));
+            } else {
+                assert_eq!(m.state.standing_bout_started, Some(boundary));
+                assert_eq!(m.state.standing_session_started, Some(boundary));
+            }
+        }
+    }
+
+    #[test]
+    fn e027_reset_after_unobserved_midnight_closes_only_through_last_reading() {
+        let boundary = utc_at(Warsaw, 2026, 10, 10, 0, 0);
+        let last_reading = boundary - Duration::seconds(10);
+        let start = boundary - Duration::minutes(40);
+        let previous_day = boundary.with_timezone(&Warsaw).date_naive() - Duration::days(1);
+        let reset_day = boundary.with_timezone(&Warsaw).date_naive();
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Sitting;
+        m.state.sitting_started = Some(start);
+        m.history_span_started = Some(start);
+        m.history_last_reading = Some(last_reading);
+        m.state.last_tick_ts = Some(last_reading);
+        m.last_reset_date = previous_day;
+        m.last_reset_check = boundary - Duration::seconds(120);
+
+        assert!(m.check_daily_reset_at_boundary(
+            boundary + Duration::seconds(30), reset_day, boundary,
+        ));
+        assert_eq!(m.pending_history.len(), 1);
+        assert_eq!(m.pending_history[0].span.duration_secs, 2_390);
+        assert_eq!(m.pending_history[0].span.ended_at, last_reading.to_rfc3339());
+        assert_eq!(last_reading.with_timezone(&Warsaw).date_naive(), previous_day);
+        assert_eq!(m.state.sitting_seconds_total, 0,
+            "daily counters reset after the previous day's known prefix is queued");
+        assert_eq!(m.state.sitting_started, None);
+        assert_eq!(m.history_span_started, None,
+            "no post-midnight coverage exists until a new reading arrives");
+
+        let resumed = boundary + Duration::seconds(40);
+        for _ in 0..DEBOUNCE_COUNT {
+            m.on_reading_at(800, true, resumed);
+        }
+        assert_eq!(m.history_span_started, Some(resumed));
+        assert_eq!(m.state.sitting_started, Some(resumed));
+        assert_eq!(m.pending_history.len(), 1,
+            "the unobserved prefix to midnight must not be synthesized");
+    }
+
+    #[test]
+    fn e027_at_reset_uses_injected_local_day_without_process_timezone() {
+        let now = utc_at(Warsaw, 2026, 10, 10, 0, 30);
+        let injected_day = local_date_of(now) + Duration::days(2);
+        assert_ne!(injected_day, local_date_of(now),
+            "replayed local day deliberately differs from this process's local calendar day");
+        let mut m = SessionManager::new();
+        m.last_reset_date = injected_day - Duration::days(1);
+        m.last_reset_check = now - Duration::seconds(120);
+
+        assert!(m.check_daily_reset_at(now, injected_day));
+        assert_eq!(m.last_reset_date, injected_day);
+    }
+
+    #[test]
+    fn e027_nonexistent_midnight_uses_first_valid_injected_zone_instant() {
+        let day = NaiveDate::from_ymd_opt(2018, 11, 4).unwrap();
+        let boundary = crate::session_daily::local_day_start_utc(&Sao_Paulo, day).unwrap();
+        let local_boundary = boundary.with_timezone(&Sao_Paulo);
+        assert_eq!(local_boundary.date_naive(), day);
+        assert_eq!(local_boundary.time(), chrono::NaiveTime::from_hms_opt(1, 0, 0).unwrap());
+
+        let now = boundary + Duration::seconds(30);
+        let start = boundary - Duration::seconds(30);
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Standing;
+        m.state.standing_bout_started = Some(start);
+        m.state.standing_session_started = Some(start);
+        m.history_span_started = Some(start);
+        m.history_last_reading = Some(now);
+        m.state.last_tick_ts = Some(now);
+        m.last_reset_date = day - Duration::days(1);
+        m.last_reset_check = now - Duration::seconds(120);
+
+        assert!(m.check_daily_reset_at_boundary(now, day, boundary));
+        assert_eq!(m.pending_history.len(), 1);
+        assert_eq!(m.pending_history[0].span.started_at, start.to_rfc3339());
+        assert_eq!(m.pending_history[0].span.ended_at, boundary.to_rfc3339());
+        assert_eq!(m.pending_history[0].span.duration_secs, 30);
+        assert_eq!(m.history_span_started, Some(boundary));
     }
 
     /// Drives `count` readings one second apart starting at `start`.

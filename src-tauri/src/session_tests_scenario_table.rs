@@ -232,20 +232,12 @@ mod scenario_table {
                     ..Default::default()
                 },
             },
-            // Row 2 — a suspend mid-bout. The gap is credited as a break and the
-            // start timestamps are rewound, so the DTO shows a fresh session
-            // rather than hours of phantom sitting.
-            //
-            // NOTE, and it is not what the older tests assert: because neither
-            // counter is committed until the bout ends, the 40 minutes sat
-            // BEFORE the suspend disappear from `sitting_seconds_total` too —
-            // the raw daily KPI that break credit is never supposed to touch.
-            // session_tests_sleep::sleep_gap_preserves_sitting_seconds_total
-            // only covers already-committed time, so it stays green. This row
-            // pins today's behaviour; see the T06 report for the defect note.
+            // Row 2 — a suspend mid-bout. Only the observed sitting prefix is
+            // committed; the unobserved gap is neither posture history nor
+            // break credit.
             Case {
-                name: "sleep_gap_credits_the_bout_and_rewinds",
-                supersedes: "session_tests_sleep::sleep_gap_full_credit_resets_sitting (kept)",
+                name: "sleep_gap_preserves_observed_bout_without_credit",
+                supersedes: "session_tests_sleep::sleep_gap_preserves_only_observed_sitting_prefix",
                 anchor: Anchor::EndsNow,
                 events: vec![
                     Ev::Hold { from: 0, to: 2400, mm: SIT_MM, active: true },
@@ -253,9 +245,9 @@ mod scenario_table {
                 ],
                 expect: Expect {
                     state: Some(DeskState::Sitting),
-                    credit: Some(BreakCredit::Full),
-                    limit_used_secs: Some(1),
-                    sitting_seconds_total: Some(1),
+                    credit: Some(BreakCredit::None),
+                    limit_used_secs: Some(2396),
+                    sitting_seconds_total: Some(2396),
                     tol: 3,
                     ..Default::default()
                 },

@@ -1,6 +1,6 @@
 //! session_daily.rs — Daily reset, score accumulation, and alert logic.
 
-use chrono::{DateTime, Local, NaiveDate, Utc};
+use chrono::{DateTime, Local, LocalResult, NaiveDate, TimeZone, Utc};
 use log::info;
 
 use crate::session_types::*;
@@ -17,6 +17,25 @@ use crate::session_manager::SessionManager;
 /// so a test can pass any zone's date without touching the machine's.
 pub fn local_date_of(now: DateTime<Utc>) -> NaiveDate {
     now.with_timezone(&Local).date_naive()
+}
+
+/// Resolves the first valid local instant of a calendar day without changing
+/// the process timezone. The result is passed into the pure reset operation.
+pub(crate) fn local_day_start_utc<Tz: TimeZone>(tz: &Tz, day: NaiveDate) -> Option<DateTime<Utc>> {
+    // Some zones advance their clocks at midnight. Search wall-clock seconds
+    // until this date's first representable instant instead of substituting
+    // the later time at which the periodic reset happened to run.
+    for seconds in 0..86_400 {
+        let local = day.and_hms_opt(0, 0, 0)? + chrono::Duration::seconds(seconds);
+        match tz.from_local_datetime(&local) {
+            LocalResult::Single(value) => return Some(value.with_timezone(&Utc)),
+            LocalResult::Ambiguous(first, second) => {
+                return Some(first.min(second).with_timezone(&Utc));
+            }
+            LocalResult::None => {}
+        }
+    }
+    None
 }
 
 impl SessionManager {
@@ -43,7 +62,12 @@ impl SessionManager {
     /// Impure boundary; the logic lives in [`SessionManager::check_daily_reset_at`].
     pub fn check_daily_reset(&mut self) -> bool {
         let now = Utc::now();
-        self.check_daily_reset_at(now, local_date_of(now))
+        let today = local_date_of(now);
+        let Some(boundary) = local_day_start_utc(&Local, today) else {
+            log::warn!("daily reset deferred: local date {today} has no valid instant");
+            return false;
+        };
+        self.check_daily_reset_at_boundary(now, today, boundary)
     }
 
     /// Resets daily counters when `today_local` is past `last_reset_date`
@@ -53,13 +77,66 @@ impl SessionManager {
     /// than derived here (D3) so callers replaying a fixed timeline — and the
     /// DST test — control both the instant and the day boundary.
     pub fn check_daily_reset_at(&mut self, now: DateTime<Utc>, today_local: NaiveDate) -> bool {
+        self.check_daily_reset_at_boundary(now, today_local, now)
+    }
+
+    /// Pure reset operation using the explicit instant at the start of the
+    /// local day. Tests can supply DST-aware instants without changing TZ.
+    pub(crate) fn check_daily_reset_at_boundary(
+        &mut self,
+        now: DateTime<Utc>,
+        today_local: NaiveDate,
+        day_boundary: DateTime<Utc>,
+    ) -> bool {
+        self.check_daily_reset_at_boundary_inner(now, today_local, day_boundary, false)
+    }
+
+    /// Applies a changed-day rollover immediately before processing `now` as
+    /// a sensor reading. That reading extends known coverage only when the
+    /// previous observation is within the normal gap threshold.
+    pub(crate) fn check_daily_reset_at_observation(
+        &mut self,
+        now: DateTime<Utc>,
+        today_local: NaiveDate,
+        day_boundary: DateTime<Utc>,
+    ) -> bool {
+        if self.last_reset_date >= today_local {
+            return false;
+        }
+        let last_observation = self.history_last_reading.into_iter()
+            .chain(self.state.last_tick_ts).max();
+        if last_observation.is_some_and(|last| now < last) {
+            return false;
+        }
+        if last_observation.is_some_and(|last| {
+            (now - last).num_seconds() <= SLEEP_GAP_THRESHOLD_SECS
+        }) {
+            self.history_last_reading = Some(now);
+        }
+        self.check_daily_reset_at_boundary_inner(now, today_local, day_boundary, true)
+    }
+
+    fn check_daily_reset_at_boundary_inner(
+        &mut self,
+        now: DateTime<Utc>,
+        today_local: NaiveDate,
+        day_boundary: DateTime<Utc>,
+        changed_day_bypasses_throttle: bool,
+    ) -> bool {
         let today = today_local;
-        if (now - self.last_reset_check).num_seconds() < 60 {
+        if !changed_day_bypasses_throttle && (now - self.last_reset_check).num_seconds() < 60 {
             return false;
         }
         self.last_reset_check = now;
         if self.last_reset_date < today {
             info!("daily reset: new day detected, resetting in-memory counters");
+            let boundary = day_boundary.min(now);
+            let last_observation = self.history_last_reading.or(self.state.last_tick_ts);
+            let active_state = self.current_state();
+            if let Some(span) = self.close_observed_boundary(boundary) {
+                self.queue_history(active_state, span, None);
+            }
+            self.sleep_break_credit = 0;
             self.state.sitting_seconds = 0;
             self.state.sitting_seconds_total = 0;
             self.state.standing_seconds = 0;
@@ -88,6 +165,14 @@ impl SessionManager {
             self.state.hourly_breaks_active = 0;
             self.hourly_break_tracker.reset();
             self.last_reset_date = today;
+            if last_observation.is_some_and(|last| last >= boundary) {
+                let current_span_start = self.history_span_started
+                    .filter(|started| *started > boundary)
+                    .unwrap_or(boundary);
+                self.open_observed_boundary(current_span_start);
+            } else {
+                self.history_span_started = None;
+            }
             return true;
         }
         false
