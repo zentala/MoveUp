@@ -44,6 +44,43 @@ pub fn load_profile<T: DeserializeOwned + Default>(path: &Path) -> T {
 pub fn validate_communication_profile(p: &CommunicationProfile) -> Vec<String> {
     let mut errors = Vec::new();
 
+    if !matches!(p.notification_backend.as_str(), "toast" | "popup" | "both") {
+        errors.push(format!(
+            "notification_backend must be 'toast', 'popup', or 'both', got '{}'",
+            p.notification_backend
+        ));
+    }
+
+    for (phase, steps) in [
+        ("sitting", p.escalation.sitting.as_slice()),
+        ("standing", p.escalation.standing.as_slice()),
+    ] {
+        for step in steps {
+            if let Some(notify) = step.notify.as_deref() {
+                if !matches!(notify, "toast" | "popup") {
+                    errors.push(format!(
+                        "escalation.{phase} step at={} notify must be 'toast' or 'popup' when set, got '{}'",
+                        step.at, notify
+                    ));
+                }
+            }
+        }
+    }
+
+    for (location, notify_once) in [
+        ("disconnected", p.disconnected.notify_once.as_deref()),
+        ("inactive", p.inactive.notify_once.as_deref()),
+    ] {
+        if let Some(notify_once) = notify_once {
+            if !matches!(notify_once, "toast" | "popup") {
+                errors.push(format!(
+                    "{location}.notify_once must be 'toast' or 'popup' when set, got '{}'",
+                    notify_once
+                ));
+            }
+        }
+    }
+
     // Check sitting escalation `at` values are strictly ascending.
     check_ascending(&p.escalation.sitting, "sitting", &mut errors);
     // Check standing escalation `at` values are strictly ascending.
@@ -211,5 +248,184 @@ pub fn list_profiles(dir: &Path) -> Vec<PathBuf> {
     };
     paths.sort();
     paths
+}
+
+#[cfg(test)]
+mod profile_validation_tests {
+    use super::validate_communication_profile;
+    use crate::communication_profile::{CommunicationProfile, EscalationStep};
+
+    fn step(at: i64, notify: Option<&str>) -> EscalationStep {
+        EscalationStep {
+            at,
+            tray: "yellow".into(),
+            overlay: "yellow".into(),
+            popup_header: "yellow".into(),
+            notify: notify.map(str::to_owned),
+        }
+    }
+
+    fn set_escalation(profile: &mut CommunicationProfile, phase: &str, notify: Option<&str>) {
+        let steps = vec![step(0, notify)];
+        match phase {
+            "sitting" => profile.escalation.sitting = steps,
+            "standing" => profile.escalation.standing = steps,
+            _ => unreachable!(),
+        }
+    }
+
+    fn builtin_channel_profile(name: &str, json: &str) -> CommunicationProfile {
+        let raw: serde_json::Value = serde_json::from_str(json)
+            .unwrap_or_else(|error| panic!("{name}: {error}"));
+        let mut profile = CommunicationProfile::default();
+        profile.notification_backend = raw["notification_backend"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{name}: missing notification_backend string"))
+            .to_owned();
+
+        for phase in ["sitting", "standing"] {
+            let Some(raw_steps) = raw["escalation"][phase].as_array() else {
+                continue;
+            };
+            let steps: Vec<_> = raw_steps
+                .iter()
+                .enumerate()
+                .map(|(index, raw_step)| {
+                    let notify = match raw_step.get("notify") {
+                        None | Some(serde_json::Value::Null) => None,
+                        Some(serde_json::Value::String(value)) => Some(value.clone()),
+                        Some(value) => panic!("{name}: {phase} notify must be a string or null, got {value}"),
+                    };
+                    EscalationStep {
+                        at: index as i64,
+                        tray: "yellow".into(),
+                        overlay: "yellow".into(),
+                        popup_header: "yellow".into(),
+                        notify,
+                    }
+                })
+                .collect();
+            match phase {
+                "sitting" => profile.escalation.sitting = steps,
+                _ => profile.escalation.standing = steps,
+            }
+        }
+
+        for location in ["disconnected", "inactive"] {
+            let notify_once = match raw[location].get("notify_once") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(serde_json::Value::String(value)) => Some(value.clone()),
+                Some(value) => panic!("{name}: {location}.notify_once must be a string or null, got {value}"),
+            };
+            match location {
+                "disconnected" => profile.disconnected.notify_once = notify_once,
+                _ => profile.inactive.notify_once = notify_once,
+            }
+        }
+        profile
+    }
+
+    #[test]
+    fn notification_backend_accepts_only_supported_values() {
+        for value in ["toast", "popup", "both"] {
+            let mut profile = CommunicationProfile::default();
+            profile.notification_backend = value.into();
+            assert!(validate_communication_profile(&profile).is_empty(), "{value}");
+        }
+        for value in ["unknown", "", " "] {
+            let mut profile = CommunicationProfile::default();
+            profile.notification_backend = value.into();
+            let errors = validate_communication_profile(&profile);
+            assert!(errors.iter().any(|error| error.contains("notification_backend")), "{value}: {errors:?}");
+        }
+    }
+
+    #[test]
+    fn escalation_notify_accepts_toast_popup_and_none_in_both_phases() {
+        for phase in ["sitting", "standing"] {
+            for value in [None, Some("toast"), Some("popup")] {
+                let mut profile = CommunicationProfile::default();
+                set_escalation(&mut profile, phase, value);
+                assert!(validate_communication_profile(&profile).is_empty(), "{phase} {value:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn escalation_notify_rejects_explicit_unsupported_values_with_step_context() {
+        for phase in ["sitting", "standing"] {
+            for value in ["both", "unknown", "", " "] {
+                let mut profile = CommunicationProfile::default();
+                set_escalation(&mut profile, phase, Some(value));
+                let errors = validate_communication_profile(&profile);
+                assert!(errors.iter().any(|error| error.contains(phase) && error.contains("notify")), "{phase} {value:?}: {errors:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn notify_once_accepts_toast_popup_and_none_for_disconnected_and_inactive() {
+        for location in ["disconnected", "inactive"] {
+            for value in [None, Some("toast"), Some("popup")] {
+                let mut profile = CommunicationProfile::default();
+                let config = match location {
+                    "disconnected" => &mut profile.disconnected,
+                    _ => &mut profile.inactive,
+                };
+                config.notify_once = value.map(str::to_owned);
+                assert!(validate_communication_profile(&profile).is_empty(), "{location} {value:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn notify_once_rejects_explicit_unsupported_values_with_field_context() {
+        for location in ["disconnected", "inactive"] {
+            for value in ["both", "unknown", "", " "] {
+                let mut profile = CommunicationProfile::default();
+                let config = match location {
+                    "disconnected" => &mut profile.disconnected,
+                    _ => &mut profile.inactive,
+                };
+                config.notify_once = Some(value.into());
+                let errors = validate_communication_profile(&profile);
+                assert!(errors.iter().any(|error| error.contains(location) && error.contains("notify_once")), "{location} {value:?}: {errors:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn channel_errors_accumulate_with_existing_ordering_and_pattern_errors() {
+        let mut profile = CommunicationProfile::default();
+        profile.notification_backend = "invalid".into();
+        profile.escalation.sitting = vec![step(0, None), step(0, None)];
+        profile.escalation.sitting[0].tray = "blink_missing".into();
+        profile.escalation.sitting[0].overlay = "pulse_missing".into();
+        let errors = validate_communication_profile(&profile);
+        assert_eq!(errors.len(), 4, "{errors:?}");
+        assert!(errors.iter().any(|error| error.contains("notification_backend")));
+        assert!(errors.iter().any(|error| error.contains("must be > previous")));
+        assert!(errors.iter().any(|error| error.contains("unknown blink pattern")));
+        assert!(errors.iter().any(|error| error.contains("unknown pattern")));
+    }
+
+    #[test]
+    fn empty_escalation_lists_and_all_builtin_channels_remain_valid() {
+        let mut default_profile = CommunicationProfile::default();
+        default_profile.escalation.sitting.clear();
+        default_profile.escalation.standing.clear();
+        assert!(validate_communication_profile(&default_profile).is_empty());
+
+        for (name, json) in [
+            ("default", include_str!("../profiles/communication/default.json")),
+            ("aggressive", include_str!("../profiles/communication/aggressive.json")),
+            ("gentle", include_str!("../profiles/communication/gentle.json")),
+            ("silent", include_str!("../profiles/communication/silent.json")),
+            ("demo", include_str!("../profiles/communication/demo.json")),
+        ] {
+            let profile = builtin_channel_profile(name, json);
+            assert!(validate_communication_profile(&profile).is_empty(), "{name}: {:?}", validate_communication_profile(&profile));
+        }
+    }
 }
 
