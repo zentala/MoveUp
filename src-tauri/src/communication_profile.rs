@@ -114,7 +114,12 @@ pub struct BaselineChannels {
     /// Overlay signal name.
     pub overlay: String,
     /// Popup signal name.
+    #[serde(default = "BaselineChannels::default_popup")]
     pub popup: String,
+}
+
+impl BaselineChannels {
+    fn default_popup() -> String { "neutral".to_string() }
 }
 
 impl Default for BaselineChannels {
@@ -122,7 +127,7 @@ impl Default for BaselineChannels {
         Self {
             tray: "none".to_string(),
             overlay: "neutral".to_string(),
-            popup: "neutral".to_string(),
+            popup: Self::default_popup(),
         }
     }
 }

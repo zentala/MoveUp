@@ -274,55 +274,8 @@ mod profile_validation_tests {
         }
     }
 
-    fn builtin_channel_profile(name: &str, json: &str) -> CommunicationProfile {
-        let raw: serde_json::Value = serde_json::from_str(json)
-            .unwrap_or_else(|error| panic!("{name}: {error}"));
-        let mut profile = CommunicationProfile::default();
-        profile.notification_backend = raw["notification_backend"]
-            .as_str()
-            .unwrap_or_else(|| panic!("{name}: missing notification_backend string"))
-            .to_owned();
-
-        for phase in ["sitting", "standing"] {
-            let Some(raw_steps) = raw["escalation"][phase].as_array() else {
-                continue;
-            };
-            let steps: Vec<_> = raw_steps
-                .iter()
-                .enumerate()
-                .map(|(index, raw_step)| {
-                    let notify = match raw_step.get("notify") {
-                        None | Some(serde_json::Value::Null) => None,
-                        Some(serde_json::Value::String(value)) => Some(value.clone()),
-                        Some(value) => panic!("{name}: {phase} notify must be a string or null, got {value}"),
-                    };
-                    EscalationStep {
-                        at: index as i64,
-                        tray: "yellow".into(),
-                        overlay: "yellow".into(),
-                        popup_header: "yellow".into(),
-                        notify,
-                    }
-                })
-                .collect();
-            match phase {
-                "sitting" => profile.escalation.sitting = steps,
-                _ => profile.escalation.standing = steps,
-            }
-        }
-
-        for location in ["disconnected", "inactive"] {
-            let notify_once = match raw[location].get("notify_once") {
-                None | Some(serde_json::Value::Null) => None,
-                Some(serde_json::Value::String(value)) => Some(value.clone()),
-                Some(value) => panic!("{name}: {location}.notify_once must be a string or null, got {value}"),
-            };
-            match location {
-                "disconnected" => profile.disconnected.notify_once = notify_once,
-                _ => profile.inactive.notify_once = notify_once,
-            }
-        }
-        profile
+    fn builtin_profile(name: &str, json: &str) -> CommunicationProfile {
+        serde_json::from_str(json).unwrap_or_else(|error| panic!("{name}: {error}"))
     }
 
     #[test]
@@ -423,9 +376,53 @@ mod profile_validation_tests {
             ("silent", include_str!("../profiles/communication/silent.json")),
             ("demo", include_str!("../profiles/communication/demo.json")),
         ] {
-            let profile = builtin_channel_profile(name, json);
+            let profile = builtin_profile(name, json);
             assert!(validate_communication_profile(&profile).is_empty(), "{name}: {:?}", validate_communication_profile(&profile));
         }
+    }
+
+    #[test]
+    fn legacy_partial_baseline_preserves_custom_channels_and_defaults_only_popup() {
+        let profile: CommunicationProfile = serde_json::from_value(serde_json::json!({
+            "baseline": {
+                "sitting": { "tray": "legacy-sitting-tray", "overlay": "legacy-sitting-overlay" },
+                "standing": { "tray": "legacy-standing-tray", "overlay": "legacy-standing-overlay" }
+            }
+        }))
+        .expect("legacy baseline without popup should deserialize");
+
+        assert_eq!(profile.baseline.sitting.tray, "legacy-sitting-tray");
+        assert_eq!(profile.baseline.sitting.overlay, "legacy-sitting-overlay");
+        assert_eq!(profile.baseline.sitting.popup, "neutral");
+        assert_eq!(profile.baseline.standing.tray, "legacy-standing-tray");
+        assert_eq!(profile.baseline.standing.overlay, "legacy-standing-overlay");
+        assert_eq!(profile.baseline.standing.popup, "neutral");
+    }
+
+    #[test]
+    fn supplied_baseline_popup_is_preserved_and_wrong_type_is_rejected() {
+        let profile: CommunicationProfile = serde_json::from_value(serde_json::json!({
+            "baseline": {
+                "sitting": {
+                    "tray": "custom-tray",
+                    "overlay": "custom-overlay",
+                    "popup": "warning"
+                }
+            }
+        }))
+        .expect("explicit popup should deserialize");
+        assert_eq!(profile.baseline.sitting.popup, "warning");
+
+        let malformed = serde_json::from_value::<CommunicationProfile>(serde_json::json!({
+            "baseline": {
+                "sitting": {
+                    "tray": "custom-tray",
+                    "overlay": "custom-overlay",
+                    "popup": 7
+                }
+            }
+        }));
+        assert!(malformed.is_err(), "wrong-type popup must not silently default");
     }
 }
 
