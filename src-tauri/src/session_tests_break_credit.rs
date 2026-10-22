@@ -17,8 +17,8 @@ mod break_credit_tests {
         Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
     }
 
-    /// Feeds `DEBOUNCE_COUNT` readings one second apart, returning the instant
-    /// after the last one.
+    /// Feeds coherent readings over `DEBOUNCE_COUNT` elapsed seconds and
+    /// returns the instant after the endpoint sample.
     fn feed(
         m: &mut SessionManager,
         mm: i32,
@@ -29,10 +29,10 @@ mod break_credit_tests {
             completed_session: None,
             break_credit: None,
         };
-        for i in 0..DEBOUNCE_COUNT as i64 {
+        for i in 0..=DEBOUNCE_COUNT as i64 {
             result = m.on_reading_at(mm, true, at + Duration::seconds(i));
         }
-        (at + Duration::seconds(DEBOUNCE_COUNT as i64), result)
+        (at + Duration::seconds(DEBOUNCE_COUNT as i64 + 1), result)
     }
 
     fn transition_to_sitting(m: &mut SessionManager, at: DateTime<Utc>) -> DateTime<Utc> {
@@ -70,7 +70,7 @@ mod break_credit_tests {
         break_started: DateTime<Utc>,
         break_secs: i64,
     ) -> ReadingResult {
-        let lead = DEBOUNCE_COUNT as i64 - 1;
+        let lead = DEBOUNCE_COUNT as i64;
         let batch_start = hold(m, 1200, break_started, break_secs - lead);
         let (_, result) = feed(m, 800, batch_start);
         result

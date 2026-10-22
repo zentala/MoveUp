@@ -66,9 +66,18 @@ fn confirm(m: &mut SessionManager, state: DeskState, offset: i64) -> crate::sess
         DeskState::Away => (1200, false),
         DeskState::Walking => unreachable!(),
     };
-    let mut result = m.on_reading_at(mm, active, instant(offset));
-    for _ in 1..crate::session::DEBOUNCE_COUNT {
-        result = m.on_reading_at(mm, active, instant(offset));
+    let requested_start = instant(offset - crate::session_types::DEBOUNCE_COUNT as i64);
+    let previous = m.history_last_reading.into_iter().chain(m.state.last_tick_ts).max();
+    let sample_start = previous.map_or(requested_start, |last| {
+        if (requested_start - last).num_seconds() > crate::session_types::SLEEP_GAP_THRESHOLD_SECS {
+            instant(offset)
+        } else {
+            requested_start
+        }
+    });
+    let mut result = crate::session::ReadingResult::default();
+    for second in 0..=crate::session::DEBOUNCE_COUNT {
+        result = m.on_reading_at(mm, active, sample_start + Duration::seconds(second as i64));
     }
     result
 }
@@ -195,6 +204,24 @@ fn e027_shutdown_after_missing_readings_stops_at_last_observation() {
 }
 
 #[test]
+fn e027_shutdown_after_fractional_gap_stops_at_last_observation() {
+    let mut m = SessionManager::new();
+    let started = instant(0);
+    let last = instant(10);
+    m.state.state = DeskState::Standing;
+    m.state.standing_bout_started = Some(started);
+    m.history_span_started = Some(started);
+    m.history_last_reading = Some(last);
+
+    let span = m.flush_current_session_at(last + Duration::milliseconds(300_500)).unwrap();
+    assert_eq!(span.started_at, started.to_rfc3339());
+    assert_eq!(span.ended_at, last.to_rfc3339(),
+        "a 300.5-second shutdown gap must stop at the last observation");
+    assert_eq!(span.duration_secs, 10,
+        "time after the final observation remains unknown, not session coverage");
+}
+
+#[test]
 fn e027_restart_does_not_replay_already_flushed_history() {
     let mut m = SessionManager::new();
     confirm(&mut m, DeskState::Standing, 0);
@@ -261,8 +288,10 @@ fn e027_delayed_reset_after_postmidnight_transition_splits_rows_and_keeps_day_ra
     let today = boundary.with_timezone(&Warsaw).date_naive();
     m.last_reset_date = previous_day;
     m.last_reset_check = boundary - Duration::seconds(120);
-    assert!(m.check_daily_reset_at_observation(instant(43_220), today, boundary));
-    confirm(&mut m, DeskState::Standing, 43_220);
+    assert!(m.check_daily_reset_at_observation(instant(43_215), today, boundary));
+    for second in 0..=crate::session_types::DEBOUNCE_COUNT {
+        m.on_reading_at(1200, true, instant(43_215 + second as i64));
+    }
 
     assert_eq!(m.state.sitting_seconds_total, 20,
         "only the confirmed post-midnight Sitting portion belongs to today");
@@ -322,7 +351,9 @@ fn e027_sleep_across_daily_reset_still_closes_only_observed_coverage() {
         db.lock().unwrap().as_ref().unwrap(), |_, _| {}).unwrap();
 
     let resume = boundary + Duration::seconds(800);
-    confirm(&mut m, DeskState::Standing, 44_000);
+    for second in 0..=crate::session_types::DEBOUNCE_COUNT {
+        m.on_reading_at(1200, true, resume + Duration::seconds(second as i64));
+    }
     let tail = confirm(&mut m, DeskState::Away, 44_050).completed_session.unwrap();
     assert_eq!(tail.started_at, resume.to_rfc3339());
     assert_eq!(tail.ended_at, (resume + Duration::seconds(50)).to_rfc3339());

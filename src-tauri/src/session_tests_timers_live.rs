@@ -1,12 +1,8 @@
 //! session_tests_timers_live.rs — T042: Live time counting and snapshot tests.
 //!
-//! **These tests still read the system clock, on purpose.** Most of them assert
-//! on `SessionManager::snapshot()`, which calls `Utc::now()` internally.
-//! E020-T01 injected the clock into the reading path, not into `snapshot()` —
-//! that is E020-T05, which moves the derived fields into the engine. Until then
-//! an injected instant here would be compared against the real clock inside
-//! `snapshot()`, so every assertion would drift by the difference. Convert this
-//! file together with T05, not before it.
+//! State-transition fixtures feed coherent instants through `on_reading_at`;
+//! snapshot assertions continue to observe the system clock and set their live
+//! anchors immediately before taking the snapshot.
 
 #[cfg(test)]
 mod timer_live_tests {
@@ -15,17 +11,22 @@ mod timer_live_tests {
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
 
-    fn transition_to_sitting(m: &mut SessionManager) {
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(800, true);
+    fn feed(m: &mut SessionManager, mm: i32) -> crate::session::ReadingResult {
+        let start = m.state.last_tick_ts.unwrap_or_else(|| Utc::now() - chrono::Duration::seconds(5));
+        let mut result = crate::session::ReadingResult::default();
+        for second in 0..=DEBOUNCE_COUNT {
+            result = m.on_reading_at(mm, true, start + chrono::Duration::seconds(second as i64));
         }
+        result
+    }
+
+    fn transition_to_sitting(m: &mut SessionManager) {
+        feed(m, 800);
         assert_eq!(m.state.state, DeskState::Sitting);
     }
 
     fn transition_to_standing(m: &mut SessionManager) {
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(1200, true);
-        }
+        feed(m, 1200);
         assert_eq!(m.state.state, DeskState::Standing);
     }
 
@@ -107,12 +108,7 @@ mod timer_live_tests {
         transition_to_sitting(&mut m);
         m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(300));
         // Transition to standing — break_seconds should be 0 (just started)
-        let _result = m.on_reading(1200, true); // first debounce reading
-        // After debounce completes
-        for _ in 1..DEBOUNCE_COUNT {
-            let _ = m.on_reading(1200, true);
-        }
-        let result = m.on_reading(1200, true);
+        let result = feed(&mut m, 1200);
         if let Some(payload) = &result.state_change {
             // Break just started, so break_seconds should be ~0
             assert!(
@@ -154,6 +150,8 @@ mod timer_live_tests {
         assert_eq!(s1.break_seconds, 0);
 
         // Phase 2: Stand 2 min (credit = 120s * 2.0 = 240s < ~300s sitting → Partial)
+        let transition_at = m.state.last_tick_ts.unwrap() + chrono::Duration::seconds(5);
+        m.state.sitting_started = Some(transition_at - chrono::Duration::seconds(300));
         transition_to_standing(&mut m);
         let t2 = Utc::now() - chrono::Duration::seconds(120);
         m.state.break_started = Some(t2);
@@ -177,6 +175,9 @@ mod timer_live_tests {
         // This is the assertion E015 inverted: the old suite demanded ~0 here,
         // which is the reset the user complained about. The engine credits, it
         // does not reset, so the timer must show 300 − 240 ≈ 60.
+        m.state.break_started = Some(
+            m.state.last_tick_ts.unwrap() + chrono::Duration::seconds(5 - 120),
+        );
         transition_to_sitting(&mut m);
         let s3 = m.snapshot();
         assert_eq!(m.state.last_break_credit, BreakCredit::Partial);

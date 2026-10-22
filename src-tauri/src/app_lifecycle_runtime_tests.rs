@@ -239,8 +239,8 @@ fn failed_history_insert_keeps_store_ack_snapshot_for_retry_and_replay() {
     use crate::app_lifecycle_runtime::{FlushProgress, flush_state_progress};
     let start = chrono::Utc::now() - chrono::Duration::seconds(60);
     let mut manager = SessionManager::new();
-    for _ in 0..crate::session_types::DEBOUNCE_COUNT {
-        manager.on_reading_at(800, true, start);
+    for second in 0..=crate::session_types::DEBOUNCE_COUNT {
+        manager.on_reading_at(800, true, start + chrono::Duration::seconds(second as i64 - 5));
     }
     manager.on_reading_at(800, true, start + chrono::Duration::seconds(50));
     let session = Mutex::new(manager);
@@ -343,11 +343,11 @@ fn r3_f02_flush_resume_case(state: DeskState, cancel_first_flush: bool) {
     }
 
     let mm = if state == DeskState::Sitting { 600 } else { 1200 };
-    for second in 1..=5 {
+    for second in 1..=4 {
         session.lock().unwrap().on_reading_at(
             mm, true, t100 + chrono::Duration::seconds(second));
     }
-    for second in 6..=10 {
+    for second in 5..=10 {
         session.lock().unwrap().on_reading_at(
             mm, false, t100 + chrono::Duration::seconds(second));
     }
@@ -412,7 +412,7 @@ fn r3_f02_flush_resume_case(state: DeskState, cancel_first_flush: bool) {
     let raw_before_stop = restored.state.sitting_seconds_total;
     let standing_before_stop = restored.state.standing_seconds;
     let resume = t110 + chrono::Duration::hours(2);
-    for offset in 1..=5 {
+    for offset in 0..=5 {
         restored.on_reading_at(mm, false, resume + chrono::Duration::seconds(offset));
     }
     assert_eq!(restored.state.sitting_seconds_total, raw_before_stop,

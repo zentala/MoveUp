@@ -16,12 +16,10 @@ mod tests {
     const SIT_MM: i32 = 800;
     const STAND_MM: i32 = 1200;
 
-    fn feed(m: &mut SessionManager, mm: i32, count: usize) {
-        for _ in 0..count {
-            let _ = m.on_reading(mm, true);
-            if let Some(ts) = m.state.last_accumulate_ts {
-                m.state.last_accumulate_ts = Some(ts + Duration::seconds(1));
-            }
+    fn feed(m: &mut SessionManager, mm: i32, seconds: usize) {
+        let start = m.state.last_tick_ts.unwrap_or_else(|| Utc::now() - Duration::seconds(seconds as i64));
+        for offset in 0..=seconds {
+            let _ = m.on_reading_at(mm, true, start + Duration::seconds(offset as i64));
         }
     }
 
@@ -37,7 +35,10 @@ mod tests {
         if let Some(ref mut ts) = m.state.standing_bout_started { *ts = *ts - offset; }
         if let Some(ref mut ts) = m.state.standing_session_started { *ts = *ts - offset; }
         if let Some(ref mut ts) = m.state.break_started { *ts = *ts - offset; }
-        m.state.last_tick_ts = Some(Utc::now());
+        m.state.last_tick_ts = m.history_last_reading
+            .into_iter()
+            .chain(std::iter::once(Utc::now()))
+            .max();
     }
 
     /// Sit 30 min → stand 2 min → sit again. The DTO must report

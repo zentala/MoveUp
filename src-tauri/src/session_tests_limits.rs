@@ -140,11 +140,11 @@ mod limits_tests {
         m.state.state = DeskState::Away;
         m.state.continuous_computer_secs = 4500;
         m.limits.computer_break_reset_secs = 3;
+        let start = base();
+        m.state.last_accumulate_ts = Some(start - Duration::seconds(1));
 
         for i in 0..3 {
-            let now = base() + Duration::seconds(i);
-            m.state.last_accumulate_ts =
-                if i == 0 { None } else { Some(now - Duration::seconds(1)) };
+            let now = start + Duration::seconds(i);
             m.accumulate_ongoing(now);
         }
 

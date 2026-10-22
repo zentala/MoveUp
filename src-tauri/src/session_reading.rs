@@ -1,6 +1,6 @@
 //! session_reading.rs — Sensor reading processing and state transitions.
 
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{DateTime, Duration, Utc};
 use log::{debug, info};
 
 use crate::session_types::*;
@@ -21,9 +21,27 @@ impl SessionManager {
     /// Process a sensor reading at an explicit instant. Returns state change
     /// and/or completed session.
     ///
-    /// Pure with respect to the clock: `now` is the only source of time here,
-    /// so a caller can replay a whole day of readings deterministically.
+    /// Pure with respect to clock and zone: `now` is the only time input and
+    /// UTC hour bucketing keeps replay deterministic on every host. Live
+    /// adapters supply local-hour conversion through the injected seam.
     pub fn on_reading_at(&mut self, mm: i32, active: bool, now: DateTime<Utc>) -> ReadingResult {
+        self.on_reading_at_with_local_hour(mm, active, now, |at| {
+            crate::hourly_break_tracker::LocalHourInterval::from_offset(at, 0)
+        })
+    }
+
+    /// Same reading path with local-hour conversion injected for deterministic
+    /// time-zone replay. `now` remains the only time input.
+    pub(crate) fn on_reading_at_with_local_hour<F>(
+        &mut self,
+        mm: i32,
+        active: bool,
+        now: DateTime<Utc>,
+        local_hour_at: F,
+    ) -> ReadingResult
+    where
+        F: Fn(DateTime<Utc>) -> crate::hourly_break_tracker::LocalHourInterval + Copy,
+    {
         // Reject earlier observations before changing debounce, state or any
         // anchor. Equal instants remain valid for deterministic debounce.
         self.last_accumulate_ran = false;
@@ -42,9 +60,16 @@ impl SessionManager {
             .into_iter()
             .chain(self.state.last_tick_ts)
             .max();
+        let mut observation_gap = false;
         if let Some(last) = previous_observation {
-            if (now - last).num_seconds() > SLEEP_GAP_THRESHOLD_SECS {
-                info!("Observation gap detected: {}s; preserving the known prefix", (now - last).num_seconds());
+            let gap = now - last;
+            if gap > Duration::seconds(SLEEP_GAP_THRESHOLD_SECS) {
+                observation_gap = true;
+                info!("Observation gap detected: {:.3}s; preserving the known prefix",
+                    gap.num_milliseconds() as f64 / 1_000.0);
+                if self.history_span_started.is_some() {
+                    self.accumulate_ongoing(last);
+                }
                 if let Some(started) = self.state.break_started {
                     self.observed_break_secs += (last - started).num_seconds().max(0);
                     self.state.break_started = Some(now);
@@ -55,9 +80,29 @@ impl SessionManager {
                     self.queue_history(interrupted_state.clone(), span.clone(), None);
                     self.interrupted_history.push((interrupted_state, span));
                 }
-                self.open_observed_boundary(now);
+                self.history_span_started = None;
+                self.pending_after_gap = true;
+                // Unknown time cannot bridge the Away duration that resets
+                // the computer timer. Break history above remains credited
+                // only through its known pre-gap endpoint.
+                self.state.away_bout_secs = 0;
             }
         }
+
+        if observation_gap {
+            self.hourly_break_tracker.break_away_continuity();
+        } else if self.history_span_started.is_some() {
+            let last = previous_observation
+                .map(|last| last.max(self.history_span_started.unwrap_or(last)));
+            if let Some(last) = last {
+                let away = matches!(self.state.state, DeskState::Away | DeskState::Walking);
+                self.hourly_break_tracker
+                    .record_known_interval(last, now, away, local_hour_at);
+            }
+        }
+        self.state.hourly_breaks_covered = self.hourly_break_tracker.hours_with_break();
+        self.state.hourly_breaks_active = self.hourly_break_tracker.hours_active();
+
         self.history_last_reading = Some(now);
 
         self.state.last_tick_ts = Some(now);
@@ -89,9 +134,14 @@ impl SessionManager {
             DeskState::Standing
         };
 
-        // Debounce: only transition after DEBOUNCE_COUNT consistent readings.
-        if Some(&candidate) == self.pending_state.as_ref() {
-            self.pending_count += 1;
+        // Debounce requires both coherent samples and five actual seconds.
+        // A changed candidate, a long observation gap, or a completed run
+        // starts a fresh interval at this injected instant.
+        if Some(&candidate) == self.pending_state.as_ref()
+            && self.pending_count > 0
+            && !observation_gap
+        {
+            self.pending_count = self.pending_count.saturating_add(1).min(DEBOUNCE_COUNT);
         } else {
             if self.pending_count > 1 {
                 debug!(
@@ -101,10 +151,18 @@ impl SessionManager {
             }
             self.pending_state = Some(candidate.clone());
             self.pending_count = 1;
+            self.pending_since = Some(now);
         }
 
-        if self.pending_count < DEBOUNCE_COUNT {
-            self.accumulate_ongoing(now);
+        let elapsed = self.pending_since
+            .map(|started| (now - started).num_seconds())
+            .unwrap_or_default();
+        if self.pending_count < DEBOUNCE_COUNT || elapsed < DEBOUNCE_COUNT as i64 {
+            if self.history_span_started.is_some() && !observation_gap {
+                self.accumulate_ongoing(now);
+            } else {
+                self.last_accumulate_ran = false;
+            }
             return ReadingResult {
                 state_change: None,
                 completed_session: None,
@@ -112,22 +170,43 @@ impl SessionManager {
             };
         }
 
-        // Candidate confirmed; reset debounce.
+        // Candidate confirmed; reset debounce. After an observation gap the
+        // coherent candidate run identifies the resumed posture from its first
+        // actual sample, without assigning the unknown outage to either state.
+        let candidate_started = self.pending_since.unwrap_or(now);
+        let candidate_after_gap = self.pending_after_gap;
         self.pending_count = 0;
+        self.pending_since = None;
+        self.pending_after_gap = false;
 
         if candidate == self.state.state {
             // A restored/default state has no history coverage until confirmed
             // by readings in this process. Do not restore history from counters.
-            self.history_span_started.get_or_insert(now);
+            let had_known_history = self.history_span_started.is_some();
+            let anchor = if candidate_after_gap { candidate_started } else { now };
+            self.history_span_started.get_or_insert(anchor);
             match self.state.state {
-                DeskState::Sitting => { self.state.sitting_started.get_or_insert(now); }
+                DeskState::Sitting => { self.state.sitting_started.get_or_insert(anchor); }
                 DeskState::Standing => {
-                    self.state.standing_bout_started.get_or_insert(now);
-                    self.state.standing_session_started.get_or_insert(now);
+                    self.state.standing_bout_started.get_or_insert(anchor);
+                    self.state.standing_session_started.get_or_insert(anchor);
                 }
                 DeskState::Walking | DeskState::Away => {}
             }
-            self.accumulate_ongoing(now);
+            if candidate_after_gap {
+                let away = matches!(candidate, DeskState::Away | DeskState::Walking);
+                self.hourly_break_tracker.record_known_interval(
+                    candidate_started, now, away, local_hour_at,
+                );
+                self.state.hourly_breaks_covered = self.hourly_break_tracker.hours_with_break();
+                self.state.hourly_breaks_active = self.hourly_break_tracker.hours_active();
+                self.state.last_accumulate_ts = Some(candidate_started);
+                self.accumulate_ongoing(now);
+            } else if had_known_history {
+                self.accumulate_ongoing(now);
+            } else {
+                self.state.last_accumulate_ts = Some(now);
+            }
             return ReadingResult {
                 state_change: None,
                 completed_session: None,
@@ -135,6 +214,10 @@ impl SessionManager {
             };
         }
 
+        let had_known_history = self.history_span_started.is_some();
+        if had_known_history {
+            self.accumulate_ongoing(now);
+        }
         let break_ended = candidate == DeskState::Sitting && self.state.break_started.is_some();
         let completed_session = self.handle_state_exit(&candidate, now);
 
@@ -171,7 +254,19 @@ impl SessionManager {
         );
 
         self.state.state = candidate;
-        self.open_observed_boundary(now);
+        self.open_observed_boundary(if candidate_after_gap { candidate_started } else { now });
+        if candidate_after_gap {
+            let away = matches!(self.state.state, DeskState::Away | DeskState::Walking);
+            self.hourly_break_tracker.record_known_interval(
+                candidate_started, now, away, local_hour_at,
+            );
+            self.state.hourly_breaks_covered = self.hourly_break_tracker.hours_with_break();
+            self.state.hourly_breaks_active = self.hourly_break_tracker.hours_active();
+            self.state.last_accumulate_ts = Some(candidate_started);
+            self.accumulate_ongoing(now);
+        } else {
+            self.state.last_accumulate_ts = Some(now);
+        }
 
         let live_sitting = self.get_live_sitting_seconds(now);
         let live_break = self.get_live_break_seconds(now);
@@ -195,21 +290,30 @@ impl SessionManager {
 
     /// Accumulates time while remaining in the current state (no transition).
     ///
-    /// Throttled to run at most once per second: the sensor may send readings
-    /// faster than 1 Hz, but counters like `continuous_computer_secs` and
-    /// `away_bout_secs` must grow at wall-clock rate.
+    /// Whole known seconds are accumulated from the prior anchor, independent
+    /// of observation cadence. Fractional remainders stay at the anchor until
+    /// another sample completes a second.
     ///
     /// The Away duration that resets the computer timer comes from
     /// [`SessionManager::limits`] (the live ergonomic profile), not from
     /// `SessionState`.
     pub(crate) fn accumulate_ongoing(&mut self, now: DateTime<Utc>) {
         self.last_accumulate_ran = false;
-        if let Some(prev) = self.state.last_accumulate_ts {
-            if (now - prev).num_seconds() < 1 {
+        let elapsed_secs = match self.state.last_accumulate_ts {
+            Some(prev) => {
+                let elapsed = now - prev;
+                let whole_secs = elapsed.num_seconds();
+                if whole_secs <= 0 {
+                    return;
+                }
+                self.state.last_accumulate_ts = Some(prev + Duration::seconds(whole_secs));
+                whole_secs
+            }
+            None => {
+                self.state.last_accumulate_ts = Some(now);
                 return;
             }
-        }
-        self.state.last_accumulate_ts = Some(now);
+        };
         self.last_accumulate_ran = true;
 
         // Refresh system idle time from activity module.
@@ -219,7 +323,7 @@ impl SessionManager {
         // Walking is grouped with Away (both = not at computer).
         match self.state.state {
             DeskState::Sitting | DeskState::Standing => {
-                self.state.continuous_computer_secs += 1;
+                self.state.continuous_computer_secs += elapsed_secs;
                 self.state.longest_computer_session_secs = self
                     .state
                     .longest_computer_session_secs
@@ -227,7 +331,7 @@ impl SessionManager {
                 self.state.away_bout_secs = 0;
             }
             DeskState::Away | DeskState::Walking => {
-                self.state.away_bout_secs += 1;
+                self.state.away_bout_secs += elapsed_secs;
                 // After configured away duration: reset continuous computer timer
                 // and count as a posture change (user left the computer).
                 if self.state.away_bout_secs >= self.limits.computer_break_reset_secs as i64
@@ -248,17 +352,5 @@ impl SessionManager {
             }
         }
 
-        // HourlyBreakTracker: tick per-clock-hour break tracking.
-        let hour = now.hour() as u8;
-        match self.state.state {
-            DeskState::Away | DeskState::Walking => {
-                self.hourly_break_tracker.tick_away(hour);
-            }
-            DeskState::Sitting | DeskState::Standing => {
-                self.hourly_break_tracker.tick_active(hour);
-            }
-        }
-        self.state.hourly_breaks_covered = self.hourly_break_tracker.hours_with_break();
-        self.state.hourly_breaks_active = self.hourly_break_tracker.hours_active();
     }
 }

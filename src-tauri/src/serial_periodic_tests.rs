@@ -33,9 +33,10 @@ fn e027_mixed_break_final_standing_row_carries_whole_break_credit() {
         (220, 1200, false), (300, 1200, true), (340, 800, true)] {
         let before = session.current_state();
         let now = start + chrono::Duration::seconds(seconds);
-        let mut result = session.on_reading_at(mm, active, now);
-        for _ in 1..crate::session::DEBOUNCE_COUNT {
-            result = session.on_reading_at(mm, active, now);
+        let mut result = crate::session::ReadingResult::default();
+        for second in 0..=crate::session::DEBOUNCE_COUNT {
+            result = session.on_reading_at(mm, active,
+                now + chrono::Duration::seconds(second as i64 - 5));
         }
         if let Some(span) = result.completed_session {
             steps::persist_completed_session(&db, &span, &before,
@@ -83,14 +84,16 @@ fn e027_reading_rollover_precedes_transition_and_preserves_only_known_coverage()
     }
 
     let transition_at = boundary + Duration::seconds(20);
-    assert!(steps::run_daily_reset_before_reading(&session, &config, transition_at, today, boundary));
+    let reset_at = transition_at - Duration::seconds(crate::session::DEBOUNCE_COUNT as i64);
+    assert!(steps::run_daily_reset_before_reading(&session, &config, reset_at, today, boundary));
     assert!(!steps::run_daily_reset_before_reading(
         &session, &config, transition_at + Duration::seconds(1), today, boundary,
     ), "the same local date cannot reset twice");
 
     let mut result = crate::session::ReadingResult::default();
-    for _ in 0..crate::session::DEBOUNCE_COUNT {
-        result = session.lock().unwrap().on_reading_at(1200, true, transition_at);
+    for second in 0..=crate::session::DEBOUNCE_COUNT {
+        result = session.lock().unwrap().on_reading_at(1200, true,
+            reset_at + chrono::Duration::seconds(second as i64));
     }
     assert_eq!(result.state_change.unwrap().state, DeskState::Standing);
     {
@@ -141,10 +144,12 @@ fn e027_reading_rollover_precedes_transition_and_preserves_only_known_coverage()
         let mut manager = unknown.lock().unwrap();
         assert!(manager.history_span_started.is_none(),
             "an unknown gap must not create coverage from midnight");
-        for _ in 0..crate::session::DEBOUNCE_COUNT {
-            manager.on_reading_at(800, true, resume_at);
+        for second in 0..=crate::session::DEBOUNCE_COUNT {
+            manager.on_reading_at(800, true,
+                resume_at + chrono::Duration::seconds(second as i64));
         }
-        assert_eq!(manager.history_span_started, Some(resume_at),
+        assert_eq!(manager.history_span_started,
+            Some(resume_at),
             "coverage resumes only at the actual post-gap reading");
         assert_eq!(manager.state.sitting_seconds_total, 0);
     }

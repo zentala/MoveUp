@@ -1,8 +1,8 @@
 //! activity.rs — System idle-time detection.
 //!
-//! Uses the Windows `GetLastInputInfo` API to determine how long the user
-//! has been idle (no keyboard or mouse input). Falls back to treating the
-//! user as active on non-Windows platforms.
+//! Uses the Windows `GetLastInputInfo` API to measure time since keyboard or
+//! mouse input. Input inactivity is only a heuristic; it does not measure
+//! physical absence or posture. Non-Windows platforms report the user active.
 
 /// Threshold below which a user is considered active (seconds).
 const ACTIVE_THRESHOLD_SECS: u64 = 60;
@@ -41,7 +41,9 @@ pub fn get_idle_seconds() -> u64 {
     }
 }
 
-/// Returns `true` if the user has been active within the last 60 seconds.
+/// Returns `true` if input was observed within the last 60 seconds.
+///
+/// This input-activity heuristic is not proof that the user is present or away.
 pub fn is_active() -> bool {
     get_idle_seconds() < ACTIVE_THRESHOLD_SECS
 }

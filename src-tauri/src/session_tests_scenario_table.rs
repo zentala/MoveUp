@@ -34,7 +34,7 @@ mod scenario_table {
     /// A hold confirms its state on its `DEBOUNCE_COUNT`-th reading, i.e. this
     /// many seconds after the hold's `from`. Every hold pays the same lag, so
     /// the *differences* the table asserts are exact.
-    const CONFIRM_LAG: i64 = DEBOUNCE_COUNT as i64 - 1;
+    const CONFIRM_LAG: i64 = DEBOUNCE_COUNT as i64;
 
     /// One step of a scenario. Offsets are seconds from the scenario anchor.
     enum Ev {

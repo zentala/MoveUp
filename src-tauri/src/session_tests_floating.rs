@@ -8,19 +8,24 @@ mod floating_window_tests {
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
 
+    fn feed(m: &mut SessionManager, mm: i32, active: bool) -> crate::session::ReadingResult {
+        let start = m.state.last_tick_ts.unwrap_or_else(|| Utc::now() - chrono::Duration::seconds(5));
+        let mut result = crate::session::ReadingResult::default();
+        for second in 0..=DEBOUNCE_COUNT {
+            result = m.on_reading_at(mm, active, start + chrono::Duration::seconds(second as i64));
+        }
+        result
+    }
+
     /// Helper: transition manager to Sitting by feeding DEBOUNCE_COUNT low readings.
     fn transition_to_sitting(m: &mut SessionManager) {
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(800, true);
-        }
+        feed(m, 800, true);
         assert_eq!(m.state.state, DeskState::Sitting);
     }
 
     /// Helper: transition manager to Standing by feeding DEBOUNCE_COUNT high readings.
     fn transition_to_standing(m: &mut SessionManager) {
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(1200, true);
-        }
+        feed(m, 1200, true);
         assert_eq!(m.state.state, DeskState::Standing);
     }
 
@@ -186,17 +191,7 @@ mod floating_window_tests {
             Some(Utc::now() - chrono::Duration::seconds(12 * 60));
 
         // Transition back to sitting — payload should have last_break_secs
-        let result = {
-            let mut r = ReadingResult {
-                state_change: None,
-                completed_session: None,
-                break_credit: None,
-            };
-            for _ in 0..DEBOUNCE_COUNT {
-                r = m.on_reading(800, true);
-            }
-            r
-        };
+        let result = feed(&mut m, 800, true);
 
         let payload = result
             .state_change
@@ -236,9 +231,7 @@ mod floating_window_tests {
         assert_eq!(m.state.position_changes, 2, "stand->sit = 2");
 
         // Sit -> Away (inactive) = NOT a position change
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(1200, false);
-        }
+        feed(&mut m, 1200, false);
         assert_eq!(m.state.state, DeskState::Away);
         assert_eq!(m.state.position_changes, 2, "sit->away = still 2");
     }

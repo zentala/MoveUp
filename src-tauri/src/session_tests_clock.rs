@@ -142,11 +142,12 @@ mod clock_tests {
             "no post-midnight coverage exists until a new reading arrives");
 
         let resumed = boundary + Duration::seconds(40);
-        for _ in 0..DEBOUNCE_COUNT {
-            m.on_reading_at(800, true, resumed);
+        for offset in 0..=DEBOUNCE_COUNT {
+            m.on_reading_at(800, true, resumed + Duration::seconds(offset as i64));
         }
-        assert_eq!(m.history_span_started, Some(resumed));
-        assert_eq!(m.state.sitting_started, Some(resumed));
+        let confirmed = resumed + Duration::seconds(DEBOUNCE_COUNT as i64);
+        assert_eq!(m.history_span_started, Some(confirmed));
+        assert_eq!(m.state.sitting_started, Some(confirmed));
         assert_eq!(m.pending_history.len(), 1,
             "the unobserved prefix to midnight must not be synthesized");
     }
@@ -202,10 +203,10 @@ mod clock_tests {
         start: DateTime<Utc>,
         count: i64,
     ) -> DateTime<Utc> {
-        for i in 0..count {
+        for i in 0..=count {
             let _ = m.on_reading_at(mm, active, start + Duration::seconds(i));
         }
-        start + Duration::seconds(count)
+        start + Duration::seconds(count + 1)
     }
 
     // ── Purity ───────────────────────────────────────────────────────────────
@@ -224,7 +225,7 @@ mod clock_tests {
             // SLEEP_GAP_THRESHOLD_SECS so this measures plain accumulation
             // rather than the sleep-gap path (covered in session_tests_sleep).
             let stand_at = after + Duration::seconds(4 * 60);
-            for i in 0..DEBOUNCE_COUNT as i64 {
+            for i in 0..=DEBOUNCE_COUNT as i64 {
                 let _ = m.on_reading_at(1200, true, stand_at + Duration::seconds(i));
             }
             (m.state.state.clone(), m.state.sitting_seconds)
@@ -239,6 +240,71 @@ mod clock_tests {
             "4 min of injected sitting must be committed on exit, got {}s",
             first.1
         );
+    }
+
+    #[test]
+    fn debounce_requires_five_elapsed_seconds_and_five_coherent_samples() {
+        let start = Utc.with_ymd_and_hms(2026, 6, 1, 8, 0, 0).unwrap();
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Sitting;
+
+        // Five matching samples arrive, but the last is still one millisecond
+        // short of five elapsed seconds. Sample count alone cannot transition.
+        for offset_ms in [0, 100, 400, 1_000, 4_999] {
+            m.on_reading_at(
+                1200,
+                true,
+                start + Duration::milliseconds(offset_ms),
+            );
+        }
+        assert_eq!(m.state.state, DeskState::Sitting,
+            "coherent samples before five elapsed seconds must not transition");
+
+        m.on_reading_at(1200, true, start + Duration::seconds(5));
+        assert_eq!(m.state.state, DeskState::Standing,
+            "the same coherent candidate transitions at five elapsed seconds");
+    }
+
+    #[test]
+    fn debounce_restarts_elapsed_time_when_candidate_changes() {
+        let start = Utc.with_ymd_and_hms(2026, 6, 1, 8, 0, 0).unwrap();
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Sitting;
+
+        for seconds in [0, 1, 2] {
+            m.on_reading_at(1200, true, start + Duration::seconds(seconds));
+        }
+        m.on_reading_at(800, true, start + Duration::milliseconds(2_500));
+        for seconds in [3, 4, 5, 6, 7] {
+            m.on_reading_at(1200, true, start + Duration::seconds(seconds));
+        }
+        assert_eq!(m.state.state, DeskState::Sitting,
+            "a changed candidate must restart its stability interval");
+
+        m.on_reading_at(1200, true, start + Duration::seconds(8));
+        assert_eq!(m.state.state, DeskState::Standing);
+    }
+
+    #[test]
+    fn debounce_restarts_after_an_unobserved_gap() {
+        let start = Utc.with_ymd_and_hms(2026, 6, 1, 8, 0, 0).unwrap();
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Sitting;
+
+        for seconds in [0, 1] {
+            m.on_reading_at(1200, true, start + Duration::seconds(seconds));
+        }
+        let resumed = start + Duration::seconds(302);
+        m.on_reading_at(1200, true, resumed);
+        for seconds in 1..=4 {
+            m.on_reading_at(1200, true, resumed + Duration::seconds(seconds));
+        }
+        assert_eq!(m.state.state, DeskState::Sitting,
+            "pre-gap samples cannot satisfy post-gap stability");
+
+        m.on_reading_at(1200, true, resumed + Duration::seconds(5));
+        assert_eq!(m.state.state, DeskState::Standing,
+            "five coherent post-gap seconds are sufficient");
     }
 
     /// `on_reading_at` must not consult the system clock: a reading dated a year

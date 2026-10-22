@@ -3,7 +3,7 @@
 //! These methods compute real-time values by combining committed counters
 //! with elapsed time from active timestamps. Used by snapshot() and UI.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use log::warn;
 
 use crate::session_types::*;
@@ -196,7 +196,7 @@ impl SessionManager {
     pub fn flush_current_session_at(&self, now: DateTime<Utc>) -> Option<CompletedSession> {
         if self.history_span_started.is_some() {
             let end = self.history_last_reading
-                .filter(|last| (now - *last).num_seconds() > SLEEP_GAP_THRESHOLD_SECS)
+                .filter(|last| now - *last > Duration::seconds(SLEEP_GAP_THRESHOLD_SECS))
                 .unwrap_or(now);
             return self.observed_span_at(end);
         }

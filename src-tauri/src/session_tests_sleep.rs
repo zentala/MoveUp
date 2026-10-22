@@ -13,7 +13,8 @@ fn e027_sleep_credit_with_positive_load_is_applied_once_for_whole_break() {
     for (gaps, end, observed_break_secs) in [
         (vec![(200, true), (800, false)], 850, 150),
         (vec![(200, true), (550, true), (800, false)], 850, 400),
-        (vec![(200, true), (550, true), (900, false)], 950, 150),
+        // The duplicate timestamp adds no known break time before the later outage.
+        (vec![(200, true), (200, true), (900, false)], 950, 150),
     ] {
         let mut m = crate::session_manager::SessionManager::new();
         m.state.sitting_seconds = 10000;
@@ -21,12 +22,21 @@ fn e027_sleep_credit_with_positive_load_is_applied_once_for_whole_break() {
         events.extend(gaps.iter().map(|(t, active)| (*t, 1200, *active)));
         events.push((end, 800, true));
         for (t, mm, active) in events {
-            for _ in 0..crate::session_types::DEBOUNCE_COUNT {
-                m.on_reading_at(mm, active, start + chrono::Duration::seconds(t));
+            let candidate_start = start + chrono::Duration::seconds(
+                t - crate::session_types::DEBOUNCE_COUNT as i64);
+            let first_observation = m.state.last_tick_ts
+                .filter(|last| (candidate_start - *last).num_seconds()
+                    > crate::session_types::SLEEP_GAP_THRESHOLD_SECS)
+                .map(|_| start + chrono::Duration::seconds(t))
+                .unwrap_or(candidate_start);
+            for offset in 0..=crate::session_types::DEBOUNCE_COUNT {
+                m.on_reading_at(mm, active,
+                    first_observation + chrono::Duration::seconds(offset as i64));
             }
         }
         assert_eq!(m.current_state(), DeskState::Sitting);
-        assert_eq!(m.state.last_break_secs, observed_break_secs);
+        assert_eq!(m.state.last_break_secs, observed_break_secs,
+            "gaps={gaps:?} end={end} observed break mismatch");
         assert_eq!(m.state.sitting_seconds, 10100 - observed_break_secs * 2);
         assert_eq!(m.state.sitting_seconds_total, 100);
         assert_eq!(m.state.last_break_credit, crate::session_types::BreakCredit::Partial);
@@ -41,8 +51,8 @@ fn e027_gap_closes_forty_minutes_of_observed_sitting_without_crediting_gap() {
 
     let start = Utc.with_ymd_and_hms(2026, 10, 9, 10, 0, 0).unwrap();
     let mut m = SessionManager::new();
-    for _ in 0..DEBOUNCE_COUNT {
-        m.on_reading_at(800, true, start);
+    for offset in 0..=DEBOUNCE_COUNT {
+        m.on_reading_at(800, true, start - Duration::seconds(DEBOUNCE_COUNT as i64) + Duration::seconds(offset as i64));
     }
     assert_eq!(m.current_state(), crate::session_types::DeskState::Sitting);
     for minute in 1..=40 {
@@ -69,8 +79,10 @@ fn e027_positive_sitting_load_standing_gap_return_credits_observed_break_once() 
     let start = Utc.with_ymd_and_hms(2026, 10, 9, 10, 0, 0).unwrap();
     let mut m = SessionManager::new();
     m.state.sitting_seconds = 10_000;
-    for _ in 0..DEBOUNCE_COUNT { m.on_reading_at(800, true, start); }
-    for i in 1..=DEBOUNCE_COUNT {
+    for offset in 0..=DEBOUNCE_COUNT {
+        m.on_reading_at(800, true, start - Duration::seconds(DEBOUNCE_COUNT as i64) + Duration::seconds(offset as i64));
+    }
+    for i in 0..=DEBOUNCE_COUNT {
         m.on_reading_at(1200, true, start + Duration::seconds(100 + i as i64));
     }
     assert_eq!(m.current_state(), crate::session_types::DeskState::Standing);
@@ -79,9 +91,11 @@ fn e027_positive_sitting_load_standing_gap_return_credits_observed_break_once() 
         m.on_reading_at(1200, true, start + Duration::seconds(100 + DEBOUNCE_COUNT as i64 + i as i64));
     }
     let resumed = start + Duration::seconds(100 + DEBOUNCE_COUNT as i64 + 60 + 600);
-    for _ in 0..DEBOUNCE_COUNT { m.on_reading_at(1200, true, resumed); }
-    for i in 1..=DEBOUNCE_COUNT {
-        m.on_reading_at(800, true, resumed + Duration::seconds(i as i64));
+    // The first post-gap sample is the actual resume instant. Start the new
+    // candidate there and let its fifth elapsed second confirm at resumed + 5.
+    m.on_reading_at(1200, true, resumed);
+    for offset in 0..=DEBOUNCE_COUNT {
+        m.on_reading_at(800, true, resumed + Duration::seconds(offset as i64));
     }
 
     assert_eq!(m.current_state(), crate::session_types::DeskState::Sitting);
@@ -105,8 +119,8 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
     }
 
-    /// Feeds `count` readings one second apart from `at`; returns the instant
-    /// after the last one.
+    /// Feeds readings across `count` elapsed seconds from `at`; returns the
+    /// instant after the endpoint sample.
     fn advance_ticks(
         m: &mut SessionManager,
         mm: i32,
@@ -114,10 +128,10 @@ mod tests {
         at: DateTime<Utc>,
         count: i64,
     ) -> DateTime<Utc> {
-        for i in 0..count {
+        for i in 0..=count {
             let _ = m.on_reading_at(mm, active, at + Duration::seconds(i));
         }
-        at + Duration::seconds(count)
+        at + Duration::seconds(count + 1)
     }
 
     /// Transitions manager to Sitting state via debounced readings.
@@ -274,11 +288,14 @@ mod tests {
         m.state.sitting_seconds = 0; // just transitioned from credit
         transition_to_standing(&mut m, t);
 
-        m.state.standing_bout_started = Some(now - Duration::minutes(5));
+        // Keep the posture anchor within the known prefix before the last sample.
+        m.state.standing_bout_started = Some(now - Duration::minutes(40));
         let sitting_before_gap = m.state.sitting_seconds;
         m.state.last_tick_ts = Some(now - Duration::minutes(30));
 
-        let _ = m.on_reading_at(1200, true, now);
+        for second in 0..=DEBOUNCE_COUNT {
+            let _ = m.on_reading_at(1200, true, now + Duration::seconds(second as i64));
+        }
 
         assert_eq!(m.state.sitting_seconds, sitting_before_gap,
             "an unknown Standing gap cannot alter sitting credit");

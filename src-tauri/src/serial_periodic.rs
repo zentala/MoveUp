@@ -9,6 +9,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use chrono::Offset;
 use log::info;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -86,6 +87,7 @@ pub fn handle_reading(
 ) {
     let (ergo, comm) = active_profiles(app);
 
+    // Input inactivity is a heuristic, not a measurement of physical absence.
     let active = is_active();
     let idle_secs = crate::activity::get_idle_seconds();
     // One clock read per tick: the state machine and the score accumulator must
@@ -118,7 +120,12 @@ pub fn handle_reading(
         // edited ergonomic profile applies without an app restart.
         sess.set_limits(&ergo.limits);
         let before = sess.current_state();
-        let res = sess.on_reading_at(mm, active, now);
+        let res = sess.on_reading_at_with_local_hour(mm, active, now, |at| {
+            let local = at.with_timezone(&chrono::Local);
+            crate::hourly_break_tracker::LocalHourInterval::from_offset(
+                at, local.offset().fix().local_minus_utc(),
+            )
+        });
         if sess.last_accumulate_ran {
             sess.accumulate_score_tick_at(&ergo, now);
         }

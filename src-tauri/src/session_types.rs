@@ -128,8 +128,8 @@ pub struct SessionState {
     pub first_reading_at: Option<DateTime<Utc>>,
     /// Timestamp of last tick (for gap detection on app restart).
     pub last_tick_ts: Option<DateTime<Utc>>,
-    /// Timestamp of last `accumulate_ongoing()` execution (throttle: max 1 Hz).
-    /// Sensor readings may arrive faster than 1 Hz; this prevents inflated counters.
+    /// Anchor for whole-second `accumulate_ongoing()` accounting. Fractional
+    /// elapsed time remains here until the next reading completes a second.
     pub last_accumulate_ts: Option<DateTime<Utc>>,
     /// Timestamp when the current standing bout started (set on Standing entry, cleared on exit).
     /// Tracks actual standing time separately from total break time (which includes Away).

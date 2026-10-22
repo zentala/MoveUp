@@ -18,8 +18,8 @@ fn e027_pending_history_survives_failure_json_restore_and_commit_replay() {
     let at = chrono::DateTime::parse_from_rfc3339("2026-10-09T10:00:00Z").unwrap()
         .with_timezone(&chrono::Utc);
     for (seconds, mm, active) in [(0, 1200, true), (60, 1200, false), (120, 800, true)] {
-        for _ in 0..DEBOUNCE_COUNT {
-            m.on_reading_at(mm, active, at + chrono::Duration::seconds(seconds));
+        for offset in 0..=DEBOUNCE_COUNT {
+            m.on_reading_at(mm, active, at + chrono::Duration::seconds(seconds - DEBOUNCE_COUNT as i64 + offset as i64));
         }
     }
     assert!(crate::serial_periodic_reset::persist_pending_history(&mut m, &conn, |_, _| {}).is_err());

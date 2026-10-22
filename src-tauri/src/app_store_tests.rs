@@ -255,10 +255,11 @@ fn shutdown_snapshot_before_first_new_day_reading_keeps_pending_and_stale_counte
     ).single().unwrap().with_timezone(&chrono::Utc);
 
     let mut manager = crate::session::SessionManager::new();
-    for _ in 0..crate::session_types::DEBOUNCE_COUNT {
-        manager.on_reading_at(800, true, previous_start);
+    for offset in 0..=crate::session_types::DEBOUNCE_COUNT {
+        manager.on_reading_at(800, true,
+            previous_start + chrono::Duration::seconds(offset as i64 - 5));
     }
-    for offset in 1..=crate::session_types::DEBOUNCE_COUNT {
+    for offset in 0..=crate::session_types::DEBOUNCE_COUNT {
         manager.on_reading_at(1200, true,
             previous_start + chrono::Duration::seconds(100 + offset as i64));
     }

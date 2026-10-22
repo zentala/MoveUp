@@ -17,26 +17,29 @@ mod timer_tests {
 
 
     fn transition_to_sitting(m: &mut SessionManager, now: &mut DateTime<Utc>) {
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading_at(800, true, *now);
-            *now += Duration::seconds(1);
+        let start = *now;
+        for offset in 0..=DEBOUNCE_COUNT {
+            let _ = m.on_reading_at(800, true, start + Duration::seconds(offset as i64));
         }
+        *now = start + Duration::seconds(DEBOUNCE_COUNT as i64 + 1);
         assert_eq!(m.state.state, DeskState::Sitting);
     }
 
     fn transition_to_standing(m: &mut SessionManager, now: &mut DateTime<Utc>) {
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading_at(1200, true, *now);
-            *now += Duration::seconds(1);
+        let start = *now;
+        for offset in 0..=DEBOUNCE_COUNT {
+            let _ = m.on_reading_at(1200, true, start + Duration::seconds(offset as i64));
         }
+        *now = start + Duration::seconds(DEBOUNCE_COUNT as i64 + 1);
         assert_eq!(m.state.state, DeskState::Standing);
     }
 
     fn transition_to_away(m: &mut SessionManager, now: &mut DateTime<Utc>) {
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading_at(1200, false, *now);
-            *now += Duration::seconds(1);
+        let start = *now;
+        for offset in 0..=DEBOUNCE_COUNT {
+            let _ = m.on_reading_at(1200, false, start + Duration::seconds(offset as i64));
         }
+        *now = start + Duration::seconds(DEBOUNCE_COUNT as i64 + 1);
         assert_eq!(m.state.state, DeskState::Away);
     }
 
@@ -109,11 +112,11 @@ mod timer_tests {
         let mut m = SessionManager::new();
         let mut now = base();
         transition_to_sitting(&mut m, &mut now);
-        m.state.sitting_started = Some(now - Duration::seconds(300));
+        m.state.sitting_started = Some(now + Duration::seconds(DEBOUNCE_COUNT as i64) - Duration::seconds(300));
         m.history_span_started = m.state.sitting_started;
         let mut last = ReadingResult { state_change: None, completed_session: None, break_credit: None };
-        for _ in 0..DEBOUNCE_COUNT {
-            last = m.on_reading_at(1200, true, now);
+        for offset in 0..=DEBOUNCE_COUNT {
+            last = m.on_reading_at(1200, true, now + Duration::seconds(offset as i64));
         }
         let session = last.completed_session.expect("should produce CompletedSession");
         assert!(session.duration_secs >= 299 && session.duration_secs <= 301);
@@ -214,13 +217,13 @@ mod timer_tests {
         transition_to_sitting(&mut m, &mut now);
         m.state.sitting_started = Some(now);
         transition_to_standing(&mut m, &mut now);
-        let t = now - Duration::seconds(600);
+        let t = now + Duration::seconds(DEBOUNCE_COUNT as i64) - Duration::seconds(600);
         m.state.break_started = Some(t);
         m.state.standing_bout_started = Some(t);
         m.history_span_started = Some(t);
         let mut last = ReadingResult { state_change: None, completed_session: None, break_credit: None };
-        for _ in 0..DEBOUNCE_COUNT {
-            last = m.on_reading_at(800, true, now);
+        for offset in 0..=DEBOUNCE_COUNT {
+            last = m.on_reading_at(800, true, now + Duration::seconds(offset as i64));
         }
         let session = last.completed_session.expect("standing->sitting should produce CompletedSession");
         assert!(session.duration_secs >= 599 && session.duration_secs <= 601,
@@ -235,12 +238,13 @@ mod timer_tests {
         m.state.sitting_started = Some(now);
         transition_to_standing(&mut m, &mut now);
         transition_to_away(&mut m, &mut now);
-        m.state.break_started = Some(now - Duration::seconds(900));
+        let end = now + Duration::seconds(DEBOUNCE_COUNT as i64);
+        m.state.break_started = Some(end - Duration::seconds(900));
         // History is the individual Away span, independent of total break age.
-        m.history_span_started = Some(now - Duration::seconds(900));
+        m.history_span_started = Some(end - Duration::seconds(900));
         let mut last = ReadingResult { state_change: None, completed_session: None, break_credit: None };
-        for _ in 0..DEBOUNCE_COUNT {
-            last = m.on_reading_at(800, true, now);
+        for offset in 0..=DEBOUNCE_COUNT {
+            last = m.on_reading_at(800, true, now + Duration::seconds(offset as i64));
         }
         let session = last.completed_session.expect("away->sitting should produce CompletedSession");
         assert!(session.duration_secs >= 899 && session.duration_secs <= 901,

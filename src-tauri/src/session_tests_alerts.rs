@@ -8,6 +8,15 @@ mod tests {
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
 
+    fn feed(m: &mut SessionManager, mm: i32, active: bool) -> crate::session::ReadingResult {
+        let start = m.state.last_tick_ts.unwrap_or_else(|| Utc::now() - chrono::Duration::seconds(5));
+        let mut result = crate::session::ReadingResult::default();
+        for second in 0..=DEBOUNCE_COUNT {
+            result = m.on_reading_at(mm, active, start + chrono::Duration::seconds(second as i64));
+        }
+        result
+    }
+
     fn comm_with_praise(enabled: bool) -> CommunicationProfile {
         let mut comm = CommunicationProfile::default();
         comm.periodic_notifications.praise_halfway_enabled = enabled;
@@ -48,15 +57,10 @@ mod tests {
         let t = Utc::now() - chrono::Duration::seconds(901);
         m.state.break_started = Some(t);
         m.state.standing_bout_started = Some(t);
-        let _ = m.on_reading(800, true);
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(800, true);
-        }
+        feed(&mut m, 800, true);
 
         // Back to Standing
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(1200, true);
-        }
+        feed(&mut m, 1200, true);
 
         m.state.break_seconds = 901;
         assert!(m.should_stand_alert(), "should fire again in new stint");
@@ -110,9 +114,7 @@ mod tests {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Sitting;
         m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(100));
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(1200, true);
-        }
+        feed(&mut m, 1200, true);
         assert_eq!(m.state.state, DeskState::Standing);
         assert_eq!(m.state.position_changes, 1);
     }
@@ -125,9 +127,7 @@ mod tests {
         m.state.break_started = Some(t);
         m.state.standing_bout_started = Some(t);
         m.state.position_changes = 1;
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(800, true);
-        }
+        feed(&mut m, 800, true);
         assert_eq!(m.state.state, DeskState::Sitting);
         assert_eq!(m.state.position_changes, 2);
     }
@@ -139,9 +139,7 @@ mod tests {
         m.state.break_started = Some(Utc::now());
         m.state.standing_bout_started = Some(Utc::now());
         m.state.position_changes = 5;
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(1200, false);
-        }
+        feed(&mut m, 1200, false);
         assert_eq!(m.state.state, DeskState::Away);
         assert_eq!(m.state.position_changes, 5);
     }
@@ -152,9 +150,7 @@ mod tests {
         m.state.state = DeskState::Away;
         m.state.break_started = Some(Utc::now());
         m.state.position_changes = 3;
-        for _ in 0..DEBOUNCE_COUNT {
-            let _ = m.on_reading(1200, true);
-        }
+        feed(&mut m, 1200, true);
         assert_eq!(m.state.state, DeskState::Standing);
         assert_eq!(m.state.position_changes, 3);
     }
@@ -177,12 +173,10 @@ mod tests {
         m.state.state = DeskState::Sitting;
         m.state.sitting_started = Some(Utc::now() - chrono::Duration::seconds(100));
         m.state.position_changes = 2;
-        for _ in 0..DEBOUNCE_COUNT {
-            let result = m.on_reading(1200, true);
-            if let Some(payload) = result.state_change {
-                assert_eq!(payload.position_changes, 3);
-                return;
-            }
+        let result = feed(&mut m, 1200, true);
+        if let Some(payload) = result.state_change {
+            assert_eq!(payload.position_changes, 3);
+            return;
         }
         panic!("expected state change payload");
     }

@@ -16,7 +16,7 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 6, 1, 8, 0, 0).unwrap()
     }
 
-    /// Feeds `count` readings one second apart, advancing the scenario clock.
+    /// Feeds readings across `count` elapsed seconds, advancing past the endpoint sample.
     fn feed(
         m: &mut SessionManager,
         now: &mut DateTime<Utc>,
@@ -24,15 +24,16 @@ mod tests {
         active: bool,
         count: i64,
     ) {
-        for _ in 0..count {
-            let _ = m.on_reading_at(mm, active, *now);
-            *now += Duration::seconds(1);
-            if let Some(ts) = m.state.last_accumulate_ts {
+        let start = *now;
+        for offset in 0..=count {
+            let _ = m.on_reading_at(mm, active, start + Duration::seconds(offset));
+            if m.state.last_accumulate_ts.is_some() {
                 // Keeps per-second accumulation throttled, as before: these
                 // scenarios assert transitions, not tick counters.
-                m.state.last_accumulate_ts = Some(ts + Duration::seconds(1));
+                m.state.last_accumulate_ts = Some(start + Duration::seconds(offset + 1));
             }
         }
+        *now = start + Duration::seconds(count + 1);
     }
 
     /// Feeds a debounce batch and returns the reading that carried the
@@ -44,10 +45,11 @@ mod tests {
         active: bool,
     ) -> ReadingResult {
         let mut last = ReadingResult::default();
-        for _ in 0..DEBOUNCE_COUNT {
-            last = m.on_reading_at(mm, active, *now);
-            *now += Duration::seconds(1);
+        let start = *now;
+        for offset in 0..=DEBOUNCE_COUNT {
+            last = m.on_reading_at(mm, active, start + Duration::seconds(offset as i64));
         }
+        *now = start + Duration::seconds(DEBOUNCE_COUNT as i64 + 1);
         last
     }
 
@@ -110,8 +112,8 @@ mod tests {
         // Total break = 8m stand + 12m away = 20m >= 10m → Full credit
         assert_eq!(m.state.last_break_credit, BreakCredit::Full);
         assert_eq!(m.state.sitting_seconds, 0, "full credit resets sitting");
-        // Away→Sit is NOT a Sit↔Stand transition, so position_changes stays at 1
-        assert_eq!(m.state.position_changes, 1, "only Sit↔Stand increments position_changes");
+        // Sit→Stand and the qualifying Away reset each increment position_changes once.
+        assert_eq!(m.state.position_changes, 2, "one posture change plus one Away reset");
 
         // Step 5: Sit for 35 min
         simulate_elapsed(&mut m, &mut now, 35 * 60);

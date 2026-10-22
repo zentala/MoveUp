@@ -2,18 +2,27 @@
 
 #[cfg(test)]
 mod tests {
+    use chrono::{Duration, Utc};
+
     use crate::session_manager::SessionManager;
     use crate::session_types::*;
 
     const SITTING_MM: i32 = 720;
     const STANDING_MM: i32 = 1050;
 
+    fn feed(mgr: &mut SessionManager, mm: i32, active: bool, seconds: usize) {
+        let start = mgr.state.last_tick_ts.unwrap_or_else(|| Utc::now() - Duration::seconds(seconds as i64));
+        for offset in 0..=seconds {
+            mgr.on_reading_at(mm, active, start + Duration::seconds(offset as i64));
+        }
+    }
+
     fn feed_sitting(mgr: &mut SessionManager, n: usize) {
-        for _ in 0..n { mgr.on_reading(SITTING_MM, true); }
+        feed(mgr, SITTING_MM, true, n);
     }
 
     fn feed_standing(mgr: &mut SessionManager, n: usize) {
-        for _ in 0..n { mgr.on_reading(STANDING_MM, true); }
+        feed(mgr, STANDING_MM, true, n);
     }
 
     /// Simulates `secs` seconds of accumulation with advancing timestamps.
@@ -65,7 +74,9 @@ mod tests {
         // Manually set to Away (sensor can't produce Away directly).
         mgr.state.state = DeskState::Away;
         let now = chrono::Utc::now() + chrono::Duration::seconds(100);
-        tick_seconds(&mut mgr, now, 305);
+        // The manually injected state starts at this known anchor.
+        mgr.state.last_accumulate_ts = Some(now);
+        tick_seconds(&mut mgr, now + chrono::Duration::seconds(1), 305);
         assert_eq!(mgr.state.continuous_computer_secs, 0);
     }
 
@@ -79,14 +90,17 @@ mod tests {
         let before = mgr.state.continuous_computer_secs;
         mgr.state.state = DeskState::Away;
         let now = chrono::Utc::now() + chrono::Duration::seconds(100);
-        tick_seconds(&mut mgr, now, 299);
+        // Exclude the unobserved gap before the fixture's Away interval.
+        mgr.state.last_accumulate_ts = Some(now);
+        tick_seconds(&mut mgr, now + chrono::Duration::seconds(1), 299);
         // Away < 5 min: continuous timer keeps its value (not reset).
         assert_eq!(mgr.state.continuous_computer_secs, before);
         // Return to Sitting: timer continues.
         mgr.state.state = DeskState::Sitting;
         mgr.state.away_bout_secs = 0;
         let after_away = now + chrono::Duration::seconds(300);
-        tick_seconds(&mut mgr, after_away, 5);
+        mgr.state.last_accumulate_ts = Some(after_away);
+        tick_seconds(&mut mgr, after_away + chrono::Duration::seconds(1), 5);
         assert!(mgr.state.continuous_computer_secs > before);
     }
 
@@ -97,19 +111,22 @@ mod tests {
         let mut mgr = SessionManager::new();
         let now = chrono::Utc::now();
         mgr.state.state = DeskState::Sitting;
-        tick_seconds(&mut mgr, now, 100);
+        mgr.state.last_accumulate_ts = Some(now);
+        tick_seconds(&mut mgr, now + chrono::Duration::seconds(1), 100);
         assert_eq!(mgr.state.longest_computer_session_secs, 100);
         // Away 5+ min resets continuous but longest stays.
         mgr.state.state = DeskState::Away;
         let t2 = now + chrono::Duration::seconds(200);
-        tick_seconds(&mut mgr, t2, 305);
+        mgr.state.last_accumulate_ts = Some(t2);
+        tick_seconds(&mut mgr, t2 + chrono::Duration::seconds(1), 305);
         assert_eq!(mgr.state.continuous_computer_secs, 0);
         assert_eq!(mgr.state.longest_computer_session_secs, 100);
         // Second shorter session doesn't change longest.
         mgr.state.state = DeskState::Sitting;
         mgr.state.away_bout_secs = 0;
         let t3 = t2 + chrono::Duration::seconds(400);
-        tick_seconds(&mut mgr, t3, 50);
+        mgr.state.last_accumulate_ts = Some(t3);
+        tick_seconds(&mut mgr, t3 + chrono::Duration::seconds(1), 50);
         assert_eq!(mgr.state.longest_computer_session_secs, 100);
     }
 
@@ -120,7 +137,8 @@ mod tests {
         let mut mgr = SessionManager::new();
         mgr.state.state = DeskState::Away;
         let now = chrono::Utc::now();
-        tick_seconds(&mut mgr, now, 60);
+        mgr.state.last_accumulate_ts = Some(now);
+        tick_seconds(&mut mgr, now + chrono::Duration::seconds(1), 60);
         assert_eq!(mgr.state.away_bout_secs, 60);
     }
 
@@ -154,9 +172,10 @@ mod tests {
     fn first_reading_at_set_on_first_reading_only() {
         let mut mgr = SessionManager::new();
         assert!(mgr.state.first_reading_at.is_none());
-        mgr.on_reading(SITTING_MM, true);
+        let start = Utc::now() - Duration::seconds(5);
+        mgr.on_reading_at(SITTING_MM, true, start);
         let first = mgr.state.first_reading_at.unwrap();
-        for _ in 0..10 { mgr.on_reading(SITTING_MM, true); }
+        for second in 1..=10 { mgr.on_reading_at(SITTING_MM, true, start + Duration::seconds(second)); }
         assert_eq!(mgr.state.first_reading_at.unwrap(), first);
     }
 

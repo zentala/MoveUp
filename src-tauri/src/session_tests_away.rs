@@ -17,8 +17,8 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
     }
 
-    /// Feeds `count` readings one second apart from `at`; returns the instant
-    /// after the last one.
+    /// Feeds readings across `count` elapsed seconds from `at`; returns the
+    /// instant after the endpoint sample.
     fn advance_ticks(
         m: &mut SessionManager,
         mm: i32,
@@ -26,10 +26,10 @@ mod tests {
         at: DateTime<Utc>,
         count: i64,
     ) -> DateTime<Utc> {
-        for i in 0..count {
+        for i in 0..=count {
             let _ = m.on_reading_at(mm, active, at + Duration::seconds(i));
         }
-        at + Duration::seconds(count)
+        at + Duration::seconds(count + 1)
     }
 
     // ─── State Detection ────────────────────────────────────────────────────
@@ -103,12 +103,11 @@ mod tests {
         m.state.state = DeskState::Away;
         m.state.position_changes = 0;
         m.state.continuous_computer_secs = 4500;
-        m.state.last_accumulate_ts = None;
+        let start = base();
+        m.state.last_accumulate_ts = Some(start - Duration::seconds(1));
 
         for i in 0..300 {
-            let now = base() + Duration::seconds(i);
-            m.state.last_accumulate_ts =
-                if i == 0 { None } else { Some(now - Duration::seconds(1)) };
+            let now = start + Duration::seconds(i);
             m.accumulate_ongoing(now);
         }
 
@@ -121,12 +120,11 @@ mod tests {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Away;
         m.state.continuous_computer_secs = 4500;
-        m.state.last_accumulate_ts = None;
+        let start = base();
+        m.state.last_accumulate_ts = Some(start - Duration::seconds(1));
 
         for i in 0..300 {
-            let now = base() + Duration::seconds(i);
-            m.state.last_accumulate_ts =
-                if i == 0 { None } else { Some(now - Duration::seconds(1)) };
+            let now = start + Duration::seconds(i);
             m.accumulate_ongoing(now);
         }
 
@@ -139,16 +137,16 @@ mod tests {
         m.state.state = DeskState::Sitting;
         m.state.continuous_computer_secs = 4500;
         m.state.longest_computer_session_secs = 4500;
-        m.state.last_accumulate_ts = None;
 
         let now = base();
+        m.state.last_accumulate_ts = Some(now - Duration::seconds(1));
         m.accumulate_ongoing(now);
         assert_eq!(m.state.longest_computer_session_secs, 4501);
 
         m.state.state = DeskState::Away;
+        m.state.last_accumulate_ts = Some(now);
         for i in 0..300 {
             let t = now + Duration::seconds(i + 1);
-            m.state.last_accumulate_ts = Some(t - Duration::seconds(1));
             m.accumulate_ongoing(t);
         }
 
@@ -199,12 +197,11 @@ mod tests {
         m.state.state = DeskState::Away;
         m.state.continuous_computer_secs = 4500;
         m.limits.computer_break_reset_secs = 5; // 5s instead of default 300s
-        m.state.last_accumulate_ts = None;
+        let start = base();
+        m.state.last_accumulate_ts = Some(start - Duration::seconds(1));
 
         for i in 0..5 {
-            let now = base() + Duration::seconds(i);
-            m.state.last_accumulate_ts =
-                if i == 0 { None } else { Some(now - Duration::seconds(1)) };
+            let now = start + Duration::seconds(i);
             m.accumulate_ongoing(now);
         }
 

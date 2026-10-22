@@ -18,7 +18,8 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 6, 1, 8, 0, 0).unwrap()
     }
 
-    /// Feeds `count` readings one second apart, advancing the scenario clock.
+    /// Feeds readings across `count` elapsed seconds, advancing past the
+    /// endpoint sample.
     fn feed(
         m: &mut SessionManager,
         now: &mut DateTime<Utc>,
@@ -26,15 +27,16 @@ mod tests {
         active: bool,
         count: i64,
     ) {
-        for _ in 0..count {
-            let _ = m.on_reading_at(mm, active, *now);
-            *now += Duration::seconds(1);
-            if let Some(ts) = m.state.last_accumulate_ts {
+        let start = *now;
+        for offset in 0..=count {
+            let _ = m.on_reading_at(mm, active, start + Duration::seconds(offset));
+            if m.state.last_accumulate_ts.is_some() {
                 // Keeps per-second accumulation throttled, as before: these
                 // scenarios assert transitions, not tick counters.
-                m.state.last_accumulate_ts = Some(ts + Duration::seconds(1));
+                m.state.last_accumulate_ts = Some(start + Duration::seconds(offset + 1));
             }
         }
+        *now = start + Duration::seconds(count + 1);
     }
 
     /// Feeds a debounce batch and returns the reading that carried the
@@ -46,10 +48,11 @@ mod tests {
         active: bool,
     ) -> ReadingResult {
         let mut last = ReadingResult::default();
-        for _ in 0..DEBOUNCE_COUNT {
-            last = m.on_reading_at(mm, active, *now);
-            *now += Duration::seconds(1);
+        let start = *now;
+        for offset in 0..=DEBOUNCE_COUNT {
+            last = m.on_reading_at(mm, active, start + Duration::seconds(offset as i64));
         }
+        *now = start + Duration::seconds(DEBOUNCE_COUNT as i64 + 1);
         last
     }
 

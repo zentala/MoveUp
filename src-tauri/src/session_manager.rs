@@ -34,6 +34,11 @@ pub struct SessionManager {
     pub limits: Limits,
     pub(crate) pending_state: Option<DeskState>,
     pub(crate) pending_count: u8,
+    /// Injected instant when the current coherent candidate run began.
+    pub(crate) pending_since: Option<DateTime<Utc>>,
+    /// A stable post-gap candidate may resume history at its first sample;
+    /// never bridge the unknown interval with the previous posture.
+    pub(crate) pending_after_gap: bool,
     pub sitting_height_cm: f32,
     pub standing_height_cm: f32,
     pub desk_thickness_cm: f32,
@@ -77,6 +82,8 @@ impl SessionManager {
             observed_break_secs: 0,
             pending_state: None,
             pending_count: 0,
+            pending_since: None,
+            pending_after_gap: false,
             sitting_height_cm: 72.0,
             standing_height_cm: 105.0,
             desk_thickness_cm: 3.0,
@@ -116,6 +123,8 @@ impl SessionManager {
             observed_break_secs: 0,
             pending_state: None,
             pending_count: 0,
+            pending_since: None,
+            pending_after_gap: false,
             sitting_height_cm: config.sitting_mm as f32 / 10.0,
             standing_height_cm: config.standing_mm as f32 / 10.0,
             desk_thickness_cm: config.desk_thickness_mm as f32 / 10.0,

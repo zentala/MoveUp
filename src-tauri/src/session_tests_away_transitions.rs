@@ -3,7 +3,7 @@
 //! Readings are injected at explicit instants (E020-T01). The old form read the
 //! system clock once per backdated timestamp and again inside every reading, so
 //! a debounce batch appeared to take zero time; here a batch takes
-//! `DEBOUNCE_COUNT` seconds, which is what the sensor actually does. Durations
+//! `DEBOUNCE_COUNT` elapsed seconds with one extra endpoint sample. Durations
 //! are therefore stated relative to the instant a transition CONFIRMS, not to
 //! the start of the batch.
 
@@ -19,7 +19,7 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
     }
 
-    /// Feeds one debounce batch of readings, one second apart, starting at `at`.
+    /// Feeds a debounce batch across `DEBOUNCE_COUNT` elapsed seconds.
     /// Returns the instant the NEXT batch should start from.
     fn advance_ticks(
         m: &mut SessionManager,
@@ -45,15 +45,15 @@ mod tests {
             completed_session: None,
             break_credit: None,
         };
-        for i in 0..DEBOUNCE_COUNT as i64 {
+        for i in 0..=DEBOUNCE_COUNT as i64 {
             last = m.on_reading_at(mm, active, at + Duration::seconds(i));
         }
-        (at + Duration::seconds(DEBOUNCE_COUNT as i64), last)
+        (at + Duration::seconds(DEBOUNCE_COUNT as i64 + 1), last)
     }
 
     /// The instant the batch starting at `at` confirms its transition.
     fn confirms_at(at: DateTime<Utc>) -> DateTime<Utc> {
-        at + Duration::seconds(DEBOUNCE_COUNT as i64 - 1)
+        at + Duration::seconds(DEBOUNCE_COUNT as i64)
     }
 
     // ─── Away → Sitting = New Session ───────────────────────────────────────
