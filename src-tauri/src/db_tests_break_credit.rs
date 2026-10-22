@@ -266,11 +266,17 @@ fn db_history_kind_new_only_round_trip_and_unknown_wire() {
 #[test]
 fn db_history_kind_exports_only_the_actual_optional_session_type() {
     use ts_rs::{Config, TS};
-    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let cfg = Config::new().with_large_int("number").with_out_dir(manifest.join("src"));
+    let temporary = tempfile::tempdir().expect("create disposable export root");
+    let root = temporary.path();
+    let manifest = root.join("src-tauri");
+    let out_dir = manifest.join("src");
+    let allowed = root.join("src/generated/SessionRow.ts");
+    std::fs::create_dir_all(&out_dir).expect("create temporary Rust source layout");
+    std::fs::create_dir_all(allowed.parent().unwrap()).expect("create temporary generated layout");
+
+    let cfg = Config::new().with_large_int("number").with_out_dir(out_dir);
     let relative = SessionRow::output_path().expect("SessionRow has an export path");
     let target = cfg.out_dir().join(relative);
-    let allowed = manifest.parent().unwrap().join("src/generated/SessionRow.ts");
     assert_eq!(target.parent().unwrap().canonicalize().unwrap(),
         allowed.parent().unwrap().canonicalize().unwrap(), "export must stay in this checkout");
     SessionRow::export(&cfg).unwrap();
