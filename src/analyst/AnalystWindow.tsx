@@ -1,10 +1,10 @@
 /**
  * AnalystWindow.tsx — Tabbed shell for the Analyst dashboard.
  *
- * Renders header + tab triggers + active tab content. Pure mockup —
- * fixtures are injected via props; no Tauri invokes.
+ * Renders header + tab triggers + active tab content. Fixtures are injected
+ * via props; live selected-day requests arrive through same-origin storage.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   DailyKpi,
   SessionRow,
@@ -15,6 +15,7 @@ import { ExplorerTab } from "./ExplorerTab";
 import type { DateRange } from "./DateRangePicker";
 import { chartColors } from "./charts/chart-utils";
 import type { DataCatalog } from "./types/catalog";
+import { OPEN_ANALYST_DAY_KEY, parseOpenDayRequest, rangeForOpenDay } from "./open-day";
 
 export interface AnalystWindowProps {
   /** Optional explicit catalog (mockup). When omitted, CatalogTab fetches live. */
@@ -78,6 +79,46 @@ export function AnalystWindow({
   const [range, setRange] = useState<DateRange>(
     () => loadStoredRange() ?? defaultRange,
   );
+  const handledOpenRequest = useRef<string | null>(null);
+
+  useEffect(() => {
+    const clearInvalidIfCurrent = (raw: string) => {
+      try {
+        if (localStorage.getItem(OPEN_ANALYST_DAY_KEY) === raw) {
+          localStorage.removeItem(OPEN_ANALYST_DAY_KEY);
+        }
+      } catch {
+        /* storage may be unavailable in privacy-restricted webviews */
+      }
+    };
+
+    const applyLatestRequest = () => {
+      let raw: string | null;
+      try {
+        raw = localStorage.getItem(OPEN_ANALYST_DAY_KEY);
+      } catch {
+        return;
+      }
+      if (!raw) return;
+      const request = parseOpenDayRequest(raw);
+      if (!request) {
+        clearInvalidIfCurrent(raw);
+        return;
+      }
+      if (request.requestId === handledOpenRequest.current) return;
+      handledOpenRequest.current = request.requestId;
+      setTab("explorer");
+      setRange((current) => rangeForOpenDay(current, request.day));
+    };
+
+    applyLatestRequest();
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === OPEN_ANALYST_DAY_KEY) applyLatestRequest();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   useEffect(() => {
     saveStoredRange(range);

@@ -56,5 +56,8 @@ describe("AnalystLive", () => {
     const { from, to } = await expectSettledRange();
     const spanDays = (Date.parse(to) - Date.parse(from)) / 86_400_000;
     expect(spanDays).toBe(6);
+    const now = new Date();
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    expect(to).toBe(localToday);
   });
 });

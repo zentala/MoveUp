@@ -5,13 +5,12 @@
  * `ExplorerTab` both fall through to their live Tauri-invoke hooks.
  */
 import { AnalystWindow } from "@/analyst/AnalystWindow";
-
-const DAY_MS = 86_400_000;
+import { localCalendarDay, shiftCalendarDay } from "@/analyst/open-day";
 
 function defaultRange(): { from: string; to: string } {
   const now = new Date();
-  const to = now.toISOString().slice(0, 10);
-  const from = new Date(now.getTime() - 6 * DAY_MS).toISOString().slice(0, 10);
+  const to = localCalendarDay(now);
+  const from = shiftCalendarDay(to, -6);
   return { from, to };
 }
 

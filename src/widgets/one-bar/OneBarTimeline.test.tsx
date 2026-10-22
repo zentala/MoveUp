@@ -4,10 +4,12 @@
  * Verifies: hour markers always present, session blocks render,
  * tooltips, empty state, live block.
  */
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
 import { OneBarTimeline } from "./OneBarTimeline";
 import type { WidgetProps, SessionEntry } from "@/types";
+import { createOpenDayRequest, localCalendarDay, OPEN_ANALYST_DAY_KEY, parseOpenDayRequest } from "@/analyst/open-day";
 
 function baseProps(overrides: Partial<WidgetProps> = {}): WidgetProps {
   return {
@@ -59,9 +61,93 @@ function makeSessions(count: number, hoursAgo = 2): SessionEntry[] {
 }
 
 describe("OneBarTimeline", () => {
+  beforeEach(() => {
+    localStorage.removeItem(OPEN_ANALYST_DAY_KEY);
+    vi.mocked(invoke).mockReset().mockResolvedValue(undefined as never);
+  });
+
   it("shows empty message when no sessions and no live time", () => {
     render(<OneBarTimeline {...baseProps({ limitUsedSecs: 0, todaySessions: [] })} />);
     expect(screen.getByText("No recorded intervals yet")).toBeInTheDocument();
+  });
+
+  it("sends today's local calendar day when the empty timeline is activated", () => {
+    render(<OneBarTimeline {...baseProps({ limitUsedSecs: 0, todaySessions: [] })} />);
+    fireEvent.keyDown(screen.getByTestId("one-bar-timeline"), { key: "Enter" });
+    expect(parseOpenDayRequest(localStorage.getItem(OPEN_ANALYST_DAY_KEY))?.day)
+      .toBe(localCalendarDay(new Date()));
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith("open_analyst_window");
+  });
+
+  it("uses the local day at activation time when midnight passes before the display clock tick", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 22, 23, 59, 30));
+    const view = render(<OneBarTimeline {...baseProps({ limitUsedSecs: 0, todaySessions: [] })} />);
+    vi.setSystemTime(new Date(2026, 9, 23, 0, 0, 5));
+    fireEvent.click(screen.getByTestId("one-bar-timeline"));
+    expect(parseOpenDayRequest(localStorage.getItem(OPEN_ANALYST_DAY_KEY))?.day)
+      .toBe("2026-10-23");
+    view.unmount();
+    vi.useRealTimers();
+  });
+
+  it("opens Analyst from nonempty timeline background without stealing interval selection", () => {
+    const sessions = makeSessions(2);
+    render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
+    const timeline = screen.getByTestId("one-bar-timeline");
+    const interval = screen.getAllByTestId("timeline-segment")[0];
+    fireEvent.click(interval);
+    expect(invoke).not.toHaveBeenCalled();
+    expect(interval).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(interval, { key: "Enter" });
+    expect(invoke).not.toHaveBeenCalled();
+
+    fireEvent.click(timeline);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(parseOpenDayRequest(localStorage.getItem(OPEN_ANALYST_DAY_KEY))?.day)
+      .toBe(localCalendarDay(new Date()));
+  });
+
+  it("uses unique requests for repeated same-day activation", () => {
+    render(<OneBarTimeline {...baseProps({ limitUsedSecs: 0, todaySessions: [] })} />);
+    const timeline = screen.getByTestId("one-bar-timeline");
+    fireEvent.click(timeline);
+    const first = localStorage.getItem(OPEN_ANALYST_DAY_KEY);
+    fireEvent.click(timeline);
+    const second = localStorage.getItem(OPEN_ANALYST_DAY_KEY);
+    expect(JSON.parse(second!).requestId).not.toBe(JSON.parse(first!).requestId);
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("still opens the window when local storage is denied", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("storage denied");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    render(<OneBarTimeline {...baseProps({ limitUsedSecs: 0, todaySessions: [] })} />);
+    const timeline = screen.getByTestId("one-bar-timeline");
+    fireEvent.click(timeline);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalled();
+    setItem.mockRestore();
+    warn.mockRestore();
+  });
+
+  it("cleans up only its failed request and allows a retry", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.mocked(invoke).mockRejectedValueOnce(new Error("window unavailable"));
+    render(<OneBarTimeline {...baseProps({ limitUsedSecs: 0, todaySessions: [] })} />);
+    const timeline = screen.getByTestId("one-bar-timeline");
+    fireEvent.click(timeline);
+    const newer = createOpenDayRequest("2026-10-23", Date.now(), "newer-request");
+    localStorage.setItem(OPEN_ANALYST_DAY_KEY, JSON.stringify(newer));
+
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledWith("open_analyst_window failed:", expect.any(Error)));
+    expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBe(JSON.stringify(newer));
+    fireEvent.click(timeline);
+    expect(invoke).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
   });
 
   it("renders session blocks for each session", () => {
