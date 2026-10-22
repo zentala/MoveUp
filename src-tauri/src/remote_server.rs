@@ -53,10 +53,9 @@ pub struct RemoteState {
 }
 
 /// Everything the voice inlet ([`crate::remote_routes_voice`]) needs that
-/// [`RemoteState`] does not already carry. Every leg is independently
-/// absent-able — no logger, no database, no AI key and no webhook still leaves
-/// a route that parses an intent and acknowledges it — which is why these are
-/// `Option`s rather than required fields.
+/// [`RemoteState`] does not already carry. Each leg is independently
+/// absent-able. Notes and walk intents still parse and acknowledge without
+/// optional services; a snooze requires `persist_policy` before it is acknowledged.
 #[derive(Clone, Default)]
 pub struct VoiceState {
     /// Writes the `VOICE` line to `logs/YYYY-MM-DD/events.log`.
@@ -65,6 +64,9 @@ pub struct VoiceState {
     pub db: Option<Arc<Mutex<Option<rusqlite::Connection>>>>,
     /// BYOK OpenRouter client, when the user brought a key.
     pub ai: Option<Arc<crate::voice_ai::VoiceAi>>,
+    /// Persists a voice snooze after the policy lock is released. Missing or
+    /// failed persistence prevents the route from acknowledging the snooze.
+    pub persist_policy: Option<Arc<dyn Fn() -> Result<(), String> + Send + Sync>>,
     /// Mirrors [`crate::notify_webhook`]'s configuration.
     pub webhook_enabled: bool,
     pub webhook_url: Option<String>,

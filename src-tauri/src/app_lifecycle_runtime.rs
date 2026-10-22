@@ -172,8 +172,12 @@ fn flush(app: &AppHandle, progress: &mut FlushProgress) -> String {
         match app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
             Some(store) => {
                 let reset = crate::session_persistence::load_reset_after(store.inner());
-                match crate::session_persistence::PersistedEngineState::from_session(session, reset)
-                    .save(store.inner()) {
+                let wall_now = chrono::Utc::now();
+                let monotonic_now = std::time::Instant::now();
+                let policy = state.comm_policy.lock().unwrap_or_else(|error| error.into_inner());
+                match crate::session_persistence::PersistedEngineState::from_session_with_policy(
+                    session, reset, &policy, wall_now, monotonic_now,
+                ).save(store.inner()) {
                     Ok(()) => "saved",
                     Err(_) => "failed",
                 }

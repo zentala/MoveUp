@@ -300,10 +300,17 @@ fn build_voice_state(
             crate::voice_ai::API_KEY_ENV
         );
     }
+    let persistence_app = app.clone();
+    let persist_policy: Arc<dyn Fn() -> Result<(), String> + Send + Sync> = Arc::new(move || {
+        let state = persistence_app.state::<AppState>();
+        let session = state.session.lock().unwrap_or_else(|error| error.into_inner());
+        crate::session_persistence::save_via_app_result(&persistence_app, &session)
+    });
     crate::remote_server::VoiceState {
         event_logger: app.try_state::<crate::Loggers>().map(|l| l.event.clone()),
         db: Some(state.db.clone()),
         ai: ai.map(Arc::new),
+        persist_policy: Some(persist_policy),
         webhook_enabled: config.as_ref().is_some_and(|c| c.notify_webhook_enabled),
         webhook_url: config.and_then(|c| c.notify_webhook_url),
     }
@@ -412,6 +419,11 @@ pub(crate) fn load_profiles_from_store<R: tauri::Runtime>(
     session.state.stand_limit_secs = ergo.limits.standing_target_secs as i64;
     policy.set_comm_profile(comm);
     policy.set_ergo_profile(ergo);
+    if let Some(persisted) = crate::session_persistence::PersistedEngineState::load(store) {
+        persisted.restore_notification_policy_at(
+            &mut policy, chrono::Utc::now(), std::time::Instant::now(),
+        );
+    }
     Ok(())
 }
 

@@ -104,10 +104,24 @@ impl AppConfig {
     pub fn save<R: Runtime>(&self, store: &Store<R>) -> Result<(), String> {
         let value =
             serde_json::to_value(self).map_err(|e| format!("Failed to serialize config: {}", e))?;
+        let previous = store.get("app_config");
         store.set("app_config", value);
-        store
-            .save()
-            .map_err(|e| format!("Failed to save store: {}", e))?;
+        if let Err(save_error) = store.save() {
+            match previous {
+                Some(value) => store.set("app_config", value),
+                None => {
+                    store.delete("app_config");
+                }
+            }
+            return match store.save() {
+                Ok(()) => Err(format!(
+                    "Failed to save store: {save_error}; in-memory config restored and prior config persisted"
+                )),
+                Err(rollback_error) => Err(format!(
+                    "Failed to save store: {save_error}; rollback save also failed: {rollback_error}; in-memory config restored but disk config is uncertain"
+                )),
+            };
+        }
         Ok(())
     }
 

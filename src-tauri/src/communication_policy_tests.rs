@@ -674,4 +674,129 @@ mod tests {
         p.snooze_for(0);
         assert!(!p.is_snoozed(), "zero minutes is not a snooze request");
     }
+
+    #[test]
+    fn persisted_dismiss_restores_only_remaining_silence_on_monotonic_clock() {
+        use chrono::TimeZone;
+        use std::time::{Duration, Instant};
+
+        let wall = chrono::Utc.timestamp_opt(1_797_000_000, 0).unwrap();
+        let monotonic = Instant::now();
+        let mut source = default_policy();
+        source.dismiss_at(monotonic);
+        let persisted = source.persisted_state_at(wall, monotonic);
+
+        let restored_at = monotonic + Duration::from_secs(20);
+        let wall_at_restore = wall + chrono::Duration::seconds(20);
+        let mut restored = default_policy();
+        assert!(restored.restore_persisted_state_at(&persisted, wall_at_restore, restored_at));
+        assert!(restored.is_snoozed_at(restored_at));
+        assert!(restored.is_snoozed_at(restored_at + Duration::from_secs(279)));
+        assert!(!restored.is_snoozed_at(restored_at + Duration::from_secs(280)));
+    }
+
+    #[test]
+    fn persisted_deadline_expiration_and_clock_rollback_do_not_extend_silence_or_repeat() {
+        use chrono::TimeZone;
+        use std::time::{Duration, Instant};
+
+        let wall = chrono::Utc.timestamp_opt(1_797_000_000, 0).unwrap();
+        let monotonic = Instant::now();
+        let mut source = default_policy();
+        source.dismiss_at(monotonic);
+        let expired = source.persisted_state_at(wall, monotonic);
+        let mut after_expiry = default_policy();
+        let after_expiry_at = monotonic + Duration::from_secs(301);
+        assert!(after_expiry.restore_persisted_state_at(
+            &expired, wall + chrono::Duration::seconds(301), after_expiry_at,
+        ));
+        assert!(!after_expiry.is_snoozed_at(after_expiry_at));
+
+        let rollback_state = crate::communication_policy::PersistedNotificationPolicy {
+            profile_id: "default".into(),
+            saved_at_utc: wall,
+            snoozed_until_utc: Some(wall + chrono::Duration::minutes(5)),
+            snooze_index: 1,
+            last_notify_at_utc: None,
+            notify_count: 0,
+        };
+        let mut rolled_back = default_policy();
+        let rollback_now = monotonic + Duration::from_secs(400);
+        assert!(rolled_back.restore_persisted_state_at(
+            &rollback_state, wall - chrono::Duration::seconds(1), rollback_now,
+        ));
+        assert!(!rolled_back.is_snoozed_at(rollback_now));
+        assert_eq!(rolled_back.persisted_state_at(wall, rollback_now).notify_count, 1);
+        assert!(rolled_back.evaluate_with_stand_limit_fired_at(
+            &sitting_input(2400), 2400, 0, false, rollback_now,
+        ).notify.is_none(), "rollback starts a cooldown instead of replaying immediately");
+    }
+
+    #[test]
+    fn persisted_notification_state_is_rejected_for_another_selected_profile() {
+        use chrono::TimeZone;
+        use std::time::Instant;
+
+        let wall = chrono::Utc.timestamp_opt(1_797_000_000, 0).unwrap();
+        let state = crate::communication_policy::PersistedNotificationPolicy {
+            profile_id: "silent".into(),
+            saved_at_utc: wall,
+            snoozed_until_utc: Some(wall + chrono::Duration::minutes(5)),
+            snooze_index: 1,
+            last_notify_at_utc: None,
+            notify_count: 0,
+        };
+        let mut policy = default_policy();
+        assert!(!policy.restore_persisted_state_at(&state, wall, Instant::now()));
+        assert!(!policy.is_snoozed_at(Instant::now()));
+    }
+
+    #[test]
+    fn persisted_snooze_bound_preserves_voice_and_longer_profile_schedules() {
+        use chrono::TimeZone;
+        use std::time::{Duration, Instant};
+
+        let wall = chrono::Utc.timestamp_opt(1_797_000_000, 0).unwrap();
+        let monotonic = Instant::now();
+        let voice_minutes = match crate::voice_intent::parse("snooze 9000") {
+            crate::voice_intent::Intent::Snooze(minutes) => minutes,
+            other => panic!("expected a parsed voice snooze, got {other:?}"),
+        };
+        assert_eq!(voice_minutes, crate::voice_intent::MAX_SNOOZE_MINS);
+        let mut voice_policy = default_policy();
+        voice_policy.snooze_for_at(voice_minutes, monotonic);
+        let voice_state = voice_policy.persisted_state_at(wall, monotonic);
+        assert_eq!(voice_state.snoozed_until_utc, Some(
+            wall + chrono::Duration::minutes(i64::from(voice_minutes)),
+        ));
+        let mut voice_restored = default_policy();
+        let voice_restore_at = monotonic + Duration::from_secs(60);
+        assert!(voice_restored.restore_persisted_state_at(
+            &voice_state, wall + chrono::Duration::minutes(1), voice_restore_at,
+        ));
+        assert!(voice_restored.is_snoozed_at(voice_restore_at + Duration::from_secs(178 * 60)));
+        assert!(!voice_restored.is_snoozed_at(voice_restore_at + Duration::from_secs(179 * 60)));
+
+        let mut long_profile = CommunicationProfile::default();
+        long_profile.snooze.durations_mins = vec![10_000];
+        let long_profile = long_profile;
+        let mut profile_policy = CommunicationPolicy::new(
+            long_profile.clone(), ErgonomicProfile::default(),
+        );
+        profile_policy.dismiss_at(monotonic);
+        let profile_state = profile_policy.persisted_state_at(wall, monotonic);
+        assert_eq!(profile_state.snoozed_until_utc, Some(
+            wall + chrono::Duration::minutes(10_000),
+        ));
+        let mut profile_restored = CommunicationPolicy::new(
+            long_profile, ErgonomicProfile::default(),
+        );
+        let profile_restore_at = monotonic + Duration::from_secs(60);
+        assert!(profile_restored.restore_persisted_state_at(
+            &profile_state, wall + chrono::Duration::minutes(1), profile_restore_at,
+        ));
+        assert!(profile_restored.is_snoozed_at(
+            profile_restore_at + Duration::from_secs(9_998 * 60),
+        ));
+    }
 }

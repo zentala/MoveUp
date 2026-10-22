@@ -6,8 +6,10 @@
 //! ## The pipeline, in order, and why the order matters
 //! 1. **Event log** first, so a missing or unwritable database still leaves a
 //!    record that a note arrived. 2. **Database** ([`crate::db_voice_notes`]).
-//! 3. **Side effect** — only [`Intent::Snooze`] has one; `Walk*` and `Note`
-//!    deliberately do nothing, because voice never writes to `session_*.rs`
+//! 3. **Side effect + persistence** — only [`Intent::Snooze`] has one; it is
+//!    saved through the `VoiceState` callback before any acknowledgement.
+//!    A missing callback or Store error returns `503` without broadcast/webhook.
+//!    `Walk*` and `Note` deliberately do nothing, because voice never writes to `session_*.rs`
 //!    (E021-D3 / ADR 021) and a misheard sentence must not rewrite the day's
 //!    counters. 4. **AI reply**, optional and best-effort ([`crate::voice_ai`]) —
 //!    a failure is dropped, the note is already stored. 5. **Broadcast +
@@ -116,11 +118,11 @@ async fn voice_handler(
         serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST)?;
     let post = parsed.validate().ok_or(StatusCode::UNPROCESSABLE_ENTITY)?;
 
-    Ok(Json(run_pipeline(&state, post).await))
+    Ok(Json(run_pipeline(&state, post).await?))
 }
 
 /// The five steps, in the order the module docs explain.
-async fn run_pipeline(state: &RemoteState, post: ValidVoicePost) -> VoiceAck {
+async fn run_pipeline(state: &RemoteState, post: ValidVoicePost) -> Result<VoiceAck, StatusCode> {
     let intent = voice_intent::parse(&post.transcript);
 
     if let Some(logger) = &state.voice.event_logger {
@@ -133,6 +135,16 @@ async fn run_pipeline(state: &RemoteState, post: ValidVoicePost) -> VoiceAck {
 
     let note_id = store_note(state, &post, intent);
     let snooze_minutes = apply_intent(state, intent);
+    if snooze_minutes.is_some() {
+        let Some(persist_policy) = state.voice.persist_policy.as_ref() else {
+            log::error!("voice: snooze applied but durable policy persistence is unavailable");
+            return Err(StatusCode::SERVICE_UNAVAILABLE);
+        };
+        if let Err(error) = persist_policy() {
+            log::error!("voice: snooze applied but policy persistence failed: {error}");
+            return Err(StatusCode::SERVICE_UNAVAILABLE);
+        }
+    }
     let reply = ai_reply(state, &post.transcript).await;
     if let (Some(id), Some(text)) = (note_id, reply.as_deref()) {
         with_conn(state, |conn| set_reply(conn, id, text));
@@ -153,7 +165,7 @@ async fn run_pipeline(state: &RemoteState, post: ValidVoicePost) -> VoiceAck {
     };
     ws_broadcaster::broadcast_event(&state.ws_tx, &event);
     push_webhook(state, &ack);
-    ack
+    Ok(ack)
 }
 
 /// Runs one statement against the app database, when there is one open. `None`

@@ -31,18 +31,66 @@ pub const ENGINE_SCHEMA_VERSION: u32 = 1;
 /// Saves current session state to the store via AppHandle.
 /// Preserves `daily_reset_after` from previously persisted state.
 pub fn save_via_app(app: &tauri::AppHandle, session: &SessionManager) -> bool {
+    save_via_app_result(app, session).is_ok()
+}
+
+pub(crate) fn save_via_app_result(
+    app: &tauri::AppHandle,
+    session: &SessionManager,
+) -> Result<(), String> {
     let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() else {
-        log::error!("Failed to persist session state: shared AppStore is missing");
-        return false;
+        return Err("Failed to persist session state: shared AppStore is missing".into());
     };
     let reset = load_reset_after(store.inner());
-    match PersistedEngineState::from_session(session, reset).save(store.inner()) {
-        Ok(()) => true,
-        Err(error) => {
-            log::error!("Failed to persist session state: {}", error);
-            false
-        }
+    save_via_app_with_reset_result(app, session, store.inner(), reset)
+}
+
+pub(crate) fn save_via_app_with_reset(
+    app: &tauri::AppHandle,
+    session: &SessionManager,
+    store: &Store<tauri::Wry>,
+    reset: Option<String>,
+) -> bool {
+    save_via_app_with_reset_result(app, session, store, reset).is_ok()
+}
+
+pub(crate) fn save_via_app_with_reset_result(
+    app: &tauri::AppHandle,
+    session: &SessionManager,
+    store: &Store<tauri::Wry>,
+    reset: Option<String>,
+) -> Result<(), String> {
+    if let Some(state) = app.try_state::<crate::commands::AppState>() {
+        let policy = state.comm_policy.lock().unwrap_or_else(|error| error.into_inner());
+        return save_with_policy_result(store, session, &policy, reset);
     }
+    PersistedEngineState::from_session(session, reset).save(store)
+}
+
+/// Shared production/test seam that writes one coherent engine + policy snapshot.
+pub fn save_with_policy<R: Runtime>(
+    store: &Store<R>,
+    session: &SessionManager,
+    policy: &crate::communication_policy::CommunicationPolicy,
+    reset: Option<String>,
+) -> bool {
+    save_with_policy_result(store, session, policy, reset).is_ok()
+}
+
+pub(crate) fn save_with_policy_result<R: Runtime>(
+    store: &Store<R>,
+    session: &SessionManager,
+    policy: &crate::communication_policy::CommunicationPolicy,
+    reset: Option<String>,
+) -> Result<(), String> {
+    let wall_now = chrono::Utc::now();
+    let monotonic_now = std::time::Instant::now();
+    let snapshot = PersistedEngineState::from_session_with_policy(
+        session, reset, policy, wall_now, monotonic_now,
+    );
+    snapshot.save(store).inspect_err(|error| {
+        log::error!("Failed to persist session state: {}", error);
+    })
 }
 
 /// Clears persisted session state on daily reset, but preserves the
@@ -53,16 +101,8 @@ pub fn clear<R: Runtime>(store: &Store<R>) {
     let mut reset_state = PersistedEngineState::empty_for_today();
     reset_state.pending_history = pending;
     reset_state.daily_reset_after = Some(chrono::Utc::now().to_rfc3339());
-    match serde_json::to_value(&reset_state) {
-        Ok(value) => {
-            store.set(STORE_KEY, value);
-            let _ = store.save();
-        }
-        Err(e) => {
-            log::error!("Failed to serialize reset state, falling back to delete: {}", e);
-            store.delete(STORE_KEY);
-            let _ = store.save();
-        }
+    if let Err(error) = reset_state.save(store) {
+        log::error!("Failed to persist reset state: {}", error);
     }
 }
 
@@ -98,6 +138,9 @@ pub struct PersistedEngineState {
     pub engine: Option<SessionState>,
     /// Additive private retry envelope, independent of the daily counter guard.
     pub(crate) pending_history: Vec<crate::session_types::PendingHistory>,
+    /// Optional restart-safe notification silence/repeat state.
+    #[serde(default)]
+    pub notification_policy: Option<crate::communication_policy::PersistedNotificationPolicy>,
     // ── v0 mirror of `engine` + the hourly break tracker. Still written so an
     //    older build can read our file; readers prefer `engine` when present.
     pub sitting_seconds: i64,
@@ -140,6 +183,7 @@ impl PersistedEngineState {
             daily_reset_after: reset_after,
             engine: Some(session.state.clone()),
             pending_history: session.pending_history.clone(),
+            notification_policy: None,
             sitting_seconds: session.state.sitting_seconds,
             daily_score: session.state.daily_score,
             hours_with_break: tracker.hours_with_break.clone(),
@@ -154,6 +198,19 @@ impl PersistedEngineState {
         }
     }
 
+    /// Captures the engine and policy together at explicit wall and monotonic times.
+    pub fn from_session_with_policy(
+        session: &SessionManager,
+        reset_after: Option<String>,
+        policy: &crate::communication_policy::CommunicationPolicy,
+        wall_now: chrono::DateTime<chrono::Utc>,
+        monotonic_now: std::time::Instant,
+    ) -> Self {
+        let mut snapshot = Self::from_session(session, reset_after);
+        snapshot.notification_policy = Some(policy.persisted_state_at(wall_now, monotonic_now));
+        snapshot
+    }
+
     /// Parses a stored JSON value of ANY known schema version, migrating it up
     /// to [`ENGINE_SCHEMA_VERSION`]. `None` when it does not parse at all.
     /// v0 → v1 rewrites no field: a v0 value parses with `schema_version == 0`
@@ -162,6 +219,10 @@ impl PersistedEngineState {
         let mut state: Self = serde_json::from_value(value)
             .map_err(|e| warn!("Discarding unreadable persisted session state: {}", e))
             .ok()?;
+        if state.schema_version > ENGINE_SCHEMA_VERSION {
+            warn!("Refusing unsupported future persisted session schema v{}", state.schema_version);
+            return None;
+        }
         if state.schema_version < ENGINE_SCHEMA_VERSION {
             info!(
                 "Migrating persisted session state v{} -> v{}",
@@ -174,10 +235,44 @@ impl PersistedEngineState {
 
     /// Saves persisted state to the store.
     pub fn save<R: Runtime>(&self, store: &Store<R>) -> Result<(), String> {
-        let value = serde_json::to_value(self)
+        let previous = store.get(STORE_KEY);
+        let previous_state = match previous.as_ref() {
+            Some(value) => Some(Self::from_stored_value(value.clone()).ok_or_else(|| {
+                "Refusing to overwrite unreadable or unsupported persisted session state".to_string()
+            })?),
+            None => None,
+        };
+        let mut next = self.clone();
+        if let (Some(previous), Some(current)) = (
+            previous_state.as_ref().and_then(|state| state.notification_policy.as_ref()),
+            next.notification_policy.as_ref(),
+        ) {
+            if current.saved_at_utc < previous.saved_at_utc {
+                // Preserve the last pre-rollback wall anchor. On restart its
+                // future timestamp identifies rollback and expires silence.
+                next.notification_policy = previous_state
+                    .as_ref()
+                    .and_then(|state| state.notification_policy.clone());
+            }
+        }
+        let value = serde_json::to_value(&next)
             .map_err(|e| format!("Failed to serialize session state: {}", e))?;
         store.set(STORE_KEY, value);
-        store.save().map_err(|e| format!("Failed to save store: {}", e))
+        if let Err(save_error) = store.save() {
+            match previous {
+                Some(value) => store.set(STORE_KEY, value),
+                None => { store.delete(STORE_KEY); }
+            }
+            return match store.save() {
+                Ok(()) => Err(format!(
+                    "Failed to save store: {save_error}; previous session snapshot restored and persisted"
+                )),
+                Err(rollback_error) => Err(format!(
+                    "Failed to save store: {save_error}; rollback save also failed: {rollback_error}; in-memory snapshot restored but disk state is uncertain"
+                )),
+            };
+        }
+        Ok(())
     }
 
     /// Loads state; stale counters are ignored by the manager, while pending
@@ -191,6 +286,20 @@ impl PersistedEngineState {
             // Yesterday's unacknowledged history is still eligible for retry.
         }
         Some(state)
+    }
+
+    /// Applies same-day notification state after the selected profile is loaded.
+    pub fn restore_notification_policy_at(
+        &self,
+        policy: &mut crate::communication_policy::CommunicationPolicy,
+        wall_now: chrono::DateTime<chrono::Utc>,
+        monotonic_now: std::time::Instant,
+    ) -> bool {
+        let restore_date = wall_now.with_timezone(&chrono::Local).format("%Y-%m-%d").to_string();
+        if self.date_local != restore_date { return false; }
+        self.notification_policy.as_ref().is_some_and(|state| {
+            policy.restore_persisted_state_at(state, wall_now, monotonic_now)
+        })
     }
 }
 

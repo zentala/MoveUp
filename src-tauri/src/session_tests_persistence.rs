@@ -176,6 +176,58 @@ fn corrupt_value_is_rejected_not_silently_defaulted() {
 }
 
 #[test]
+fn older_v1_snapshot_without_notification_state_remains_readable() {
+    let mut old = serde_json::to_value(PersistedEngineState::empty_for_today()).unwrap();
+    old.as_object_mut().unwrap().remove("notification_policy");
+    let loaded = PersistedEngineState::from_stored_value(old)
+        .expect("an existing v1 snapshot without the optional field remains compatible");
+    assert_eq!(loaded.schema_version, ENGINE_SCHEMA_VERSION);
+    assert!(loaded.notification_policy.is_none());
+}
+
+#[test]
+fn unsupported_future_snapshot_version_is_rejected() {
+    let future = serde_json::json!({
+        "schema_version": ENGINE_SCHEMA_VERSION + 1,
+        "date_local": today(),
+        "future_payload": {"preserve": true}
+    });
+    assert!(PersistedEngineState::from_stored_value(future).is_none());
+}
+
+#[test]
+fn notification_policy_restore_uses_injected_local_date_across_midnight() {
+    use chrono::TimeZone;
+    use std::time::Instant;
+
+    let wall = chrono::Utc.with_ymd_and_hms(2026, 2, 1, 12, 0, 0).unwrap();
+    let monotonic = Instant::now();
+    let policy = crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    );
+    let mut persisted = PersistedEngineState::empty_for_today();
+    persisted.date_local = wall.with_timezone(&chrono::Local).format("%Y-%m-%d").to_string();
+    persisted.notification_policy = Some(policy.persisted_state_at(wall, monotonic));
+
+    let mut same_day = crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    );
+    assert!(persisted.restore_notification_policy_at(&mut same_day, wall, monotonic),
+        "same-day restoration follows the injected wall clock even when host today differs");
+
+    let after_midnight = wall + chrono::Duration::days(2);
+    let mut next_day = crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    );
+    assert!(!persisted.restore_notification_policy_at(
+        &mut next_day, after_midnight, monotonic,
+    ), "a different injected local date must not restore the prior day's policy");
+}
+
+#[test]
 fn stale_date_is_detected() {
     let state = PersistedEngineState::from_stored_value(legacy_v0_json("2020-01-01", 100)).unwrap();
     assert_ne!(state.date_local, today());

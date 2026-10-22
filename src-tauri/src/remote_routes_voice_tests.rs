@@ -12,6 +12,7 @@
 
 use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
+use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime};
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -47,6 +48,8 @@ struct Harness {
     state: RemoteState,
     db: Arc<Mutex<Option<Connection>>>,
     logs: tempfile::TempDir,
+    store: Arc<tauri_plugin_store::Store<MockRuntime>>,
+    _store_owner: tauri::App<MockRuntime>,
 }
 
 impl Harness {
@@ -63,14 +66,31 @@ impl Harness {
         let logs = tempfile::TempDir::new().expect("temp dir");
         let health: HealthState = Arc::new(HealthAggregator::new(vec![]));
         let health_push = crate::remote_routes_health::register(&health).await;
+        let store_owner = mock_builder().plugin(tauri_plugin_store::Builder::default().build())
+            .build(mock_context(noop_assets())).unwrap();
+        let store = crate::app_store::initialize_at(
+            store_owner.handle(), &logs.path().join("settings.json"),
+        ).unwrap();
+        let session = Arc::new(Mutex::new(SessionManager::new()));
+        let comm_policy = Arc::new(Mutex::new(CommunicationPolicy::new(
+            Default::default(), Default::default(),
+        )));
+        let persistence_store = store.clone();
+        let persistence_session = session.clone();
+        let persistence_policy = comm_policy.clone();
+        let persist_policy: Arc<dyn Fn() -> Result<(), String> + Send + Sync> = Arc::new(move || {
+            crate::session_persistence::save_with_policy_result(
+                &persistence_store,
+                &persistence_session.lock().unwrap_or_else(|e| e.into_inner()),
+                &persistence_policy.lock().unwrap_or_else(|e| e.into_inner()),
+                None,
+            )
+        });
 
         let state = RemoteState {
             ws_tx: crate::ws_broadcaster::create_channel(),
-            session: Arc::new(Mutex::new(SessionManager::new())),
-            comm_policy: Arc::new(Mutex::new(CommunicationPolicy::new(
-                Default::default(),
-                Default::default(),
-            ))),
+            session,
+            comm_policy,
             today_cache: Arc::new(Mutex::new(TodaySummary::default())),
             active_clients: Arc::new(AtomicUsize::new(0)),
             health,
@@ -81,11 +101,12 @@ impl Harness {
                     .then(|| Arc::new(EventLogger::new(logs.path().to_path_buf()))),
                 db: with_db.then(|| db.clone()),
                 ai: None,
+                persist_policy: Some(persist_policy),
                 webhook_enabled: false,
                 webhook_url: None,
             },
         };
-        Self { state, db, logs }
+        Self { state, db, logs, store, _store_owner: store_owner }
     }
 
     async fn post(&self, token: Option<&str>, body: &str) -> axum::http::Response<Body> {
@@ -164,6 +185,63 @@ async fn e021_t06_a_snooze_note_is_parsed_stored_and_applied_to_the_policy() {
     assert_eq!(rows[0].intent, "snooze");
     assert_eq!(rows[0].lang.as_deref(), Some("pl-PL"));
     assert_eq!(ack.note_id, Some(rows[0].id));
+}
+
+#[tokio::test]
+async fn voice_snooze_survives_fresh_store_reload_without_a_sensor_reading() {
+    let h = Harness::new().await;
+    let response = h.post(Some(TOKEN), &body_json("drzemka 60")).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let ack: VoiceAck = serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), 1 << 20).await.unwrap(),
+    ).unwrap();
+    assert_eq!(ack.snooze_minutes, Some(60));
+
+    let owner = mock_builder().plugin(tauri_plugin_store::Builder::default().build())
+        .build(mock_context(noop_assets())).unwrap();
+    let fresh_store = crate::app_store::initialize_at(
+        owner.handle(), &h.logs.path().join("settings.json"),
+    ).unwrap();
+    let restored = crate::session_persistence::PersistedEngineState::load(&fresh_store)
+        .expect("voice route must persist a readable snapshot before acknowledging");
+    let mut fresh_policy = CommunicationPolicy::new(Default::default(), Default::default());
+    let wall_now = chrono::Utc::now();
+    let monotonic_now = std::time::Instant::now();
+    assert!(restored.restore_notification_policy_at(&mut fresh_policy, wall_now, monotonic_now));
+    assert!(fresh_policy.is_snoozed_at(monotonic_now + std::time::Duration::from_secs(1)),
+        "the voice snooze must survive restart without another sensor reading");
+    assert_eq!(h.stored_today().len(), 1);
+}
+
+#[tokio::test]
+async fn voice_snooze_is_not_acknowledged_when_policy_persistence_fails() {
+    let h = Harness::new().await;
+    h.store.set("existing", serde_json::json!(true));
+    h.store.save().unwrap();
+    let mut permissions = std::fs::metadata(h.logs.path().join("settings.json")).unwrap().permissions();
+    permissions.set_readonly(true);
+    std::fs::set_permissions(h.logs.path().join("settings.json"), permissions).unwrap();
+    let mut events = h.state.ws_tx.subscribe();
+
+    let response = h.post(Some(TOKEN), &body_json("drzemka 60")).await;
+    let mut permissions = std::fs::metadata(h.logs.path().join("settings.json")).unwrap().permissions();
+    permissions.set_readonly(false);
+    std::fs::set_permissions(h.logs.path().join("settings.json"), permissions).unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert!(matches!(events.try_recv(), Err(tokio::sync::broadcast::error::TryRecvError::Empty)));
+    assert_eq!(h.stored_today().len(), 1, "the existing note behavior is retained");
+}
+
+#[tokio::test]
+async fn voice_snooze_is_not_acknowledged_when_persistence_callback_is_absent() {
+    let mut h = Harness::new().await;
+    h.state.voice.persist_policy = None;
+    let mut events = h.state.ws_tx.subscribe();
+
+    let response = h.post(Some(TOKEN), &body_json("drzemka 60")).await;
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert!(matches!(events.try_recv(), Err(tokio::sync::broadcast::error::TryRecvError::Empty)));
+    assert_eq!(h.stored_today().len(), 1);
 }
 
 #[tokio::test]

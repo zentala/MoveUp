@@ -47,11 +47,10 @@ pub fn check_periodic(
         // unacknowledged spans while clearing the manager's daily flags.
         if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
             let manager = session.lock().unwrap_or_else(|error| error.into_inner());
-            let snapshot = crate::session_persistence::PersistedEngineState::from_session(
-                &manager, Some(chrono::Utc::now().to_rfc3339()),
-            );
-            if let Err(error) = snapshot.save(store.inner()) {
-                log::error!("Failed to save daily reset and pending history: {}", error);
+            if !crate::session_persistence::save_via_app_with_reset(
+                app, &manager, store.inner(), Some(chrono::Utc::now().to_rfc3339()),
+            ) {
+                log::error!("Failed to save daily reset and pending history");
             }
         }
     }
@@ -70,10 +69,9 @@ pub fn check_periodic(
         intents
     };
     NotificationService::dispatch(&intents, event_logger, alert_popup);
-    // Persist flags if any notifications were fired in this periodic check.
-    if !intents.is_empty() {
-        save_session_state(app, session);
-    }
+    // This is the existing sensor-driven minute checkpoint. It also retains
+    // policy silence/repeat state when no notification fired this minute.
+    save_session_state(app, session);
 
     // Hot-reload communication and ergonomic profiles if files changed on disk.
     reload_profiles_if_changed(app);
@@ -108,11 +106,10 @@ pub fn handle_reading(
             event_logger.log("RESET daily");
             if let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() {
                 let sess = session.lock().unwrap_or_else(|error| error.into_inner());
-                let snapshot = crate::session_persistence::PersistedEngineState::from_session(
-                    &sess, Some(now.to_rfc3339()),
-                );
-                if let Err(error) = snapshot.save(store.inner()) {
-                    log::error!("Failed to save daily reset and pending history: {}", error);
+                if !crate::session_persistence::save_via_app_with_reset(
+                    app, &sess, store.inner(), Some(now.to_rfc3339()),
+                ) {
+                    log::error!("Failed to save daily reset and pending history");
                 }
             }
         }

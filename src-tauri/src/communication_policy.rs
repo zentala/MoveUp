@@ -3,11 +3,24 @@
 
 use std::cell::Cell;
 use std::time::{Duration, Instant};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use crate::communication_types::{NotifySignal, Signals};
 use crate::session_types::{DeskState, NotificationEvent};
 use crate::communication_profile::{CommunicationProfile, EscalationStep};
 use crate::communication_policy_helpers as helpers;
 use crate::ergonomic_profile::ErgonomicProfile;
+
+/// Restart-safe policy state. Live policy continues to use monotonic instants.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersistedNotificationPolicy {
+    pub profile_id: String,
+    pub saved_at_utc: DateTime<Utc>,
+    pub snoozed_until_utc: Option<DateTime<Utc>>,
+    pub snooze_index: usize,
+    pub last_notify_at_utc: Option<DateTime<Utc>>,
+    pub notify_count: u32,
+}
 
 /// Snapshot of session data passed to [`CommunicationPolicy::evaluate`] each cycle.
 ///
@@ -339,6 +352,88 @@ impl CommunicationPolicy {
 
     pub fn is_snoozed_at(&self, now: Instant) -> bool {
         self.snoozed_until.is_some_and(|until| now < until)
+    }
+
+    /// Captures policy timing as bounded wall-clock instants for restart.
+    pub fn persisted_state_at(
+        &self,
+        wall_now: DateTime<Utc>,
+        monotonic_now: Instant,
+    ) -> PersistedNotificationPolicy {
+        let max_age = Duration::from_secs(self.max_persisted_snooze_secs());
+        let snoozed_until_utc = self.snoozed_until.and_then(|until| {
+            let remaining = until.checked_duration_since(monotonic_now)?;
+            if remaining > max_age { return None; }
+            wall_now.checked_add_signed(chrono::Duration::from_std(remaining).ok()?)
+        });
+        let last_notify_at_utc = self.last_notify_time.get().and_then(|last| {
+            let age = monotonic_now.checked_duration_since(last)?;
+            if age > max_age { return None; }
+            wall_now.checked_sub_signed(chrono::Duration::from_std(age).ok()?)
+        });
+        PersistedNotificationPolicy {
+            profile_id: self.comm_profile.id.clone(),
+            saved_at_utc: wall_now,
+            snoozed_until_utc,
+            snooze_index: self.snooze_index.min(self.comm_profile.snooze.durations_mins.len().saturating_sub(1)),
+            last_notify_at_utc,
+            notify_count: self.notify_count.get().min(crate::communication_profile::MAX_NOTIFY_REMINDERS as u32),
+        }
+    }
+
+    /// Restores only state belonging to the currently selected profile.
+    /// Clock rollback expires active silence and starts a fresh cooldown so it
+    /// cannot create indefinite snooze or an immediate repeat burst.
+    pub fn restore_persisted_state_at(
+        &mut self,
+        persisted: &PersistedNotificationPolicy,
+        wall_now: DateTime<Utc>,
+        monotonic_now: Instant,
+    ) -> bool {
+        if persisted.profile_id != self.comm_profile.id { return false; }
+
+        let max_age = Duration::from_secs(self.max_persisted_snooze_secs());
+        let max_age_chrono = chrono::Duration::from_std(max_age).expect("bounded snooze fits chrono duration");
+        let max_index = self.comm_profile.snooze.durations_mins.len().saturating_sub(1);
+        self.snooze_index = persisted.snooze_index.min(max_index);
+        let count = persisted.notify_count.min(crate::communication_profile::MAX_NOTIFY_REMINDERS as u32);
+        self.notify_count.set(count);
+
+        if wall_now < persisted.saved_at_utc {
+            self.snoozed_until = None;
+            let rollback_count = count.max(1)
+                .min(crate::communication_profile::MAX_NOTIFY_REMINDERS as u32);
+            self.notify_count.set(rollback_count);
+            self.last_notify_time.set(Some(monotonic_now));
+            return true;
+        }
+
+        self.snoozed_until = persisted.snoozed_until_utc.and_then(|until| {
+            let total = until.signed_duration_since(persisted.saved_at_utc);
+            if total <= chrono::Duration::zero() || total > max_age_chrono || until <= wall_now {
+                return None;
+            }
+            let remaining = until.signed_duration_since(wall_now).to_std().ok()?;
+            if remaining > max_age { return None; }
+            monotonic_now.checked_add(remaining)
+        });
+
+        let last = persisted.last_notify_at_utc.and_then(|notified| {
+            if notified > persisted.saved_at_utc || notified > wall_now { return None; }
+            let age = wall_now.signed_duration_since(notified).to_std().ok()?;
+            if age > max_age { return None; }
+            monotonic_now.checked_sub(age)
+        });
+        self.last_notify_time.set(if count > 0 && last.is_none() { Some(monotonic_now) } else { last });
+        true
+    }
+
+    /// Bounds restart conversion to the active profile's actual dismiss
+    /// schedule or the voice route's accepted maximum, whichever is longer.
+    fn max_persisted_snooze_secs(&self) -> u64 {
+        let profile_max = self.comm_profile.snooze.durations_mins.iter().copied().max().unwrap_or(0);
+        u64::from(profile_max.max(u32::from(crate::voice_intent::MAX_SNOOZE_MINS)))
+            .saturating_mul(60)
     }
 
     /// Reset snooze state and notification tracking on position change.

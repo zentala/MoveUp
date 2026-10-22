@@ -106,9 +106,12 @@ fn on_state_changed(app: &AppHandle, payload: &StateChangedPayload) {
 fn update_from_policy(app: &AppHandle) {
     let app_state = app.state::<AppState>();
 
-    if app_state.alert_popup.lock().unwrap_or_else(|e| e.into_inner()).take_user_dismissed() {
-        app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).dismiss();
-    }
+    let dismissed = app_state.alert_popup.lock().unwrap_or_else(|e| e.into_inner()).take_user_dismissed();
+    apply_user_dismissal_at(
+        &mut app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()),
+        dismissed,
+        std::time::Instant::now(),
+    );
 
     let is_connected = app_state.conn.connected_port.lock().unwrap_or_else(|e| e.into_inner()).is_some();
 
@@ -173,10 +176,35 @@ fn update_from_policy(app: &AppHandle) {
         |notify| tray_signal_exec::execute_notify(notify, &app_state, event_logger.as_deref()),
         |notify| push_to_webhook(&app_state, notify),
     );
-    if signals.notify.is_some() || !signals.accepted_events.is_empty() {
+    if notification_state_needs_save(
+        dismissed,
+        signals.notify.is_some(),
+        !signals.accepted_events.is_empty(),
+    ) {
         let session = app_state.session.lock().unwrap_or_else(|e| e.into_inner());
         crate::session_persistence::save_via_app(app, &session);
     }
+}
+
+/// Applies the popup adapter's consumed dismissal signal to the policy.
+/// Kept as the production seam exercised by the disposable Store regression.
+pub(crate) fn apply_user_dismissal_at(
+    policy: &mut crate::communication_policy::CommunicationPolicy,
+    dismissed: bool,
+    now: std::time::Instant,
+) -> bool {
+    if dismissed { policy.dismiss_at(now); }
+    dismissed
+}
+
+/// Whether this tray tick must checkpoint policy state, including a dismissal
+/// when no subsequent notification or accepted session event was produced.
+pub(crate) fn notification_state_needs_save(
+    dismissed: bool,
+    has_notification: bool,
+    has_accepted_events: bool,
+) -> bool {
+    dismissed || has_notification || has_accepted_events
 }
 
 /// Mirrors a toast to the user's webhook so a phone or watch sees it too.

@@ -378,7 +378,7 @@ fn pending_history_survives_fresh_real_store_reload() {
     let reopened = crate::app_store::initialize_at(second_owner.handle(), &file).unwrap();
     let restored = crate::session_persistence::PersistedEngineState::load(&reopened)
         .expect("same-day snapshot must load");
-    let value = serde_json::to_value(restored).unwrap();
+    let value = serde_json::to_value(&restored).unwrap();
     let pending = value["pending_history"].as_array()
         .expect("unacknowledged history must survive a real Store reload");
     assert_eq!(pending.len(), 1);
@@ -543,4 +543,173 @@ fn shutdown_snapshot_before_first_new_day_reading_keeps_pending_and_stale_counte
     assert_eq!(recovered.state.daily_score, 0.0);
     assert!(!recovered.notify_inactivity_fired);
     assert_eq!(recovered.pending_history.len(), 1);
+}
+
+#[cfg(windows)]
+#[test]
+fn failed_app_config_save_restores_store_memory_and_preserves_disk_then_retry() {
+    fn make_read_only(path: &std::path::Path, read_only: bool) {
+        let mut permissions = fs::metadata(path).unwrap().permissions();
+        permissions.set_readonly(read_only);
+        fs::set_permissions(path, permissions).unwrap();
+    }
+
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let owner = app();
+    let store = crate::app_store::initialize_at(owner.handle(), &file).unwrap();
+    let original = serde_json::json!({
+        "sitting_mm": 700,
+        "future_config_key": {"keep": true}
+    });
+    store.set("app_config", original.clone());
+    store.set("unrelated", serde_json::json!({"keep": 9}));
+    store.save().unwrap();
+    let disk_before = fs::read(&file).unwrap();
+
+    make_read_only(&file, true);
+    let attempted = crate::config::AppConfig {
+        sitting_mm: 765,
+        ..Default::default()
+    };
+    let error = attempted.save(&store).expect_err("read-only Store save must fail");
+
+    assert!(error.contains("Failed to save store"));
+    assert!(error.contains("rollback save also failed"));
+    assert!(error.contains("disk config is uncertain"));
+    assert_eq!(store.get("app_config"), Some(original.clone()),
+        "failed save must restore the previous in-memory config value");
+    assert_eq!(store.get("unrelated").unwrap()["keep"], 9,
+        "rollback must preserve unrelated Store keys");
+    assert_eq!(fs::read(&file).unwrap(), disk_before,
+        "the injected failure occurs before disk bytes change");
+
+    let reopened_owner = app();
+    let reopened = crate::app_store::initialize_at(reopened_owner.handle(), &file).unwrap();
+    assert_eq!(reopened.get("app_config"), Some(original.clone()));
+    assert_eq!(reopened.get("unrelated").unwrap()["keep"], 9);
+
+    make_read_only(&file, false);
+    attempted.save(&store).expect("retry after clearing the Store fault must persist");
+    let retry_owner = app();
+    let retry = crate::app_store::initialize_at(retry_owner.handle(), &file).unwrap();
+    assert_eq!(retry.get("app_config").unwrap()["sitting_mm"], 765);
+    assert_eq!(retry.get("unrelated").unwrap()["keep"], 9);
+
+    let absent_file = temp.path().join("absent-config.json");
+    let absent_owner = app();
+    let absent_store = crate::app_store::initialize_at(absent_owner.handle(), &absent_file).unwrap();
+    absent_store.set("unrelated", serde_json::json!({"keep": 12}));
+    absent_store.save().unwrap();
+    let absent_disk_before = fs::read(&absent_file).unwrap();
+    make_read_only(&absent_file, true);
+    let absent_error = attempted.save(&absent_store)
+        .expect_err("read-only Store save with no prior config must fail");
+    assert!(absent_error.contains("Failed to save store"));
+    assert!(absent_store.get("app_config").is_none(),
+        "rollback must preserve an originally absent config key");
+    assert_eq!(absent_store.get("unrelated").unwrap()["keep"], 12);
+    assert_eq!(fs::read(&absent_file).unwrap(), absent_disk_before);
+    let absent_reopened_owner = app();
+    let absent_reopened = crate::app_store::initialize_at(absent_reopened_owner.handle(), &absent_file).unwrap();
+    assert!(absent_reopened.get("app_config").is_none());
+    assert_eq!(absent_reopened.get("unrelated").unwrap()["keep"], 12);
+    make_read_only(&absent_file, false);
+    attempted.save(&absent_store).expect("absent-key retry must persist");
+    let absent_retry_owner = app();
+    let absent_retry = crate::app_store::initialize_at(absent_retry_owner.handle(), &absent_file).unwrap();
+    assert_eq!(absent_retry.get("app_config").unwrap()["sitting_mm"], 765);
+    assert_eq!(absent_retry.get("unrelated").unwrap()["keep"], 12);
+}
+
+#[test]
+fn actual_dismiss_state_survives_fresh_store_reload_without_a_sensor_reading() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let mut policy = crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    );
+    let session = crate::session::SessionManager::new();
+    let owner = app();
+    let store = crate::app_store::initialize_at(owner.handle(), &file).unwrap();
+    let monotonic_now = std::time::Instant::now();
+    let dismissed = crate::tray_controller::apply_user_dismissal_at(
+        &mut policy, true, monotonic_now,
+    );
+    assert!(dismissed);
+    assert!(crate::tray_controller::notification_state_needs_save(
+        dismissed, false, false,
+    ), "the actual tray adapter must save a dismissal without another notification or session event");
+    assert!(!crate::tray_controller::notification_state_needs_save(false, false, false));
+    assert!(policy.is_snoozed_at(monotonic_now));
+    assert!(crate::session_persistence::save_with_policy(&store, &session, &policy, None));
+    let fresh_owner = app();
+    let fresh_store = crate::app_store::initialize_at(fresh_owner.handle(), &file).unwrap();
+    let restored = crate::session_persistence::PersistedEngineState::load(&fresh_store).unwrap();
+    let value = serde_json::to_value(&restored).unwrap();
+    assert!(value.get("notification_policy").is_some_and(serde_json::Value::is_object),
+        "a real dismiss must be represented in the fresh Store snapshot even without another reading");
+    let app_data = temp.path().join("app-data");
+    crate::profile_loader::ensure_profiles_dir(&app_data);
+    let fresh_policy = Mutex::new(crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    ));
+    let fresh_session = Mutex::new(crate::session::SessionManager::new());
+    crate::setup_helpers::load_profiles_from_store(
+        &app_data, &fresh_store, &fresh_policy, &fresh_session,
+    ).unwrap();
+    assert!(fresh_policy.lock().unwrap().is_snoozed_at(
+        monotonic_now + std::time::Duration::from_secs(1),
+    ));
+
+    let voice_snooze_at = monotonic_now + std::time::Duration::from_secs(2);
+    fresh_policy.lock().unwrap().snooze_for_at(17, voice_snooze_at);
+    assert!(crate::session_persistence::save_with_policy(
+        &fresh_store, &fresh_session.lock().unwrap(), &fresh_policy.lock().unwrap(), None,
+    ));
+    let third_owner = app();
+    let third_store = crate::app_store::initialize_at(third_owner.handle(), &file).unwrap();
+    let third_policy = Mutex::new(crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    ));
+    let third_session = Mutex::new(crate::session::SessionManager::new());
+    crate::setup_helpers::load_profiles_from_store(
+        &app_data, &third_store, &third_policy, &third_session,
+    ).unwrap();
+    assert!(third_policy.lock().unwrap().is_snoozed_at(
+        voice_snooze_at + std::time::Duration::from_secs(1),
+    ));
+}
+
+#[test]
+fn checkpoint_refuses_to_overwrite_unsupported_future_snapshot() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let owner = app();
+    let store = crate::app_store::initialize_at(owner.handle(), &file).unwrap();
+    let future = serde_json::json!({
+        "schema_version": crate::session_persistence::ENGINE_SCHEMA_VERSION + 1,
+        "date_local": chrono::Local::now().format("%Y-%m-%d").to_string(),
+        "future_payload": {"preserve": true}
+    });
+    store.set("persisted_session_state", future.clone());
+    store.set("unknown_key", serde_json::json!({"keep": 3}));
+    store.save().unwrap();
+    let before = fs::read(&file).unwrap();
+
+    let error = crate::session_persistence::PersistedEngineState::from_session(
+        &crate::session::SessionManager::new(), None,
+    ).save(&store).expect_err("older code must refuse to overwrite a future schema");
+    assert!(error.contains("unsupported persisted session state"));
+    assert_eq!(store.get("persisted_session_state"), Some(future));
+    assert_eq!(store.get("unknown_key").unwrap()["keep"], 3);
+    assert_eq!(fs::read(&file).unwrap(), before);
+
+    let fresh_owner = app();
+    let fresh = crate::app_store::initialize_at(fresh_owner.handle(), &file).unwrap();
+    assert_eq!(fresh.get("persisted_session_state").unwrap()["future_payload"]["preserve"], true);
+    assert_eq!(fresh.get("unknown_key").unwrap()["keep"], 3);
 }
