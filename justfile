@@ -27,6 +27,10 @@ test:
 test-rust:
     pnpm test:unit:rust
 
+# Protected history-upgrade backup preparation (stdlib SQLite/unittest only).
+test-history-upgrade:
+    python -B -m unittest discover -s scripts -p "test_prepare_history_upgrade.py"
+
 # types only
 typecheck:
     pnpm typecheck
@@ -46,7 +50,7 @@ test-startup:
 
 # Types, lint, both unit suites and the startup preparation regressions.
 # Actual Windows Quit/recovery/login verification remains a delivery check.
-check: test-startup typecheck lint test test-rust
+check: test-startup typecheck lint test test-rust test-history-upgrade
 
 # relay Worker (E022) — a standalone pnpm project in relay/, its own lockfile.
 # `pnpm --dir` keeps every one of these runnable from the repo root.
