@@ -225,6 +225,16 @@
         <file name="useActiveWidget.ts">Hook: resolves active widget from config</file>
         <file name="useWidgetData.ts">Hook: computes derived WidgetProps from useDesk + useTimer</file>
         <file name="useDeskTypes.ts">Type definitions for desk hook data</file>
+        <dir name="one-bar/">
+          <file name="OneBarTimeline.tsx">Compact source-qualified chronology; renders exact completed intervals and leaves unrecorded elapsed time Unknown</file>
+          <file name="OneBarTimeline.test.tsx">Exact session endpoints, no credit-derived live duration, Unknown gaps and hour-marker regression</file>
+        </dir>
+      </dir>
+
+      <dir name="timeline/">
+        <file name="TimelineStrip.tsx">Shared compact/detail interval renderer with source details, keyboard selection and fixed point-observation ticks</file>
+        <file name="colors.ts">Shared semantic posture, Unknown and Future colors</file>
+        <file name="intervals.ts">Source-qualified intervals, observations, Unknown/Future gaps and exact day composition</file>
       </dir>
 
       <dir name="components/">
@@ -270,6 +280,7 @@
         <file name="ExplorerTab.tsx">5-chart grid wired to useSnapshotsRange / useSessionsRange / useEventsRange</file>
         <file name="DateRangePicker.tsx">Two native date inputs for from/to range</file>
         <file name="explorer-derivations.ts">Pure helpers: downsampleSnapshots, deriveDailyKpis</file>
+        <file name="explorer-derivations.test.ts">Source coercion and truthful contiguous-standing maximum derivation</file>
         <dir name="hooks/">
           <file name="useDataCatalog.ts">Fetch static data source catalog from Rust</file>
           <file name="useRangeQuery.ts">Generic debounced range invoke hook</file>
@@ -278,6 +289,9 @@
           <file name="useEventsRange.ts">Event log history (camelCase coerced)</file>
         </dir>
         <dir name="charts/">
+          <file name="TimelineDetail.tsx">Continuous source interval view with Unknown/Future spans and point-only snapshot observations</file>
+          <file name="timeline-segments.ts">Exact interval/gap geometry and 2px by 6px observation tick geometry</file>
+          <file name="timeline-utils.ts">Calendar helpers and source-bounded timeline scales; snapshot points do not produce elapsed totals</file>
           <file name="ChartCard.tsx">Card chrome shared by all charts</file>
           <file name="DeskHeightTimeline.tsx">SVG area chart of desk height over time</file>
           <file name="StateGantt.tsx">Per-day horizontal Gantt of Sitting/Standing/Walking/Away</file>

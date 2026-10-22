@@ -280,6 +280,7 @@ pub fn run() {
                     commands_analyst::get_snapshots_range,
                     commands_analyst::get_events_range,
                     commands_analyst::get_sessions_range,
+                    commands_analyst::get_local_day_bounds_range,
                     commands_catalog::get_data_catalog,
                     commands_health::get_health_today,
                     commands_health::refresh_health_now,
@@ -324,6 +325,7 @@ pub fn run() {
                     commands_analyst::get_snapshots_range,
                     commands_analyst::get_events_range,
                     commands_analyst::get_sessions_range,
+                    commands_analyst::get_local_day_bounds_range,
                     commands_catalog::get_data_catalog,
                     commands_health::get_health_today,
                     commands_health::refresh_health_now,
@@ -477,6 +479,7 @@ mod ts_export {
         crate::config::AppConfig::export_all(&cfg).expect("AppConfig exports");
         crate::health_models::HealthView::export_all(&cfg).expect("HealthView exports");
         crate::commands_analyst::SnapshotRow::export_all(&cfg).expect("SnapshotRow exports");
+        crate::commands_analyst::LocalDayBounds::export_all(&cfg).expect("LocalDayBounds exports");
         crate::db_voice_notes::VoiceNoteRow::export_all(&cfg).expect("VoiceNoteRow exports");
         crate::serial_parser::PortInfo::export_all(&cfg).expect("PortInfo exports");
         // E022 remote protocol payloads — the viewer and the relay import

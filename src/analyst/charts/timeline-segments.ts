@@ -1,119 +1,113 @@
-/**
- * timeline-segments.ts — Pure helpers for rendering the TimelineDetail strip.
- *
- * Kept separate from `timeline-utils.ts` so it can depend on `chartColors`
- * (UI palette) without polluting the pure math module that's reused by
- * the DateNavigator. Stays out of TimelineDetail.tsx to keep that file
- * under the 250-line cap.
- */
+/** Pure geometry for the Analyst's interval spans and observation-point ticks. */
 import type { SnapshotRow } from "@/test/analyst-fixtures";
-import { chartColors } from "./chart-utils";
-import { inferSnapshotInterval, msToPx, type TimelineScale } from "./timeline-utils";
+import { timelineColors } from "@/timeline/colors";
+import {
+  intervalPosition,
+  normalizeIntervals,
+  observationMarkers,
+  timelineGaps,
+  type TimelineGap,
+  type TimelineInterval,
+  type TimelineObservationMarker,
+  type TimelineWindow,
+} from "@/timeline/intervals";
+import { msToPx, type TimelineScale } from "./timeline-utils";
 
 const DAY_MS = 86_400_000;
 
-const STATE_FILL: Record<string, string> = {
-  Sitting: chartColors.sitting,
-  Standing: chartColors.standing,
-  Walking: chartColors.walking,
-  Away: chartColors.away,
-};
-
-export interface RenderedSegment {
+export interface RenderedInterval extends TimelineInterval {
   x: number;
-  w: number;
-  fill: string;
+  width: number;
 }
 
-/**
- * Convert snapshots to renderable segments. Each snapshot represents observed
- * state from its timestamp until the next snapshot's timestamp (or +1 median
- * interval after if it's the last row). This produces a continuous strip
- * regardless of sampling density (1-minute production data or 20-min
- * fixtures).
- */
+export interface RenderedGap extends TimelineGap {
+  x: number;
+  width: number;
+}
+
+export interface ObservationTick extends TimelineObservationMarker {
+  x: number;
+  color: string;
+}
+
+function renderSpan<T extends TimelineInterval | TimelineGap>(
+  span: T,
+  window: TimelineWindow,
+  scale: TimelineScale,
+): T & { x: number; width: number } {
+  const position = intervalPosition(span, window);
+  return {
+    ...span,
+    x: msToPx(span.startMs, scale),
+    width: position.widthPct * scale.widthPx / 100,
+  };
+}
+
+/** Use only recorded interval endpoints. A point sample never becomes a span. */
 export function buildSegments(
+  intervals: readonly TimelineInterval[],
+  window: TimelineWindow,
+  scale: TimelineScale,
+  nowMs: number,
+): { intervals: RenderedInterval[]; gaps: RenderedGap[] } {
+  const exact = normalizeIntervals(intervals, window);
+  return {
+    intervals: exact.map((interval) => renderSpan(interval, window, scale)),
+    gaps: timelineGaps(exact, window, nowMs).map((gap) => renderSpan(gap, window, scale)),
+  };
+}
+
+/** Observations are 2px × 6px top-edge cues, never filled posture durations. */
+export function buildObservationTicks(
   snapshots: SnapshotRow[],
   scale: TimelineScale,
-): RenderedSegment[] {
-  if (snapshots.length === 0) return [];
-  const intervalMs = inferSnapshotInterval(snapshots) * 1000;
-  const out: RenderedSegment[] = [];
-  for (let i = 0; i < snapshots.length; i++) {
-    const row = snapshots[i];
-    if (row.state === null) continue;
-    const t = new Date(row.ts).getTime();
-    const tNext =
-      i + 1 < snapshots.length
-        ? new Date(snapshots[i + 1].ts).getTime()
-        : t + intervalMs;
-    const startMs = Math.max(t, scale.startMs);
-    const endMs = Math.min(tNext, scale.endMs);
-    if (endMs <= startMs) continue;
-    const x = msToPx(startMs, scale);
-    const w = Math.max(1, msToPx(endMs, scale) - x);
-    out.push({ x, w, fill: STATE_FILL[row.state] ?? chartColors.away });
-  }
-  return out;
+  window: TimelineWindow,
+  nowMs = Date.now(),
+): ObservationTick[] {
+  return observationMarkers(snapshots.map((row) => ({
+    ts: row.ts,
+    state: row.state,
+    connected: row.connected,
+    observationQuality: row.observationQuality,
+    localDate: row.localDate,
+    timezoneOffsetSecs: row.timezoneOffsetSecs,
+  })))
+    .filter((marker) => marker.atMs >= window.startMs && marker.atMs < window.endMs && marker.atMs <= nowMs)
+    .map((marker) => ({
+      ...marker,
+      x: msToPx(marker.atMs, scale),
+      color: marker.state ? timelineColors[marker.state] : "var(--ink-secondary, #c6c6c6)",
+    }));
 }
 
-/** Generate midnight epoch-ms timestamps that fall inside the scale. */
+/** Local midnight dividers for the legacy date-only scale. */
 export function dayBoundaries(scale: TimelineScale): number[] {
   const out: number[] = [];
   const start = new Date(scale.startMs);
   start.setHours(0, 0, 0, 0);
-  for (let t = start.getTime(); t <= scale.endMs; t += DAY_MS) {
-    if (t >= scale.startMs) out.push(t);
+  for (let at = start.getTime(); at <= scale.endMs; at += DAY_MS) {
+    if (at >= scale.startMs) out.push(at);
   }
   return out;
 }
 
-/**
- * One hour tick (00:00 boundaries are skipped — they belong to day-dividers).
- */
 export interface HourTick {
   ms: number;
-  hour: number; // 0..23
-  /** True if this tick deserves a text label (vs. just a hash mark). */
+  hour: number;
   isLabel: boolean;
 }
 
-/**
- * Adaptive hour ticks across the visible scale.
- *
- * Density depends on `pxPerMinute` so that ticks stay readable from zoomed-in
- * 7-day views (lots of px per hour) down to 30-day views (few px per hour):
- *
- * | px/hour    | tick step | label step |
- * |------------|-----------|------------|
- * | >= 40      | 1h        | 2h         |
- * | 20..40     | 2h        | 6h         |
- * | 10..20     | 6h        | 12h        |
- * | < 10       | 12h       | 12h        |
- *
- * 00:00 is always omitted (already drawn as a day-divider).
- */
+/** Local-hour context marks; elapsed posture still comes only from intervals. */
 export function enumerateHourTicks(scale: TimelineScale): HourTick[] {
   const pxPerHour = scale.pxPerMinute * 60;
-  let tickStep = 12;
-  let labelStep = 12;
-  if (pxPerHour >= 40) {
-    tickStep = 1;
-    labelStep = 2;
-  } else if (pxPerHour >= 20) {
-    tickStep = 2;
-    labelStep = 6;
-  } else if (pxPerHour >= 10) {
-    tickStep = 6;
-    labelStep = 12;
-  }
-  const out: HourTick[] = [];
-  for (const dayStart of dayBoundaries(scale)) {
-    for (let h = tickStep; h < 24; h += tickStep) {
-      const ms = dayStart + h * 3_600_000;
-      if (ms < scale.startMs || ms > scale.endMs) continue;
-      out.push({ ms, hour: h, isLabel: h % labelStep === 0 });
+  const tickStep = pxPerHour >= 40 ? 1 : pxPerHour >= 20 ? 2 : pxPerHour >= 10 ? 6 : 12;
+  const labelStep = pxPerHour >= 40 ? 2 : pxPerHour >= 20 ? 6 : 12;
+  const ticks: HourTick[] = [];
+  for (const midnight of dayBoundaries(scale)) {
+    for (let hour = tickStep; hour < 24; hour += tickStep) {
+      const ms = midnight + hour * 3_600_000;
+      if (ms >= scale.startMs && ms <= scale.endMs) ticks.push({ ms, hour, isLabel: hour % labelStep === 0 });
     }
   }
-  return out;
+  return ticks;
 }

@@ -6,10 +6,20 @@ import type { SnapshotRow as SnapshotWireRow } from "@/generated/SnapshotRow";
 import {
   coerceSnapshotRow,
   coerceSessionRow,
+  deriveLongestContiguousStandingSecs,
   deriveDailyKpis,
   downsampleSnapshots,
 } from "./explorer-derivations";
-import type { SnapshotRow } from "@/test/analyst-fixtures";
+import type { SessionRow, SnapshotRow } from "@/test/analyst-fixtures";
+
+function session(startedAt: string, endedAt: string, state: SessionRow["state"], historyKind: string | null = "individual"): SessionRow {
+  return {
+    id: 0, startedAt, endedAt, state, durationSecs: (Date.parse(endedAt) - Date.parse(startedAt)) / 1000,
+    sittingSecs: state === "Sitting" ? (Date.parse(endedAt) - Date.parse(startedAt)) / 1000 : null,
+    standingSecs: state === "Standing" ? (Date.parse(endedAt) - Date.parse(startedAt)) / 1000 : null,
+    positionChanges: null, breakCredit: null, historyKind, dateLocal: "2026-05-15",
+  };
+}
 
 function snap(ts: string, h: number, sit = 0, stand = 0, score = 0): SnapshotRow {
   return {
@@ -220,9 +230,68 @@ describe("deriveDailyKpis", () => {
         dateLocal: "2026-10-23",
         standingPct: 25,
         positionChanges: 9,
-        longestSessionSecs: 42,
+        longestSessionSecs: null,
         score: -12.5,
       },
     ]);
+  });
+
+  it("uses two source-qualified runs' maximum, not the cumulative standing counter", () => {
+    const dayWindow = {
+      startMs: Date.parse("2026-05-15T09:00:00Z"),
+      endMs: Date.parse("2026-05-15T09:25:00Z"),
+    };
+    const rows = [
+      session("2026-05-15T09:00:00Z", "2026-05-15T09:10:00Z", "Standing"),
+      session("2026-05-15T09:10:00Z", "2026-05-15T09:15:00Z", "Sitting"),
+      session("2026-05-15T09:15:00Z", "2026-05-15T09:25:00Z", "Standing"),
+    ];
+    expect(deriveLongestContiguousStandingSecs(rows, dayWindow)).toBe(600);
+    const day = deriveDailyKpis([snap("2026-05-15T09:25:00Z", 80, 300, 1200, 30)], rows,
+      new Map([["2026-05-15", dayWindow]]));
+    expect(day[0].longestSessionSecs).toBe(600);
+    expect(day[0].standingPct).toBe(80);
+  });
+
+  it("includes a qualified cross-midnight Standing overlap in the explicitly supplied query-day window", () => {
+    const nextDayWindow = {
+      startMs: Date.parse("2026-05-16T00:00:00Z"),
+      endMs: Date.parse("2026-05-16T00:10:00Z"),
+    };
+    const sessions = [
+      session("2026-05-15T23:55:00Z", "2026-05-16T00:05:00Z", "Standing"),
+      session("2026-05-16T00:05:00Z", "2026-05-16T00:10:00Z", "Sitting"),
+    ];
+    const snapshot = {
+      ...snap("2026-05-16T00:10:00Z", 80, 900, 300, 30),
+      localDate: "2026-05-16",
+    };
+
+    const day = deriveDailyKpis(
+      [snapshot],
+      sessions,
+      new Map([["2026-05-16", nextDayWindow]]),
+    );
+
+    expect(day[0].longestSessionSecs).toBe(300);
+    expect(day[0].standingPct).toBe(25);
+  });
+
+  it("distinguishes a proven zero from an Unknown day, legacy summary, or absent boundary", () => {
+    const window = { startMs: Date.parse("2026-05-15T09:00:00Z"), endMs: Date.parse("2026-05-15T09:10:00Z") };
+    expect(deriveLongestContiguousStandingSecs([
+      session("2026-05-15T09:00:00Z", "2026-05-15T09:10:00Z", "Sitting"),
+    ], window)).toBe(0);
+    expect(deriveLongestContiguousStandingSecs([], window)).toBeNull();
+    expect(deriveLongestContiguousStandingSecs([
+      session("2026-05-15T09:00:00Z", "2026-05-15T09:10:00Z", "Sitting", null),
+    ], window)).toBeNull();
+    expect(deriveLongestContiguousStandingSecs([
+      session("2026-05-15T09:00:00Z", "2026-05-15T09:03:00Z", "Standing"),
+      session("2026-05-15T09:05:00Z", "2026-05-15T09:10:00Z", "Sitting"),
+    ], window)).toBeNull();
+    expect(deriveLongestContiguousStandingSecs([
+      session("2026-05-15T09:00:00Z", "2026-05-15T09:10:00Z", "Standing"),
+    ], null)).toBeNull();
   });
 });

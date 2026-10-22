@@ -10,7 +10,7 @@
 use std::fs;
 use std::path::Path;
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, SecondsFormat, TimeZone};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
@@ -50,6 +50,20 @@ pub struct SnapshotRow {
     /// Local UTC offset in seconds at capture time; absent in legacy files.
     #[serde(default)]
     pub timezone_offset_secs: Option<i32>,
+}
+
+/// Exact UTC bounds for one date in the timezone used by the current query.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
+pub struct LocalDayBounds {
+    pub date_local: String,
+    pub start_utc: String,
+    /// Exclusive first instant of the following local calendar day.
+    pub end_utc: String,
+    pub zone_basis: String,
+    /// Historical capture timezone is not recorded/reconstructed here.
+    pub historical_source_zone: String,
 }
 
 /// One parsed line from `events.log`.
@@ -120,6 +134,45 @@ pub async fn get_sessions_range(
         .ok_or_else(|| "Database not initialized".to_string())?;
 
     crate::db_queries::get_sessions_range(conn, &from, &to)
+}
+
+/// Returns one exact query-local calendar window for every requested date.
+/// Empty dates still have calendar bounds; those bounds do not imply observed coverage.
+#[tauri::command]
+pub async fn get_local_day_bounds_range(
+    from: String,
+    to: String,
+) -> Result<Vec<LocalDayBounds>, String> {
+    local_day_bounds_for_range(&from, &to, &chrono::Local)
+}
+
+fn local_day_bounds_for_range<Tz: TimeZone>(
+    from: &str,
+    to: &str,
+    zone: &Tz,
+) -> Result<Vec<LocalDayBounds>, String> {
+    parse_range(from, to)?
+        .into_iter()
+        .map(|date| {
+            let (start, end) = crate::db_sessions::local_date_bounds(zone, &date, &date)?;
+            Ok(LocalDayBounds {
+                date_local: date,
+                start_utc: start.to_rfc3339_opts(SecondsFormat::Secs, true),
+                end_utc: end.to_rfc3339_opts(SecondsFormat::Secs, true),
+                zone_basis: "current-query-local".to_string(),
+                historical_source_zone: "unknown".to_string(),
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+pub(crate) fn t_local_day_bounds_for_range<Tz: TimeZone>(
+    from: &str,
+    to: &str,
+    zone: &Tz,
+) -> Result<Vec<LocalDayBounds>, String> {
+    local_day_bounds_for_range(from, to, zone)
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────

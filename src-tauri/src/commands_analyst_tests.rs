@@ -7,7 +7,8 @@ use std::path::Path;
 use tempfile::TempDir;
 
 use crate::commands_analyst::{
-    parse_event_line, t_collect_events, t_collect_snapshots, t_parse_range,
+    parse_event_line, t_collect_events, t_collect_snapshots, t_local_day_bounds_for_range,
+    t_parse_range,
 };
 
 // ─── parse_event_line ────────────────────────────────────────────────────────
@@ -73,6 +74,63 @@ fn range_reversed_yields_empty() {
 fn range_rejects_bad_date() {
     assert!(t_parse_range("not-a-date", "2026-05-16").is_err());
     assert!(t_parse_range("2026-05-16", "also-bad").is_err());
+}
+
+// ─── query-local day bounds ──────────────────────────────────────────────────
+
+#[test]
+fn local_day_bounds_include_empty_dates_and_dst_lengths() {
+    let zone = chrono_tz::America::New_York;
+    let days = t_local_day_bounds_for_range("2026-03-07", "2026-03-09", &zone).unwrap();
+    assert_eq!(days.iter().map(|d| d.date_local.as_str()).collect::<Vec<_>>(),
+        ["2026-03-07", "2026-03-08", "2026-03-09"]);
+    assert!(days.iter().all(|d| d.zone_basis == "current-query-local"
+        && d.historical_source_zone == "unknown"));
+    let duration = |i: usize| {
+        let start = chrono::DateTime::parse_from_rfc3339(&days[i].start_utc).unwrap();
+        let end = chrono::DateTime::parse_from_rfc3339(&days[i].end_utc).unwrap();
+        (end - start).num_hours()
+    };
+    assert_eq!(duration(0), 24);
+    assert_eq!(duration(1), 23);
+    assert_eq!(duration(2), 24);
+}
+
+#[test]
+fn local_day_bounds_cover_fall_back_day_with_exclusive_end() {
+    let days = t_local_day_bounds_for_range("2026-11-01", "2026-11-01",
+        &chrono_tz::America::New_York).unwrap();
+    let start = chrono::DateTime::parse_from_rfc3339(&days[0].start_utc).unwrap();
+    let end = chrono::DateTime::parse_from_rfc3339(&days[0].end_utc).unwrap();
+    assert_eq!((end - start).num_hours(), 25);
+    assert!(end > start);
+}
+
+#[test]
+fn local_day_bounds_reuse_missing_and_ambiguous_midnight_resolution() {
+    use chrono::TimeZone;
+    let missing = t_local_day_bounds_for_range("2018-11-04", "2018-11-04",
+        &chrono_tz::America::Sao_Paulo).unwrap();
+    let missing_start = chrono::DateTime::parse_from_rfc3339(&missing[0].start_utc).unwrap();
+    assert_eq!(missing_start.with_timezone(&chrono_tz::America::Sao_Paulo)
+        .time().to_string(), "01:00:00");
+
+    let zone = chrono_tz::America::Havana;
+    let date = chrono::NaiveDate::from_ymd_opt(2015, 11, 1).unwrap();
+    assert!(matches!(zone.from_local_datetime(&date.and_hms_opt(0, 0, 0).unwrap()),
+        chrono::LocalResult::Ambiguous(_, _)));
+    let ambiguous = t_local_day_bounds_for_range("2015-11-01", "2015-11-01", &zone).unwrap();
+    let start = chrono::DateTime::parse_from_rfc3339(&ambiguous[0].start_utc).unwrap();
+    assert_eq!(start.with_timezone(&zone).time().to_string(), "00:00:00");
+}
+
+#[test]
+fn local_day_bounds_preserve_range_validation() {
+    let zone = chrono_tz::UTC;
+    assert!(t_local_day_bounds_for_range("bad", "2026-05-16", &zone).is_err());
+    assert!(t_local_day_bounds_for_range("2026-05-16", "bad", &zone).is_err());
+    assert!(t_local_day_bounds_for_range("2026-05-16", "2026-05-14", &zone)
+        .unwrap().is_empty());
 }
 
 // ─── collect_snapshots ───────────────────────────────────────────────────────

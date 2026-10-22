@@ -160,7 +160,7 @@ export function buildDailyKpis(today: Date = new Date()): DailyKpi[] {
       dateLocal: dateLocal(today, day),
       standingPct,
       positionChanges: 6 + Math.floor(rng() * 8),
-      longestSessionSecs: 1800 + Math.floor(rng() * 1800),
+      longestSessionSecs: null,
       score: 35 + Math.floor(rng() * 50),
     });
   }

@@ -52,6 +52,7 @@ function makeSessions(count: number, hoursAgo = 2): SessionEntry[] {
       state: i % 2 === 0 ? "Sitting" : "Standing",
       duration_secs: Math.floor((gap * 0.8) / 1000),
       break_credit: null,
+      history_kind: "individual",
     });
   }
   return sessions;
@@ -60,7 +61,7 @@ function makeSessions(count: number, hoursAgo = 2): SessionEntry[] {
 describe("OneBarTimeline", () => {
   it("shows empty message when no sessions and no live time", () => {
     render(<OneBarTimeline {...baseProps({ limitUsedSecs: 0, todaySessions: [] })} />);
-    expect(screen.getByText("No sessions yet")).toBeInTheDocument();
+    expect(screen.getByText("No recorded intervals yet")).toBeInTheDocument();
   });
 
   it("renders session blocks for each session", () => {
@@ -68,14 +69,41 @@ describe("OneBarTimeline", () => {
     render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
     const timeline = screen.getByTestId("one-bar-timeline");
     const blocks = timeline.querySelectorAll(".one-bar__timeline-block");
-    // 3 historical + 1 live block
-    expect(blocks.length).toBeGreaterThanOrEqual(3);
+    expect(blocks).toHaveLength(3);
+    expect(screen.queryByTestId("timeline-live-block")).not.toBeInTheDocument();
   });
 
-  it("renders live block when limitUsedSecs > 0", () => {
+  it("keeps legacy Sitting unknown while rendering qualified Sitting in compact chronology", () => {
+    const now = Date.now();
+    const sessions: SessionEntry[] = [
+      {
+        start: new Date(now - 20 * 60_000).toISOString(),
+        end: new Date(now - 10 * 60_000).toISOString(),
+        state: "Sitting",
+        duration_secs: 600,
+        break_credit: null,
+      },
+      {
+        start: new Date(now - 10 * 60_000).toISOString(),
+        end: new Date(now - 5 * 60_000).toISOString(),
+        state: "Sitting",
+        duration_secs: 300,
+        break_credit: null,
+        history_kind: "individual",
+      },
+    ];
+    render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
+    const segments = screen.getAllByTestId("timeline-segment");
+    expect(segments).toHaveLength(1);
+    expect(segments[0]).toHaveAttribute("data-state", "Sitting");
+    expect(segments[0]).toHaveAttribute("data-start-ms", String(Date.parse(sessions[1].start)));
+  });
+
+  it("does not extend a current posture from credited load without a fresh observed endpoint", () => {
     const sessions = makeSessions(1);
     render(<OneBarTimeline {...baseProps({ todaySessions: sessions, limitUsedSecs: 300 })} />);
-    expect(screen.getByTestId("timeline-live-block")).toBeInTheDocument();
+    expect(screen.queryByTestId("timeline-live-block")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("timeline-unknown")).toHaveLength(1);
   });
 
   it("always shows hour markers when sessions exist", () => {
@@ -115,17 +143,15 @@ describe("OneBarTimeline", () => {
     expect(texts.some((t) => t.endsWith(":00"))).toBe(true);
   });
 
-  it("nil — a row with no recorded duration still renders a block", () => {
-    // `duration_secs` is null for rows written before the column existed.
-    // The block must not vanish, and must not widen the bar as if it were long.
+  it("uses recorded endpoints rather than the nullable summary duration", () => {
     const sessions = makeSessions(2, 1);
     sessions[0] = { ...sessions[0], duration_secs: null };
     render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
     const timeline = screen.getByTestId("one-bar-timeline");
-    const completed = timeline.querySelectorAll(
-      ".one-bar__timeline-block:not(.one-bar__timeline-block--current)",
-    );
-    expect(completed.length).toBe(2);
+    const completed = Array.from(timeline.querySelectorAll(".one-bar__timeline-block"));
+    expect(completed).toHaveLength(2);
+    expect(completed[0]).toHaveAttribute("data-start-ms", String(Date.parse(sessions[0].start)));
+    expect(completed[0]).toHaveAttribute("data-end-ms", String(Date.parse(sessions[0].end!)));
   });
 
   it("hour labels contain time format with colon", () => {

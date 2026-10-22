@@ -5,12 +5,13 @@ import { describe, expect, it } from "vitest";
 import type { SnapshotRow } from "@/test/analyst-fixtures";
 import {
   aggregateDayTotals,
+  analystTimelineIntervals,
+  buildTimelineScaleForWindow,
   buildTimelineScale,
   dayCenterPx,
   dayOfMonthLabel,
   easeInOut,
   enumerateDays,
-  inferSnapshotInterval,
   isWeekend,
   localIsoDate,
   msToPx,
@@ -34,7 +35,7 @@ function snap(ts: string, state: SnapshotRow["state"], localDate = ts.slice(0, 1
 }
 
 describe("aggregateDayTotals", () => {
-  it("buckets snapshots by local date and counts per-state minutes", () => {
+  it("does not turn point snapshots into elapsed posture totals", () => {
     const rows = [
       snap("2026-05-17T08:00:00.000Z", "Sitting"),
       snap("2026-05-17T08:01:00.000Z", "Sitting"),
@@ -43,40 +44,30 @@ describe("aggregateDayTotals", () => {
       snap("2026-05-17T08:04:00.000Z", "Away"),
       snap("2026-05-18T08:00:00.000Z", "Sitting"),
     ];
-    const totals = aggregateDayTotals(rows);
-    const may17 = totals.get("2026-05-17");
-    expect(may17).toBeDefined();
-    expect(may17?.sit).toBe(120);
-    expect(may17?.stand).toBe(60);
-    expect(may17?.walk).toBe(60);
-    expect(may17?.away).toBe(60);
-    expect(may17?.total).toBe(300);
-    expect(totals.get("2026-05-18")?.sit).toBe(60);
+    expect(aggregateDayTotals(rows)).toEqual(new Map());
   });
 
-  it("respects custom secsPerSnapshot", () => {
-    const totals = aggregateDayTotals([snap("2026-05-17T00:00:00Z", "Sitting")], 30);
-    expect(totals.get("2026-05-17")?.sit).toBe(30);
-  });
-
-  it("keeps unknown coverage separate and groups by producer local date", () => {
+  it("does not derive duration from producer-local point samples or unknown rows", () => {
     const totals = aggregateDayTotals([
       snap("2026-10-22T22:30:00Z", null, "2026-10-23"),
       snap("2026-10-22T22:31:00Z", "Standing", "2026-10-23"),
       { ...snap("2026-10-23T00:00:00Z", "Sitting"), localDate: null },
       { ...snap("2026-10-23T00:01:00Z", "Away"), localDate: undefined },
-    ], 60);
+    ]);
 
-    expect(totals.get("2026-10-23")).toEqual({
-      dateLocal: "2026-10-23",
-      sit: 0,
-      stand: 60,
-      walk: 0,
-      away: 0,
-      unknown: 60,
-      total: 120,
-    });
-    expect(totals.has("2026-10-22")).toBe(false);
+    expect(totals).toEqual(new Map());
+  });
+});
+
+describe("analystTimelineIntervals", () => {
+  it("uses only qualified source endpoints and ignores cumulative credited totals", () => {
+    const rows = [
+      { id: 1, startedAt: "2026-05-17T08:00:00Z", endedAt: "2026-05-17T08:10:00Z", state: "Standing" as const, durationSecs: 600, sittingSecs: 0, standingSecs: 600, positionChanges: null, breakCredit: null, historyKind: "individual", dateLocal: "2026-05-17" },
+      { id: 2, startedAt: "2026-05-17T08:10:00Z", endedAt: "2026-05-17T08:20:00Z", state: "Standing" as const, durationSecs: 600, sittingSecs: 0, standingSecs: null, positionChanges: null, breakCredit: "full" as const, historyKind: null, dateLocal: "2026-05-17" },
+    ];
+    expect(analystTimelineIntervals(rows).map(({ startMs, endMs, state, provenance }) => [
+      startMs, endMs, state, provenance,
+    ])).toEqual([[Date.parse(rows[0].startedAt), Date.parse(rows[0].endedAt!), "Standing", "session"]]);
   });
 });
 
@@ -151,41 +142,13 @@ describe("scrollDurationMs", () => {
   });
 });
 
-describe("inferSnapshotInterval", () => {
-  it("returns 60s default for empty / single row", () => {
-    expect(inferSnapshotInterval([])).toBe(60);
-    expect(inferSnapshotInterval([snap("2026-05-17T08:00:00Z", "Sitting")])).toBe(60);
-  });
-  it("detects 20-min regular spacing", () => {
-    const rows: SnapshotRow[] = [];
-    const start = new Date("2026-05-17T08:00:00Z").getTime();
-    for (let i = 0; i < 10; i++) {
-      rows.push(snap(new Date(start + i * 20 * 60_000).toISOString(), "Sitting"));
-    }
-    expect(inferSnapshotInterval(rows)).toBe(1200);
-  });
-  it("uses median to ignore outliers", () => {
-    const rows = [
-      snap("2026-05-17T08:00:00Z", "Sitting"),
-      snap("2026-05-17T08:05:00Z", "Sitting"), // 5m
-      snap("2026-05-17T08:10:00Z", "Sitting"), // 5m
-      snap("2026-05-17T08:15:00Z", "Sitting"), // 5m
-      // 30m gap counted (still <1h cap)
-      snap("2026-05-17T08:45:00Z", "Sitting"),
-    ];
-    expect(inferSnapshotInterval(rows)).toBe(300);
-  });
-  it("caps at 1h and floors at 60s", () => {
-    const tooBig = [
-      snap("2026-05-17T08:00:00Z", "Sitting"),
-      snap("2026-05-17T12:00:00Z", "Sitting"), // 4h gap filtered (≥3600 ignored)
-    ];
-    expect(inferSnapshotInterval(tooBig)).toBe(60); // no gaps in range → fallback
-    const tooSmall = [
-      snap("2026-05-17T08:00:00Z", "Sitting"),
-      snap("2026-05-17T08:00:30Z", "Sitting"),
-    ];
-    expect(inferSnapshotInterval(tooSmall)).toBe(60); // clamped up
+describe("buildTimelineScaleForWindow", () => {
+  it("maps actual source bounds without consulting the browser timezone", () => {
+    const scale = buildTimelineScaleForWindow({ startMs: 10_000, endMs: 1_810_000 }, 180);
+    expect(scale.startMs).toBe(10_000);
+    expect(scale.endMs).toBe(1_810_000);
+    expect(scale.pxPerMinute).toBe(6);
+    expect(() => buildTimelineScaleForWindow({ startMs: 2, endMs: 2 }, 100)).toThrow(/source window/);
   });
 });
 

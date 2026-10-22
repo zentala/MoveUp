@@ -17,19 +17,19 @@ interface KpiSpec {
   key: keyof Pick<DailyKpi, "standingPct" | "positionChanges" | "longestSessionSecs" | "score">;
   label: string;
   unit: string;
-  format: (v: number) => string;
+  format: (v: number | null) => string;
 }
 
 const KPIS: KpiSpec[] = [
-  { key: "standingPct", label: "Standing %", unit: "%", format: (v) => `${v}%` },
-  { key: "positionChanges", label: "Changes", unit: "", format: (v) => `${v}` },
+  { key: "standingPct", label: "Standing %", unit: "%", format: (v) => v === null ? "Unknown" : `${v}%` },
+  { key: "positionChanges", label: "Changes", unit: "", format: (v) => v === null ? "Unknown" : `${v}` },
   {
     key: "longestSessionSecs",
     label: "Longest session",
     unit: "",
-    format: (v) => formatDurationShort(v),
+    format: (v) => v === null ? "Unknown" : formatDurationShort(v),
   },
-  { key: "score", label: "Score", unit: "pts", format: (v) => `${v}` },
+  { key: "score", label: "Score", unit: "pts", format: (v) => v === null ? "Unknown" : `${v}` },
 ];
 
 function Sparkline({
@@ -38,26 +38,32 @@ function Sparkline({
   height,
   color,
 }: {
-  values: number[];
+  values: Array<number | null>;
   width: number;
   height: number;
   color: string;
 }) {
-  if (values.length === 0) {
-    return <svg width={width} height={height} />;
+  const present = values.filter((value): value is number => value !== null && Number.isFinite(value));
+  if (present.length === 0) {
+    return <svg width={width} height={height} role="img" aria-label="sparkline; all values unknown" />;
   }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const min = Math.min(...present);
+  const max = Math.max(...present);
   const x = scaleLinear(0, values.length - 1, 2, width - 2);
   const y = scaleLinear(min, max || 1, height - 4, 4);
-  const path = values
-    .map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`)
-    .join(" ");
+  const path = values.reduce<{ path: string; inRun: boolean }>((run, value, i) => {
+    if (value === null || !Number.isFinite(value)) return { ...run, inRun: false };
+    const command = run.inRun ? "L" : "M";
+    return {
+      path: `${run.path}${run.path ? " " : ""}${command}${x(i).toFixed(1)},${y(value).toFixed(1)}`,
+      inRun: true,
+    };
+  }, { path: "", inRun: false }).path;
   return (
-    <svg width={width} height={height} role="img" aria-label="sparkline">
+    <svg width={width} height={height} role="img" aria-label="sparkline; gaps mark unknown values">
       <path d={path} fill="none" stroke={color} strokeWidth={1.4} />
-      {values.map((v, i) => (
-        <circle key={i} cx={x(i)} cy={y(v)} r={1.6} fill={color} />
+      {values.map((value, i) => value === null || !Number.isFinite(value) ? null : (
+        <circle key={i} data-index={i} cx={x(i)} cy={y(value)} r={1.6} fill={color} />
       ))}
     </svg>
   );
@@ -75,8 +81,11 @@ export function KpiTrend({ data, width = 360 }: KpiTrendProps) {
         data-testid="kpi-trend-grid"
       >
         {KPIS.map((k) => {
-          const values = data.map((d) => Number(d[k.key]));
-          const latest = values[values.length - 1] ?? 0;
+          const values = data.map((d) => {
+            const value = d[k.key];
+            return typeof value === "number" && Number.isFinite(value) ? value : null;
+          });
+          const latest = values[values.length - 1] ?? null;
           return (
             <div
               key={k.key}

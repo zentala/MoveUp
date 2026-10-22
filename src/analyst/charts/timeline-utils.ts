@@ -2,16 +2,15 @@
  * timeline-utils.ts — Pure math for the Daily Timeline feature.
  *
  * Two related helpers:
- *   - DateNavigator: per-day state hours aggregation (sum minutes per state).
- *   - TimelineDetail: pixel-per-minute scale for one continuous strip
- *     spanning [range.from - sidePadHours, range.to + sidePadHours].
+ *   - DateNavigator: calendar labels and point-only daily observations.
+ *   - TimelineDetail: pixel scales and interval adaptation.
  *
  * No DOM access, no React — easy to test under Vitest.
  */
-import type { SnapshotRow } from "@/test/analyst-fixtures";
-import type { DeskState } from "@/types";
+import type { SessionRow, SnapshotRow } from "@/test/analyst-fixtures";
+import { sessionIntervals, type TimelineWindow } from "@/timeline/intervals";
 
-/** Seconds-per-state totals for a single day. */
+/** Elapsed totals supplied by source-qualified intervals, never point counts. */
 export interface DayStateTotals {
   dateLocal: string;
   /** Total seconds in each state for that day. */
@@ -19,79 +18,28 @@ export interface DayStateTotals {
   stand: number;
   walk: number;
   away: number;
-  /** Time whose posture is unknown; never included in a known posture total. */
+  /** Uncovered elapsed time, when a source-bounded denominator is available. */
   unknown?: number;
-  /** Convenience: total known plus unknown sampled seconds. */
+  /** Known plus unknown elapsed seconds. */
   total: number;
 }
 
 /** A YYYY-MM-DD ↦ DayStateTotals map keyed by local date. */
 export type DayTotalsMap = Map<string, DayStateTotals>;
 
-const MINUTE_SECS = 60;
-
-function emptyTotals(date: string): DayStateTotals {
-  return { dateLocal: date, sit: 0, stand: 0, walk: 0, away: 0, unknown: 0, total: 0 };
+/** Snapshot rows are point observations; they cannot produce elapsed totals. */
+export function aggregateDayTotals(_rows: SnapshotRow[]): DayTotalsMap {
+  return new Map();
 }
 
-function addToTotals(t: DayStateTotals, state: DeskState | null, secs: number): void {
-  switch (state) {
-    case "Sitting":
-      t.sit += secs;
-      break;
-    case "Standing":
-      t.stand += secs;
-      break;
-    case "Walking":
-      t.walk += secs;
-      break;
-    case "Away":
-      t.away += secs;
-      break;
-    case null:
-      t.unknown = (t.unknown ?? 0) + secs;
-      break;
-  }
-  t.total += secs;
-}
-
-/** Median seconds between consecutive snapshots, capped to [60s, 1h]. */
-export function inferSnapshotInterval(rows: SnapshotRow[]): number {
-  if (rows.length < 2) return MINUTE_SECS;
-  const gaps: number[] = [];
-  for (let i = 1; i < rows.length; i++) {
-    const dt =
-      (new Date(rows[i].ts).getTime() - new Date(rows[i - 1].ts).getTime()) / 1000;
-    if (dt > 0 && dt < 3600) gaps.push(dt);
-  }
-  if (gaps.length === 0) return MINUTE_SECS;
-  gaps.sort((a, b) => a - b);
-  const median = gaps[Math.floor(gaps.length / 2)];
-  return Math.max(MINUTE_SECS, Math.min(3600, median));
-}
-
-/**
- * Aggregate snapshots into per-day state totals. Each snapshot is treated as
- * occupying `secsPerSnapshot` seconds; if omitted, the interval is inferred
- * from the median gap between consecutive rows.
- */
-export function aggregateDayTotals(
-  rows: SnapshotRow[],
-  secsPerSnapshot?: number,
-): DayTotalsMap {
-  const interval = secsPerSnapshot ?? inferSnapshotInterval(rows);
-  const map: DayTotalsMap = new Map();
-  for (const r of rows) {
-    const date = r.localDate;
-    if (!date) continue;
-    let bucket = map.get(date);
-    if (!bucket) {
-      bucket = emptyTotals(date);
-      map.set(date, bucket);
-    }
-    addToTotals(bucket, r.state, interval);
-  }
-  return map;
+/** Adapt Explorer's existing session rows without using credited-load summaries. */
+export function analystTimelineIntervals(rows: readonly SessionRow[]) {
+  return sessionIntervals(rows.map((row) => ({
+    start: row.startedAt,
+    end: row.endedAt,
+    state: row.state ?? "",
+    history_kind: row.historyKind,
+  })));
 }
 
 /** Format a Date as `YYYY-MM-DD` in the LOCAL timezone (not UTC). */
@@ -153,13 +101,24 @@ export interface TimelineScale {
   widthPx: number;
 }
 
+/** Build a pixel scale only from explicit source-qualified elapsed bounds. */
+export function buildTimelineScaleForWindow(window: TimelineWindow, widthPx: number): TimelineScale {
+  if (!Number.isFinite(window.startMs) || !Number.isFinite(window.endMs) || window.endMs <= window.startMs) {
+    throw new RangeError("Timeline source window must have increasing finite endpoints");
+  }
+  const totalMinutes = (window.endMs - window.startMs) / MS_PER_MIN;
+  return {
+    startMs: window.startMs,
+    endMs: window.endMs,
+    pxPerMinute: widthPx / totalMinutes,
+    widthPx,
+  };
+}
+
 const MS_PER_MIN = 60_000;
 const MS_PER_HOUR = 3_600_000;
 
-/**
- * Build a continuous pixel scale that pads the selected range with
- * `sidePadHours` of context on each side, then maps to `widthPx`.
- */
+/** Legacy browser-local scale. Chronology display should use explicit source bounds. */
 export function buildTimelineScale(
   rangeFrom: string,
   rangeTo: string,

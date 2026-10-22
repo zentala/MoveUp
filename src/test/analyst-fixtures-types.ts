@@ -62,7 +62,8 @@ export interface DailyKpi {
   dateLocal: string;
   standingPct: number;
   positionChanges: number;
-  longestSessionSecs: number;
+  /** Null when individual source intervals do not establish a contiguous maximum. */
+  longestSessionSecs: number | null;
   score: number;
 }
 

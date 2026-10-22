@@ -117,7 +117,7 @@ describe("aggregateDayKpis", () => {
 
   it("uses the rollup outright when the day has no snapshots or sessions", () => {
     const rollup: DailyKpi[] = [
-      { dateLocal: DAY, standingPct: 62, positionChanges: 6, longestSessionSecs: 900, score: 71 },
+      { dateLocal: DAY, standingPct: 62, positionChanges: 6, longestSessionSecs: null, score: 71 },
     ];
     const result = aggregateDayKpis([], [], DAY, rollup);
     expect(result.hasData).toBe(true);

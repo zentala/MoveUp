@@ -11,6 +11,12 @@ import type { DailyKpi, SessionRow, SnapshotRow } from "@/test/analyst-fixtures"
 import type { SnapshotRow as SnapshotWireRow } from "@/generated/SnapshotRow";
 import type { SessionRow as SessionWireRow } from "@/generated/SessionRow";
 import type { DeskState } from "@/types";
+import {
+  normalizeIntervals,
+  timelineGaps,
+  type TimelineInterval,
+  type TimelineWindow,
+} from "@/timeline/intervals";
 
 function toDeskState(s: string | null | undefined): DeskState | null {
   if (!s) return null;
@@ -92,11 +98,53 @@ export function downsampleSnapshots(
 }
 
 /**
+ * Return the longest proven contiguous Standing run in a source day window.
+ * Every part of the window must be covered by individual session endpoints;
+ * legacy summaries or any Unknown hole make the maximum unknowable.
+ */
+export function deriveLongestContiguousStandingSecs(
+  sessions: readonly SessionRow[],
+  window: TimelineWindow | null | undefined,
+): number | null {
+  if (!window || window.endMs <= window.startMs) return null;
+  const individual: TimelineInterval[] = sessions.flatMap((row) => {
+    if (row.historyKind !== "individual" || !row.state || !row.endedAt) return [];
+    return [{
+      startMs: Date.parse(row.startedAt),
+      endMs: Date.parse(row.endedAt),
+      state: row.state,
+      provenance: "session",
+    }];
+  });
+  const intervals = normalizeIntervals(individual, window);
+  if (timelineGaps(intervals, window, window.endMs).length > 0) return null;
+
+  let longestMs = 0;
+  let activeStandingMs = 0;
+  let previousEnd: number | null = null;
+  for (const interval of intervals) {
+    if (interval.state === "Standing") {
+      activeStandingMs = previousEnd === interval.startMs ? activeStandingMs + interval.endMs - interval.startMs
+        : interval.endMs - interval.startMs;
+      longestMs = Math.max(longestMs, activeStandingMs);
+    } else {
+      activeStandingMs = 0;
+    }
+    previousEnd = interval.endMs;
+  }
+  return longestMs / 1000;
+}
+
+/**
  * Reduces a snapshot list to one `DailyKpi` row per local date by taking the
  * last snapshot of each day as the day's "current" value. Standing percentage
  * is computed from the cumulative sitting/standing counters.
  */
-export function deriveDailyKpis(rows: SnapshotRow[]): DailyKpi[] {
+export function deriveDailyKpis(
+  rows: SnapshotRow[],
+  sessions: readonly SessionRow[] = [],
+  dayWindows: ReadonlyMap<string, TimelineWindow> = new Map(),
+): DailyKpi[] {
   const byDay = new Map<string, SnapshotRow>();
   for (const r of rows) {
     const day = r.localDate;
@@ -112,11 +160,23 @@ export function deriveDailyKpis(rows: SnapshotRow[]): DailyKpi[] {
     if (sitting == null || changes == null || snap.score == null) continue;
     const total = sitting + standing;
     if (total <= 0) continue;
+    const dayWindow = dayWindows.get(dateLocal);
+    const overlappingSessions = dayWindow
+      ? sessions.filter((row) => {
+        const startMs = Date.parse(row.startedAt);
+        const endMs = row.endedAt === null ? Number.NaN : Date.parse(row.endedAt);
+        return Number.isFinite(startMs) && Number.isFinite(endMs) &&
+          startMs < dayWindow.endMs && endMs > dayWindow.startMs;
+      })
+      : [];
     out.push({
         dateLocal,
         standingPct: Math.round((standing / total) * 100),
         positionChanges: changes,
-        longestSessionSecs: standing,
+        longestSessionSecs: deriveLongestContiguousStandingSecs(
+          overlappingSessions,
+          dayWindow,
+        ),
         score: snap.score,
       });
   }
