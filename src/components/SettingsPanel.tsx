@@ -1,7 +1,7 @@
 /**
  * SettingsPanel.tsx — unified settings configuration panel.
  *
- * Covers: time limits, calibration, notifications, misc actions.
+ * Covers: profiles, calibration, notifications, misc actions.
  * Layout: horizontal tabs (Time, Calibr., Notif., More) — no scrolling.
  * Design system: uses tokens from system.md (--beam, --panel-*, --rail-*, --ink-*)
  */
@@ -66,7 +66,7 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
     setSaving(true);
     setError(null);
     try {
-      await invoke("save_settings", { settings });
+      await invoke("save_settings", { config: settings });
       onClose();
     } catch (err) {
       setError(String(err));
@@ -106,7 +106,6 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
         {activeTab === 0 && (
           <>
             <ProfileSelector type="ergonomic" label="Ergonomic Profile" />
-            <ProfileSelector type="communication" label="Communication Profile" />
           </>
         )}
 
@@ -119,7 +118,7 @@ const SettingsPanel: FC<SettingsPanelProps> = ({ onClose }) => {
         )}
 
         {activeTab === 2 && (
-          <NotificationsSection settings={settings} onChange={setSettings} />
+          <NotificationsSection />
         )}
 
         {activeTab === 3 && (

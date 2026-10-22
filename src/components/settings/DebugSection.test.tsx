@@ -51,9 +51,6 @@ describe("DebugSection", () => {
           sit_limit_mins: 40,
           stand_limit_mins: 15,
           standing_target_mins: 20,
-          notify_inactivity: true,
-          notify_daily_posture_balance: false,
-          notify_praise_halfway: true,
         };
       }
       return null;
@@ -65,6 +62,9 @@ describe("DebugSection", () => {
       expect(screen.getByText("Config")).toBeInTheDocument();
     });
     expect(screen.getByText("sit_limit_mins")).toBeInTheDocument();
+    expect(screen.queryByText("notify_inactivity")).not.toBeInTheDocument();
+    expect(screen.queryByText("notify_posture_balance")).not.toBeInTheDocument();
+    expect(screen.queryByText("notify_praise_halfway")).not.toBeInTheDocument();
   });
 
   it("renders KPI metrics returned by get_dashboard_state", async () => {

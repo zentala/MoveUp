@@ -148,9 +148,6 @@ const DebugSection: FC = () => {
           <Row label="sit_limit_mins" value={String(config.sit_limit_mins)} />
           <Row label="stand_limit_mins" value={String(config.stand_limit_mins)} />
           <Row label="standing_target_mins" value={String(config.standing_target_mins)} />
-          <Row label="notify_inactivity" value={String(config.notify_inactivity)} />
-          <Row label="notify_posture_balance" value={String(config.notify_daily_posture_balance)} />
-          <Row label="notify_praise_halfway" value={String(config.notify_praise_halfway)} />
         </Group>
       )}
 

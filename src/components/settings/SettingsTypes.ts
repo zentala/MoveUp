@@ -10,29 +10,8 @@ export interface SettingsPanelProps {
   onClose: () => void;
 }
 
-/**
- * Toggles the settings UI still renders but the backend no longer sends.
- *
- * They moved to the ergonomic and communication profiles when those were
- * introduced; `get_settings` returns `AppConfig`, which has none of them, so
- * at runtime every one of these reads `undefined` today. They are optional
- * and quarantined here so `AppConfig` stays the sole description of what the
- * backend actually sends — deleting the dead UI that reads them is a
- * follow-up, not part of the codegen change (ADR 017).
- */
-interface LegacySettingsFields {
-  sit_limit_mins: number;
-  stand_limit_mins: number;
-  notify_inactivity: boolean;
-  notify_daily_posture_balance: boolean;
-  notify_praise_halfway: boolean;
-}
-
-/**
- * What the settings panel holds in state: the real `get_settings` payload
- * (generated from Rust's `AppConfig`) plus the legacy leftovers above.
- */
-export type DeskSettings = AppConfig & Partial<LegacySettingsFields>;
+/** The settings panel holds exactly the configuration returned by the backend. */
+export type DeskSettings = AppConfig;
 
 export const DEFAULT_SETTINGS: DeskSettings = {
   sitting_mm: 720,

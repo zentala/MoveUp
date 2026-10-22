@@ -12,6 +12,228 @@ fn app() -> tauri::App<MockRuntime> {
 }
 
 #[test]
+fn startup_restores_both_selected_profiles_from_fresh_shared_store() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let profiles_dir = temp.path().join("app-data");
+    crate::profile_loader::ensure_profiles_dir(&profiles_dir);
+    let event_logger = crate::event_logger::EventLogger::new(temp.path().join("startup-logs"));
+
+    let first_owner = app();
+    let first = crate::app_store::initialize_at(first_owner.handle(), &file).unwrap();
+    first.set("active_communication_profile", "silent");
+    first.set("active_ergonomic_profile", "strict");
+    first.set("unrelated_startup_key", serde_json::json!({"keep": true}));
+    first.save().unwrap();
+
+    let second_owner = app();
+    let reopened = crate::app_store::initialize_at(second_owner.handle(), &file).unwrap();
+    let policy = Mutex::new(crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    ));
+    let session = Mutex::new(crate::session::SessionManager::new());
+
+    crate::setup_helpers::load_profiles_for_startup(
+        &profiles_dir, &reopened, &policy, &session, &event_logger,
+    );
+
+    {
+        let policy = policy.lock().unwrap();
+        assert_eq!(policy.comm_profile().id, "silent");
+        assert!(!policy.comm_profile().notifications_enabled);
+        assert_eq!(policy.ergo_profile().id, "strict");
+    }
+    {
+        let policy = policy.lock().unwrap();
+        let config = crate::config::AppConfig::default();
+        let initialized_later = crate::session::SessionManager::new_from_config(
+            &config, policy.ergo_profile(),
+        );
+        assert_eq!(initialized_later.state.session_limit_secs, 1500);
+        assert_eq!(initialized_later.state.stand_limit_secs, 600);
+    }
+    assert_eq!(session.lock().unwrap().state.session_limit_secs, 1500);
+    assert_eq!(session.lock().unwrap().state.stand_limit_secs, 600);
+    assert_eq!(reopened.get("active_communication_profile").unwrap(), "silent");
+    assert_eq!(reopened.get("active_ergonomic_profile").unwrap(), "strict");
+    assert_eq!(reopened.get("unrelated_startup_key").unwrap()["keep"], true);
+
+    let third_owner = app();
+    let disk_reload = crate::app_store::initialize_at(third_owner.handle(), &file).unwrap();
+    assert_eq!(disk_reload.get("active_communication_profile").unwrap(), "silent");
+    assert_eq!(disk_reload.get("active_ergonomic_profile").unwrap(), "strict");
+}
+
+#[test]
+fn startup_defaults_only_when_selection_is_absent_and_reports_invalid_selection() {
+    let temp = tempfile::tempdir().unwrap();
+    let app_data = temp.path().join("app-data");
+    crate::profile_loader::ensure_profiles_dir(&app_data);
+    let event_logger = crate::event_logger::EventLogger::new(temp.path().join("startup-logs"));
+
+    let absent_file = temp.path().join("absent-settings.json");
+    let absent_owner = app();
+    let absent_store = crate::app_store::initialize_at(absent_owner.handle(), &absent_file).unwrap();
+    let absent_policy = Mutex::new(crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    ));
+    let absent_session = Mutex::new(crate::session::SessionManager::new());
+    crate::setup_helpers::load_profiles_for_startup(
+        &app_data, &absent_store, &absent_policy, &absent_session, &event_logger,
+    );
+    assert_eq!(absent_policy.lock().unwrap().comm_profile().id, "default");
+    assert_eq!(absent_policy.lock().unwrap().ergo_profile().id, "default");
+    assert_eq!(absent_store.get("active_communication_profile"), None,
+        "default startup must not materialize an absent selection key");
+
+    let invalid_file = temp.path().join("invalid-settings.json");
+    let invalid_owner = app();
+    let invalid_store = crate::app_store::initialize_at(invalid_owner.handle(), &invalid_file).unwrap();
+    invalid_store.set("active_communication_profile", "missing-profile");
+    invalid_store.save().unwrap();
+    let invalid_policy = Mutex::new(crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    ));
+    let invalid_session = Mutex::new(crate::session::SessionManager::new());
+    crate::setup_helpers::load_profiles_for_startup(
+        &app_data, &invalid_store, &invalid_policy, &invalid_session, &event_logger,
+    );
+    assert_eq!(invalid_policy.lock().unwrap().comm_profile().id, "default");
+    assert_eq!(invalid_store.get("active_communication_profile").unwrap(), "missing-profile");
+    let invalid_reload_owner = app();
+    let invalid_disk = crate::app_store::initialize_at(invalid_reload_owner.handle(), &invalid_file).unwrap();
+    assert_eq!(invalid_disk.get("active_communication_profile").unwrap(), "missing-profile");
+
+    let malformed_path = app_data.join("profiles/ergonomic/malformed.json");
+    fs::write(&malformed_path, "{ malformed json").unwrap();
+    let malformed_file = temp.path().join("malformed-settings.json");
+    let malformed_owner = app();
+    let malformed_store = crate::app_store::initialize_at(malformed_owner.handle(), &malformed_file).unwrap();
+    malformed_store.set("active_ergonomic_profile", "malformed");
+    malformed_store.save().unwrap();
+    let malformed_policy = Mutex::new(crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    ));
+    let malformed_session = Mutex::new(crate::session::SessionManager::new());
+    crate::setup_helpers::load_profiles_for_startup(
+        &app_data, &malformed_store, &malformed_policy, &malformed_session, &event_logger,
+    );
+    assert_eq!(malformed_policy.lock().unwrap().ergo_profile().id, "default");
+    assert_eq!(malformed_store.get("active_ergonomic_profile").unwrap(), "malformed");
+    let malformed_disk = app();
+    let malformed_reload = crate::app_store::initialize_at(malformed_disk.handle(), &malformed_file).unwrap();
+    assert_eq!(malformed_reload.get("active_ergonomic_profile").unwrap(), "malformed");
+
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let events = fs::read_to_string(temp.path().join("startup-logs").join(today).join("events.log")).unwrap();
+    assert!(events.contains("PROFILE_LOAD_FAILED"));
+    assert!(events.contains("missing-profile"));
+    assert!(events.contains("Cannot parse selected ergonomic profile 'malformed'"));
+}
+
+#[cfg(windows)]
+#[test]
+fn failed_persistent_profile_switches_restore_runtime_memory_and_disk_then_retry() {
+    fn make_read_only(path: &std::path::Path, read_only: bool) {
+        let mut permissions = fs::metadata(path).unwrap().permissions();
+        permissions.set_readonly(read_only);
+        fs::set_permissions(path, permissions).unwrap();
+    }
+
+    let temp = tempfile::tempdir().unwrap();
+    let app_data = temp.path().join("app-data");
+    crate::profile_loader::ensure_profiles_dir(&app_data);
+
+    // Communication: absence of a saved key remains absent after a failed switch.
+    let comm_file = temp.path().join("communication-settings.json");
+    let comm_owner = app();
+    let comm_store = crate::app_store::initialize_at(comm_owner.handle(), &comm_file).unwrap();
+    comm_store.set("unrelated", serde_json::json!({"keep": 11}));
+    comm_store.save().unwrap();
+    let comm_before = fs::read(&comm_file).unwrap();
+    let comm_policy = Mutex::new(crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    ));
+    make_read_only(&comm_file, true);
+    let comm_error = crate::commands_profiles::switch_communication_profile_persisted(
+        &app_data, &comm_store, &comm_policy, "silent",
+    ).expect_err("read-only Store save must fail");
+    assert_eq!(comm_policy.lock().unwrap().comm_profile().id, "default");
+    assert_eq!(comm_store.get("active_communication_profile"), None,
+        "failed switch must restore the originally absent in-memory key");
+    assert!(comm_error.contains("Failed to save store"));
+    assert!(comm_error.contains("rollback save also failed"));
+    assert!(comm_error.contains("disk selection is uncertain"));
+    assert_eq!(fs::read(&comm_file).unwrap(), comm_before,
+        "this injected failure occurs before bytes change");
+    let comm_reload_owner = app();
+    let comm_disk = crate::app_store::initialize_at(comm_reload_owner.handle(), &comm_file).unwrap();
+    assert_eq!(comm_disk.get("active_communication_profile"), None);
+    assert_eq!(comm_disk.get("unrelated").unwrap()["keep"], 11);
+
+    make_read_only(&comm_file, false);
+    crate::commands_profiles::switch_communication_profile_persisted(
+        &app_data, &comm_store, &comm_policy, "silent",
+    ).expect("retry after clearing the injected Store fault must persist");
+    assert_eq!(comm_policy.lock().unwrap().comm_profile().id, "silent");
+    assert_eq!(comm_store.get("active_communication_profile").unwrap(), "silent");
+    let comm_retry_owner = app();
+    let comm_retry_disk = crate::app_store::initialize_at(comm_retry_owner.handle(), &comm_file).unwrap();
+    assert_eq!(comm_retry_disk.get("active_communication_profile").unwrap(), "silent");
+    assert_eq!(comm_retry_disk.get("unrelated").unwrap()["keep"], 11);
+
+    // Ergonomics: an explicit prior key and the live session limits are preserved.
+    let ergo_file = temp.path().join("ergonomic-settings.json");
+    let ergo_owner = app();
+    let ergo_store = crate::app_store::initialize_at(ergo_owner.handle(), &ergo_file).unwrap();
+    ergo_store.set("active_ergonomic_profile", "default");
+    ergo_store.set("unrelated", serde_json::json!({"keep": 22}));
+    ergo_store.save().unwrap();
+    let ergo_before = fs::read(&ergo_file).unwrap();
+    let ergo_policy = Mutex::new(crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    ));
+    let ergo_session = Mutex::new(crate::session::SessionManager::new_from_config(
+        &crate::config::AppConfig::default(), &crate::ergonomic_profile::ErgonomicProfile::default(),
+    ));
+    make_read_only(&ergo_file, true);
+    let ergo_error = crate::commands_profiles::switch_ergonomic_profile_persisted(
+        &app_data, &ergo_store, &ergo_policy, &ergo_session, "strict",
+    ).expect_err("read-only Store save must fail");
+    assert_eq!(ergo_policy.lock().unwrap().ergo_profile().id, "default");
+    assert_eq!(ergo_session.lock().unwrap().state.session_limit_secs, 2400);
+    assert_eq!(ergo_session.lock().unwrap().state.stand_limit_secs, 900);
+    assert_eq!(ergo_store.get("active_ergonomic_profile").unwrap(), "default");
+    assert!(ergo_error.contains("Failed to save store"));
+    assert!(ergo_error.contains("rollback save also failed"));
+    assert!(ergo_error.contains("disk selection is uncertain"));
+    assert_eq!(fs::read(&ergo_file).unwrap(), ergo_before,
+        "this injected failure occurs before bytes change");
+    let ergo_reload_owner = app();
+    let ergo_disk = crate::app_store::initialize_at(ergo_reload_owner.handle(), &ergo_file).unwrap();
+    assert_eq!(ergo_disk.get("active_ergonomic_profile").unwrap(), "default");
+    assert_eq!(ergo_disk.get("unrelated").unwrap()["keep"], 22);
+
+    make_read_only(&ergo_file, false);
+    crate::commands_profiles::switch_ergonomic_profile_persisted(
+        &app_data, &ergo_store, &ergo_policy, &ergo_session, "strict",
+    ).expect("retry after clearing the injected Store fault must persist");
+    assert_eq!(ergo_policy.lock().unwrap().ergo_profile().id, "strict");
+    assert_eq!(ergo_session.lock().unwrap().state.session_limit_secs, 1500);
+    assert_eq!(ergo_session.lock().unwrap().state.stand_limit_secs, 600);
+    let ergo_retry_owner = app();
+    let ergo_retry_disk = crate::app_store::initialize_at(ergo_retry_owner.handle(), &ergo_file).unwrap();
+    assert_eq!(ergo_retry_disk.get("active_ergonomic_profile").unwrap(), "strict");
+    assert_eq!(ergo_retry_disk.get("unrelated").unwrap()["keep"], 22);
+}
+
+#[test]
 fn shared_real_store_load_preserves_bytes_and_fresh_app_reloads_config_and_engine() {
     let temp = tempfile::tempdir().unwrap();
     let file = temp.path().join("settings.json");

@@ -4,7 +4,8 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, Runtime, State};
+use tauri_plugin_store::Store;
 
 use crate::commands::{ensure_initialized, AppState};
 use crate::communication_policy::CommunicationPolicy;
@@ -41,8 +42,8 @@ pub struct ActiveProfiles {
 
 // ── Store keys ───────────────────────────────────────────────────────────────
 
-const KEY_ACTIVE_COMM: &str = "active_communication_profile";
-const KEY_ACTIVE_ERGO: &str = "active_ergonomic_profile";
+pub(crate) const KEY_ACTIVE_COMM: &str = "active_communication_profile";
+pub(crate) const KEY_ACTIVE_ERGO: &str = "active_ergonomic_profile";
 const DEFAULT_PROFILE_ID: &str = "default";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -67,13 +68,61 @@ fn get_active_id(app: &AppHandle, key: &str) -> String {
         .unwrap_or_else(|| DEFAULT_PROFILE_ID.to_string())
 }
 
-fn save_active_id(app: &AppHandle, key: &str, id: &str) -> Result<(), String> {
-    use tauri::Manager;
-    let store = app
-        .try_state::<crate::app_store::AppStore<tauri::Wry>>()
-        .ok_or_else(|| "Failed to access store".to_string())?;
+/// Persists a profile selection while retaining the old Store cache on failure.
+/// A failed save followed by a failed rollback save leaves disk state uncertain;
+/// both errors are returned so callers cannot report a coherent success.
+fn persist_active_id<R: Runtime>(store: &Store<R>, key: &str, id: &str) -> Result<(), String> {
+    let previous = store.get(key);
     store.set(key, serde_json::Value::String(id.to_string()));
-    store.save().map_err(|e| format!("Failed to save store: {}", e))
+    if let Err(save_error) = store.save() {
+        match previous {
+            Some(value) => store.set(key, value),
+            None => { store.delete(key); }
+        }
+        return match store.save() {
+            Ok(()) => Err(format!("Failed to save store: {save_error}; in-memory selection restored and prior selection persisted")),
+            Err(rollback_error) => Err(format!(
+                "Failed to save store: {save_error}; rollback save also failed: {rollback_error}; in-memory selection restored but disk selection is uncertain"
+            )),
+        };
+    }
+    Ok(())
+}
+
+/// Shared persistent communication switch used by the IPC wrapper and disposable Store tests.
+pub(crate) fn switch_communication_profile_persisted<R: Runtime>(
+    app_data_dir: &Path,
+    store: &Store<R>,
+    policy: &Mutex<CommunicationPolicy>,
+    id: &str,
+) -> Result<(), String> {
+    let path = profile_path(app_data_dir, "communication", id)?;
+    let profile = load_communication_profile(&path)?;
+    persist_active_id(store, KEY_ACTIVE_COMM, id)?;
+    policy.lock().unwrap_or_else(|e| e.into_inner()).set_comm_profile(profile);
+    log::info!("Switched communication profile to '{}'", id);
+    Ok(())
+}
+
+/// Shared persistent ergonomic switch used by the IPC wrapper and disposable Store tests.
+pub(crate) fn switch_ergonomic_profile_persisted<R: Runtime>(
+    app_data_dir: &Path,
+    store: &Store<R>,
+    policy: &Mutex<CommunicationPolicy>,
+    session: &Mutex<SessionManager>,
+    id: &str,
+) -> Result<(), String> {
+    let path = profile_path(app_data_dir, "ergonomic", id)?;
+    let profile = load_profile::<ErgonomicProfile>(&path);
+    persist_active_id(store, KEY_ACTIVE_ERGO, id)?;
+    {
+        let mut session = session.lock().unwrap_or_else(|e| e.into_inner());
+        session.state.session_limit_secs = profile.limits.sitting_secs as i64;
+        session.state.stand_limit_secs = profile.limits.standing_target_secs as i64;
+    }
+    policy.lock().unwrap_or_else(|e| e.into_inner()).set_ergo_profile(profile);
+    log::info!("Switched ergonomic profile to '{}'", id);
+    Ok(())
 }
 
 /// Converts a display name into a valid profile ID slug.
@@ -127,7 +176,7 @@ where T: serde::de::DeserializeOwned + Default
 /// The existence check is the point: `load_profile` answers with `Default` for
 /// a file it cannot read, so without it a switch to a profile the desk does
 /// not have would report success and quietly reset the user to the defaults.
-fn profile_path(app_data_dir: &Path, subdir: &str, id: &str) -> Result<std::path::PathBuf, String> {
+pub(crate) fn profile_path(app_data_dir: &Path, subdir: &str, id: &str) -> Result<std::path::PathBuf, String> {
     validate_profile_id(id)?;
     let path = app_data_dir
         .join("profiles")
@@ -234,8 +283,9 @@ pub fn switch_communication_profile(
 ) -> Result<(), String> {
     ensure_initialized(&app, &state)?;
     let dir = app_data_dir(&app)?;
-    switch_communication_profile_by_name(&dir, &state.comm_policy, &id)?;
-    save_active_id(&app, KEY_ACTIVE_COMM, &id)
+    let store = app.try_state::<crate::app_store::AppStore<tauri::Wry>>()
+        .ok_or_else(|| "Failed to access store".to_string())?;
+    switch_communication_profile_persisted(&dir, store.inner(), &state.comm_policy, &id)
 }
 
 /// Switches the active ergonomic profile by ID.
@@ -247,8 +297,9 @@ pub fn switch_ergonomic_profile(
 ) -> Result<(), String> {
     ensure_initialized(&app, &state)?;
     let dir = app_data_dir(&app)?;
-    switch_ergonomic_profile_by_name(&dir, &state.comm_policy, &state.session, &id)?;
-    save_active_id(&app, KEY_ACTIVE_ERGO, &id)
+    let store = app.try_state::<crate::app_store::AppStore<tauri::Wry>>()
+        .ok_or_else(|| "Failed to access store".to_string())?;
+    switch_ergonomic_profile_persisted(&dir, store.inner(), &state.comm_policy, &state.session, &id)
 }
 
 /// Opens a profile JSON file in the system default editor.

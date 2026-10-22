@@ -3,6 +3,8 @@
 
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
+use std::path::Path;
+use std::sync::Mutex;
 
 use log::{info, warn};
 use tauri::{AppHandle, Listener, Manager};
@@ -37,7 +39,6 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
     info!("App data dir: {:?}", app_data_dir);
 
     crate::app_store::initialize(app.handle()).map_err(std::io::Error::other)?;
-    load_profiles(app.handle());
     crate::db_backup::backup_database(&app_data_dir);
     info!("DB path: {}", app_data_dir.join("desk.db").display());
 
@@ -51,6 +52,7 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
         snapshot: snapshot_logger.clone(),
         event: event_logger.clone(),
     });
+    load_profiles(app.handle(), &event_logger);
 
     ensure_autostart(app.handle(), &event_logger);
     crate::tray::setup_tray(app.handle())?;
@@ -338,28 +340,79 @@ pub fn setup_broadcast_listeners(app: &AppHandle) {
     });
 }
 
-/// Loads communication + ergonomic profiles into CommunicationPolicy.
-pub fn load_profiles(app: &AppHandle) {
+/// Loads selected profiles after durable event logging exists; selection errors keep safe prior values and do not abort startup.
+pub fn load_profiles(app: &AppHandle, event_logger: &crate::event_logger::EventLogger) {
     let app_data_dir = match app.path().app_data_dir() {
-        Ok(d) => d,
-        Err(e) => {
-            warn!("Cannot get app_data_dir for profiles: {}", e);
+        Ok(dir) => dir,
+        Err(error) => {
+            record_profile_load_error(event_logger, &format!("Cannot get app_data_dir for profiles: {error}"));
             return;
         }
     };
     crate::profile_loader::ensure_profiles_dir(&app_data_dir);
-    let comm_path = app_data_dir.join("profiles/communication/default.json");
-    let ergo_path = app_data_dir.join("profiles/ergonomic/default.json");
-    let comm = crate::profile_loader::load_communication_profile(&comm_path);
-    let ergo = crate::profile_loader::load_profile::<crate::ergonomic_profile::ErgonomicProfile>(&ergo_path);
+    let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() else {
+        record_profile_load_error(event_logger, "Shared settings Store is unavailable while loading profiles");
+        return;
+    };
     let state: tauri::State<'_, AppState> = app.state();
-    let mut policy = state.comm_policy.lock().unwrap();
-    match comm {
-        Ok(comm) => policy.set_comm_profile(comm),
-        Err(error) => warn!("Keeping default communication profile after load failure: {}", error),
+    load_profiles_for_startup(
+        &app_data_dir, store.inner(), &state.comm_policy, &state.session, event_logger,
+    );
+}
+
+/// Applies both profiles or records a truthful durable error while preserving current policy/session values.
+pub(crate) fn load_profiles_for_startup<R: tauri::Runtime>(
+    app_data_dir: &Path,
+    store: &tauri_plugin_store::Store<R>,
+    policy: &Mutex<crate::communication_policy::CommunicationPolicy>,
+    session: &Mutex<crate::session::SessionManager>,
+    event_logger: &crate::event_logger::EventLogger,
+) {
+    match load_profiles_from_store(app_data_dir, store, policy, session) {
+        Ok(()) => info!("Loaded selected communication + ergonomic profiles from {:?}", app_data_dir),
+        Err(error) => record_profile_load_error(event_logger, &error),
     }
+}
+
+fn record_profile_load_error(event_logger: &crate::event_logger::EventLogger, error: &str) {
+    warn!("Keeping prior/default communication and ergonomic profiles after startup load failure: {error}");
+    event_logger.log(&format!("PROFILE_LOAD_FAILED message={error}"));
+}
+
+/// Testable startup seam over the actual shared Store used by app setup.
+pub(crate) fn load_profiles_from_store<R: tauri::Runtime>(
+    app_data_dir: &Path,
+    store: &tauri_plugin_store::Store<R>,
+    policy: &Mutex<crate::communication_policy::CommunicationPolicy>,
+    session: &Mutex<crate::session::SessionManager>,
+) -> Result<(), String> {
+    fn selected_id(store: &tauri_plugin_store::Store<impl tauri::Runtime>, key: &str) -> Result<String, String> {
+        match store.get(key) {
+            None => Ok("default".to_string()),
+            Some(value) => value.as_str().map(str::to_string)
+                .ok_or_else(|| format!("Stored profile selection '{key}' must be a string")),
+        }
+    }
+
+    let comm_id = selected_id(store, crate::commands_profiles::KEY_ACTIVE_COMM)?;
+    let ergo_id = selected_id(store, crate::commands_profiles::KEY_ACTIVE_ERGO)?;
+    let comm_path = crate::commands_profiles::profile_path(app_data_dir, "communication", &comm_id)?;
+    let ergo_path = crate::commands_profiles::profile_path(app_data_dir, "ergonomic", &ergo_id)?;
+    let comm = crate::profile_loader::load_communication_profile(&comm_path)
+        .map_err(|error| format!("Cannot load selected communication profile '{comm_id}': {error}"))?;
+    let ergo_text = std::fs::read_to_string(&ergo_path)
+        .map_err(|error| format!("Cannot read selected ergonomic profile '{ergo_id}' at {:?}: {error}", ergo_path))?;
+    let ergo = serde_json::from_str::<crate::ergonomic_profile::ErgonomicProfile>(&ergo_text)
+        .map_err(|error| format!("Cannot parse selected ergonomic profile '{ergo_id}' at {:?}: {error}", ergo_path))?;
+
+    // Keep the lock order used by profile switching: session, then policy.
+    let mut session = session.lock().unwrap_or_else(|e| e.into_inner());
+    let mut policy = policy.lock().unwrap_or_else(|e| e.into_inner());
+    session.state.session_limit_secs = ergo.limits.sitting_secs as i64;
+    session.state.stand_limit_secs = ergo.limits.standing_target_secs as i64;
+    policy.set_comm_profile(comm);
     policy.set_ergo_profile(ergo);
-    info!("Loaded communication + ergonomic profiles from {:?}", app_data_dir);
+    Ok(())
 }
 
 

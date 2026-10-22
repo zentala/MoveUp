@@ -3,10 +3,10 @@
  *
  * Test Coverage:
  * - Tab bar renders all 5 tabs with first tab (Profiles) active by default
- * - Save button invokes save_settings with correct field names (sit_limit_mins, etc.)
+ * - Save button invokes save_settings with the AppConfig argument expected by Rust
  * - Back/Cancel does NOT invoke save_settings
  * - Inverted calibration (sitting_mm >= standing_mm) shows validation error and disables Save
- * - Notification toggles render with correct default values (via tab switch)
+ * - Notifications tab exposes the existing effective communication-profile editor
  * - Tab switching shows correct content per tab
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -19,14 +19,21 @@ import SettingsPanel from "./SettingsPanel";
 const mockOnClose = vi.fn();
 
 const MOCK_SETTINGS = {
-  sit_limit_mins: 40,
-  stand_limit_mins: 15,
   sitting_mm: 750,
   standing_mm: 1050,
-  notify_inactivity: true,
-  notify_daily_posture_balance: true,
-  notify_praise_halfway: false,
+  desk_thickness_mm: 30,
+  active_widget: "one-bar",
+  timeline_skin: "semantic",
+  show_welcome_on_startup: true,
   show_activity_status: true,
+  telemetry_enabled: false,
+  telemetry_device_id: "",
+  notify_webhook_enabled: false,
+  notify_webhook_url: null,
+  voice_ai_model: null,
+  relay_enabled: false,
+  relay_url: "https://relay.desk.zentala.io",
+  remote_lan_enabled: true,
 };
 
 beforeEach(() => {
@@ -57,7 +64,7 @@ describe("SettingsPanel", () => {
     render(<SettingsPanel onClose={mockOnClose} />);
     await waitFor(() => {
       expect(screen.getByText("Ergonomic Profile")).toBeInTheDocument();
-      expect(screen.getByText("Communication Profile")).toBeInTheDocument();
+      expect(screen.queryByText("Communication Profile")).not.toBeInTheDocument();
     });
   });
 
@@ -73,7 +80,7 @@ describe("SettingsPanel", () => {
     });
   });
 
-  it("invokes save_settings with correct field names on Save", async () => {
+  it("invokes save_settings with the AppConfig argument on Save", async () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       if (cmd === "get_settings") return MOCK_SETTINGS;
       return null;
@@ -88,17 +95,24 @@ describe("SettingsPanel", () => {
       const calls = vi.mocked(invoke).mock.calls;
       const saveCall = calls.find((c) => c[0] === "save_settings");
       expect(saveCall).toBeDefined();
-      const payload = saveCall![1] as { settings: Record<string, unknown> };
-      expect(payload.settings).toHaveProperty("sit_limit_mins");
-      expect(payload.settings).toHaveProperty("stand_limit_mins");
-      expect(payload.settings).toHaveProperty("sitting_mm");
-      expect(payload.settings).toHaveProperty("standing_mm");
-      // Must NOT contain old wrong field names
-      expect(payload.settings).not.toHaveProperty("sitting_limit_minutes");
-      expect(payload.settings).not.toHaveProperty("standing_limit_minutes");
-      expect(payload.settings).not.toHaveProperty("sitting_height_mm");
-      expect(payload.settings).not.toHaveProperty("standing_height_mm");
+      const payload = saveCall![1] as { config?: Record<string, unknown>; settings?: unknown };
+      expect(payload.config).toEqual(MOCK_SETTINGS);
+      expect(payload).not.toHaveProperty("settings");
     });
+  });
+
+  it("keeps settings open and reports the backend error when saving fails", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "get_settings") return MOCK_SETTINGS;
+      if (cmd === "save_settings") throw new Error("store unavailable");
+      return null;
+    });
+
+    render(<SettingsPanel onClose={mockOnClose} />);
+    fireEvent.click(await screen.findByText("Save"));
+
+    expect(await screen.findByText("Error: store unavailable")).toBeInTheDocument();
+    expect(mockOnClose).not.toHaveBeenCalled();
   });
 
   it("does NOT invoke save_settings when Back button clicked", async () => {
@@ -141,15 +155,17 @@ describe("SettingsPanel", () => {
     expect(saveSettingsCalls).toHaveLength(0);
   });
 
-  it("notification toggles render with correct values after switching tab", async () => {
+  it("shows the existing communication-profile editor on the Notifications tab", async () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === "get_settings") {
-        return {
-          ...MOCK_SETTINGS,
-          notify_inactivity: true,
-          notify_daily_posture_balance: false,
-          notify_praise_halfway: true,
-        };
+      if (cmd === "get_settings") return MOCK_SETTINGS;
+      if (cmd === "list_communication_profiles") {
+        return [
+          { id: "default", name: "Default", description: "Default notices", path: "default.json" },
+          { id: "gentle", name: "Gentle", description: "Gentle notices", path: "gentle.json" },
+        ];
+      }
+      if (cmd === "get_active_profiles") {
+        return { communication_id: "default", ergonomic_id: "standard" };
       }
       return null;
     });
@@ -161,13 +177,20 @@ describe("SettingsPanel", () => {
     fireEvent.click(notifTab);
 
     await waitFor(() => {
-      const checkboxes = screen.getAllByRole("checkbox");
-      // notify_inactivity = true
-      expect(checkboxes[0]).toBeChecked();
-      // notify_daily_posture_balance = false
-      expect(checkboxes[1]).not.toBeChecked();
-      // notify_praise_halfway = true
-      expect(checkboxes[2]).toBeChecked();
+      expect(screen.getByText("Communication Profile")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Edit JSON" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Duplicate" })).toBeEnabled();
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Active profile"), { target: { value: "gentle" } });
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith("switch_communication_profile", { id: "gentle" });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit JSON" }));
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith("open_profile_in_editor", { path: "gentle.json" });
     });
   });
 
