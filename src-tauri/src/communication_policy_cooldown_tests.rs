@@ -22,6 +22,7 @@ mod tests {
             state: DeskState::Sitting,
             elapsed_secs,
             sensor_connected: true,
+            observation_fresh: true,
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,

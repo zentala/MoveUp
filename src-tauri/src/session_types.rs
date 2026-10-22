@@ -151,6 +151,10 @@ pub struct SessionState {
 #[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct SessionStateDto {
     pub state: DeskState,
+    /// Whether live posture time has recent, coherent sensor coverage.
+    /// `None` means unknown (cold start, stale input or post-gap confirmation).
+    #[cfg_attr(test, ts(type = "string | null", optional))]
+    pub observation_quality: Option<String>,
     pub sitting_seconds: i64,
     pub standing_seconds: i64,
     pub break_seconds: i64,

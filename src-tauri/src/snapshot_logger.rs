@@ -7,7 +7,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use chrono::{Local, NaiveDate, Utc};
+use chrono::{Local, NaiveDate, Offset, Utc};
 use serde::Serialize;
 
 use crate::metrics::MetricSnapshot;
@@ -18,6 +18,9 @@ use crate::session::SessionStateDto;
 struct SnapshotWrapper {
     /// ISO 8601 timestamp of when snapshot was taken.
     ts: String,
+    /// Local calendar date and UTC offset at the same capture instant.
+    local_date: String,
+    timezone_offset_secs: i32,
     /// All session state fields — serialized directly from DTO.
     #[serde(flatten)]
     session: SessionStateDto,
@@ -54,6 +57,7 @@ impl SnapshotLogger {
         let now = Local::now();
         let date_str = now.format("%Y-%m-%d").to_string();
         let file_name = now.format("%H-%M.json").to_string();
+        let timezone_offset_secs = now.offset().fix().local_minus_utc();
 
         let day_dir = match ensure_day_dir(&self.base_dir, &date_str) {
             Ok(d) => d,
@@ -64,7 +68,9 @@ impl SnapshotLogger {
         };
 
         let wrapper = SnapshotWrapper {
-            ts: Utc::now().to_rfc3339(),
+            ts: now.with_timezone(&Utc).to_rfc3339(),
+            local_date: date_str.clone(),
+            timezone_offset_secs,
             session: snapshot.clone(),
             connected,
             port,
@@ -166,6 +172,10 @@ mod tests {
         assert!(val.get("version").is_some());
         assert!(val.get("state").is_some());
         assert!(val.get("sitting_seconds").is_some());
+        assert!(val.get("sitting_seconds_total").is_some());
+        assert!(val.get("observation_quality").is_some());
+        assert!(val.get("local_date").is_some());
+        assert!(val.get("timezone_offset_secs").is_some());
     }
 
     #[test]

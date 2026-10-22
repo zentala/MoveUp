@@ -18,13 +18,21 @@ export interface CatalogSource {
 /** One snapshot row (downsampled minute-level data). */
 export interface SnapshotRow {
   ts: string;
-  state: DeskState;
+  /** Null unless the producer confirms the observation as known. */
+  state: DeskState | null;
   deskHeightCm: number;
   sittingSecs: number;
   standingSecs: number;
   breakSecs: number;
   idleSecs: number;
-  score: number;
+  score: number | null;
+  /** Raw time is separate from credited sittingSecs and absent in legacy rows. */
+  sittingSecsTotal?: number | null;
+  connected?: boolean | null;
+  observationQuality?: string | null;
+  localDate?: string | null;
+  timezoneOffsetSecs?: number | null;
+  positionChanges?: number | null;
 }
 
 /** One event row from events.log. */
@@ -38,14 +46,15 @@ export interface EventRow {
 export interface SessionRow {
   id: number;
   startedAt: string;
-  endedAt: string;
-  state: DeskState;
-  durationSecs: number;
-  sittingSecs: number;
-  standingSecs: number;
-  positionChanges: number;
-  breakCredit: BreakCredit;
-  dateLocal: string;
+  endedAt: string | null;
+  state: DeskState | null;
+  durationSecs: number | null;
+  sittingSecs: number | null;
+  standingSecs: number | null;
+  positionChanges: number | null;
+  breakCredit: BreakCredit | null;
+  historyKind?: string | null;
+  dateLocal: string | null;
 }
 
 /** Daily KPI rollup. */

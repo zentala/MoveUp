@@ -17,6 +17,14 @@ mod floating_window_tests {
         result
     }
 
+    /// Extends an already confirmed posture with actual one-second readings.
+    fn observe_for(m: &mut SessionManager, mm: i32, seconds: i64) {
+        let start = m.state.last_tick_ts.expect("a posture is already confirmed");
+        for offset in 1..=seconds {
+            m.on_reading_at(mm, true, start + chrono::Duration::seconds(offset));
+        }
+    }
+
     /// Helper: transition manager to Sitting by feeding DEBOUNCE_COUNT low readings.
     fn transition_to_sitting(m: &mut SessionManager) {
         feed(m, 800, true);
@@ -89,11 +97,11 @@ mod floating_window_tests {
         transition_to_sitting(&mut m);
 
         m.state.sitting_seconds = 1800;
-        m.state.sitting_started = Some(Utc::now());
 
         transition_to_standing(&mut m);
-        m.state.break_started =
-            Some(Utc::now() - chrono::Duration::seconds(7 * 60));
+        // The return-to-Sitting confirmation contributes five known seconds
+        // to the Standing break; observe the remaining 415 explicitly.
+        observe_for(&mut m, 1200, 7 * 60 - 5);
 
         transition_to_sitting(&mut m);
 
@@ -121,12 +129,11 @@ mod floating_window_tests {
         transition_to_sitting(&mut m);
 
         m.state.sitting_seconds = 2100;
-        m.state.sitting_started = Some(Utc::now());
 
         transition_to_standing(&mut m);
         // 18 min = 1080s → credit = 2160 >= 2100 → Full reset
-        m.state.break_started =
-            Some(Utc::now() - chrono::Duration::seconds(18 * 60));
+        // Include the five Standing seconds while the return debounce settles.
+        observe_for(&mut m, 1200, 18 * 60 - 5);
 
         transition_to_sitting(&mut m);
 
@@ -184,11 +191,9 @@ mod floating_window_tests {
         // SPEC: StateChangedPayload includes last_break_secs after transition
         let mut m = SessionManager::new();
         transition_to_sitting(&mut m);
-        m.state.sitting_started = Some(Utc::now());
 
         transition_to_standing(&mut m);
-        m.state.break_started =
-            Some(Utc::now() - chrono::Duration::seconds(12 * 60));
+        observe_for(&mut m, 1200, 12 * 60 - 5);
 
         // Transition back to sitting — payload should have last_break_secs
         let result = feed(&mut m, 800, true);

@@ -28,17 +28,12 @@ mod tests {
         assert_eq!(m.state.state, state, "expected {:?}", state);
     }
 
-    /// Backdates the active timestamps so the manager sees `secs` of elapsed time.
-    fn simulate_elapsed(m: &mut SessionManager, secs: i64) {
-        let offset = Duration::seconds(secs);
-        if let Some(ref mut ts) = m.state.sitting_started { *ts = *ts - offset; }
-        if let Some(ref mut ts) = m.state.standing_bout_started { *ts = *ts - offset; }
-        if let Some(ref mut ts) = m.state.standing_session_started { *ts = *ts - offset; }
-        if let Some(ref mut ts) = m.state.break_started { *ts = *ts - offset; }
-        m.state.last_tick_ts = m.history_last_reading
-            .into_iter()
-            .chain(std::iter::once(Utc::now()))
-            .max();
+    /// Extends the current posture with actual coherent one-second readings.
+    fn observe_for(m: &mut SessionManager, mm: i32, seconds: usize) {
+        let start = m.state.last_tick_ts.expect("a posture is already confirmed");
+        for offset in 1..=seconds {
+            m.on_reading_at(mm, true, start + Duration::seconds(offset as i64));
+        }
     }
 
     /// Sit 30 min → stand 2 min → sit again. The DTO must report
@@ -49,10 +44,14 @@ mod tests {
         let multiplier = m.limits.break_credit_multiplier as f64;
 
         transition_to(&mut m, DeskState::Sitting, SIT_MM);
-        simulate_elapsed(&mut m, 1800);
+        // The following Standing confirmation spends five observed seconds
+        // in the still-confirmed Sitting posture.
+        observe_for(&mut m, SIT_MM, 1795);
 
         transition_to(&mut m, DeskState::Standing, STAND_MM);
-        simulate_elapsed(&mut m, 120);
+        // Likewise, Sitting is confirmed five observed seconds after this
+        // Standing sample run ends.
+        observe_for(&mut m, STAND_MM, 115);
 
         transition_to(&mut m, DeskState::Sitting, SIT_MM);
 
@@ -77,10 +76,10 @@ mod tests {
         let mut m = SessionManager::new();
 
         transition_to(&mut m, DeskState::Sitting, SIT_MM);
-        simulate_elapsed(&mut m, 600);
+        observe_for(&mut m, SIT_MM, 595);
 
         transition_to(&mut m, DeskState::Standing, STAND_MM);
-        simulate_elapsed(&mut m, 900); // 900 * 2.0 = 1800 >= 600
+        observe_for(&mut m, STAND_MM, 895); // 900 observed seconds * 2.0 >= 600
 
         transition_to(&mut m, DeskState::Sitting, SIT_MM);
 

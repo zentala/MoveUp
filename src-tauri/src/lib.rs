@@ -471,9 +471,12 @@ mod ts_export {
         crate::metrics::DashboardState::export_all(&cfg).expect("DashboardState exports");
         crate::session_types::StateChangedPayload::export_all(&cfg)
             .expect("StateChangedPayload exports");
+        crate::session_types::SessionStateDto::export_all(&cfg)
+            .expect("SessionStateDto exports");
         crate::db::TodaySummary::export_all(&cfg).expect("TodaySummary exports");
         crate::config::AppConfig::export_all(&cfg).expect("AppConfig exports");
         crate::health_models::HealthView::export_all(&cfg).expect("HealthView exports");
+        crate::commands_analyst::SnapshotRow::export_all(&cfg).expect("SnapshotRow exports");
         crate::db_voice_notes::VoiceNoteRow::export_all(&cfg).expect("VoiceNoteRow exports");
         crate::serial_parser::PortInfo::export_all(&cfg).expect("PortInfo exports");
         // E022 remote protocol payloads — the viewer and the relay import

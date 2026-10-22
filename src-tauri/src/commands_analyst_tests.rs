@@ -120,6 +120,20 @@ fn empty_range_returns_empty_snapshots() {
 }
 
 #[test]
+fn legacy_snapshot_keeps_unrecorded_quality_and_raw_total_unknown() {
+    let tmp = TempDir::new().unwrap();
+    write_snapshot(tmp.path(), "2026-05-15", "10-00.json", "2026-05-15T10:00:00Z");
+
+    let rows = t_collect_snapshots(tmp.path(), &["2026-05-15".to_string()]);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].state.as_deref(), Some("Sitting"));
+    assert_eq!(rows[0].sitting_seconds_total, None);
+    assert_eq!(rows[0].observation_quality, None);
+    assert_eq!(rows[0].local_date, None);
+    assert_eq!(rows[0].timezone_offset_secs, None);
+}
+
+#[test]
 fn missing_day_is_skipped() {
     let tmp = TempDir::new().unwrap();
     let dates = t_parse_range("2026-05-14", "2026-05-16").unwrap();

@@ -103,6 +103,7 @@ mod serde_contract_tests {
         // Simulates what get_session_state IPC returns to the frontend.
         let dto = SessionStateDto {
             state: DeskState::Standing,
+            observation_quality: Some("known".to_string()),
             sitting_seconds: 0,
             standing_seconds: 300,
             break_seconds: 300,
@@ -123,6 +124,18 @@ mod serde_contract_tests {
         };
         let json = serde_json::to_value(&dto).unwrap();
         assert_eq!(json["state"], "Standing");
+        assert_eq!(json["observation_quality"], "known");
+
+        let unknown = SessionStateDto {
+            observation_quality: None,
+            ..dto
+        };
+        let json = serde_json::to_value(&unknown).unwrap();
+        assert_eq!(json["observation_quality"], serde_json::Value::Null,
+            "serde emits Option::None as null");
+        let declaration = <SessionStateDto as ts_rs::TS>::decl(&ts_rs::Config::default());
+        assert!(declaration.contains("observation_quality?: string | null"),
+            "the generated DTO must describe both emitted null and legacy omission: {declaration}");
     }
 
     #[test]

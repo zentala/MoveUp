@@ -88,14 +88,47 @@ mod policy_input {
         Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap()
     }
 
+    fn observe(
+        manager: &mut SessionManager,
+        height_mm: i32,
+        active: bool,
+        from: DateTime<Utc>,
+        through: DateTime<Utc>,
+    ) {
+        let mut at = from;
+        while at <= through {
+            manager.on_reading_at(height_mm, active, at);
+            at += Duration::seconds(1);
+        }
+    }
+
+    fn sitting(prior_credited_secs: i64, current_bout_secs: i64) -> SessionManager {
+        let mut manager = SessionManager::new();
+        manager.state.sitting_seconds = prior_credited_secs;
+        observe(
+            &mut manager,
+            800,
+            true,
+            now() - Duration::seconds(current_bout_secs + 5),
+            now(),
+        );
+        assert_eq!(manager.state.state, DeskState::Sitting);
+        manager
+    }
+
     /// Standing for `bout` seconds, with `standing_today` already banked.
     fn standing(bout: i64, standing_today: i64) -> SessionManager {
         let mut m = SessionManager::new();
-        m.state.state = DeskState::Standing;
         m.state.stand_limit_secs = TARGET;
         m.state.standing_seconds = standing_today - bout;
-        m.state.break_started = Some(now() - Duration::seconds(bout));
-        m.state.standing_bout_started = Some(now() - Duration::seconds(bout));
+        observe(
+            &mut m,
+            1200,
+            true,
+            now() - Duration::seconds(bout + 5),
+            now(),
+        );
+        assert_eq!(m.state.state, DeskState::Standing);
         m
     }
 
@@ -151,7 +184,13 @@ mod policy_input {
         let mut m = SessionManager::new();
         m.state.state = DeskState::Sitting;
         m.state.sitting_seconds = 600;
-        m.state.sitting_started = Some(now() - Duration::seconds(120));
+        observe(
+            &mut m,
+            800,
+            true,
+            now() - Duration::seconds(125),
+            now(),
+        );
 
         let input = m.policy_input(now(), true);
         assert_eq!(input.elapsed_secs, 720);
@@ -163,10 +202,13 @@ mod policy_input {
     #[test]
     fn standing_maximum_uses_standing_session_duration() {
         let mut m = SessionManager::new();
-        m.state.state = DeskState::Standing;
         m.state.stand_limit_secs = 600;
-        m.state.standing_session_started = Some(now() - Duration::seconds(300));
-        m.state.break_started = Some(now() - Duration::seconds(3600));
+        let break_start = now() - Duration::seconds(3600);
+        observe(&mut m, 1200, true, break_start - Duration::seconds(5), break_start);
+        observe(&mut m, 1200, true, break_start + Duration::seconds(1), break_start + Duration::seconds(5));
+        observe(&mut m, 1200, false, break_start + Duration::seconds(6), now() - Duration::seconds(305));
+        observe(&mut m, 1200, true, now() - Duration::seconds(305), now());
+        assert_eq!(m.state.state, DeskState::Standing);
 
         let input = m.policy_input(now(), true);
         let standing_secs = m.get_live_standing_session_secs(now());
@@ -203,9 +245,7 @@ mod policy_input {
     }
 
     fn sitting_signal_for_limits(profile_limit_secs: u32, user_limit_minutes: u32, elapsed_secs: i64) -> Option<NotifySignal> {
-        let mut session = SessionManager::new();
-        session.state.state = DeskState::Sitting;
-        session.state.sitting_started = Some(now() - Duration::seconds(elapsed_secs));
+        let mut session = sitting(0, elapsed_secs);
         session.set_limit_minutes(user_limit_minutes);
 
         let mut ergonomic = ErgonomicProfile::default();
@@ -250,9 +290,7 @@ mod policy_input {
     fn policy_notification_dispatch_logs_channels_and_webhook_once_then_suppresses() {
         use crate::notification_service::{NotificationChannel, NotificationService};
 
-        let mut session = SessionManager::new();
-        session.state.state = DeskState::Sitting;
-        session.state.sitting_started = Some(now() - Duration::seconds(1_800));
+        let mut session = sitting(0, 1_800);
         session.set_limit_minutes(30);
 
         let mut ergonomic = ErgonomicProfile::default();
@@ -326,6 +364,7 @@ mod policy_input {
         let mut facts = crate::communication_policy::SessionNotificationFacts {
             state: DeskState::Standing,
             now: now(),
+            observation_fresh: true,
             last_position_change_at: None,
             sitting_seconds_total: 0,
             standing_seconds: 600,
@@ -387,6 +426,7 @@ mod notification_intent_count {
             state,
             elapsed_secs,
             sensor_connected,
+            observation_fresh: true,
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
@@ -482,6 +522,7 @@ mod notification_policy_route_tests {
         let mut facts = SessionNotificationFacts {
             state: DeskState::Standing,
             now: Utc::now(),
+            observation_fresh: true,
             last_position_change_at: None,
             sitting_seconds_total: 0,
             standing_seconds: 600,
@@ -504,6 +545,7 @@ mod notification_policy_route_tests {
             state: DeskState::Standing,
             elapsed_secs: max_secs,
             sensor_connected: true,
+            observation_fresh: true,
             standing_lap_progress: 1.0,
             standing_lap: 0,
             standing_lap_flash: false,
@@ -530,6 +572,7 @@ mod notification_policy_route_tests {
             state: DeskState::Standing,
             elapsed_secs: max_secs,
             sensor_connected: true,
+            observation_fresh: true,
             standing_lap_progress: 1.0,
             standing_lap: 0,
             standing_lap_flash: false,

@@ -1,15 +1,12 @@
 import { describe, it, expect } from "vitest";
 import type { DailyKpi, SessionRow, SnapshotRow } from "@/test/analyst-fixtures";
-import {
-  aggregateDayKpis,
-  POSITION_CHANGE_GOAL,
-  SCORE_MAX,
-} from "./explorer-day-kpis";
+import { aggregateDayKpis } from "./explorer-day-kpis";
 
 const DAY = "2026-05-16";
 
 function snap(over: Partial<SnapshotRow> & { ts: string }): SnapshotRow {
   return {
+    localDate: over.localDate ?? over.ts.slice(0, 10),
     state: "Sitting",
     deskHeightCm: 72,
     sittingSecs: 0,
@@ -17,6 +14,8 @@ function snap(over: Partial<SnapshotRow> & { ts: string }): SnapshotRow {
     breakSecs: 0,
     idleSecs: 0,
     score: 0,
+    sittingSecsTotal: over.sittingSecs ?? 0,
+    positionChanges: 0,
     ...over,
   };
 }
@@ -42,12 +41,12 @@ describe("aggregateDayKpis", () => {
     expect(result).toEqual({
       dateLocal: DAY,
       hasData: false,
-      sittingSecs: 0,
-      standingSecs: 0,
-      activeSecs: 0,
-      standingPct: 0,
-      positionChanges: 0,
-      score: 0,
+      sittingSecs: null,
+      standingSecs: null,
+      activeSecs: null,
+      standingPct: null,
+      positionChanges: null,
+      score: null,
     });
   });
 
@@ -81,7 +80,7 @@ describe("aggregateDayKpis", () => {
   it("guards against dividing by zero active time", () => {
     const rows = [snap({ ts: `${DAY}T08:00:00.000Z`, state: "Away" })];
     const result = aggregateDayKpis(rows, [], DAY);
-    expect(result.standingPct).toBe(0);
+    expect(result.standingPct).toBeNull();
     expect(result.hasData).toBe(true);
   });
 
@@ -94,19 +93,19 @@ describe("aggregateDayKpis", () => {
     expect(aggregateDayKpis([], sessions, DAY).positionChanges).toBe(5);
   });
 
-  it("falls back to snapshot state transitions when sessions report none", () => {
+  it("uses the recorded snapshot event counter instead of inferred state changes", () => {
     const rows = [
-      snap({ ts: `${DAY}T09:00:00.000Z`, state: "Sitting" }),
-      snap({ ts: `${DAY}T10:00:00.000Z`, state: "Standing" }),
-      snap({ ts: `${DAY}T11:00:00.000Z`, state: "Standing" }),
-      snap({ ts: `${DAY}T12:00:00.000Z`, state: "Sitting" }),
+      snap({ ts: `${DAY}T09:00:00.000Z`, state: "Sitting", positionChanges: 7 }),
+      snap({ ts: `${DAY}T10:00:00.000Z`, state: "Standing", positionChanges: 7 }),
+      snap({ ts: `${DAY}T11:00:00.000Z`, state: "Standing", positionChanges: 7 }),
+      snap({ ts: `${DAY}T12:00:00.000Z`, state: "Sitting", positionChanges: 7 }),
     ];
     const result = aggregateDayKpis(rows, [session({ id: 1 })], DAY);
-    expect(result.positionChanges).toBe(2);
+    expect(result.positionChanges).toBe(7);
   });
 
   it("falls back to the precomputed rollup when raw data yields no changes", () => {
-    const rows = [snap({ ts: `${DAY}T09:00:00.000Z`, state: "Sitting", score: 30 })];
+    const rows = [snap({ ts: `${DAY}T09:00:00.000Z`, state: "Sitting", score: 30, positionChanges: null })];
     const rollup: DailyKpi[] = [
       { dateLocal: DAY, standingPct: 40, positionChanges: 7, longestSessionSecs: 900, score: 55 },
     ];
@@ -125,7 +124,7 @@ describe("aggregateDayKpis", () => {
     expect(result.standingPct).toBeCloseTo(0.62, 5);
     expect(result.positionChanges).toBe(6);
     expect(result.score).toBe(71);
-    expect(result.standingSecs).toBe(0);
+    expect(result.standingSecs).toBeNull();
   });
 
   it("ignores a rollup for a different day", () => {
@@ -135,12 +134,47 @@ describe("aggregateDayKpis", () => {
     expect(aggregateDayKpis([], [], DAY, rollup).hasData).toBe(false);
   });
 
-  it("clamps the score to the profile maximum", () => {
-    const rows = [snap({ ts: `${DAY}T17:00:00.000Z`, score: 480 })];
-    expect(aggregateDayKpis(rows, [], DAY).score).toBe(SCORE_MAX);
+  it("preserves signed scores without a 0-to-100 clamp", () => {
+    const rows = [snap({ ts: `${DAY}T17:00:00.000Z`, score: -480 })];
+    expect(aggregateDayKpis(rows, [], DAY).score).toBe(-480);
   });
 
-  it("exposes a posture-change goal the panel can divide by", () => {
-    expect(POSITION_CHANGE_GOAL).toBeGreaterThan(0);
+  it("keeps unavailable raw counters and scores unknown", () => {
+    const result = aggregateDayKpis([
+      snap({
+        ts: `${DAY}T17:00:00.000Z`,
+        sittingSecs: 1200,
+        sittingSecsTotal: null,
+        score: null,
+        positionChanges: null,
+      }),
+    ], [], DAY);
+    expect(result.hasData).toBe(true);
+    expect(result.sittingSecs).toBeNull();
+    expect(result.activeSecs).toBeNull();
+    expect(result.standingPct).toBeNull();
+    expect(result.score).toBeNull();
+    expect(result.positionChanges).toBeNull();
+  });
+
+  it("does not infer producer date or raw sitting from legacy snapshot fields", () => {
+    const row: SnapshotRow = {
+      ts: `${DAY}T17:00:00.000Z`,
+      state: "Sitting",
+      deskHeightCm: 72,
+      sittingSecs: 1200,
+      standingSecs: 0,
+      breakSecs: 0,
+      idleSecs: 0,
+      score: 4,
+    };
+    const unknownDate = aggregateDayKpis([row], [], DAY);
+    expect(unknownDate.hasData).toBe(false);
+    expect(unknownDate.sittingSecs).toBeNull();
+
+    const knownDate = aggregateDayKpis([{ ...row, localDate: DAY }], [], DAY);
+    expect(knownDate.hasData).toBe(true);
+    expect(knownDate.sittingSecs).toBeNull();
+    expect(knownDate.activeSecs).toBeNull();
   });
 });

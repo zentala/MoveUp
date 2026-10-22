@@ -71,7 +71,12 @@ impl SessionManager {
                     self.accumulate_ongoing(last);
                 }
                 if let Some(started) = self.state.break_started {
-                    self.observed_break_secs += (last - started).num_seconds().max(0);
+                    // A prior confirmed transition may already have
+                    // checkpointed the break prefix and advanced the history
+                    // floor. Add only the still-known suffix after that floor;
+                    // the original break anchor remains semantic, not a new
+                    // source of elapsed coverage.
+                    self.observed_break_secs += self.known_elapsed_since(started, last);
                     self.state.break_started = Some(now);
                     self.state.break_seconds = self.observed_break_secs;
                 }

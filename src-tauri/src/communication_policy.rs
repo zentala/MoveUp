@@ -32,6 +32,8 @@ pub struct PolicyInput {
     pub state: DeskState,
     pub elapsed_secs: i64,
     pub sensor_connected: bool,
+    /// Freshness is independent of physical serial connection state.
+    pub observation_fresh: bool,
     pub standing_lap_progress: f32,
     pub standing_lap: u32,
     pub standing_lap_flash: bool,
@@ -43,6 +45,8 @@ pub struct PolicyInput {
 pub struct SessionNotificationFacts {
     pub state: DeskState,
     pub now: chrono::DateTime<chrono::Utc>,
+    /// Whether time-derived policy decisions have coherent sensor coverage.
+    pub observation_fresh: bool,
     pub last_position_change_at: Option<chrono::DateTime<chrono::Utc>>,
     pub sitting_seconds_total: i64,
     pub standing_seconds: i64,
@@ -127,6 +131,10 @@ impl CommunicationPolicy {
             return sigs;
         }
 
+        if !input.observation_fresh {
+            return Signals::default();
+        }
+
         if matches!(input.state, DeskState::Away | DeskState::Walking) {
             return helpers::inactive_signals(&self.comm_profile.inactive);
         }
@@ -202,6 +210,9 @@ impl CommunicationPolicy {
         periodic: bool,
     ) -> Vec<NotificationEvent> {
         if !self.comm_profile.notifications_enabled {
+            return Vec::new();
+        }
+        if !facts.observation_fresh {
             return Vec::new();
         }
         if matches!(facts.state, DeskState::Away | DeskState::Walking) {

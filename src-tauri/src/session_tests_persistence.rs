@@ -249,23 +249,36 @@ fn round_trip_sit_stand_restart_sit() {
     use crate::session_types::DeskState;
     use chrono::{Duration, Utc};
 
-    let mut m = SessionManager::new();
-    let t0 = Utc::now() - Duration::minutes(52);
+    fn observe(
+        manager: &mut SessionManager,
+        height_mm: i32,
+        from: chrono::DateTime<Utc>,
+        through: chrono::DateTime<Utc>,
+    ) {
+        let mut at = from;
+        while at <= through {
+            manager.on_reading_at(height_mm, true, at);
+            at += Duration::seconds(1);
+        }
+    }
 
-    // Sit 40 min.
-    m.state.state = DeskState::Sitting;
-    m.state.sitting_started = Some(t0);
+    let mut m = SessionManager::new();
+    let t0 = Utc::now() - Duration::minutes(53);
+
+    // Confirm Sitting, then observe the full 40-minute prefix before the
+    // Standing candidate's five-second confirmation window.
     let t1 = t0 + Duration::minutes(40);
-    m.handle_state_exit(&DeskState::Standing, t1);
-    m.state.state = DeskState::Standing;
+    observe(&mut m, 800, t0, t1 - Duration::seconds(1));
+    observe(&mut m, 1200, t1, t1 + Duration::seconds(5));
+    assert_eq!(m.state.state, DeskState::Standing);
     assert_eq!(m.state.sitting_seconds, 2400);
 
-    // Stand 12 min → credit = 720 * 2.0 = 1440.
-    let t2 = t1 + Duration::minutes(12);
-    m.state.standing_bout_started = Some(t1);
-    m.handle_state_exit(&DeskState::Sitting, t2);
-    m.state.state = DeskState::Sitting;
-    m.state.sitting_started = Some(t2);
+    // Observe 12 minutes of Standing before confirming return to Sitting.
+    let t2 = t1 + Duration::minutes(12) + Duration::seconds(5);
+    observe(&mut m, 1200, t1 + Duration::seconds(6), t2 - Duration::seconds(5));
+    observe(&mut m, 800, t2 - Duration::seconds(5), t2);
+    assert_eq!(m.state.state, DeskState::Sitting);
+    assert_eq!(m.state.last_break_secs, 720);
     assert_eq!(m.state.sitting_seconds, 960);
 
     let persisted = PersistedEngineState::from_session(&m, None);
@@ -283,10 +296,11 @@ fn round_trip_sit_stand_restart_sit() {
     m2.load_persisted_state(&persisted);
     assert_eq!(m2.state.sitting_seconds, 960);
 
-    // Sit 5 more min → live = 960 + 300 = 1260.
-    let now = Utc::now();
-    m2.state.state = DeskState::Sitting;
-    m2.state.sitting_started = Some(now - Duration::minutes(5));
+    // Reconfirm Sitting after process restart, then observe five known minutes.
+    let resumed_at = t2 + Duration::minutes(1);
+    observe(&mut m2, 800, resumed_at, resumed_at + Duration::seconds(5));
+    let now = resumed_at + Duration::seconds(306);
+    observe(&mut m2, 800, resumed_at + Duration::seconds(6), now);
     let live = m2.get_live_sitting_seconds(now);
     assert!(live >= 1258 && live <= 1262, "expected ~1260, got {}", live);
 }

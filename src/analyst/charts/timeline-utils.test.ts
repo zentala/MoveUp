@@ -19,9 +19,10 @@ import {
   shortDayName,
 } from "./timeline-utils";
 
-function snap(ts: string, state: SnapshotRow["state"]): SnapshotRow {
+function snap(ts: string, state: SnapshotRow["state"], localDate = ts.slice(0, 10)): SnapshotRow {
   return {
     ts,
+    localDate,
     state,
     deskHeightCm: 75,
     sittingSecs: 0,
@@ -56,6 +57,26 @@ describe("aggregateDayTotals", () => {
   it("respects custom secsPerSnapshot", () => {
     const totals = aggregateDayTotals([snap("2026-05-17T00:00:00Z", "Sitting")], 30);
     expect(totals.get("2026-05-17")?.sit).toBe(30);
+  });
+
+  it("keeps unknown coverage separate and groups by producer local date", () => {
+    const totals = aggregateDayTotals([
+      snap("2026-10-22T22:30:00Z", null, "2026-10-23"),
+      snap("2026-10-22T22:31:00Z", "Standing", "2026-10-23"),
+      { ...snap("2026-10-23T00:00:00Z", "Sitting"), localDate: null },
+      { ...snap("2026-10-23T00:01:00Z", "Away"), localDate: undefined },
+    ], 60);
+
+    expect(totals.get("2026-10-23")).toEqual({
+      dateLocal: "2026-10-23",
+      sit: 0,
+      stand: 60,
+      walk: 0,
+      away: 0,
+      unknown: 60,
+      total: 120,
+    });
+    expect(totals.has("2026-10-22")).toBe(false);
   });
 });
 

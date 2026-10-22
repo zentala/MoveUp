@@ -182,12 +182,17 @@ impl SessionManager {
     }
     /// Returns a snapshot of the current session state as a DTO.
     pub fn snapshot(&self) -> SessionStateDto {
-        let now = Utc::now();
+        self.snapshot_at(Utc::now())
+    }
+
+    /// Builds a snapshot at an explicit instant for time-sensitive callers and tests.
+    pub(crate) fn snapshot_at(&self, now: DateTime<Utc>) -> SessionStateDto {
         let live_sitting = self.get_live_sitting_seconds(now);
         let live_break = self.get_live_break_seconds(now);
         let live_standing = self.get_live_standing_seconds(now);
         SessionStateDto {
             state: self.state.state.clone(),
+            observation_quality: self.observation_is_fresh_at(now).then(|| "known".to_string()),
             sitting_seconds: live_sitting,
             standing_seconds: live_standing,
             standing_session_secs: self.get_live_standing_session_secs(now),
@@ -227,6 +232,7 @@ impl SessionManager {
                 _ => 0,
             },
             sensor_connected,
+            observation_fresh: self.observation_is_fresh_at(now),
             standing_lap_progress: if lapping {
                 (bout % target) as f32 / target as f32
             } else {
@@ -247,6 +253,7 @@ impl SessionManager {
         crate::communication_policy::SessionNotificationFacts {
             state: self.state.state.clone(),
             now,
+            observation_fresh: self.observation_is_fresh_at(now),
             last_position_change_at: self.state.last_position_change_at,
             sitting_seconds_total: self.get_live_sitting_seconds_total(now),
             standing_seconds: self.get_live_standing_seconds(now),

@@ -192,9 +192,14 @@ mod tests {
     fn snapshot_includes_daily_score() {
         let mut m = standing_manager();
         m.state.daily_score = 12.5;
-        m.state.standing_session_secs = 300;
-        m.state.standing_session_started =
-            Some(chrono::Utc::now() - chrono::Duration::seconds(300));
+        let started = chrono::Utc::now() - chrono::Duration::seconds(305);
+        for second in 0..=305 {
+            m.on_reading_at(
+                1200,
+                true,
+                started + chrono::Duration::seconds(second),
+            );
+        }
         let snap = m.snapshot();
         assert!((snap.daily_score - 12.5).abs() < f32::EPSILON);
         assert!(snap.standing_session_secs >= 299 && snap.standing_session_secs <= 301,

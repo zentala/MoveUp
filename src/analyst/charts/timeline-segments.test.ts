@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { SnapshotRow } from "@/test/analyst-fixtures";
+import { chartColors } from "./chart-utils";
 import { buildSegments, dayBoundaries, enumerateHourTicks } from "./timeline-segments";
 import { buildTimelineScale } from "./timeline-utils";
 
@@ -63,6 +64,20 @@ describe("buildSegments", () => {
       expect(seg.x).toBeGreaterThanOrEqual(0);
       expect(seg.x + seg.w).toBeLessThanOrEqual(scale.widthPx + 0.001);
     }
+  });
+
+  it("does not draw an unknown sample as Away", () => {
+    const rows = [
+      snap("2026-05-17T08:00:00.000", "Sitting"),
+      snap("2026-05-17T08:01:00.000", null),
+      snap("2026-05-17T08:02:00.000", "Standing"),
+    ];
+
+    const segments = buildSegments(rows, scale);
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0].fill).not.toBe(chartColors.away);
+    expect(segments[1].fill).toBe(chartColors.standing);
   });
 });
 

@@ -22,6 +22,7 @@ mod tests {
             state: DeskState::Sitting,
             elapsed_secs,
             sensor_connected: true,
+            observation_fresh: true,
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
@@ -34,6 +35,7 @@ mod tests {
             state: DeskState::Standing,
             elapsed_secs,
             sensor_connected: true,
+            observation_fresh: true,
             standing_lap_progress: progress,
             standing_lap: 0,
             standing_lap_flash: false,
@@ -74,6 +76,22 @@ mod tests {
         assert_eq!(sig.tray, TraySignal::Red);
         assert!(matches!(sig.overlay, OverlaySignal::Red { .. }));
         assert!(matches!(sig.notify, Some(NotifySignal::Toast(_))));
+    }
+
+    #[test]
+    fn stale_connected_input_suppresses_escalation_without_disconnect_signals() {
+        let mut policy = default_policy();
+        let mut input = sitting_input(3600);
+        input.observation_fresh = false;
+        assert!(input.sensor_connected);
+
+        let signals = policy.evaluate(&input);
+
+        assert_eq!(signals.tray, TraySignal::None);
+        assert_eq!(signals.overlay, OverlaySignal::Hidden);
+        assert_eq!(signals.popup, PopupSignal::Neutral);
+        assert!(signals.notify.is_none());
+        assert!(signals.accepted_events.is_empty());
     }
 
     // ── 4. Sitting overdue (at=+300) → Blink + PulseRed, visual-only ────────
@@ -132,6 +150,7 @@ mod tests {
             state: DeskState::Sitting,
             elapsed_secs: 0,
             sensor_connected: false,
+            observation_fresh: true,
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
@@ -155,6 +174,7 @@ mod tests {
             state: DeskState::Sitting,
             elapsed_secs: 0,
             sensor_connected: false,
+            observation_fresh: true,
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
@@ -186,6 +206,7 @@ mod tests {
         SessionNotificationFacts {
             state: DeskState::Standing,
             now: chrono::Utc::now(),
+            observation_fresh: true,
             last_position_change_at: Some(chrono::Utc::now() - chrono::Duration::hours(2)),
             sitting_seconds_total: 7200,
             standing_seconds: 7200,
@@ -303,6 +324,7 @@ mod tests {
         let facts = SessionNotificationFacts {
             state: DeskState::Sitting,
             now,
+            observation_fresh: true,
             last_position_change_at: Some(now - chrono::Duration::minutes(2)),
             sitting_seconds_total: 7200,
             standing_seconds: 0,
@@ -345,6 +367,7 @@ mod tests {
         let mut standing_facts = SessionNotificationFacts {
             state: DeskState::Standing,
             now: facts.now,
+            observation_fresh: facts.observation_fresh,
             last_position_change_at: facts.last_position_change_at,
             sitting_seconds_total: facts.sitting_seconds_total,
             standing_seconds: 60,
@@ -382,6 +405,7 @@ mod tests {
         let facts = SessionNotificationFacts {
             state: DeskState::Sitting,
             now: utc_now,
+            observation_fresh: true,
             last_position_change_at: Some(utc_now - chrono::Duration::minutes(2)),
             sitting_seconds_total: 7200,
             standing_seconds: 0,
@@ -423,6 +447,29 @@ mod tests {
             after_snooze.first().map(|intent| &intent.event),
             Some(crate::session_types::NotificationEvent::Inactivity)
         ));
+    }
+
+    #[test]
+    fn stale_notification_facts_keep_measurements_but_emit_no_events_or_intents() {
+        let policy = default_policy();
+        let mut facts = standing_session_facts();
+        facts.observation_fresh = false;
+        let measured = (
+            facts.sitting_seconds_total,
+            facts.standing_seconds,
+            facts.last_position_change_at,
+        );
+
+        assert!(policy.decide_session_notifications(&facts, true).is_empty());
+        assert!(policy.resolve_session_notifications(&facts, true).is_empty());
+        assert_eq!(
+            (
+                facts.sitting_seconds_total,
+                facts.standing_seconds,
+                facts.last_position_change_at,
+            ),
+            measured,
+        );
     }
 
     #[test]
@@ -509,6 +556,7 @@ mod tests {
             state: DeskState::Standing,
             elapsed_secs: 30,
             sensor_connected: true,
+            observation_fresh: true,
             standing_lap_progress: 0.5,
             standing_lap: 0,
             standing_lap_flash: false,
@@ -529,6 +577,7 @@ mod tests {
             state: DeskState::Away,
             elapsed_secs: 100,
             sensor_connected: true,
+            observation_fresh: true,
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
@@ -589,6 +638,7 @@ mod tests {
             state: DeskState::Sitting,
             elapsed_secs: 0,
             sensor_connected: false,
+            observation_fresh: true,
             standing_lap_progress: 0.0,
             standing_lap: 0,
             standing_lap_flash: false,
@@ -616,6 +666,7 @@ mod tests {
             state: DeskState::Walking,
             elapsed_secs: 500,
             sensor_connected: true,
+            observation_fresh: true,
             standing_lap_progress: 0.5,
             standing_lap: 1,
             standing_lap_flash: false,

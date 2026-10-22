@@ -31,6 +31,14 @@ mod tests {
         next
     }
 
+    /// Extends the current known posture with actual injected observations.
+    fn observe_for(m: &mut SessionManager, mm: i32, active: bool, seconds: i64) {
+        let start = m.state.last_tick_ts.expect("a posture is already confirmed");
+        for offset in 1..=seconds {
+            m.on_reading_at(mm, active, start + Duration::seconds(offset));
+        }
+    }
+
     /// Same as [`advance_ticks`], but also returns the last `ReadingResult` —
     /// the one carrying the transition, since the batch confirms on its final
     /// reading.
@@ -65,13 +73,15 @@ mod tests {
         let t = advance_ticks(&mut m, 800, true, base());
         assert_eq!(m.state.state, DeskState::Sitting);
         m.state.sitting_seconds = 2000;
-        m.state.sitting_started = Some(t - Duration::seconds(100));
 
-        let t = advance_ticks(&mut m, 800, false, t);
+        advance_ticks(&mut m, 800, false, t);
         assert_eq!(m.state.state, DeskState::Away);
 
         m.state.sitting_seconds = 2000; // reseeded: the exit above committed the bout
-        m.state.break_started = Some(confirms_at(t) - Duration::seconds(1100));
+        // The return transition itself confirms over five observed Away
+        // seconds; observe the rest of the 1,100-second break explicitly.
+        observe_for(&mut m, 1200, false, 1_094);
+        let t = m.state.last_tick_ts.unwrap() + Duration::seconds(1);
         advance_ticks(&mut m, 800, true, t);
         assert_eq!(m.state.state, DeskState::Sitting);
 
@@ -84,14 +94,15 @@ mod tests {
         let mut m = SessionManager::new();
         let t = advance_ticks(&mut m, 800, true, base());
         m.state.sitting_seconds = 2000;
-        m.state.sitting_started = Some(t - Duration::seconds(100));
 
-        let t = advance_ticks(&mut m, 800, false, t);
+        advance_ticks(&mut m, 800, false, t);
         assert_eq!(m.state.state, DeskState::Away);
 
         m.state.sitting_seconds = 2000;
-        // 7 min break → credit 840 < 2000 → Partial.
-        m.state.break_started = Some(confirms_at(t) - Duration::seconds(420));
+        // 7 min break → credit 840 < 2000 → Partial. Include the five
+        // observed Away seconds used to confirm the return transition.
+        observe_for(&mut m, 1200, false, 414);
+        let t = m.state.last_tick_ts.unwrap() + Duration::seconds(1);
         advance_ticks(&mut m, 800, true, t);
         assert_eq!(m.state.state, DeskState::Sitting);
         assert_eq!(m.state.last_break_credit, BreakCredit::Partial, "7 min = partial");
@@ -155,7 +166,6 @@ mod tests {
         // 1. Start Sitting
         let t = advance_ticks(&mut m, 800, true, base());
         assert_eq!(m.state.state, DeskState::Sitting);
-        m.state.sitting_started = Some(t - Duration::seconds(600));
         m.state.sitting_seconds = 600;
         m.state.sitting_seconds_total = 600;
 
@@ -166,7 +176,7 @@ mod tests {
         let break_start = m.state.break_started.unwrap();
 
         // 3. Walk away (inactive, desk still high) — MUST transition to Away
-        let (t, last) = batch(&mut m, 1200, false, t);
+        let (_, last) = batch(&mut m, 1200, false, t);
         assert_eq!(
             m.state.state, DeskState::Away,
             "Standing + inactive MUST transition to Away (not stay Standing)"
@@ -187,8 +197,10 @@ mod tests {
             "break_started must be preserved on Standing→Away"
         );
 
-        // 4. Stay away for 10+ minutes.
-        m.state.break_started = Some(confirms_at(t) - Duration::seconds(700));
+        // 4. Stay away long enough for a real 700-second break, including
+        // the observed debounce intervals on both transitions.
+        observe_for(&mut m, 1200, false, 688);
+        let t = m.state.last_tick_ts.unwrap() + Duration::seconds(1);
 
         // 5. Return and sit down — break credit should apply
         advance_ticks(&mut m, 800, true, t);

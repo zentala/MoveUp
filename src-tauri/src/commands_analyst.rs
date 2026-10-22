@@ -19,12 +19,18 @@ use crate::db::SessionRow;
 
 /// One row per minute snapshot, flattened for charting in the frontend.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
 pub struct SnapshotRow {
     /// ISO 8601 timestamp when the snapshot was written (UTC).
     pub ts: String,
     /// Desk state at snapshot time (lower-snake e.g. `"sitting"`).
-    pub state: String,
+    #[serde(default)]
+    pub state: Option<String>,
     pub sitting_seconds: i64,
+    /// Raw sitting seconds; absent in older snapshot files.
+    #[serde(default)]
+    pub sitting_seconds_total: Option<i64>,
     pub standing_seconds: i64,
     pub break_seconds: i64,
     pub desk_height_cm: f32,
@@ -32,6 +38,18 @@ pub struct SnapshotRow {
     pub continuous_computer_secs: i64,
     pub position_changes: u32,
     pub daily_score: Option<f32>,
+    /// Physical serial-port state, independent of observation freshness.
+    #[serde(default)]
+    pub connected: Option<bool>,
+    /// Missing or null means the observed posture coverage is unknown.
+    #[serde(default)]
+    pub observation_quality: Option<String>,
+    /// Local calendar date at capture time; absent in legacy files.
+    #[serde(default)]
+    pub local_date: Option<String>,
+    /// Local UTC offset in seconds at capture time; absent in legacy files.
+    #[serde(default)]
+    pub timezone_offset_secs: Option<i32>,
 }
 
 /// One parsed line from `events.log`.

@@ -10,6 +10,39 @@ use crate::session_types::*;
 use crate::session_manager::SessionManager;
 
 impl SessionManager {
+    /// Returns the last actual observation that can support a live projection.
+    /// A gap threshold detects missing coverage; it does not extend it.
+    pub(crate) fn known_projection_end(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+        let span = self.history_span_started?;
+        if now < span {
+            return None;
+        }
+        let last = self.history_last_reading.into_iter()
+            .chain(self.state.last_tick_ts).max()?;
+        Some(now.min(last))
+    }
+
+    /// Returns known elapsed time after the later of the timer anchor and the
+    /// currently confirmed history prefix. A resumed sample cannot revive an
+    /// older timer anchor until its coherent sequence establishes a new prefix.
+    pub(crate) fn known_elapsed_since(&self, started: DateTime<Utc>, now: DateTime<Utc>) -> i64 {
+        let start = self.history_span_started
+            .map(|span| started.max(span))
+            .unwrap_or(started);
+        let end = self.known_projection_end(now).unwrap_or(start);
+        (end - start).num_seconds().max(0)
+    }
+
+    /// Whether current state may still be used for time-based decisions.
+    pub(crate) fn observation_is_fresh_at(&self, now: DateTime<Utc>) -> bool {
+        let Some(last) = self.history_last_reading.into_iter()
+            .chain(self.state.last_tick_ts).max() else { return false; };
+        self.history_span_started.is_some()
+            && !self.pending_after_gap
+            && now >= last
+            && now - last <= Duration::seconds(SLEEP_GAP_THRESHOLD_SECS)
+    }
+
     /// Commits the observed prefix through `boundary`, closing history and raw
     /// posture counters together. The caller may reopen the same posture at a
     /// known boundary; unknown time is never included by this operation.
@@ -71,7 +104,7 @@ impl SessionManager {
         let base = self.state.standing_seconds;
         if self.state.state == DeskState::Standing {
             if let Some(started) = self.state.standing_bout_started {
-                return base + (now - started).num_seconds().max(0);
+                return base + self.known_elapsed_since(started, now);
             }
         }
         base
@@ -94,8 +127,7 @@ impl SessionManager {
     pub(crate) fn get_live_sitting_seconds(&self, now: DateTime<Utc>) -> i64 {
         if self.state.state == DeskState::Sitting {
             if let Some(started) = self.state.sitting_started {
-                let elapsed = (now - started).num_seconds().max(0);
-                return self.state.sitting_seconds + elapsed;
+                return self.state.sitting_seconds + self.known_elapsed_since(started, now);
             }
         }
         self.state.sitting_seconds
@@ -106,8 +138,7 @@ impl SessionManager {
     pub(crate) fn get_live_sitting_seconds_total(&self, now: DateTime<Utc>) -> i64 {
         if self.state.state == DeskState::Sitting {
             if let Some(started) = self.state.sitting_started {
-                let elapsed = (now - started).num_seconds().max(0);
-                return self.state.sitting_seconds_total + elapsed;
+                return self.state.sitting_seconds_total + self.known_elapsed_since(started, now);
             }
         }
         self.state.sitting_seconds_total
@@ -117,7 +148,11 @@ impl SessionManager {
     pub(crate) fn get_live_standing_session_secs(&self, now: DateTime<Utc>) -> i64 {
         if self.state.state == DeskState::Standing {
             if let Some(started) = self.state.standing_session_started {
-                return (now - started).num_seconds().max(0);
+                if self.known_projection_end(now).is_none() {
+                    return self.state.standing_session_secs;
+                }
+                return self.state.standing_session_secs
+                    + self.known_elapsed_since(started, now);
             }
         }
         self.state.standing_session_secs
@@ -154,10 +189,10 @@ impl SessionManager {
     /// Close the shutdown tail once; repeated flushes cannot overlap that tail.
     pub(crate) fn queue_shutdown_history(&mut self, now: DateTime<Utc>) {
         self.queue_interrupted_history();
+        let observation_backed = self.history_span_started.is_some();
         if let Some(span) = self.flush_current_session_at(now) {
             if let Ok(end) = DateTime::parse_from_rfc3339(&span.ended_at) {
                 let end = end.with_timezone(&Utc);
-                self.history_span_started = Some(end);
                 // Snapshot the raw and credited counter tail at the same
                 // instant as the shutdown row. Keep the anchors at this
                 // boundary if shutdown is cancelled and this process resumes;
@@ -177,6 +212,20 @@ impl SessionManager {
                         self.state.standing_bout_started = Some(end);
                     }
                 }
+                if self.state.state == DeskState::Standing {
+                    self.state.standing_session_secs =
+                        self.get_live_standing_session_secs(end);
+                }
+                if self.state.state != DeskState::Sitting
+                    && self.state.break_started.is_some()
+                {
+                    let observed_break_secs = self.get_live_break_seconds(end);
+                    self.observed_break_secs = observed_break_secs;
+                    self.state.break_seconds = observed_break_secs;
+                }
+                if observation_backed {
+                    self.history_span_started = Some(end);
+                }
             }
             self.queue_history(self.current_state(), span, None);
         }
@@ -192,12 +241,11 @@ impl SessionManager {
     }
 
     /// Clock-injected shutdown snapshot. A stale last reading bounds observed
-    /// coverage; the unobserved tail is never relabeled as Away.
+    /// coverage; a fresh reading does not extend coverage without another
+    /// observation. The unobserved tail is never relabeled as Away.
     pub fn flush_current_session_at(&self, now: DateTime<Utc>) -> Option<CompletedSession> {
         if self.history_span_started.is_some() {
-            let end = self.history_last_reading
-                .filter(|last| now - *last > Duration::seconds(SLEEP_GAP_THRESHOLD_SECS))
-                .unwrap_or(now);
+            let end = self.known_projection_end(now)?;
             return self.observed_span_at(end);
         }
         // Compatibility for callers that seed counter anchors directly. A

@@ -43,6 +43,14 @@ mod timer_tests {
         assert_eq!(m.state.state, DeskState::Away);
     }
 
+    /// Extends an already confirmed posture with actual one-second readings.
+    fn observe_for(m: &mut SessionManager, mm: i32, active: bool, seconds: i64) {
+        let start = m.state.last_tick_ts.expect("a posture is already confirmed");
+        for offset in 1..=seconds {
+            m.on_reading_at(mm, active, start + Duration::seconds(offset));
+        }
+    }
+
     // ─── Initialization (tests 1–5) ──────────────────────────────────────
 
     #[test]
@@ -58,8 +66,9 @@ mod timer_tests {
         let mut m = SessionManager::new();
         let mut now = base();
         transition_to_standing(&mut m, &mut now);
-        m.state.break_started = Some(now - Duration::seconds(60));
-        let live = m.get_live_break_seconds(now);
+        observe_for(&mut m, 1200, true, 60);
+        let sampled_at = m.state.last_tick_ts.unwrap();
+        let live = m.get_live_break_seconds(sampled_at);
         assert!(live >= 59 && live <= 61, "expected ~60, got {}", live);
     }
 
@@ -147,14 +156,17 @@ mod timer_tests {
         let mut m = SessionManager::new();
         let mut now = base();
         transition_to_sitting(&mut m, &mut now);
-        m.state.sitting_started = Some(now);
         transition_to_standing(&mut m, &mut now);
         let break_start = m.state.break_started;
         transition_to_away(&mut m, &mut now);
         assert_eq!(m.state.break_started, break_start, "timestamp must not change");
-        m.state.break_started = Some(now - Duration::seconds(60));
-        let live = m.get_live_break_seconds(now);
-        assert!(live >= 59 && live <= 61, "break should grow in Away, got {}", live);
+        let after_away_confirmation = m.state.last_tick_ts.unwrap();
+        let at_away_confirmation = m.get_live_break_seconds(after_away_confirmation);
+        observe_for(&mut m, 1200, false, 60);
+        let sampled_at = m.state.last_tick_ts.unwrap();
+        let live = m.get_live_break_seconds(sampled_at);
+        assert_eq!(live, at_away_confirmation + 60,
+            "the semantic break anchor stays fixed while 60 observed Away seconds accrue");
     }
 
     #[test]
@@ -163,9 +175,9 @@ mod timer_tests {
         let mut now = base();
         transition_to_sitting(&mut m, &mut now);
         m.state.sitting_seconds = 2000;
-        m.state.sitting_started = Some(now);
         transition_to_away(&mut m, &mut now);
-        m.state.break_started = Some(now - Duration::seconds(7 * 60));
+        observe_for(&mut m, 1200, false, 7 * 60 - 6);
+        now = m.state.last_tick_ts.unwrap() + Duration::seconds(1);
         transition_to_sitting(&mut m, &mut now);
         assert!(m.state.sitting_started.is_some());
         assert_eq!(m.state.last_break_credit, BreakCredit::Partial);

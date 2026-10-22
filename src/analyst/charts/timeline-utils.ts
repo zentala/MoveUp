@@ -19,7 +19,9 @@ export interface DayStateTotals {
   stand: number;
   walk: number;
   away: number;
-  /** Convenience: total Sit + Stand + Walk + Away in seconds. */
+  /** Time whose posture is unknown; never included in a known posture total. */
+  unknown?: number;
+  /** Convenience: total known plus unknown sampled seconds. */
   total: number;
 }
 
@@ -29,10 +31,10 @@ export type DayTotalsMap = Map<string, DayStateTotals>;
 const MINUTE_SECS = 60;
 
 function emptyTotals(date: string): DayStateTotals {
-  return { dateLocal: date, sit: 0, stand: 0, walk: 0, away: 0, total: 0 };
+  return { dateLocal: date, sit: 0, stand: 0, walk: 0, away: 0, unknown: 0, total: 0 };
 }
 
-function addToTotals(t: DayStateTotals, state: DeskState, secs: number): void {
+function addToTotals(t: DayStateTotals, state: DeskState | null, secs: number): void {
   switch (state) {
     case "Sitting":
       t.sit += secs;
@@ -45,6 +47,9 @@ function addToTotals(t: DayStateTotals, state: DeskState, secs: number): void {
       break;
     case "Away":
       t.away += secs;
+      break;
+    case null:
+      t.unknown = (t.unknown ?? 0) + secs;
       break;
   }
   t.total += secs;
@@ -77,7 +82,8 @@ export function aggregateDayTotals(
   const interval = secsPerSnapshot ?? inferSnapshotInterval(rows);
   const map: DayTotalsMap = new Map();
   for (const r of rows) {
-    const date = r.ts.slice(0, 10);
+    const date = r.localDate;
+    if (!date) continue;
     let bucket = map.get(date);
     if (!bucket) {
       bucket = emptyTotals(date);

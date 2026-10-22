@@ -99,12 +99,13 @@ fn e027_positive_sitting_load_standing_gap_return_credits_observed_break_once() 
     }
 
     assert_eq!(m.current_state(), crate::session_types::DeskState::Sitting);
-    assert_eq!(m.state.sitting_seconds_total, 105,
-        "the confirmed pre-standing Sitting prefix is retained as raw time");
-    assert_eq!(m.state.last_break_secs, 65,
-        "sixty observed Standing seconds plus five post-resume seconds qualify; the unknown gap is excluded");
-    assert_eq!(m.state.sitting_seconds, 10_105 - 130,
-        "the sixty-five observed break seconds earn exactly one proportional credit");
+    let resumed_confirmed = resumed + Duration::seconds(DEBOUNCE_COUNT as i64);
+    assert_eq!(m.get_live_sitting_seconds_total(resumed_confirmed), 110,
+        "the prior raw Sitting105 plus five newly confirmed Sitting seconds are retained");
+    assert_eq!(m.state.last_break_secs, 60,
+        "only the sixty observed Standing seconds qualify; the unknown gap and resumed Sitting do not");
+    assert_eq!(m.get_live_sitting_seconds(resumed_confirmed), 9_990,
+        "the observed Sitting110 and one 120-second proportional credit remain distinct");
     assert_eq!(m.state.last_break_credit, BreakCredit::Partial);
 }
 #[cfg(test)]

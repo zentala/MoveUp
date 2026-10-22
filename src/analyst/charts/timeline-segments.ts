@@ -41,6 +41,7 @@ export function buildSegments(
   const out: RenderedSegment[] = [];
   for (let i = 0; i < snapshots.length; i++) {
     const row = snapshots[i];
+    if (row.state === null) continue;
     const t = new Date(row.ts).getTime();
     const tNext =
       i + 1 < snapshots.length

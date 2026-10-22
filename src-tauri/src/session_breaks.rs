@@ -32,10 +32,24 @@ impl SessionManager {
         candidate: &DeskState,
         now: DateTime<Utc>,
     ) -> Option<CompletedSession> {
-        // History closes on EVERY confirmed state change. Credit still closes
-        // only the whole break on return to Sitting; neither anchor replaces
-        // the other. Legacy mixed-break rows cannot be disaggregated here.
+        // History closes on EVERY confirmed state change. Preserve break time
+        // through that same last observed instant before the history lower bound
+        // moves forward; otherwise a continuing break across posture changes
+        // would lose its already observed prefix. Legacy mixed-break rows cannot
+        // be disaggregated here.
+        let break_checkpoint = if self.state.state != DeskState::Sitting
+            && self.state.break_started.is_some()
+        {
+            self.known_projection_end(now)
+                .map(|_| self.get_live_break_seconds(now))
+        } else {
+            None
+        };
         let completed_session = self.close_observed_boundary(now);
+        if let Some(observed_break_secs) = break_checkpoint {
+            self.observed_break_secs = observed_break_secs;
+            self.state.break_seconds = observed_break_secs;
+        }
 
         match &self.state.state {
             DeskState::Sitting => {
@@ -300,7 +314,7 @@ impl SessionManager {
     pub(crate) fn get_live_break_seconds(&self, now: DateTime<Utc>) -> i64 {
         if self.state.state != DeskState::Sitting {
             if let Some(started) = self.state.break_started {
-                return self.observed_break_secs + (now - started).num_seconds().max(0);
+                return self.observed_break_secs + self.known_elapsed_since(started, now);
             }
         }
         self.state.break_seconds.max(self.observed_break_secs)

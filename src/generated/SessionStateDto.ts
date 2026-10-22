@@ -4,7 +4,12 @@ import type { DeskState } from "./DeskState";
 /**
  * Serialisable DTO emitted with state-change events.
  */
-export type SessionStateDto = { state: DeskState, sitting_seconds: number, standing_seconds: number, break_seconds: number, session_limit_secs: number, stand_limit_secs: number, 
+export type SessionStateDto = { state: DeskState,
+/**
+ * Whether live posture time has recent, coherent sensor coverage.
+ * `None` means unknown (cold start, stale input or post-gap confirmation).
+ */
+observation_quality?: string | null, sitting_seconds: number, standing_seconds: number, break_seconds: number, session_limit_secs: number, stand_limit_secs: number,
 /**
  * Most recent desk height in cm as computed from sensor + calibration.
  */

@@ -240,6 +240,7 @@ mod tests {
             &crate::communication_policy::SessionNotificationFacts {
                 state: crate::session_types::DeskState::Standing,
                 now,
+                observation_fresh: true,
                 last_position_change_at: Some(now - chrono::Duration::hours(2)),
                 sitting_seconds_total: 7200,
                 standing_seconds: 7200,
@@ -297,6 +298,7 @@ mod tests {
                 &crate::communication_policy::SessionNotificationFacts {
                     state: crate::session_types::DeskState::Standing,
                     now,
+                    observation_fresh: true,
                     last_position_change_at: None,
                     sitting_seconds_total: 0,
                     standing_seconds: 60,

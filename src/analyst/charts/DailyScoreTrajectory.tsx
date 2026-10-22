@@ -14,18 +14,20 @@ export interface DailyScoreTrajectoryProps {
   height?: number;
 }
 
-function hourlyScores(rows: SnapshotRow[]): Map<string, number[]> {
-  // day -> hour buckets [0..23], max score in that hour
-  const map = new Map<string, number[]>();
+function hourlyScores(rows: SnapshotRow[]): Map<string, Array<number | null>> {
+  // Producer-local day -> local-hour buckets; null is a real gap.
+  const map = new Map<string, Array<number | null>>();
   for (const r of rows) {
-    const day = r.ts.slice(0, 10);
-    const hour = new Date(r.ts).getUTCHours();
+    const day = r.localDate;
+    if (!day || r.timezoneOffsetSecs == null || r.score == null) continue;
+    const localMs = new Date(r.ts).getTime() + r.timezoneOffsetSecs * 1000;
+    const hour = new Date(localMs).getUTCHours();
     let arr = map.get(day);
     if (!arr) {
-      arr = Array(24).fill(0);
+      arr = Array(24).fill(null);
       map.set(day, arr);
     }
-    if (r.score > arr[hour]) arr[hour] = r.score;
+    if (arr[hour] === null || r.score > arr[hour]!) arr[hour] = r.score;
   }
   return map;
 }
@@ -40,10 +42,12 @@ export function DailyScoreTrajectory({
   const innerH = height - m.top - m.bottom;
 
   const days = Array.from(hourlyScores(data).entries()).sort(([a], [b]) => a.localeCompare(b));
-  const maxScore = Math.max(1, ...days.flatMap(([, v]) => v));
+  const observedScores = days.flatMap(([, values]) => values.filter((score): score is number => score !== null));
+  const minScore = Math.min(0, ...observedScores);
+  const maxScore = Math.max(0, ...observedScores);
 
   const x = scaleLinear(0, 23, 0, innerW);
-  const y = scaleLinear(0, maxScore, innerH, 0);
+  const y = scaleLinear(minScore, maxScore, innerH, 0);
 
   return (
     <ChartCard
@@ -65,7 +69,7 @@ export function DailyScoreTrajectory({
                   strokeDasharray="3 4"
                 />
                 <text x={-6} y={4} fontSize={10} textAnchor="end" fill={chartColors.axisText}>
-                  {Math.round(p * maxScore)}
+                  {Math.round(minScore + p * (maxScore - minScore))}
                 </text>
               </g>
             );
@@ -80,9 +84,16 @@ export function DailyScoreTrajectory({
             </g>
           ))}
           {days.map(([day, hours], i) => {
-            const path = hours
-              .map((s, h) => `${h === 0 ? "M" : "L"}${x(h).toFixed(1)},${y(s).toFixed(1)}`)
-              .join(" ");
+            let drawing = false;
+            const path = hours.map((score, hour) => {
+              if (score === null) {
+                drawing = false;
+                return "";
+              }
+              const command = drawing ? "L" : "M";
+              drawing = true;
+              return `${command}${x(hour).toFixed(1)},${y(score).toFixed(1)}`;
+            }).filter(Boolean).join(" ");
             const opacity = 0.35 + (i / Math.max(days.length - 1, 1)) * 0.55;
             return (
               <path

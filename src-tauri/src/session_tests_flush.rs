@@ -135,6 +135,7 @@ fn e027_observed_away_shutdown_uses_only_final_individual_span() {
     let mut m = SessionManager::new();
     confirm(&mut m, DeskState::Standing, 0);
     confirm(&mut m, DeskState::Away, 100);
+    confirm(&mut m, DeskState::Away, 150);
     let span = m.flush_current_session_at(instant(150)).unwrap();
     assert_eq!(span.started_at, instant(100).to_rfc3339());
     assert_eq!(span.ended_at, instant(150).to_rfc3339());
@@ -226,6 +227,7 @@ fn e027_restart_does_not_replay_already_flushed_history() {
     let mut m = SessionManager::new();
     confirm(&mut m, DeskState::Standing, 0);
     confirm(&mut m, DeskState::Away, 100);
+    confirm(&mut m, DeskState::Away, 150);
     let old = m.flush_current_session_at(instant(150)).unwrap();
     let snapshot = crate::session_persistence::PersistedEngineState::from_session(&m, None);
     let mut restored = SessionManager::new();
@@ -322,6 +324,7 @@ fn e027_long_observed_span_keeps_consistent_endpoints_without_cap() {
     let mut m = SessionManager::new();
     confirm(&mut m, DeskState::Away, 0);
     for seconds in (100..=12000).step_by(100) { confirm(&mut m, DeskState::Away, seconds); }
+    confirm(&mut m, DeskState::Away, 12050);
     let span = m.flush_current_session_at(instant(12050)).unwrap();
     assert_eq!(span.duration_secs, 12050);
     let start = chrono::DateTime::parse_from_rfc3339(&span.started_at).unwrap();

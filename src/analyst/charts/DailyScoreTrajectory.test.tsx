@@ -9,4 +9,15 @@ describe("DailyScoreTrajectory", () => {
     expect(container.querySelector("svg")).toBeTruthy();
     expect(container.querySelectorAll("path").length).toBeGreaterThan(0);
   });
+
+  it("does not assign a local-hour path when source date and offset are missing", () => {
+    const unknownSourceDate = {
+      ...analystSnapshotsFixture[0],
+      localDate: null,
+      timezoneOffsetSecs: null,
+    };
+    const { container } = render(<DailyScoreTrajectory data={[unknownSourceDate]} />);
+    expect(container.querySelector("svg")).toBeTruthy();
+    expect(container.querySelectorAll("path")).toHaveLength(0);
+  });
 });

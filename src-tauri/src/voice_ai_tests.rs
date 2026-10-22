@@ -19,6 +19,7 @@ static ENV_LOCK: Mutex<()> = Mutex::new(());
 fn session() -> SessionStateDto {
     SessionStateDto {
         state: DeskState::Sitting,
+        observation_quality: Some("known".to_string()),
         sitting_seconds: 1800,
         standing_seconds: 600,
         break_seconds: 600,

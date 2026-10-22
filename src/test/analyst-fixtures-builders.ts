@@ -53,15 +53,23 @@ export function buildSnapshots(today: Date = new Date()): SnapshotRow[] {
         height = state === "Sitting" ? 74 : 72;
         if (state === "Sitting") sitting += 1200;
       }
+      const timezoneOffsetSecs = -new Date(t).getTimezoneOffset() * 60;
+      const localDate = new Date(t + timezoneOffsetSecs * 1000).toISOString().slice(0, 10);
       rows.push({
         ts: new Date(t).toISOString(),
         state,
         deskHeightCm: height,
         sittingSecs: sitting,
+        sittingSecsTotal: sitting,
         standingSecs: standing,
         breakSecs: standing,
         idleSecs: state === "Away" ? Math.round(rng() * 600) : 0,
         score,
+        connected: true,
+        observationQuality: "known",
+        localDate,
+        timezoneOffsetSecs,
+        positionChanges: 0,
       });
     }
   }

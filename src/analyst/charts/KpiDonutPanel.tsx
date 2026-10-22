@@ -7,7 +7,6 @@
  */
 import { formatDate, formatDurationShort } from "@/utils/format";
 import type { DayKpis } from "../explorer-day-kpis";
-import { POSITION_CHANGE_GOAL, SCORE_MAX } from "../explorer-day-kpis";
 import { ChartCard } from "./ChartCard";
 import { KpiDonut } from "./KpiDonut";
 import { chartColors } from "./chart-utils";
@@ -19,13 +18,15 @@ export interface KpiDonutPanelProps {
 }
 
 export function KpiDonutPanel({ kpis, animate = true }: KpiDonutPanelProps) {
-  const standingPctLabel = `${Math.round(kpis.standingPct * 100)}%`;
+  const standingPctLabel = kpis.standingPct === null
+    ? "Unknown"
+    : `${Math.round(kpis.standingPct * 100)}%`;
 
   return (
     <ChartCard
       title="Day at a glance"
       subtitle={formatDate(kpis.dateLocal)}
-      help="Standing % = standing seconds / (sitting + standing) for the selected day. Posture changes = sit↔stand transitions that day, against a daily goal. Score = the daily posture score from the active ergonomic profile, out of 100."
+      help="Standing share uses raw sitting and standing counters. Posture changes show recorded counter values. Score shows signed recorded points from the active ergonomic profile."
     >
       {kpis.hasData ? (
         <div
@@ -39,27 +40,27 @@ export function KpiDonutPanel({ kpis, animate = true }: KpiDonutPanelProps) {
         >
           <KpiDonut
             label="Standing %"
-            valuePct={kpis.standingPct}
+            valuePct={kpis.standingPct ?? 0}
             centerPrimary={standingPctLabel}
-            centerSecondary={formatDurationShort(kpis.standingSecs)}
+            centerSecondary={kpis.standingSecs === null ? "Unknown" : formatDurationShort(kpis.standingSecs)}
             color={chartColors.standing}
             animate={animate}
             pulseKey={kpis.dateLocal}
           />
           <KpiDonut
             label="Posture changes"
-            valuePct={kpis.positionChanges / POSITION_CHANGE_GOAL}
-            centerPrimary={`${kpis.positionChanges}`}
-            centerSecondary={`of ${POSITION_CHANGE_GOAL} goal`}
+            valuePct={0}
+            centerPrimary={kpis.positionChanges === null ? "Unknown" : `${kpis.positionChanges}`}
+            centerSecondary={kpis.positionChanges === null ? undefined : "recorded"}
             color={chartColors.walking}
             animate={animate}
             pulseKey={kpis.dateLocal}
           />
           <KpiDonut
             label="Daily score"
-            valuePct={kpis.score / SCORE_MAX}
-            centerPrimary={`${kpis.score}`}
-            centerSecondary={`of ${SCORE_MAX}`}
+            valuePct={0}
+            centerPrimary={kpis.score === null ? "Unknown" : `${kpis.score}`}
+            centerSecondary={kpis.score === null ? undefined : "signed points"}
             color={chartColors.score}
             animate={animate}
             pulseKey={kpis.dateLocal}
