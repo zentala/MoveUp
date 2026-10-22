@@ -5,7 +5,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use crate::commands_profiles::{
-        switch_communication_profile_by_name, switch_ergonomic_profile_by_name,
+        duplicate_profile, switch_communication_profile_by_name, switch_ergonomic_profile_by_name,
         validate_profile_id,
     };
     use crate::communication_policy::CommunicationPolicy;
@@ -117,6 +117,249 @@ mod tests {
         let err = switch_communication_profile_by_name(tmp.path(), &policy(), "gentle")
             .expect_err("a profile that is not installed must not switch");
         assert!(err.contains("not found"), "was: {err}");
+    }
+
+    fn write_communication_profile(
+        app_data_dir: &std::path::Path,
+        id: &str,
+        contents: &str,
+    ) {
+        let dir = app_data_dir.join("profiles").join("communication");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(format!("{id}.json")), contents).unwrap();
+    }
+
+    fn selected_policy() -> Mutex<CommunicationPolicy> {
+        let mut selected = CommunicationProfile::default();
+        selected.id = "selected".into();
+        selected.name = "Keep this policy".into();
+        Mutex::new(CommunicationPolicy::new(selected, ErgonomicProfile::default()))
+    }
+
+    #[test]
+    fn communication_switch_rejects_invalid_channel_and_preserves_active_policy() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut invalid = serde_json::to_value(CommunicationProfile::default()).unwrap();
+        invalid["id"] = "invalid".into();
+        invalid["notification_backend"] = "mystery".into();
+        write_communication_profile(tmp.path(), "invalid", &invalid.to_string());
+        let policy = selected_policy();
+
+        let error = switch_communication_profile_by_name(tmp.path(), &policy, "invalid")
+            .expect_err("an invalid channel backend must not activate");
+
+        assert!(error.contains("notification_backend"), "was: {error}");
+        let active = policy.lock().unwrap();
+        assert_eq!(active.comm_profile().id, "selected");
+        assert_eq!(active.comm_profile().name, "Keep this policy");
+    }
+
+    #[test]
+    fn communication_switch_rejects_malformed_json_and_preserves_active_policy() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_communication_profile(tmp.path(), "malformed", "{\"id\":");
+        let policy = selected_policy();
+
+        let error = switch_communication_profile_by_name(tmp.path(), &policy, "malformed")
+            .expect_err("malformed profile JSON must not activate defaults");
+
+        assert!(error.contains("parse"), "was: {error}");
+        let active = policy.lock().unwrap();
+        assert_eq!(active.comm_profile().id, "selected");
+        assert_eq!(active.comm_profile().name, "Keep this policy");
+    }
+
+    #[test]
+    fn communication_switch_activates_valid_profile() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut valid = CommunicationProfile::default();
+        valid.id = "valid".into();
+        valid.name = "Valid profile".into();
+        write_communication_profile(
+            tmp.path(),
+            "valid",
+            &serde_json::to_string(&valid).unwrap(),
+        );
+        let policy = selected_policy();
+
+        switch_communication_profile_by_name(tmp.path(), &policy, "valid").unwrap();
+
+        assert_eq!(policy.lock().unwrap().comm_profile().id, "valid");
+        assert_eq!(policy.lock().unwrap().comm_profile().name, "Valid profile");
+    }
+
+    #[test]
+    fn communication_switch_preserves_legacy_profile_channels_without_popup_fields() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut legacy = serde_json::to_value(CommunicationProfile::default()).unwrap();
+        legacy["id"] = "legacy".into();
+        legacy["name"] = "Legacy profile".into();
+        legacy["baseline"]["sitting"]["tray"] = "yellow".into();
+        legacy["baseline"]["sitting"]["overlay"] = "hidden".into();
+        legacy["baseline"]["sitting"].as_object_mut().unwrap().remove("popup");
+        legacy["baseline"]["standing"]["tray"] = "red".into();
+        legacy["baseline"]["standing"]["overlay"] = "yellow".into();
+        legacy["baseline"]["standing"].as_object_mut().unwrap().remove("popup");
+        write_communication_profile(tmp.path(), "legacy", &legacy.to_string());
+        let policy = selected_policy();
+
+        switch_communication_profile_by_name(tmp.path(), &policy, "legacy").unwrap();
+
+        let active = policy.lock().unwrap();
+        assert_eq!(active.comm_profile().id, "legacy");
+        assert_eq!(active.comm_profile().baseline.sitting.tray, "yellow");
+        assert_eq!(active.comm_profile().baseline.sitting.overlay, "hidden");
+        assert_eq!(active.comm_profile().baseline.sitting.popup, "neutral");
+        assert_eq!(active.comm_profile().baseline.standing.tray, "red");
+        assert_eq!(active.comm_profile().baseline.standing.overlay, "yellow");
+        assert_eq!(active.comm_profile().baseline.standing.popup, "neutral");
+    }
+
+    #[test]
+    fn duplicate_legacy_silent_stays_silent_through_resolver_and_dispatch() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path().join("profiles").join("communication");
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut legacy_silent: serde_json::Value =
+            serde_json::from_str(include_str!("../profiles/communication/silent.json")).unwrap();
+        legacy_silent["id"] = "quiet-custom-id".into();
+        legacy_silent["name"] = "Quiet before duplication".into();
+        legacy_silent.as_object_mut().unwrap().remove("notifications_enabled");
+        let source = dir.join("quiet-custom-id.json");
+        std::fs::write(&source, serde_json::to_string(&legacy_silent).unwrap()).unwrap();
+
+        let duplicate_id = duplicate_profile(source.to_string_lossy().into_owned(), "Silent copy".into())
+            .expect("legacy Silent profile should duplicate");
+        let policy = selected_policy();
+        switch_communication_profile_by_name(tmp.path(), &policy, &duplicate_id).unwrap();
+        let policy = policy.lock().unwrap();
+        assert!(!policy.comm_profile().notifications_enabled);
+
+        let now = chrono::Utc::now();
+        let intents = policy.resolve_session_notifications(
+            &crate::communication_policy::SessionNotificationFacts {
+                state: crate::session_types::DeskState::Standing,
+                now,
+                last_position_change_at: Some(now - chrono::Duration::hours(2)),
+                sitting_seconds_total: 7200,
+                standing_seconds: 7200,
+                standing_target_secs: 3600,
+                inactivity_fired: false,
+                posture_balance_fired: false,
+                standing_target_fired: false,
+                praise_fired: false,
+            },
+            true,
+        );
+        let mut logged = Vec::new();
+        let mut dispatched_channels = 0;
+        crate::notification_service::NotificationService::dispatch_with(
+            &intents,
+            |line| logged.push(line.to_string()),
+            |channels, _, _| dispatched_channels += channels.len(),
+        );
+
+        assert!(intents.is_empty(), "legacy Silent must resolve no intents: {intents:?}");
+        assert!(logged.is_empty(), "legacy Silent must log nothing: {logged:?}");
+        assert_eq!(dispatched_channels, 0);
+    }
+
+    #[test]
+    fn legacy_silent_visual_and_description_edits_remain_silent_at_dispatch() {
+        for (id, field) in [
+            ("legacy-description", "description"),
+            ("legacy-timeline", "timeline"),
+            ("legacy-overlay", "overlay"),
+        ] {
+            let tmp = tempfile::TempDir::new().unwrap();
+            let mut legacy: serde_json::Value =
+                serde_json::from_str(include_str!("../profiles/communication/silent.json")).unwrap();
+            legacy.as_object_mut().unwrap().remove("notifications_enabled");
+            legacy["id"] = id.into();
+            legacy["name"] = format!("Customized {field}").into();
+            match field {
+                "description" => legacy["description"] = "A custom description".into(),
+                "timeline" => legacy["timeline"]["sitting_within_limit"] = "blue".into(),
+                "overlay" => legacy["standing_overlay"]["bar_color"] = "#123456".into(),
+                _ => unreachable!(),
+            }
+            write_communication_profile(tmp.path(), id, &legacy.to_string());
+            let policy = selected_policy();
+
+            switch_communication_profile_by_name(tmp.path(), &policy, id).unwrap();
+            let policy = policy.lock().unwrap();
+            assert!(
+                !policy.comm_profile().notifications_enabled,
+                "legacy Silent {field} edit must not reenable notifications",
+            );
+            let now = chrono::Utc::now();
+            let intents = policy.resolve_session_notifications(
+                &crate::communication_policy::SessionNotificationFacts {
+                    state: crate::session_types::DeskState::Standing,
+                    now,
+                    last_position_change_at: None,
+                    sitting_seconds_total: 0,
+                    standing_seconds: 60,
+                    standing_target_secs: 60,
+                    inactivity_fired: false,
+                    posture_balance_fired: false,
+                    standing_target_fired: false,
+                    praise_fired: false,
+                },
+                true,
+            );
+            let mut logged = Vec::new();
+            let mut dispatched_channels = 0;
+            crate::notification_service::NotificationService::dispatch_with(
+                &intents,
+                |line| logged.push(line.to_string()),
+                |channels, _, _| dispatched_channels += channels.len(),
+            );
+
+            assert!(intents.is_empty(), "an eligible standing-target event must still be silenced");
+            assert!(logged.is_empty());
+            assert_eq!(dispatched_channels, 0);
+        }
+    }
+
+    #[test]
+    fn duplicate_profile_preserves_explicit_notifications_enabled_value() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path().join("profiles").join("communication");
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut explicit: serde_json::Value =
+            serde_json::from_str(include_str!("../profiles/communication/silent.json")).unwrap();
+        explicit["notifications_enabled"] = true.into();
+        let source = dir.join("explicit.json");
+        std::fs::write(&source, serde_json::to_string(&explicit).unwrap()).unwrap();
+
+        let duplicate_id = duplicate_profile(source.to_string_lossy().into_owned(), "Explicit copy".into())
+            .expect("profile with explicit field should duplicate");
+        let policy = selected_policy();
+        switch_communication_profile_by_name(tmp.path(), &policy, &duplicate_id).unwrap();
+
+        assert!(policy.lock().unwrap().comm_profile().notifications_enabled);
+    }
+
+    #[test]
+    fn silent_id_and_name_do_not_disable_a_different_legacy_profile() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path().join("profiles").join("communication");
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut custom: serde_json::Value =
+            serde_json::to_value(CommunicationProfile::default()).unwrap();
+        custom["id"] = "silent".into();
+        custom["name"] = "Silent".into();
+        custom.as_object_mut().unwrap().remove("notifications_enabled");
+        let source = dir.join("silent.json");
+        std::fs::write(&source, serde_json::to_string(&custom).unwrap()).unwrap();
+
+        let duplicate_id = duplicate_profile(source.to_string_lossy().into_owned(), "Custom copy".into())
+            .expect("custom profile with a Silent identity should duplicate");
+        let policy = selected_policy();
+        switch_communication_profile_by_name(tmp.path(), &policy, &duplicate_id).unwrap();
+
+        assert!(policy.lock().unwrap().comm_profile().notifications_enabled);
     }
 
     #[test]

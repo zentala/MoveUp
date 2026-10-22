@@ -1,6 +1,7 @@
 //! CommunicationPolicy — evaluates session state once/sec and returns [`Signals`]
 //! for each UI channel. Stateless helpers live in [`communication_policy_helpers`].
 
+use std::cell::Cell;
 use std::time::{Duration, Instant};
 use crate::communication_types::{NotifySignal, Signals};
 use crate::session_types::{DeskState, NotificationEvent};
@@ -49,9 +50,8 @@ pub struct CommunicationPolicy {
     snoozed_until: Option<Instant>,
     snooze_index: usize,
     disconnect_notified: bool,
-    last_notify_step: Option<usize>,
-    last_notify_time: Option<Instant>,
-    notify_count: u32,
+    last_notify_time: Cell<Option<Instant>>,
+    notify_count: Cell<u32>,
     screen_break_nudge_fired: bool,
 }
 
@@ -64,9 +64,8 @@ impl CommunicationPolicy {
             snoozed_until: None,
             snooze_index: 0,
             disconnect_notified: false,
-            last_notify_step: None,
-            last_notify_time: None,
-            notify_count: 0,
+            last_notify_time: Cell::new(None),
+            notify_count: Cell::new(0),
             screen_break_nudge_fired: false,
         }
     }
@@ -91,6 +90,24 @@ impl CommunicationPolicy {
         standing_max_elapsed_secs: i64,
         stand_limit_fired: bool,
     ) -> Signals {
+        self.evaluate_with_stand_limit_fired_at(
+            input,
+            sitting_limit_secs,
+            standing_max_elapsed_secs,
+            stand_limit_fired,
+            Instant::now(),
+        )
+    }
+
+    /// Evaluates with the caller's monotonic instant so reminder timing is deterministic.
+    pub fn evaluate_with_stand_limit_fired_at(
+        &mut self,
+        input: &PolicyInput,
+        sitting_limit_secs: i64,
+        standing_max_elapsed_secs: i64,
+        stand_limit_fired: bool,
+        now: Instant,
+    ) -> Signals {
         if !input.sensor_connected {
             let (sigs, fired) = helpers::disconnected_signals(&self.comm_profile, self.disconnect_notified);
             if fired { self.disconnect_notified = true; }
@@ -103,7 +120,7 @@ impl CommunicationPolicy {
 
         // Check snooze — if still active, return baseline only
         if let Some(until) = self.snoozed_until {
-            if Instant::now() < until {
+            if now < until {
                 return self.make_baseline(input);
             } else {
                 self.snoozed_until = None;
@@ -125,10 +142,29 @@ impl CommunicationPolicy {
             input.elapsed_secs
         };
         let offset = elapsed_secs - limit_secs;
-        let active_step = steps.iter().enumerate().filter(|(_, s)| offset >= s.at).last();
+        let active_step = steps
+            .iter()
+            .enumerate()
+            .filter(|(_, step)| offset >= step.at)
+            .last();
 
+        let notification_elapsed_secs = if input.state == DeskState::Standing {
+            standing_max_elapsed_secs
+        } else {
+            input.elapsed_secs
+        };
         let mut signals = match active_step {
-            Some((idx, step)) => self.step_to_signals(step, idx, input, sitting_limit_secs),
+            Some((idx, step)) => self.step_to_signals(
+                step,
+                steps[..=idx]
+                    .iter()
+                    .rev()
+                    .find_map(|active| active.notify.as_deref()),
+                input,
+                sitting_limit_secs,
+                notification_elapsed_secs,
+                now,
+            ),
             None => self.make_baseline(input),
         };
 
@@ -144,26 +180,37 @@ impl CommunicationPolicy {
         signals
     }
 
-    /// Makes the threshold and suppression decision for every session event
-    /// notification. The session supplies facts and persisted one-shot flags;
-    /// only this policy returns dispatchable events.
+    /// Selects session-event candidates using thresholds and persisted one-shot
+    /// flags. [`resolve_session_notifications`](Self::resolve_session_notifications)
+    /// applies the shared sitting-reminder cooldown and finite budget before dispatch.
     pub fn decide_session_notifications(
         &self,
         facts: &SessionNotificationFacts,
         periodic: bool,
     ) -> Vec<NotificationEvent> {
+        if !self.comm_profile.notifications_enabled {
+            return Vec::new();
+        }
         if matches!(facts.state, DeskState::Away | DeskState::Walking) {
             return Vec::new();
         }
+        let sitting_reminders_exhausted = facts.state == DeskState::Sitting
+            && self.notify_count.get() as usize
+                >= crate::communication_profile::MAX_NOTIFY_REMINDERS;
         let mut events = Vec::new();
         let config = &self.comm_profile.periodic_notifications;
         if periodic {
-            if config.inactivity_enabled && !facts.inactivity_fired
-                && facts.last_position_change_at.is_some_and(|at| (facts.now - at).num_seconds() >= 3600)
+            if !sitting_reminders_exhausted
+                && config.inactivity_enabled && !facts.inactivity_fired
+                && facts.last_position_change_at.is_some_and(|at| {
+                    (facts.now - at).num_seconds()
+                        >= i64::from(config.inactivity_after_mins) * 60
+                })
             {
                 events.push(NotificationEvent::Inactivity);
             }
-            if config.posture_balance_enabled && !facts.posture_balance_fired
+            if !sitting_reminders_exhausted
+                && config.posture_balance_enabled && !facts.posture_balance_fired
                 && facts.sitting_seconds_total >= self.ergo_profile.limits.posture_balance_min_sitting_secs as i64
                 && facts.sitting_seconds_total > facts.standing_seconds * 2
             {
@@ -184,15 +231,53 @@ impl CommunicationPolicy {
         events
     }
 
-    /// Resolves every accepted session event into an executable notification.
-    /// Thresholds, suppression flags, and backend channels are selected here;
-    /// NotificationService only logs and performs those side effects.
+    /// Resolves session-event candidates into executable notifications.
+    /// Sitting inactivity and posture-balance events consume the same cooldown
+    /// and four-reminder budget as the sitting escalation ladder. Other event
+    /// classes keep their own thresholds. NotificationService only logs and
+    /// performs the selected side effects.
     pub fn resolve_session_notifications(
         &self,
         facts: &SessionNotificationFacts,
         periodic: bool,
     ) -> Vec<crate::notification_service::NotificationIntent> {
+        self.resolve_session_notifications_at(facts, periodic, Instant::now())
+    }
+
+    /// Resolves session events on the same monotonic timeline used by
+    /// [`evaluate_with_stand_limit_fired_at`](Self::evaluate_with_stand_limit_fired_at).
+    pub fn resolve_session_notifications_at(
+        &self,
+        facts: &SessionNotificationFacts,
+        periodic: bool,
+        now: Instant,
+    ) -> Vec<crate::notification_service::NotificationIntent> {
         let events = self.decide_session_notifications(facts, periodic);
+        let events: Vec<_> = events
+            .into_iter()
+            .filter(|event| {
+                if facts.state != DeskState::Sitting
+                    || !matches!(event, NotificationEvent::Inactivity | NotificationEvent::PostureBalance)
+                {
+                    return true;
+                }
+                if self.is_snoozed_at(now) {
+                    return false;
+                }
+                let Some(cooldown) = self.notify_cooldown_secs() else {
+                    return false;
+                };
+                if self.last_notify_time.get().is_some_and(|last| {
+                    now.checked_duration_since(last).unwrap_or_default()
+                        < Duration::from_secs(cooldown)
+                }) {
+                    return false;
+                }
+                self.last_notify_time.set(Some(now));
+                self.notify_count.set(self.notify_count.get() + 1);
+                true
+            })
+            .collect();
         let ordinary_events: Vec<_> = events.iter()
             .filter(|event| !matches!(event, NotificationEvent::StandLimitReached))
             .cloned().collect();
@@ -210,14 +295,17 @@ impl CommunicationPolicy {
 
     /// Record a user dismiss — start snooze timer, advance index, reset notify count.
     pub fn dismiss(&mut self) {
+        self.dismiss_at(Instant::now());
+    }
+
+    pub fn dismiss_at(&mut self, now: Instant) {
         let durations = &self.comm_profile.snooze.durations_mins;
         let idx = self.snooze_index.min(durations.len().saturating_sub(1));
         let mins = durations.get(idx).copied().unwrap_or(5);
-        self.snoozed_until = Some(Instant::now() + Duration::from_secs(mins as u64 * 60));
+        self.snoozed_until = Some(now + Duration::from_secs(mins as u64 * 60));
         self.snooze_index = (self.snooze_index + 1).min(durations.len().saturating_sub(1));
-        self.last_notify_step = None;
-        self.last_notify_time = None;
-        self.notify_count = 0;
+        self.last_notify_time.set(None);
+        self.notify_count.set(0);
     }
 
     /// Snooze for an explicit number of minutes (voice intent, E021-T06).
@@ -231,28 +319,34 @@ impl CommunicationPolicy {
     /// A request of zero minutes is ignored rather than treated as "unsnooze",
     /// because the two are different asks and the parser never produces zero.
     pub fn snooze_for(&mut self, minutes: u16) {
+        self.snooze_for_at(minutes, Instant::now());
+    }
+
+    pub fn snooze_for_at(&mut self, minutes: u16, now: Instant) {
         if minutes == 0 {
             return;
         }
-        self.snoozed_until = Some(Instant::now() + Duration::from_secs(u64::from(minutes) * 60));
-        self.last_notify_step = None;
-        self.last_notify_time = None;
-        self.notify_count = 0;
+        self.snoozed_until = Some(now + Duration::from_secs(u64::from(minutes) * 60));
+        self.last_notify_time.set(None);
+        self.notify_count.set(0);
     }
 
     /// Whether escalation is currently silenced. An expired snooze reads as
     /// `false` without needing an [`evaluate`](Self::evaluate) tick first.
     pub fn is_snoozed(&self) -> bool {
-        self.snoozed_until.is_some_and(|until| Instant::now() < until)
+        self.is_snoozed_at(Instant::now())
+    }
+
+    pub fn is_snoozed_at(&self, now: Instant) -> bool {
+        self.snoozed_until.is_some_and(|until| now < until)
     }
 
     /// Reset snooze state and notification tracking on position change.
     pub fn on_position_changed(&mut self) {
         self.snoozed_until = None;
         self.snooze_index = 0;
-        self.last_notify_step = None;
-        self.last_notify_time = None;
-        self.notify_count = 0;
+        self.last_notify_time.set(None);
+        self.notify_count.set(0);
     }
 
     /// Clear the disconnect-notified flag when the sensor reconnects.
@@ -262,6 +356,12 @@ impl CommunicationPolicy {
 
     /// Hot-reload the communication profile.
     pub fn set_comm_profile(&mut self, p: CommunicationProfile) {
+        if self.comm_profile.id != p.id {
+            self.snoozed_until = None;
+            self.snooze_index = 0;
+            self.last_notify_time.set(None);
+            self.notify_count.set(0);
+        }
         self.comm_profile = p;
     }
 
@@ -292,6 +392,7 @@ impl CommunicationPolicy {
             && signals.notify.is_none()
             && !self.screen_break_nudge_fired
             && self.ergo_profile.limits.max_continuous_computer_secs > 0
+            && self.comm_profile.notifications_enabled
             && input.continuous_computer_secs >= self.ergo_profile.limits.max_continuous_computer_secs as i64
             && self.comm_profile.screen_break_nudge.enabled
             && !self.comm_profile.screen_break_nudge.messages.is_empty()
@@ -318,9 +419,11 @@ impl CommunicationPolicy {
     fn step_to_signals(
         &mut self,
         step: &EscalationStep,
-        idx: usize,
+        notify_type: Option<&str>,
         input: &PolicyInput,
         sitting_limit_secs: i64,
+        notification_elapsed_secs: i64,
+        now: Instant,
     ) -> Signals {
         let progress = match input.state {
             DeskState::Sitting if sitting_limit_secs > 0 => (input.elapsed_secs as f32 / sitting_limit_secs as f32).min(1.5),
@@ -332,7 +435,7 @@ impl CommunicationPolicy {
         let tray = helpers::parse_tray_signal(&step.tray);
         let overlay = helpers::parse_overlay_signal(&step.overlay, progress);
         let popup = helpers::parse_popup_signal(&step.popup_header);
-        let notify = self.build_step_notify(step, idx, input);
+        let notify = self.build_step_notify(notify_type, input, notification_elapsed_secs, now);
 
         Signals { tray, overlay, popup, notify, accepted_events: Vec::new() }
     }
@@ -340,47 +443,47 @@ impl CommunicationPolicy {
     /// Cooldown before next notification, or `None` if all reminders exhausted.
     fn notify_cooldown_secs(&self) -> Option<u64> {
         let cooldowns = &self.comm_profile.snooze.notify_cooldowns_secs;
-        cooldowns.get(self.notify_count as usize).copied()
+        let notify_count = self.notify_count.get();
+        if notify_count as usize >= crate::communication_profile::MAX_NOTIFY_REMINDERS {
+            return None;
+        }
+        cooldowns.get(notify_count as usize).copied()
     }
 
     fn build_step_notify(
         &mut self,
-        step: &EscalationStep,
-        idx: usize,
+        notify_type: Option<&str>,
         input: &PolicyInput,
+        notification_elapsed_secs: i64,
+        now: Instant,
     ) -> Option<NotifySignal> {
-        if let Some(notify_type) = &step.notify.clone() {
-            // Already fired this exact step — skip
-            if self.last_notify_step == Some(idx) {
+        if !self.comm_profile.notifications_enabled {
+            return None;
+        }
+        let notify_type = notify_type?;
+
+        // The profile's first enabled step starts its reminder cadence. Later
+        // visual-only steps retain that channel while the configured cooldown
+        // schedule permits another reminder.
+        let cooldown = self.notify_cooldown_secs()?;
+        if let Some(last) = self.last_notify_time.get() {
+            if now.checked_duration_since(last).unwrap_or_default() < Duration::from_secs(cooldown) {
                 return None;
             }
-
-            // Check escalating cooldown
-            let cooldown = match self.notify_cooldown_secs() {
-                Some(cd) => cd,
-                None => return None, // max notifications reached, stay silent
-            };
-            if let Some(last) = self.last_notify_time {
-                if last.elapsed() < Duration::from_secs(cooldown) {
-                    return None;
-                }
-            }
-
-            self.last_notify_step = Some(idx);
-            self.last_notify_time = Some(Instant::now());
-            self.notify_count += 1;
-
-            let is_firm = self.snooze_index
-                >= self.comm_profile.snooze.tone_shift_after_dismisses as usize;
-            let msg = helpers::message_for_state(
-                &input.state, notify_type, &self.comm_profile.messages, is_firm,
-            );
-            Some(helpers::make_notify_signal(notify_type, &msg))
-        } else {
-            if self.last_notify_step.map_or(true, |prev| prev < idx) {
-                self.last_notify_step = Some(idx);
-            }
-            None
         }
+
+        self.last_notify_time.set(Some(now));
+        self.notify_count.set(self.notify_count.get() + 1);
+
+        let is_firm = self.snooze_index
+            >= self.comm_profile.snooze.tone_shift_after_dismisses as usize;
+        let msg = helpers::message_for_state(
+            &input.state,
+            notify_type,
+            &self.comm_profile.messages,
+            is_firm,
+            notification_elapsed_secs,
+        );
+        Some(helpers::make_notify_signal(notify_type, &msg))
     }
 }

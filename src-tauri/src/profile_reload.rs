@@ -7,13 +7,12 @@
 use std::cell::RefCell;
 use std::path::PathBuf;
 
-use log::info;
+use log::{info, warn};
 use tauri::{AppHandle, Manager};
 
 use crate::commands::AppState;
-use crate::communication_profile::CommunicationProfile;
 use crate::ergonomic_profile::ErgonomicProfile;
-use crate::profile_loader::{load_profile, ProfileWatcher};
+use crate::profile_loader::{load_communication_profile, load_profile, ProfileWatcher};
 
 /// Holds watchers together with the paths they are currently tracking.
 struct Watchers {
@@ -87,13 +86,17 @@ pub fn reload_profiles_if_changed(app: &AppHandle) {
         }
 
         if watchers.comm.has_changed() {
-            let profile = load_profile::<CommunicationProfile>(&comm_path);
-            info!("Hot-reloaded communication profile from {:?}", comm_path);
-            state
-                .comm_policy
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .set_comm_profile(profile);
+            match load_communication_profile(&comm_path) {
+                Ok(profile) => {
+                    info!("Hot-reloaded communication profile from {:?}", comm_path);
+                    state
+                        .comm_policy
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .set_comm_profile(profile);
+                }
+                Err(error) => warn!("Keeping active communication profile after reload failure: {}", error),
+            }
         }
         if watchers.ergo.has_changed() {
             let profile = load_profile::<ErgonomicProfile>(&ergo_path);

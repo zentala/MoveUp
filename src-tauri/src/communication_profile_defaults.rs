@@ -13,6 +13,7 @@ use super::communication_profile::{
 // ── serde default helpers ────────────────────────────────────────────────────
 
 pub(super) fn default_notification_backend() -> String { "toast".to_string() }
+pub(super) fn default_notifications_enabled() -> bool { true }
 pub(super) fn default_snooze_durations() -> Vec<u32> { vec![5, 15, 30, 60] }
 pub(super) fn default_tone_shift() -> u8 { 3 }
 /// Escalating cooldown: immediate → 5 min → 15 min → 30 min → silence.

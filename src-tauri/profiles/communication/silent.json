@@ -2,6 +2,7 @@
   "id": "silent",
   "name": "Silent",
   "description": "Overlay only — no tray signals, no notifications. For gaming, calls, presentations",
+  "notifications_enabled": false,
   "notification_backend": "toast",
   "escalation": {
     "sitting": [],

@@ -8,7 +8,9 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::commands::{ensure_initialized, AppState};
 use crate::communication_policy::CommunicationPolicy;
-use crate::profile_loader::{list_profiles, load_profile, validate_communication_profile};
+use crate::profile_loader::{
+    list_profiles, load_communication_profile, load_profile, validate_communication_profile,
+};
 use crate::communication_profile::CommunicationProfile;
 use crate::ergonomic_profile::ErgonomicProfile;
 use crate::session::SessionManager;
@@ -145,7 +147,7 @@ pub(crate) fn switch_communication_profile_by_name(
     id: &str,
 ) -> Result<(), String> {
     let path = profile_path(app_data_dir, "communication", id)?;
-    let profile = load_profile::<CommunicationProfile>(&path);
+    let profile = load_communication_profile(&path)?;
     policy.lock().unwrap_or_else(|e| e.into_inner()).set_comm_profile(profile);
     log::info!("Switched communication profile to '{}'", id);
     Ok(())

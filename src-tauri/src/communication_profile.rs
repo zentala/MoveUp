@@ -10,6 +10,9 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use crate::communication_profile_defaults as defs;
+
+/// Maximum number of configured automatic reminders before final silence.
+pub const MAX_NOTIFY_REMINDERS: usize = 4;
 pub use crate::communication_profile_visuals::{
     BlinkPattern, MessageConfig, OverlayPattern, PeriodicNotificationConfig,
     ScreenBreakNudgeConfig, StandingOverlayConfig, TimelineConfig,
@@ -169,6 +172,10 @@ pub struct CommunicationProfile {
     #[serde(default = "CommunicationProfile::default_description")]
     pub description: String,
 
+    /// Whether this profile may emit notifications through any policy producer.
+    #[serde(default = "defs::default_notifications_enabled")]
+    pub notifications_enabled: bool,
+
     /// Backend used for one-shot notifications (`"toast"` | `"popup"`).
     #[serde(default = "defs::default_notification_backend")]
     pub notification_backend: String,
@@ -236,6 +243,7 @@ impl Default for CommunicationProfile {
             id: Self::default_id(),
             name: Self::default_name(),
             description: Self::default_description(),
+            notifications_enabled: defs::default_notifications_enabled(),
             notification_backend: defs::default_notification_backend(),
             escalation: EscalationConfig::default(),
             snooze: SnoozeConfig::default(),

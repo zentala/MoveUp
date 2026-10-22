@@ -33,6 +33,51 @@ pub fn load_profile<T: DeserializeOwned + Default>(path: &Path) -> T {
     }
 }
 
+/// Reads and validates a communication profile without replacing failures by defaults.
+///
+/// Activation and reload callers must keep the currently active profile when this fails.
+pub fn load_communication_profile(path: &Path) -> Result<CommunicationProfile, String> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|error| format!("Cannot read communication profile {:?}: {}", path, error))?;
+    let mut profile: CommunicationProfile = serde_json::from_str(&text)
+        .map_err(|error| format!("Cannot parse communication profile {:?}: {}", path, error))?;
+    if is_legacy_silent_profile(&text, &profile) {
+        profile.notifications_enabled = false;
+    }
+    let errors = validate_communication_profile(&profile);
+    if !errors.is_empty() {
+        return Err(format!(
+            "Invalid communication profile {:?}: {}",
+            path,
+            errors.join("; ")
+        ));
+    }
+    Ok(profile)
+}
+
+/// Preserve the built-in Silent profile's intent when loading its pre-field JSON,
+/// including a copy whose id and display name were changed by `duplicate_profile`.
+fn is_legacy_silent_profile(text: &str, profile: &CommunicationProfile) -> bool {
+    let Ok(candidate) = serde_json::from_str::<serde_json::Value>(text) else {
+        return false;
+    };
+    let Some(candidate_fields) = candidate.as_object() else {
+        return false;
+    };
+    if candidate_fields.contains_key("notifications_enabled") {
+        return false;
+    }
+
+    profile.escalation.sitting.is_empty()
+        && profile.escalation.standing.is_empty()
+        && profile.disconnected.notify_once.is_none()
+        && profile.inactive.notify_once.is_none()
+        && !profile.screen_break_nudge.enabled
+        && !profile.periodic_notifications.inactivity_enabled
+        && !profile.periodic_notifications.posture_balance_enabled
+        && !profile.periodic_notifications.praise_halfway_enabled
+}
+
 // ── validate_communication_profile ───────────────────────────────────────────
 
 /// Validate a [`CommunicationProfile`], returning a list of human-readable errors.
@@ -48,6 +93,13 @@ pub fn validate_communication_profile(p: &CommunicationProfile) -> Vec<String> {
         errors.push(format!(
             "notification_backend must be 'toast', 'popup', or 'both', got '{}'",
             p.notification_backend
+        ));
+    }
+
+    if p.snooze.notify_cooldowns_secs.len() > crate::communication_profile::MAX_NOTIFY_REMINDERS {
+        errors.push(format!(
+            "snooze.notify_cooldowns_secs may configure at most four notifications, got {}",
+            p.snooze.notify_cooldowns_secs.len()
         ));
     }
 
@@ -252,7 +304,7 @@ pub fn list_profiles(dir: &Path) -> Vec<PathBuf> {
 
 #[cfg(test)]
 mod profile_validation_tests {
-    use super::validate_communication_profile;
+    use super::{load_communication_profile, validate_communication_profile};
     use crate::communication_profile::{CommunicationProfile, EscalationStep};
 
     fn step(at: i64, notify: Option<&str>) -> EscalationStep {
@@ -291,6 +343,47 @@ mod profile_validation_tests {
             let errors = validate_communication_profile(&profile);
             assert!(errors.iter().any(|error| error.contains("notification_backend")), "{value}: {errors:?}");
         }
+    }
+
+    #[test]
+    fn reminder_schedule_rejects_more_than_four_notifications() {
+        let mut profile = CommunicationProfile::default();
+        profile.snooze.notify_cooldowns_secs = vec![0; 5];
+
+        let errors = validate_communication_profile(&profile);
+
+        assert!(errors.iter().any(|error| error.contains("four")), "{errors:?}");
+    }
+
+    #[test]
+    fn fallible_loader_accepts_each_repository_builtin_profile() {
+        let profiles_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("profiles")
+            .join("communication");
+
+        for id in ["default", "aggressive", "gentle", "silent", "demo"] {
+            let profile = load_communication_profile(&profiles_dir.join(format!("{id}.json")))
+                .unwrap_or_else(|error| panic!("{id}: {error}"));
+            assert_eq!(profile.id, id);
+            assert_eq!(profile.notifications_enabled, id != "silent", "{id}");
+        }
+    }
+
+    #[test]
+    fn fallible_loader_reports_invalid_and_malformed_profiles() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let invalid_path = temp.path().join("invalid.json");
+        let malformed_path = temp.path().join("malformed.json");
+        let mut invalid = CommunicationProfile::default();
+        invalid.notification_backend = "unexpected".into();
+        std::fs::write(&invalid_path, serde_json::to_string(&invalid).unwrap()).unwrap();
+        std::fs::write(&malformed_path, "{\"id\":").unwrap();
+
+        let invalid_error = load_communication_profile(&invalid_path).unwrap_err();
+        let malformed_error = load_communication_profile(&malformed_path).unwrap_err();
+
+        assert!(invalid_error.contains("notification_backend"), "{invalid_error}");
+        assert!(malformed_error.contains("Cannot parse"), "{malformed_error}");
     }
 
     #[test]

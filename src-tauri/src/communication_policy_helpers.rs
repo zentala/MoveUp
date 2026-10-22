@@ -124,8 +124,9 @@ pub(crate) fn message_for_state(
     notify_type: &str,
     msgs: &MessageConfig,
     is_firm: bool,
+    elapsed_secs: i64,
 ) -> String {
-    match (state, notify_type) {
+    let message = match (state, notify_type) {
         (DeskState::Sitting, "toast") => msgs.sitting_limit_toast.clone(),
         (DeskState::Sitting, "popup") => {
             if is_firm { msgs.sitting_firm_popup.clone() } else { msgs.sitting_overdue_popup.clone() }
@@ -133,6 +134,11 @@ pub(crate) fn message_for_state(
         (DeskState::Standing, "toast") => msgs.standing_limit_toast.clone(),
         (DeskState::Standing, "popup") => msgs.standing_overdue_popup.clone(),
         _ => msgs.sitting_limit_toast.clone(),
+    };
+    if notify_type == "popup" {
+        message.replace("{minutes}", &(elapsed_secs.max(0) / 60).to_string())
+    } else {
+        message
     }
 }
 
@@ -144,10 +150,12 @@ pub(crate) fn disconnected_signals(
     profile: &CommunicationProfile,
     already_notified: bool,
 ) -> (Signals, bool) {
-    let (notify, fired) = if !already_notified {
-        let notify_type = profile.disconnected.notify_once.clone().unwrap_or_default();
-        let msg = profile.messages.sensor_disconnected.clone();
-        (Some(make_notify_signal(&notify_type, &msg)), true)
+    let (notify, fired) = if profile.notifications_enabled && !already_notified {
+        let notify = profile.disconnected.notify_once.as_deref().map(|notify_type| {
+            make_notify_signal(notify_type, &profile.messages.sensor_disconnected)
+        });
+        let fired = notify.is_some();
+        (notify, fired)
     } else {
         (None, false)
     };

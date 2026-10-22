@@ -11,6 +11,7 @@ mod tests {
     use crate::communication_types::NotifySignal;
     use crate::ergonomic_profile::ErgonomicProfile;
     use crate::session_types::DeskState;
+    use std::time::{Duration, Instant};
 
     fn default_policy() -> CommunicationPolicy {
         CommunicationPolicy::new(CommunicationProfile::default(), ErgonomicProfile::default())
@@ -63,6 +64,188 @@ mod tests {
         // Steps 1-4 are blocked by cooldown (300s hasn't passed).
         let s = p.evaluate(&sitting_input(1410));
         assert!(s.notify.is_none(), "blocked by 300s cooldown");
+    }
+
+    #[test]
+    fn policy_never_emits_a_fifth_reminder_even_if_profile_has_five_entries() {
+        let mut comm = CommunicationProfile::default();
+        comm.snooze.notify_cooldowns_secs = vec![0; 5];
+        comm.escalation.sitting = (0..5).map(|i| EscalationStep {
+            at: i * 10,
+            tray: "red".to_string(),
+            overlay: "red".to_string(),
+            popup_header: "red".to_string(),
+            notify: Some("toast".to_string()),
+        }).collect();
+        let mut policy = CommunicationPolicy::new(comm, ErgonomicProfile::default());
+
+        let emitted = (0..5)
+            .filter(|step| policy.evaluate(&sitting_input(2400 + step * 10)).notify.is_some())
+            .count();
+
+        assert_eq!(emitted, 4, "the accepted maximum is four reminders");
+    }
+
+    #[test]
+    fn configured_cooldowns_use_injected_time_and_end_in_silence() {
+        let mut comm = CommunicationProfile::default();
+        comm.snooze.notify_cooldowns_secs = vec![0, 300, 900, 1800];
+        comm.escalation.sitting = (0..5).map(|i| EscalationStep {
+            at: i * 10,
+            tray: "red".to_string(),
+            overlay: "pulse_red".to_string(),
+            popup_header: "red".to_string(),
+            notify: Some("toast".to_string()),
+        }).collect();
+        let mut policy = CommunicationPolicy::new(comm, ErgonomicProfile::default());
+        let start = Instant::now();
+        let evaluate = |policy: &mut CommunicationPolicy, step: i64, elapsed: u64| {
+            policy.evaluate_with_stand_limit_fired_at(
+                &sitting_input(2400 + step * 10),
+                2400,
+                0,
+                false,
+                start + Duration::from_secs(elapsed),
+            )
+        };
+
+        assert!(evaluate(&mut policy, 0, 0).notify.is_some());
+        assert!(evaluate(&mut policy, 1, 299).notify.is_none());
+        assert!(evaluate(&mut policy, 1, 300).notify.is_some());
+        assert!(evaluate(&mut policy, 2, 1199).notify.is_none());
+        assert!(evaluate(&mut policy, 2, 1200).notify.is_some());
+        assert!(evaluate(&mut policy, 3, 2999).notify.is_none());
+        assert!(evaluate(&mut policy, 3, 3000).notify.is_some());
+        let final_signals = evaluate(&mut policy, 4, 20_000);
+        assert!(final_signals.notify.is_none(), "four reminders end in silence");
+        assert!(matches!(final_signals.overlay, crate::communication_types::OverlaySignal::PulseRed { .. }));
+    }
+
+    #[test]
+    fn injected_dismiss_snooze_expiry_and_position_reset_are_deterministic() {
+        let mut policy = default_policy();
+        let start = Instant::now();
+        let evaluate = |policy: &mut CommunicationPolicy, elapsed: u64| {
+            policy.evaluate_with_stand_limit_fired_at(
+                &sitting_input(2400), 2400, 0, false, start + Duration::from_secs(elapsed),
+            )
+        };
+
+        assert!(evaluate(&mut policy, 0).notify.is_some());
+        policy.dismiss_at(start);
+        assert!(policy.is_snoozed_at(start + Duration::from_secs(299)));
+        assert!(evaluate(&mut policy, 299).notify.is_none());
+        assert!(evaluate(&mut policy, 300).notify.is_some());
+
+        policy.snooze_for_at(2, start + Duration::from_secs(400));
+        assert!(policy.is_snoozed_at(start + Duration::from_secs(519)));
+        assert!(!policy.is_snoozed_at(start + Duration::from_secs(520)));
+        assert!(evaluate(&mut policy, 520).notify.is_some());
+
+        policy.on_position_changed();
+        assert!(evaluate(&mut policy, 521).notify.is_some(), "position reset starts a fresh schedule");
+    }
+
+    #[test]
+    fn valid_profile_reload_uses_new_schedule_without_resetting_session_limit() {
+        let mut policy = default_policy();
+        let start = Instant::now();
+        let input = sitting_input(2400);
+        assert!(policy.evaluate_with_stand_limit_fired_at(&input, 2400, 0, false, start).notify.is_some());
+
+        let mut reloaded = CommunicationProfile::default();
+        reloaded.snooze.notify_cooldowns_secs = vec![0, 120];
+        policy.set_comm_profile(reloaded);
+
+        let at_119 = start + Duration::from_secs(119);
+        let at_120 = start + Duration::from_secs(120);
+        assert!(policy.evaluate_with_stand_limit_fired_at(&input, 2400, 0, false, at_119).notify.is_none());
+        assert!(policy.evaluate_with_stand_limit_fired_at(&input, 2400, 0, false, at_120).notify.is_some());
+    }
+
+    #[test]
+    fn same_id_profile_reload_preserves_an_active_snooze() {
+        let mut policy = default_policy();
+        let start = Instant::now();
+        policy.snooze_for_at(5, start);
+        let mut reloaded = CommunicationProfile::default();
+        reloaded.name = "Edited default".into();
+
+        policy.set_comm_profile(reloaded);
+
+        assert!(policy.is_snoozed_at(start + Duration::from_secs(299)));
+        let signals = policy.evaluate_with_stand_limit_fired_at(
+            &sitting_input(2400), 2400, 0, false, start + Duration::from_secs(299),
+        );
+        assert!(signals.notify.is_none(), "same-id reload must preserve the active snooze");
+    }
+
+    #[test]
+    fn same_id_reload_uses_the_new_ladder_channel_on_a_visual_only_step() {
+        let mut policy = default_policy();
+        let start = Instant::now();
+        let input = sitting_input(2700);
+        assert!(matches!(
+            policy.evaluate_with_stand_limit_fired_at(&input, 2400, 0, false, start).notify,
+            Some(NotifySignal::Toast(_))
+        ));
+
+        let mut reloaded = CommunicationProfile::default();
+        reloaded.escalation.sitting = vec![
+            EscalationStep {
+                at: 0,
+                tray: "yellow".into(),
+                overlay: "yellow".into(),
+                popup_header: "yellow".into(),
+                notify: Some("popup".into()),
+            },
+            EscalationStep {
+                at: 300,
+                tray: "red".into(),
+                overlay: "pulse_red".into(),
+                popup_header: "red".into(),
+                notify: None,
+            },
+        ];
+        policy.set_comm_profile(reloaded);
+
+        let signals = policy.evaluate_with_stand_limit_fired_at(
+            &input,
+            2400,
+            0,
+            false,
+            start + Duration::from_secs(300),
+        );
+
+        assert!(matches!(signals.notify, Some(NotifySignal::Popup(_))));
+    }
+
+    #[test]
+    fn same_id_reload_with_all_notification_steps_disabled_drops_cached_channel() {
+        let mut policy = default_policy();
+        let start = Instant::now();
+        let input = sitting_input(2700);
+        assert!(policy.evaluate_with_stand_limit_fired_at(&input, 2400, 0, false, start).notify.is_some());
+
+        let mut reloaded = CommunicationProfile::default();
+        reloaded.escalation.sitting = vec![EscalationStep {
+            at: 0,
+            tray: "red".into(),
+            overlay: "pulse_red".into(),
+            popup_header: "red".into(),
+            notify: None,
+        }];
+        policy.set_comm_profile(reloaded);
+
+        let signals = policy.evaluate_with_stand_limit_fired_at(
+            &input,
+            2400,
+            0,
+            false,
+            start + Duration::from_secs(1800),
+        );
+
+        assert!(signals.notify.is_none(), "same-id reload must not reuse the old channel");
     }
 
     // ── 3. Position change fires fresh after max was reached ────────────────

@@ -2,8 +2,7 @@
 //! remote display wiring, and graceful shutdown persistence.
 
 use std::sync::atomic::AtomicUsize;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::sync::Arc;
 
 use log::{info, warn};
 use tauri::{AppHandle, Listener, Manager};
@@ -14,7 +13,7 @@ use tauri_plugin_autostart::ManagerExt;
 
 use crate::commands::AppState;
 use crate::desk_events::{
-    DESK_DAILY_RESET, DESK_DEVICE_CONNECTED, DESK_DEVICE_LOST, DESK_DEVICE_MISSING,
+    DESK_DAILY_RESET, DESK_DEVICE_CONNECTED, DESK_DEVICE_LOST,
 };
 use crate::ws_broadcaster::{self, DisplayEvent};
 
@@ -106,13 +105,9 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
         event_logger,
     );
 
-    setup_device_notifications(app.handle());
     lifecycle.setup_finished();
     Ok(())
 }
-
-/// Minimum interval between device-missing/lost notifications (5 minutes).
-const DEVICE_NOTIFICATION_COOLDOWN_SECS: u64 = 300;
 
 /// Enables autostart for release builds only, self-heals stale registry paths,
 /// and always emits an AUTOSTART line to `events.log` for visibility.
@@ -209,41 +204,6 @@ pub fn position_main_window(app: &AppHandle) {
             let _ = window.hide();
             log::info!("autostart: started with --minimized, popup hidden");
         }
-    }
-}
-
-/// Throttled notifications for missing/lost sensor events.
-pub fn setup_device_notifications(app: &AppHandle) {
-    let last_notif = Arc::new(Mutex::new(
-        Instant::now() - std::time::Duration::from_secs(DEVICE_NOTIFICATION_COOLDOWN_SECS),
-    ));
-
-    {
-        let last = Arc::clone(&last_notif);
-        app.listen(DESK_DEVICE_MISSING, move |_| {
-            let mut guard = last.lock().unwrap_or_else(|e| {
-                log::warn!("Recovered from poisoned mutex");
-                e.into_inner()
-            });
-            if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
-                crate::notify::show("Sensor not connected", "Plug in desk sensor.");
-                *guard = Instant::now();
-            }
-        });
-    }
-
-    {
-        let last = Arc::clone(&last_notif);
-        app.listen(DESK_DEVICE_LOST, move |_| {
-            let mut guard = last.lock().unwrap_or_else(|e| {
-                log::warn!("Recovered from poisoned mutex");
-                e.into_inner()
-            });
-            if guard.elapsed().as_secs() >= DEVICE_NOTIFICATION_COOLDOWN_SECS {
-                crate::notify::show("Sensor disconnected", "Check USB cable.");
-                *guard = Instant::now();
-            }
-        });
     }
 }
 
@@ -390,11 +350,14 @@ pub fn load_profiles(app: &AppHandle) {
     crate::profile_loader::ensure_profiles_dir(&app_data_dir);
     let comm_path = app_data_dir.join("profiles/communication/default.json");
     let ergo_path = app_data_dir.join("profiles/ergonomic/default.json");
-    let comm = crate::profile_loader::load_profile::<crate::communication_profile::CommunicationProfile>(&comm_path);
+    let comm = crate::profile_loader::load_communication_profile(&comm_path);
     let ergo = crate::profile_loader::load_profile::<crate::ergonomic_profile::ErgonomicProfile>(&ergo_path);
     let state: tauri::State<'_, AppState> = app.state();
     let mut policy = state.comm_policy.lock().unwrap();
-    policy.set_comm_profile(comm);
+    match comm {
+        Ok(comm) => policy.set_comm_profile(comm),
+        Err(error) => warn!("Keeping default communication profile after load failure: {}", error),
+    }
     policy.set_ergo_profile(ergo);
     info!("Loaded communication + ergonomic profiles from {:?}", app_data_dir);
 }
