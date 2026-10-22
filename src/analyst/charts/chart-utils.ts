@@ -26,10 +26,10 @@ export function ticks(d0: number, d1: number, n: number): number[] {
 
 /** Chart color palette — keep aligned with desk semantic colors. */
 export const chartColors = {
-  axis: "#555",
-  axisText: "#999",
-  gridline: "#2a2a3a",
-  primary: "#DAA520",
+  axis: "#6f6f6f",
+  axisText: "#a8a8a8",
+  gridline: "#393939",
+  primary: "#f4f4f4",
   sitting: "#8B0000",
   standing: "#3CB371",
   walking: "#4682B4",
@@ -38,10 +38,10 @@ export const chartColors = {
   bar: "#5a8fbf",
   warn: "#ffc107",
   alert: "#f44336",
-  background: "#1a1a2e",
-  card: "#0d0d1a",
-  text: "#ddd",
-  subtext: "#888",
+  background: "#161616",
+  card: "#262626",
+  text: "#f4f4f4",
+  subtext: "#c6c6c6",
 };
 
 /** Round to 2 decimals. */

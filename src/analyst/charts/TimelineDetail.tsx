@@ -1,19 +1,17 @@
 /**
  * TimelineDetail.tsx — One continuous horizontal timeline.
  *
- * Renders the entire active range as a single scrollable strip at uniform
- * pixels-per-minute. Clicking a day tab in `DateNavigator` updates
- * `selectedDay`; this component eases the scroll position so the selected
- * day's centre (12:00) lines up with the viewport centre.
+ * Renders the selected query-local day as one continuous strip fitted to the
+ * available width and the exact UTC bounds returned for that local day.
+ * Navigation is owned by the containing assembly; this component receives
+ * the selected day and its matching bounds.
  *
  * Visual:
- *   - Each minute = colored 1px segment by detected state.
- *   - Vertical dividers at every 00:00 day boundary.
+ *   - Recorded intervals are clipped to the selected day's exact UTC bounds.
+ *   - Vertical dividers mark local-day boundaries in the queried range.
  *   - "Now" indicator (blue line + label) at real time when in range.
- *   - Hour ticks every 4h beneath the strip.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { LocalDayBounds } from "@/generated/LocalDayBounds";
 import type { SnapshotRow } from "@/test/analyst-fixtures";
 import { timelineColors } from "@/timeline/colors";
 import type { TimelineInterval } from "@/timeline/intervals";
@@ -36,10 +34,8 @@ import {
 } from "./timeline-segments";
 import "./timeline-scrollbar.css";
 
-const SIDE_PAD_HOURS = 6;
 const STRIP_HEIGHT = 96;
-const HOUR_MS = 3_600_000;
-const PX_PER_MIN_TARGET = 1.4;
+const SCROLLER_HEIGHT = STRIP_HEIGHT + 2;
 
 export interface TimelineDetailProps {
   range: { from: string; to: string };
@@ -51,13 +47,8 @@ export interface TimelineDetailProps {
   onNext: () => void;
   /** Override "now" for tests. */
   nowMs?: number;
-}
-
-function rangeWidthPx(bounds: LocalDayBounds[]): number {
-  const startMs = Date.parse(bounds[0].start_utc);
-  const endMs = Date.parse(bounds[bounds.length - 1].end_utc);
-  const minutes = (endMs - startMs + SIDE_PAD_HOURS * HOUR_MS * 2) / 60_000;
-  return Math.max(720, minutes * PX_PER_MIN_TARGET);
+  /** The containing assembly may own the single selected-day heading. */
+  showHeader?: boolean;
 }
 
 
@@ -95,27 +86,52 @@ export function TimelineDetail({
   onPrev,
   onNext,
   nowMs,
+  showHeader = true,
 }: TimelineDetailProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<number | null>(null);
+  const [containerWidthPx, setContainerWidthPx] = useState(720);
   const boundsQuery = useLocalDayBoundsRange(range.from, range.to);
   const dayBounds = boundsQuery.status === "ready" ? boundsQuery.data : null;
-  const widthPx = useMemo(() => dayBounds?.length ? rangeWidthPx(dayBounds) : 720, [dayBounds]);
+  const widthPx = containerWidthPx;
   const scale = useMemo(
     () => {
       if (!dayBounds?.length) return null;
-      const startMs = Date.parse(dayBounds[0].start_utc) - SIDE_PAD_HOURS * HOUR_MS;
-      const endMs = Date.parse(dayBounds[dayBounds.length - 1].end_utc) + SIDE_PAD_HOURS * HOUR_MS;
+      const startMs = Date.parse(dayBounds[0].start_utc);
+      const endMs = Date.parse(dayBounds[dayBounds.length - 1].end_utc);
       return buildTimelineScaleForWindow({ startMs, endMs }, widthPx);
     },
     [dayBounds, widthPx],
   );
+  const hasScale = scale !== null;
   const timelineWindow = useMemo(
     () => scale && dayBounds?.length
       ? ({ startMs: Date.parse(dayBounds[0].start_utc), endMs: Date.parse(dayBounds[dayBounds.length - 1].end_utc) })
       : null,
     [scale, dayBounds],
   );
+
+  useEffect(() => {
+    if (!hasScale) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    const recordWidth = (width: number) => {
+      if (!Number.isFinite(width) || width <= 0) return;
+      const nextWidth = Math.max(1, Math.floor(width));
+      setContainerWidthPx((current) => current === nextWidth ? current : nextWidth);
+    };
+    recordWidth(el.clientWidth);
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver((entries) => {
+        recordWidth(entries[0]?.contentRect.width ?? el.clientWidth);
+      });
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+    const onResize = () => recordWidth(el.clientWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [hasScale]);
   const dayDividers = useMemo(
     () => dayBounds?.slice(1).map((day) => Date.parse(day.start_utc)) ?? [],
     [dayBounds],
@@ -196,22 +212,29 @@ export function TimelineDetail({
       aria-label={`Daily timeline for ${selectedDay}`}
       style={{ outline: "none" }}
     >
-      <TimelineDetailHeader selectedDay={selectedDay} onPrev={onPrev} onNext={onNext} />
-      {scale ? (
+      {showHeader ? <TimelineDetailHeader selectedDay={selectedDay} onPrev={onPrev} onNext={onNext} /> : null}
       <div
         ref={scrollerRef}
         data-testid="timeline-scroller"
+        data-window-start-ms={timelineWindow?.startMs}
+        data-window-end-ms={timelineWindow?.endMs}
         className="timeline-scroller"
         style={{
-          overflowX: "auto",
+          width: "100%",
+          height: SCROLLER_HEIGHT,
+          boxSizing: "border-box",
+          overflowX: "hidden",
           border: `1px solid ${chartColors.gridline}`,
           background: chartColors.background,
           borderRadius: 6,
           position: "relative",
         }}
       >
+        {scale ? (
         <svg
+          style={{ display: "block" }}
           width={widthPx}
+          data-timeline-width={widthPx}
           height={STRIP_HEIGHT}
           role="img"
           aria-label={`Daily timeline ${range.from} to ${range.to}`}
@@ -266,14 +289,17 @@ export function TimelineDetail({
           <DayDividerLayer dividers={dayDividers} scale={scale} stripHeight={STRIP_HEIGHT} />
           {nowPx !== null ? <NowIndicator x={nowPx} stripHeight={STRIP_HEIGHT} /> : null}
         </svg>
+        ) : (
+          <p
+            role={boundsQuery.status === "error" ? "alert" : "status"}
+            style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", margin: 0, padding: "0 8px", color: chartColors.subtext, fontSize: 11 }}
+          >
+            {boundsQuery.status === "loading"
+              ? "Loading query-local calendar bounds…"
+              : "Calendar bounds unavailable; elapsed coverage remains Unknown."}
+          </p>
+        )}
       </div>
-      ) : (
-        <p role={boundsQuery.status === "error" ? "alert" : "status"}>
-          {boundsQuery.status === "loading"
-            ? "Loading query-local calendar bounds…"
-            : "Calendar bounds unavailable; elapsed coverage remains Unknown."}
-        </p>
-      )}
       <p style={{ margin: "6px 0", color: chartColors.subtext, fontSize: 11 }}>
         Calendar basis: current query-local timezone; historical capture timezone unknown. Empty dates do not prove observation coverage. Observation ticks mark instants; duration unknown. Filled spans require recorded session endpoints.
       </p>

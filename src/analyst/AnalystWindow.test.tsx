@@ -1,5 +1,5 @@
-import { beforeEach, describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AnalystWindow } from "./AnalystWindow";
 import type { DataCatalog } from "./types/catalog";
 import {
@@ -13,88 +13,95 @@ import { createOpenDayRequest, OPEN_ANALYST_DAY_KEY } from "./open-day";
 
 const testCatalog: DataCatalog = {
   generated_at: "2026-05-16T00:00:00Z",
-  sources: analystCatalogFixture.map((s) => ({
-    id: s.id,
-    name: s.name,
-    kind: s.kind,
-    location: s.location,
-    retention: s.retention,
-    fields: s.fields.map((f) => ({ name: f.name, type: f.type, description: "" })),
-    sample_row: null,
-    description: "",
+  sources: analystCatalogFixture.map((source) => ({
+    id: source.id, name: source.name, kind: source.kind, location: source.location, retention: source.retention,
+    fields: source.fields.map((field) => ({ name: field.name, type: field.type, description: "" })),
+    sample_row: null, description: "",
   })),
 };
 
 function renderWindow() {
-  return render(
-    <AnalystWindow
-      catalog={testCatalog}
-      snapshots={analystSnapshotsFixture}
-      sessions={analystSessionsFixture}
-      kpis={analystDailyKpisFixture}
-      defaultRange={analystDefaultRange}
-    />,
-  );
+  return render(<AnalystWindow catalog={testCatalog} snapshots={analystSnapshotsFixture} sessions={analystSessionsFixture}
+    kpis={analystDailyKpisFixture} defaultRange={analystDefaultRange} />);
 }
 
-describe("AnalystWindow", { timeout: 20000 }, () => {
+describe("AnalystWindow selected-day receiver", () => {
   beforeEach(() => {
     localStorage.removeItem("desk:analyst:range");
     localStorage.removeItem(OPEN_ANALYST_DAY_KEY);
   });
 
-  it("renders both tab triggers", () => {
+  it("shows both app tabs and opens Explorer from Catalog on a valid request", async () => {
     renderWindow();
-    expect(screen.getByRole("tab", { name: /catalog/i })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: /explorer/i })).toBeTruthy();
-  });
-
-  it("defaults to the Explorer tab and switches to Catalog on click", () => {
-    renderWindow();
-    expect(screen.getByTestId("explorer-tab")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /catalog/i }));
-    expect(screen.getByTestId("catalog-tab")).toBeTruthy();
-    expect(screen.queryByTestId("explorer-tab")).toBeNull();
-  });
-
-  it("opens Explorer and retains the valid request pending a selected-day consumer", async () => {
-    const request = createOpenDayRequest("2026-05-17", Date.now(), "pending-1");
-    localStorage.setItem(OPEN_ANALYST_DAY_KEY, JSON.stringify(request));
-    renderWindow();
-
-    expect(await screen.findByTestId("explorer-tab")).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "Explorer" })).toHaveAttribute("aria-selected", "true");
-      expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBe(JSON.stringify(request));
-    });
-  });
-
-  it("switches from Catalog to Explorer for a repeated same-day request", async () => {
-    renderWindow();
+    expect(screen.getByRole("tab", { name: "Catalog" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Explorer" })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Catalog" }));
-    expect(screen.getByTestId("catalog-tab")).toBeInTheDocument();
-
-    const request = createOpenDayRequest("2026-05-17", Date.now(), "repeat-1");
+    const request = createOpenDayRequest("2026-05-17", Date.now(), "catalog-day");
     localStorage.setItem(OPEN_ANALYST_DAY_KEY, JSON.stringify(request));
     fireEvent(window, new StorageEvent("storage", { key: OPEN_ANALYST_DAY_KEY, newValue: JSON.stringify(request) }));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("explorer-tab")).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Explorer" })).toHaveAttribute("aria-selected", "true");
-      expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBe(JSON.stringify(request));
-    });
+    expect(await screen.findByRole("region", { name: "Daily timeline for 2026-05-17" })).toBeInTheDocument();
+    await waitFor(() => expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBeNull());
+    expect(screen.getByRole("tab", { name: "Explorer" })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("ignores malformed or stale storage events and removes the listener on unmount", () => {
+  it("explicitly selects an in-range historical request, independent of the 02:00 initializer", async () => {
+    const request = createOpenDayRequest("2026-05-16", Date.now(), "historical-in-range");
+    localStorage.setItem(OPEN_ANALYST_DAY_KEY, JSON.stringify(request));
+    renderWindow();
+    expect(await screen.findByRole("region", { name: "Daily timeline for 2026-05-16" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /2026-05-16/ })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBeNull());
+  });
+
+  it("consumes a repeated same-day request with a distinct request ID", async () => {
+    renderWindow();
+    const first = createOpenDayRequest("2026-05-17", Date.now(), "repeat-one");
+    localStorage.setItem(OPEN_ANALYST_DAY_KEY, JSON.stringify(first));
+    fireEvent(window, new StorageEvent("storage", { key: OPEN_ANALYST_DAY_KEY, newValue: JSON.stringify(first) }));
+    await waitFor(() => expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBeNull());
+    const second = createOpenDayRequest("2026-05-17", Date.now(), "repeat-two");
+    localStorage.setItem(OPEN_ANALYST_DAY_KEY, JSON.stringify(second));
+    fireEvent(window, new StorageEvent("storage", { key: OPEN_ANALYST_DAY_KEY, newValue: JSON.stringify(second) }));
+    await waitFor(() => expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBeNull());
+    expect(screen.getByRole("region", { name: "Daily timeline for 2026-05-17" })).toBeInTheDocument();
+  });
+
+  it("processes a newer request that arrives before the older pending request is acknowledged", async () => {
+    renderWindow();
+    const older = createOpenDayRequest("2026-05-16", Date.now(), "older");
+    const newer = createOpenDayRequest("2026-05-17", Date.now(), "newer");
+    act(() => {
+      localStorage.setItem(OPEN_ANALYST_DAY_KEY, JSON.stringify(older));
+      fireEvent(window, new StorageEvent("storage", { key: OPEN_ANALYST_DAY_KEY, newValue: JSON.stringify(older) }));
+      localStorage.setItem(OPEN_ANALYST_DAY_KEY, JSON.stringify(newer));
+      fireEvent(window, new StorageEvent("storage", { key: OPEN_ANALYST_DAY_KEY, newValue: JSON.stringify(newer) }));
+    });
+    expect(await screen.findByRole("region", { name: "Daily timeline for 2026-05-17" })).toBeInTheDocument();
+    await waitFor(() => expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBeNull());
+    expect(screen.getByRole("tab", { name: /2026-05-17/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("does not acknowledge or clear a valid request if storage access fails", () => {
+    const request = createOpenDayRequest("2026-05-16", Date.now(), "storage-denied");
+    localStorage.setItem(OPEN_ANALYST_DAY_KEY, JSON.stringify(request));
+    const original = Storage.prototype.getItem;
+    const read = vi.spyOn(Storage.prototype, "getItem").mockImplementation(function (this: Storage, key: string) {
+      if (key === OPEN_ANALYST_DAY_KEY) throw new DOMException("Storage blocked", "SecurityError");
+      return original.call(this, key);
+    });
+    renderWindow();
+    fireEvent(window, new StorageEvent("storage", { key: OPEN_ANALYST_DAY_KEY, newValue: JSON.stringify(request) }));
+    expect(screen.getByRole("tab", { name: "Explorer" })).toHaveAttribute("aria-selected", "true");
+    read.mockRestore();
+    expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBe(JSON.stringify(request));
+  });
+
+  it("ignores stale requests and removes the storage listener on unmount", () => {
     const remove = vi.spyOn(window, "removeEventListener");
     const view = renderWindow();
-    localStorage.setItem(OPEN_ANALYST_DAY_KEY, JSON.stringify({
-      day: "2026-05-17",
-      requestedAtMs: Date.now() - 10 * 60_000,
-      requestId: "stale",
-    }));
-    fireEvent(window, new StorageEvent("storage", { key: OPEN_ANALYST_DAY_KEY }));
-    expect(screen.getByTestId("explorer-tab")).toBeInTheDocument();
+    const stale = JSON.stringify({ day: "2026-05-17", requestedAtMs: Date.now() - 10 * 60_000, requestId: "stale" });
+    localStorage.setItem(OPEN_ANALYST_DAY_KEY, stale);
+    fireEvent(window, new StorageEvent("storage", { key: OPEN_ANALYST_DAY_KEY, newValue: stale }));
     expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBeNull();
     view.unmount();
     expect(remove).toHaveBeenCalledWith("storage", expect.any(Function));

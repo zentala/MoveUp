@@ -1,200 +1,108 @@
-/**
- * DateNavigator.tsx — Range header + day tabs for the Daily Timeline feature.
- *
- * Replaces the standalone DateRangePicker on the Explorer tab. Renders 14
- * (or however many days are in range) grouped mini bar charts side by side,
- * each acting as a clickable tab that drives the TimelineDetail strip below.
- *
- * Sub-components live in sibling files to respect the 250-line-per-file cap:
- *   - DateNavigatorHeader: range pills + preset chips
- *   - DateNavigatorColumn: single day column (mini bars + tab label)
- */
-import { useMemo } from "react";
-import type { SnapshotRow } from "@/test/analyst-fixtures";
-import { chartColors } from "./chart-utils";
-import {
-  DateNavigatorColumn,
-  STATE_COLOR,
-  Y_AXIS_MIN_CAP_SECS,
-} from "./DateNavigatorColumn";
-import { DateNavigatorHeader, type DateNavRange } from "./DateNavigatorHeader";
-import { aggregateDayTotals, enumerateDays } from "./timeline-utils";
-
-export type { DateNavRange };
-
-/**
- * Where the navigator sits on the page. `"bottom"` turns it into a sticky
- * strip pinned to the viewport edge — see `placementStyle`. One component
- * with a prop rather than a fork: only the outer container styling differs.
- */
-export type DateNavPlacement = "top" | "bottom";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import type { TimelineInterval, dayComposition } from "@/timeline/intervals";
+import { dayComposition as composeDay } from "@/timeline/intervals";
+import { useLocalDayBoundsRange } from "../hooks/useLocalDayBoundsRange";
+import { DateNavigatorColumn } from "./DateNavigatorColumn";
+import { enumerateDays, localIsoDate } from "./timeline-utils";
+import "./day-composition.css";
 
 export interface DateNavigatorProps {
-  range: DateNavRange;
-  onRangeChange: (r: DateNavRange) => void;
+  range: { from: string; to: string };
   selectedDay: string;
-  onSelectDay: (date: string) => void;
-  snapshots: SnapshotRow[];
-  /** Date considered "today" for the TODAY pill. Defaults to local now. */
-  today?: string;
-  /** Page position. Defaults to `"top"` (the pre-E018 layout). */
-  placement?: DateNavPlacement;
+  intervals: readonly TimelineInterval[];
+  panelId: string;
+  busy?: boolean;
+  error?: string | null;
+  nowMs: number;
+  onSelectDay: (dateLocal: string) => void;
 }
 
-function todayLocal(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+type Composition = ReturnType<typeof dayComposition>;
+interface CompositionState { byDay: Map<string, Composition>; error: string | null }
 
-const LABELS: ReadonlyArray<["sit" | "stand" | "walk" | "away", string]> = [
-  ["sit", "Sit"],
-  ["stand", "Stand"],
-  ["walk", "Walk"],
-  ["away", "Away"],
-];
-
-/**
- * Outer container styling per placement. Bottom sticks to the viewport edge
- * rather than being fixed, so it scrolls with the page until it pins — fixed
- * positioning competes with the window chrome.
- */
-function placementStyle(placement: DateNavPlacement): React.CSSProperties {
-  if (placement === "bottom") {
-    return {
-      position: "sticky",
-      bottom: 0,
-      zIndex: 5,
-      marginTop: 20,
-      borderRadius: "8px 8px 0 0",
-      borderBottom: "none",
-      boxShadow: "0 -6px 16px rgba(0,0,0,0.35)",
-    };
-  }
-  return { borderRadius: 8 };
-}
-
-export function DateNavigator({
-  range,
-  onRangeChange,
-  selectedDay,
-  onSelectDay,
-  snapshots,
-  today = todayLocal(),
-  placement = "top",
-}: DateNavigatorProps) {
+export function DateNavigator({ range, selectedDay, intervals, panelId, busy = false, error = null,
+  nowMs, onSelectDay }: DateNavigatorProps) {
   const days = useMemo(() => enumerateDays(range.from, range.to), [range.from, range.to]);
-  const totalsMap = useMemo(() => aggregateDayTotals(snapshots), [snapshots]);
-  /**
-   * Auto-scale Y axis: cap = max seconds seen across all states/days, floored
-   * at 8h so the chart stays comparable on quiet days. Rounded up to a clean
-   * hour for the label.
-   */
-  const yAxisCapSecs = useMemo(() => {
-    let max = Y_AXIS_MIN_CAP_SECS;
-    for (const day of days) {
-      const t = totalsMap.get(day);
-      if (!t) continue;
-      max = Math.max(max, t.sit, t.stand, t.walk, t.away);
+  const boundsQuery = useLocalDayBoundsRange(range.from, range.to);
+  const [focusedDay, setFocusedDay] = useState(selectedDay);
+  const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const today = localIsoDate(new Date(nowMs));
+  const compositions = useMemo<CompositionState>(() => {
+    if (boundsQuery.status !== "ready") return { byDay: new Map(), error: null };
+    try {
+      const byDay = new Map<string, Composition>();
+      for (const bounds of boundsQuery.data) {
+        const startMs = Date.parse(bounds.start_utc);
+        const endMs = Date.parse(bounds.end_utc);
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+          throw new RangeError(`Invalid query-local bounds for ${bounds.date_local}`);
+        }
+        byDay.set(bounds.date_local, composeDay(intervals, { startMs, endMs }, nowMs));
+      }
+      return { byDay, error: null };
+    } catch (cause) {
+      return { byDay: new Map(), error: cause instanceof Error ? cause.message : "Invalid interval data" };
     }
-    return Math.ceil(max / 3600) * 3600;
-  }, [days, totalsMap]);
-  const yLabelTop = `${Math.round(yAxisCapSecs / 3600)}h`;
-  const yLabelMid = `${Math.round(yAxisCapSecs / 7200)}h`;
+  }, [boundsQuery, intervals, nowMs]);
 
-  return (
-    <div
-      data-testid="date-navigator"
-      data-placement={placement}
-      style={{
-        background: chartColors.card,
-        border: `1px solid ${chartColors.gridline}`,
-        padding: "14px 18px 16px",
-        ...placementStyle(placement),
-      }}
-    >
-      <DateNavigatorHeader range={range} onRangeChange={onRangeChange} today={today} />
+  const revealSelectedDay = useCallback(() => {
+    const tabs = tabsRef.current;
+    const button = buttonRefs.current.get(selectedDay);
+    if (!tabs || !button || tabs.clientWidth <= 0) return;
+    const tabsRect = tabs.getBoundingClientRect();
+    const buttonRect = button.getBoundingClientRect();
+    if (buttonRect.left < tabsRect.left) {
+      tabs.scrollLeft = Math.max(0, tabs.scrollLeft + buttonRect.left - tabsRect.left);
+    } else if (buttonRect.right > tabsRect.right) {
+      tabs.scrollLeft = Math.max(0, tabs.scrollLeft + buttonRect.right - tabsRect.right);
+    }
+  }, [selectedDay]);
 
-      <div style={{ display: "grid", gridTemplateColumns: "40px 1fr", gap: 14 }}>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            paddingBottom: 36,
-            height: 150,
-            textAlign: "right",
-            fontSize: 9,
-            color: "#555",
-            fontVariantNumeric: "tabular-nums",
-            letterSpacing: "0.08em",
-          }}
-        >
-          <span>{yLabelTop}</span>
-          <span>{yLabelMid}</span>
-          <span>0h</span>
-        </div>
-        <div
-          data-testid="day-cols"
-          style={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${days.length || 1}, 1fr)`,
-            gap: 5,
-            position: "relative",
-            height: 150,
-          }}
-        >
-          {days.map((d) => (
-            <DateNavigatorColumn
-              key={d}
-              date={d}
-              totals={
-                totalsMap.get(d) ?? {
-                  dateLocal: d,
-                  sit: 0,
-                  stand: 0,
-                  walk: 0,
-                  away: 0,
-                  total: 0,
-                }
-              }
-              active={d === selectedDay}
-              isToday={d === today}
-              yAxisCapSecs={yAxisCapSecs}
-              onClick={() => onSelectDay(d)}
-            />
-          ))}
-        </div>
-      </div>
+  useEffect(() => {
+    setFocusedDay(selectedDay);
+    revealSelectedDay();
+  }, [selectedDay, range.from, range.to, revealSelectedDay]);
 
-      <div
-        style={{
-          display: "flex",
-          gap: 14,
-          marginTop: 18,
-          paddingTop: 12,
-          borderTop: `1px solid ${chartColors.gridline}`,
-          fontSize: 11,
-          color: chartColors.subtext,
-          alignItems: "center",
-        }}
-      >
-        {LABELS.map(([k, label]) => (
-          <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span
-              style={{
-                width: 9,
-                height: 9,
-                borderRadius: 2,
-                background: STATE_COLOR[k],
-                display: "inline-block",
-              }}
-            />
-            {label}
-          </span>
-        ))}
-        <span style={{ marginLeft: "auto", fontSize: 11, fontStyle: "italic" }}>
-          click a day to focus the timeline {placement === "bottom" ? "above" : "below"}
-        </span>
-      </div>
+  useEffect(() => {
+    const tabs = tabsRef.current;
+    if (!tabs || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(revealSelectedDay);
+    observer.observe(tabs);
+    return () => observer.disconnect();
+  }, [revealSelectedDay]);
+
+  const focusDay = (day: string) => {
+    setFocusedDay(day);
+    buttonRefs.current.get(day)?.focus();
+  };
+  const onKeyDown = (index: number, event: KeyboardEvent<HTMLButtonElement>) => {
+    let target: string | undefined;
+    if (event.key === "ArrowLeft") target = days[Math.max(0, index - 1)];
+    if (event.key === "ArrowRight") target = days[Math.min(days.length - 1, index + 1)];
+    if (event.key === "Home") target = days[0];
+    if (event.key === "End") target = days[days.length - 1];
+    if (target) { event.preventDefault(); focusDay(target); }
+  };
+  const boundsLoading = boundsQuery.status === "loading";
+  const visibleError = error ?? (boundsQuery.status === "error" ? boundsQuery.error : compositions.error);
+  const loading = busy || boundsLoading;
+
+  return <section className="day-composition" data-testid="date-navigator">
+    <div ref={tabsRef} role="tablist" aria-label="Days in selected range" aria-orientation="horizontal"
+      className="day-composition__tabs" data-testid="day-cols">
+      {days.map((date, index) => <DateNavigatorColumn key={date} date={date}
+        composition={loading || visibleError ? null : compositions.byDay.get(date) ?? null} active={date === selectedDay} today={date === today}
+        loading={loading} error={visibleError} tabIndex={focusedDay === date ? 0 : -1}
+        id={`analyst-day-${date}`} panelId={panelId}
+        buttonRef={(button) => { if (button) buttonRefs.current.set(date, button); else buttonRefs.current.delete(date); }}
+        onClick={() => onSelectDay(date)} onFocus={() => setFocusedDay(date)}
+        onKeyDown={(event) => onKeyDown(index, event)} />)}
     </div>
-  );
+    <p className="day-composition__basis" role="note">
+      Calendar bounds use the current query-local timezone; historical source timezone is unknown. Unknown is uncovered elapsed time. Future is after now. Snapshot markers are instants and do not add duration.
+    </p>
+    {loading ? <p className="day-composition__status" role="status">Loading calendar bounds and observations…</p> : null}
+    {visibleError ? <p className="day-composition__status" role="alert">Daily composition unavailable: {visibleError}</p> : null}
+  </section>;
 }

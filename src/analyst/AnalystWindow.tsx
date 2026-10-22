@@ -1,36 +1,21 @@
-/**
- * AnalystWindow.tsx — Tabbed shell for the Analyst dashboard.
- *
- * Renders header + tab triggers + active tab content. Fixtures are injected
- * via props; live selected-day requests arrive through same-origin storage.
- */
-import { useEffect, useRef, useState } from "react";
-import type {
-  DailyKpi,
-  SessionRow,
-  SnapshotRow,
-} from "@/test/analyst-fixtures";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { DailyKpi, SessionRow, SnapshotRow } from "@/test/analyst-fixtures";
 import { CatalogTab } from "./CatalogTab";
 import { ExplorerTab } from "./ExplorerTab";
 import type { DateRange } from "./DateRangePicker";
 import { chartColors } from "./charts/chart-utils";
 import type { DataCatalog } from "./types/catalog";
-import { OPEN_ANALYST_DAY_KEY, parseOpenDayRequest, rangeForOpenDay } from "./open-day";
+import { OPEN_ANALYST_DAY_KEY, parseOpenDayRequest, rangeForOpenDay, type OpenDayRequest } from "./open-day";
 
 export interface AnalystWindowProps {
-  /** Optional explicit catalog (mockup). When omitted, CatalogTab fetches live. */
   catalog?: DataCatalog;
-  /** Optional fixture override — when omitted, ExplorerTab fetches live. */
   snapshots?: SnapshotRow[];
-  /** Optional fixture override — when omitted, ExplorerTab fetches live. */
   sessions?: SessionRow[];
-  /** Optional fixture override — when omitted, ExplorerTab derives from snapshots. */
   kpis?: DailyKpi[];
   defaultRange: DateRange;
 }
 
 type TabId = "catalog" | "explorer";
-
 const RANGE_STORAGE_KEY = "desk:analyst:range";
 
 function loadStoredRange(): DateRange | null {
@@ -39,142 +24,82 @@ function loadStoredRange(): DateRange | null {
     const raw = localStorage.getItem(RANGE_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<DateRange>;
-    if (typeof parsed.from === "string" && typeof parsed.to === "string") {
-      return { from: parsed.from, to: parsed.to };
-    }
+    return typeof parsed.from === "string" && typeof parsed.to === "string" ? { from: parsed.from, to: parsed.to } : null;
   } catch {
-    /* ignored — corrupt entry, fall through to default */
+    return null;
   }
-  return null;
 }
 
 function saveStoredRange(range: DateRange): void {
   if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(RANGE_STORAGE_KEY, JSON.stringify(range));
-  } catch {
-    /* quota or privacy-mode — non-fatal */
-  }
+  try { localStorage.setItem(RANGE_STORAGE_KEY, JSON.stringify(range)); } catch { /* Best-effort preference only. */ }
 }
 
 const tabButton = (active: boolean): React.CSSProperties => ({
-  background: "transparent",
-  border: "none",
-  color: active ? chartColors.primary : chartColors.subtext,
-  borderBottom: `2px solid ${active ? chartColors.primary : "transparent"}`,
-  padding: "8px 16px",
-  fontSize: 13,
-  cursor: "pointer",
-  fontFamily: "inherit",
+  background: "transparent", border: "none", color: active ? chartColors.primary : chartColors.subtext,
+  borderBottom: `2px solid ${active ? chartColors.primary : "transparent"}`, padding: "8px 16px",
+  fontSize: 13, cursor: "pointer", fontFamily: "inherit",
 });
 
-export function AnalystWindow({
-  catalog,
-  snapshots,
-  sessions,
-  kpis,
-  defaultRange,
-}: AnalystWindowProps) {
+export function AnalystWindow({ catalog, snapshots, sessions, kpis, defaultRange }: AnalystWindowProps) {
   const [tab, setTab] = useState<TabId>("explorer");
-  const [range, setRange] = useState<DateRange>(
-    () => loadStoredRange() ?? defaultRange,
-  );
-  const handledOpenRequest = useRef<string | null>(null);
+  const [range, setRange] = useState<DateRange>(() => loadStoredRange() ?? defaultRange);
+  const [pendingOpenDay, setPendingOpenDay] = useState<OpenDayRequest | null>(null);
+  const pendingRequestId = useRef<string | null>(null);
 
   useEffect(() => {
-    const clearInvalidIfCurrent = (raw: string) => {
-      try {
-        if (localStorage.getItem(OPEN_ANALYST_DAY_KEY) === raw) {
-          localStorage.removeItem(OPEN_ANALYST_DAY_KEY);
-        }
-      } catch {
-        /* storage may be unavailable in privacy-restricted webviews */
-      }
+    const removeInvalidIfStillCurrent = (raw: string) => {
+      try { if (localStorage.getItem(OPEN_ANALYST_DAY_KEY) === raw) localStorage.removeItem(OPEN_ANALYST_DAY_KEY); }
+      catch { /* Preserve malformed storage if access is denied. */ }
     };
-
-    const applyLatestRequest = () => {
+    const receiveLatest = () => {
       let raw: string | null;
-      try {
-        raw = localStorage.getItem(OPEN_ANALYST_DAY_KEY);
-      } catch {
-        return;
-      }
+      try { raw = localStorage.getItem(OPEN_ANALYST_DAY_KEY); } catch { return; }
       if (!raw) return;
       const request = parseOpenDayRequest(raw);
-      if (!request) {
-        clearInvalidIfCurrent(raw);
-        return;
-      }
-      if (request.requestId === handledOpenRequest.current) return;
-      handledOpenRequest.current = request.requestId;
+      if (!request) { removeInvalidIfStillCurrent(raw); return; }
+      if (pendingRequestId.current === request.requestId) return;
+      pendingRequestId.current = request.requestId;
       setTab("explorer");
       setRange((current) => rangeForOpenDay(current, request.day));
+      setPendingOpenDay(request);
     };
-
-    applyLatestRequest();
-
+    receiveLatest();
     const onStorage = (event: StorageEvent) => {
-      if (event.key === OPEN_ANALYST_DAY_KEY) applyLatestRequest();
+      if (event.key === OPEN_ANALYST_DAY_KEY || event.key === null) receiveLatest();
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  useEffect(() => {
-    saveStoredRange(range);
-  }, [range]);
+  const acknowledgeOpenDay = useCallback((requestId: string) => {
+    try {
+      const raw = localStorage.getItem(OPEN_ANALYST_DAY_KEY);
+      const current = parseOpenDayRequest(raw);
+      if (!raw || current?.requestId !== requestId) return;
+      localStorage.removeItem(OPEN_ANALYST_DAY_KEY);
+      if (localStorage.getItem(OPEN_ANALYST_DAY_KEY) !== null) return;
+      if (pendingRequestId.current === requestId) pendingRequestId.current = null;
+      setPendingOpenDay((pending) => pending?.requestId === requestId ? null : pending);
+    } catch {
+      // Failed storage access is not acknowledgement; leave the request pending.
+    }
+  }, []);
 
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: chartColors.background,
-        color: chartColors.text,
-        fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
-        padding: 16,
-        boxSizing: "border-box",
-      }}
-      data-testid="analyst-window"
-    >
-      <header style={{ marginBottom: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Analyst</h1>
-        <p style={{ margin: "2px 0 0", fontSize: 12, color: chartColors.subtext }}>
-          Inspect every data source the desk app produces, then explore it.
-        </p>
-      </header>
-      <nav
-        role="tablist"
-        style={{ borderBottom: `1px solid ${chartColors.gridline}`, marginBottom: 16 }}
-      >
-        <button
-          role="tab"
-          aria-selected={tab === "catalog"}
-          style={tabButton(tab === "catalog")}
-          onClick={() => setTab("catalog")}
-        >
-          Catalog
-        </button>
-        <button
-          role="tab"
-          aria-selected={tab === "explorer"}
-          style={tabButton(tab === "explorer")}
-          onClick={() => setTab("explorer")}
-        >
-          Explorer
-        </button>
-      </nav>
-      {tab === "catalog" ? (
-        <CatalogTab data={catalog} />
-      ) : (
-        <ExplorerTab
-          snapshots={snapshots}
-          sessions={sessions}
-          kpis={kpis}
-          range={range}
-          onRangeChange={setRange}
-        />
+  useEffect(() => { saveStoredRange(range); }, [range]);
 
-      )}
-    </div>
-  );
+  return <div style={{ minHeight: "100vh", background: chartColors.background, color: chartColors.text,
+    fontFamily: "var(--font-mono, ui-monospace, 'Cascadia Code', 'Fira Mono', Consolas, monospace)",
+    padding: 16, boxSizing: "border-box" }} data-testid="analyst-window">
+    <header style={{ marginBottom: 16 }}>
+      <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Analyst</h1>
+      <p style={{ margin: "2px 0 0", fontSize: 12, color: chartColors.subtext }}>Inspect every data source the desk app produces, then explore it.</p>
+    </header>
+    <nav role="tablist" style={{ borderBottom: `1px solid ${chartColors.gridline}`, marginBottom: 16 }}>
+      <button role="tab" aria-selected={tab === "catalog"} style={tabButton(tab === "catalog")} onClick={() => setTab("catalog")}>Catalog</button>
+      <button role="tab" aria-selected={tab === "explorer"} style={tabButton(tab === "explorer")} onClick={() => setTab("explorer")}>Explorer</button>
+    </nav>
+    {tab === "catalog" ? <CatalogTab data={catalog} /> : <ExplorerTab snapshots={snapshots} sessions={sessions} kpis={kpis}
+      range={range} onRangeChange={setRange} openDayRequest={pendingOpenDay} onOpenDayHandled={acknowledgeOpenDay} />}
+  </div>;
 }

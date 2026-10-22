@@ -277,7 +277,8 @@
       <dir name="analyst/" purpose="Analyst window: data catalog + chart explorer (E012)">
         <file name="AnalystWindow.tsx">Tabbed shell: Catalog + Explorer; injects fixtures in mockup mode, falls through to live hooks otherwise</file>
         <file name="CatalogTab.tsx">Sortable + filterable table over get_data_catalog</file>
-        <file name="ExplorerTab.tsx">5-chart grid wired to useSnapshotsRange / useSessionsRange / useEventsRange</file>
+        <file name="ExplorerTab.tsx">Composed Explorer view: range and day navigation, selected-day timeline, and score/credit details; supplemental events status stays separate from core history state</file>
+        <file name="ExplorerTab.test.tsx">Vitest coverage for the composed Explorer shell and selected-day panel</file>
         <file name="DateRangePicker.tsx">Two native date inputs for from/to range</file>
         <file name="explorer-derivations.ts">Pure helpers: downsampleSnapshots, deriveDailyKpis</file>
         <file name="explorer-derivations.test.ts">Source coercion and truthful contiguous-standing maximum derivation</file>
@@ -289,7 +290,12 @@
           <file name="useEventsRange.ts">Event log history (camelCase coerced)</file>
         </dir>
         <dir name="charts/">
-          <file name="TimelineDetail.tsx">Continuous source interval view with Unknown/Future spans and point-only snapshot observations</file>
+          <file name="DateNavigator.tsx">Range day tabs with per-day composition, keyboard navigation, and viewport visibility management</file>
+          <file name="DateNavigatorColumn.tsx">Accessible day tab with a composition ring and coverage label</file>
+          <file name="DailyCompositionRing.tsx">Proportional day composition ring with clipped Unknown hatch and distinct Future arc</file>
+          <file name="DailyCompositionRing.test.tsx">Vitest coverage for proportional denominators, Unknown hatching, and Future arc geometry</file>
+          <file name="day-composition.css">Analyst-local charcoal tokens and day composition/tab layout</file>
+          <file name="TimelineDetail.tsx">Selected-day timeline fitted to exact query-local UTC bounds; preserves Unknown/Future spans and point-only snapshot observations</file>
           <file name="timeline-segments.ts">Exact interval/gap geometry and 2px by 6px observation tick geometry</file>
           <file name="timeline-utils.ts">Calendar helpers and source-bounded timeline scales; snapshot points do not produce elapsed totals</file>
           <file name="ChartCard.tsx">Card chrome shared by all charts</file>

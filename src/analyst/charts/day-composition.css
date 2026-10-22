@@ -1,0 +1,25 @@
+.analyst-local-theme { color-scheme: dark; --panel-base: #161616; --panel-raised: #262626; --panel-elevated: #303030; --panel-overlay: #393939; --rail-subtle: #393939; --rail-default: #525252; --rail-emphasis: #6f6f6f; --rail-active: #78a9ff; --ink-primary: #f4f4f4; --ink-secondary: #c6c6c6; --ink-tertiary: #a8a8a8; --ink-muted: #6f6f6f; --font-mono: ui-monospace, "Cascadia Code", "Fira Mono", Consolas, monospace; min-width: 0; background: var(--panel-base); color: var(--ink-primary); font-family: var(--font-mono); }
+.day-composition { min-width: 0; }
+.day-composition__panel { min-width: 0; padding: 12px 12px 0; background: var(--panel-raised, #262626); border-radius: var(--r-lg, 8px) var(--r-lg, 8px) 0 0; }
+.analyst-range-status { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 8px; }
+.analyst-range-status__text { margin: 0; color: var(--ink-tertiary, #a8a8a8); font-size: 10px; line-height: 1.5; }
+.analyst-refresh { min-height: 28px; padding: 4px 10px; border: 1px solid var(--rail-default, #525252); border-radius: var(--r-sm, 3px); color: var(--ink-secondary, #c6c6c6); background: var(--panel-raised, #262626); font: inherit; cursor: pointer; }
+.analyst-refresh:focus-visible { outline: 2px solid var(--rail-active, #78a9ff); outline-offset: 2px; }
+.analyst-day-details { margin-top: 8px; color: var(--ink-secondary, #c6c6c6); font-size: 11px; line-height: 1.5; }
+.analyst-day-details summary { min-height: 24px; cursor: pointer; }
+.day-composition__tabs { display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-inline: contain; padding: 0 4px 6px; scroll-padding-inline: 4px; scrollbar-width: thin; }
+.day-tab { box-sizing: border-box; flex: 0 0 auto; min-width: 88px; min-height: 104px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; padding: 5px 6px; color: var(--ink-secondary, #c6c6c6); background: var(--panel-elevated, #303030); border: 1px solid var(--rail-subtle, #393939); border-top: 0; border-radius: 0 0 var(--r-md, 5px) var(--r-md, 5px); font-family: var(--font-mono, ui-monospace, "Cascadia Code", "Fira Mono", Consolas, monospace); font-size: 10px; line-height: 1.5; cursor: pointer; }
+.day-tab:hover { color: var(--ink-primary, #f4f4f4); background: var(--panel-overlay, #393939); }
+.day-tab--selected, .day-tab--selected:hover { color: var(--ink-primary, #f4f4f4); background: var(--panel-raised, #262626); }
+.day-tab:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--rail-active, #78a9ff); outline-offset: 2px; }
+.day-tab__weekday, .day-tab__date, .day-tab__coverage, .day-tab__today { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Reserve the width of the longest visible coverage label ("100.0% recorded coverage"). */
+.day-tab__coverage--reserved { min-width: 24ch; }
+.day-tab__weekday { letter-spacing: 0.08em; text-transform: uppercase; }
+.day-tab__date { color: var(--ink-primary, #f4f4f4); font-size: 11px; }
+.day-tab__coverage, .day-tab__today { color: var(--ink-tertiary, #a8a8a8); font-size: 10px; }
+.day-composition-ring { display: block; width: 48px; height: 48px; flex: 0 0 48px; overflow: visible; }
+.day-composition-ring__date { fill: var(--ink-primary, #f4f4f4); font-family: var(--font-mono, ui-monospace, "Cascadia Code", "Fira Mono", Consolas, monospace); font-size: 10px; font-variant-numeric: tabular-nums; }
+.day-composition-ring--empty { box-sizing: border-box; display: inline-flex; width: 48px; height: 48px; flex: 0 0 48px; align-items: center; justify-content: center; border: 1px solid var(--rail-default, #525252); border-radius: 50%; color: var(--ink-tertiary, #a8a8a8); font-family: var(--font-mono, ui-monospace, "Cascadia Code", "Fira Mono", Consolas, monospace); font-size: 11px; }
+.day-composition__basis, .day-composition__status { margin: 6px 0 0; color: var(--ink-tertiary, #a8a8a8); font-family: var(--font-mono, ui-monospace, "Cascadia Code", "Fira Mono", Consolas, monospace); font-size: 10px; line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { .day-composition__tabs { scroll-behavior: auto; } }

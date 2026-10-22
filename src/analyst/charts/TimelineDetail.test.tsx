@@ -50,7 +50,20 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => vi.useRealTimers());
+class ResizeObserverMock {
+  static latest: ResizeObserverMock | null = null;
+  private target: Element | null = null;
+  constructor(private readonly callback: ResizeObserverCallback) { ResizeObserverMock.latest = this; }
+  observe(target: Element): void { this.target = target; }
+  disconnect(): void {}
+  unobserve(): void {}
+  trigger(width: number): void {
+    if (!this.target) return;
+    this.callback([{ target: this.target, contentRect: { width } as DOMRectReadOnly } as ResizeObserverEntry], this as unknown as ResizeObserver);
+  }
+}
+
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); ResizeObserverMock.latest = null; });
 
 async function loadBounds() {
   await act(async () => { await vi.advanceTimersByTimeAsync(250); });
@@ -209,6 +222,86 @@ describe("TimelineDetail", () => {
     expect(screen.getByText(/current query-local timezone; historical capture timezone unknown/)).toBeInTheDocument();
   });
 
+  it.each([
+    { date: "2026-03-29", start: "2026-03-28T23:00:00.000Z", end: "2026-03-29T22:00:00.000Z", hours: 23 },
+    { date: "2026-05-17", start: "2026-05-17T00:00:00.000Z", end: "2026-05-18T00:00:00.000Z", hours: 24 },
+    { date: "2026-10-25", start: "2026-10-24T22:00:00.000Z", end: "2026-10-25T23:00:00.000Z", hours: 25 },
+  ])("fits the exact $hours-hour query-local day to measured width and updates on resize", async ({ date, start, end, hours }) => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+    const startMs = Date.parse(start);
+    const endMs = Date.parse(end);
+    vi.mocked(invoke).mockReset().mockImplementation(() => Promise.resolve([{
+      date_local: date,
+      start_utc: start,
+      end_utc: end,
+      zone_basis: "current-query-local",
+      historical_source_zone: "unknown",
+    }]));
+    render(<TimelineDetail range={{ from: date, to: date }} selectedDay={date} snapshots={[]}
+      intervals={[{ startMs: startMs - 60_000, endMs: endMs + 60_000, state: "Standing", provenance: "session" }]}
+      onPrev={vi.fn()} onNext={vi.fn()} nowMs={endMs + 60_000} />);
+    await loadBounds();
+
+    const scroller = screen.getByTestId("timeline-scroller");
+    Object.defineProperty(scroller, "clientWidth", { configurable: true, value: 1222 });
+    act(() => ResizeObserverMock.latest?.trigger(1222));
+    const svg = screen.getByRole("img", { name: `Daily timeline ${date} to ${date}` });
+    const segment = screen.getByTestId("timeline-segment");
+    expect(Number(svg.getAttribute("width"))).toBe(1222);
+    expect(svg).toHaveStyle({ display: "block" });
+    expect(scroller).toHaveAttribute("data-window-start-ms", String(startMs));
+    expect(scroller).toHaveAttribute("data-window-end-ms", String(endMs));
+    expect(Number(segment.getAttribute("x"))).toBe(0);
+    expect(Number(segment.getAttribute("width"))).toBeCloseTo(1222, 5);
+    expect(segment).toHaveAttribute("data-start-ms", String(startMs));
+    expect(segment).toHaveAttribute("data-end-ms", String(endMs));
+    expect(screen.queryByTestId("timeline-unknown")).toBeNull();
+
+    Object.defineProperty(scroller, "clientWidth", { configurable: true, value: 760 });
+    act(() => ResizeObserverMock.latest?.trigger(760));
+    expect(Number(svg.getAttribute("width"))).toBe(760);
+    expect(Number(segment.getAttribute("width"))).toBeCloseTo(760, 5);
+    expect(hours).toBe((endMs - startMs) / 3_600_000);
+  });
+
+  it("reserves the rendered strip geometry while real query-local bounds are loading", async () => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+    let resolveBounds: ((value: LocalDayBounds[]) => void) | undefined;
+    vi.mocked(invoke).mockReset().mockImplementationOnce(() => new Promise((resolve) => {
+      resolveBounds = resolve as (value: LocalDayBounds[]) => void;
+    }));
+    const start = Date.parse("2026-05-17T00:00:00Z");
+    const end = Date.parse("2026-05-18T00:00:00Z");
+    const { container } = render(<TimelineDetail range={{ from: "2026-05-17", to: "2026-05-17" }}
+      selectedDay="2026-05-17" snapshots={[]} intervals={[]} onPrev={vi.fn()} onNext={vi.fn()}
+      nowMs={Date.parse("2026-05-17T12:00:00Z")} showHeader={false} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading query-local calendar bounds");
+    const loadingSlot = screen.getByTestId("timeline-scroller");
+    expect(loadingSlot).toHaveStyle({ height: "98px" });
+    expect(loadingSlot.querySelector("svg")).toBeNull();
+    expect(screen.queryByTestId("timeline-unknown")).toBeNull();
+    expect(screen.queryByTestId("timeline-segment")).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+      resolveBounds?.([{
+        date_local: "2026-05-17",
+        start_utc: new Date(start).toISOString(),
+        end_utc: new Date(end).toISOString(),
+        zone_basis: "current-query-local",
+        historical_source_zone: "unknown",
+      }]);
+    });
+
+    const readySlot = screen.getByTestId("timeline-scroller");
+    expect(readySlot).toBe(loadingSlot);
+    expect(readySlot).toHaveStyle({ height: "98px" });
+    expect(readySlot.style.height).not.toBe("84px");
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(screen.getAllByTestId("timeline-unknown").length).toBeGreaterThan(0);
+  });
+
   it("shows pending and error states without browser-local timeline fallback", async () => {
     vi.mocked(invoke).mockReset().mockRejectedValueOnce(new Error("query failed"));
     const { rerender } = render(
@@ -217,7 +310,7 @@ describe("TimelineDetail", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Loading query-local calendar bounds");
     await loadBounds();
     expect(screen.getByRole("alert")).toHaveTextContent("elapsed coverage remains Unknown");
-    expect(screen.queryByTestId("timeline-scroller")).toBeNull();
+    expect(screen.getByTestId("timeline-scroller").querySelector("svg")).toBeNull();
     rerender(<TimelineDetail range={range} selectedDay="2026-05-17" snapshots={[]} onPrev={vi.fn()} onNext={vi.fn()} />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
