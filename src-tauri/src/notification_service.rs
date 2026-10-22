@@ -1,12 +1,12 @@
 //! notification_service.rs — Central notification routing module.
 //!
-//! Collects notification intents from SessionManager and other sources,
-//! routes them through the configured backend (toast, popup, or both),
-//! and manages suppression gates centrally.
+//! Executes notification decisions already resolved by CommunicationPolicy
+//! through the configured toast and popup side-effect channels.
 
 use log::info;
 
 use crate::alert_popup::AlertPopup;
+use crate::communication_types::NotifySignal;
 use crate::event_logger::EventLogger;
 use crate::session_types::NotificationEvent;
 
@@ -16,6 +16,7 @@ pub struct NotificationIntent {
     pub event: NotificationEvent,
     pub title: String,
     pub body: String,
+    pub(crate) channels: Vec<NotificationChannel>,
 }
 
 /// Routes notifications through the configured backend.
@@ -25,6 +26,23 @@ pub struct NotificationIntent {
 /// - `"popup"` — WinAPI always-on-top popup via [`AlertPopup`]
 /// - `"both"` — fires both toast and popup
 pub struct NotificationService;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NotificationChannel {
+    Toast,
+    Popup,
+}
+
+/// Resolves a configured backend to the channels the executor will call.
+/// The caller that owns policy supplies the backend; this function only routes it.
+pub(crate) fn channels_for_backend(backend: &str) -> Vec<NotificationChannel> {
+    match backend {
+        "toast" => vec![NotificationChannel::Toast],
+        "popup" => vec![NotificationChannel::Popup],
+        "both" => vec![NotificationChannel::Toast, NotificationChannel::Popup],
+        _ => Vec::new(),
+    }
+}
 
 impl NotificationService {
     /// Builds notification intents from session events and context.
@@ -69,10 +87,7 @@ impl NotificationService {
                     "Halfway through your standing goal!".to_string(),
                     "Keep it up.".to_string(),
                 ),
-                NotificationEvent::StandLimitReached => {
-                    // Currently a no-op event; handled by should_stand_alert().
-                    continue;
-                }
+                NotificationEvent::StandLimitReached => continue,
                 NotificationEvent::StandingTargetReached => (
                     "Standing target reached!".to_string(),
                     "Great break! You stood for the full target duration.".to_string(),
@@ -82,6 +97,7 @@ impl NotificationService {
                 event: event.clone(),
                 title,
                 body,
+                channels: Vec::new(),
             });
         }
         intents
@@ -93,6 +109,7 @@ impl NotificationService {
             event: NotificationEvent::Inactivity, // reusing closest variant
             title: "Time to stand up!".to_string(),
             body: "You've been sitting for 40 minutes. Take a break.".to_string(),
+            channels: Vec::new(),
         }
     }
 
@@ -102,6 +119,7 @@ impl NotificationService {
             event: NotificationEvent::StandLimitReached,
             title: "You've been standing a while".to_string(),
             body: "Ready to sit down for a bit?".to_string(),
+            channels: Vec::new(),
         }
     }
 
@@ -111,6 +129,7 @@ impl NotificationService {
             event: NotificationEvent::Praise,
             title: "Halfway through your standing goal!".to_string(),
             body: "Keep it up.".to_string(),
+            channels: Vec::new(),
         }
     }
 
@@ -122,26 +141,97 @@ impl NotificationService {
     /// - `"both"` — both toast and popup
     pub fn dispatch(
         intents: &[NotificationIntent],
-        notification_backend: &str,
         event_logger: &EventLogger,
         alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,
     ) {
-        let backend = notification_backend;
-        let use_toast = backend == "toast" || backend == "both";
-        let use_popup = backend == "popup" || backend == "both";
+        Self::dispatch_with(
+            intents,
+            |line| event_logger.log(line),
+            |channels, title, body| Self::execute_channels(channels, title, body, alert_popup),
+        );
+    }
 
+    /// Runs the production intent loop with injectable terminal side effects.
+    /// Policy still supplies the resolved intents and channels.
+    pub(crate) fn dispatch_with(
+        intents: &[NotificationIntent],
+        mut log: impl FnMut(&str),
+        mut execute: impl FnMut(&[NotificationChannel], &str, &str),
+    ) {
         for intent in intents {
             let log_tag = notification_log_tag(&intent.event);
-            event_logger.log(&format!("NOTIF {}", log_tag));
+            log(&format!("NOTIF {}", log_tag));
+            execute(
+                &intent.channels,
+                &intent.title,
+                &intent.body,
+            );
+        }
+    }
 
-            if use_toast {
-                crate::notify::show(&intent.title, &intent.body);
-            }
+    /// Adds policy-selected channels to intents for the executor.
+    pub(crate) fn resolve_channels(intents: &mut [NotificationIntent], backend: &str) {
+        let channels = channels_for_backend(backend);
+        for intent in intents {
+            intent.channels = channels.clone();
+        }
+    }
 
-            if use_popup {
-                let msg = format!("{}\n\n{}", intent.title, intent.body);
-                alert_popup.lock().unwrap().show(msg);
+    /// Executes a channel already selected by `CommunicationPolicy`.
+    /// This is the common side-effect path for per-tick policy signals.
+    pub(crate) fn dispatch_policy_signal(
+        signal: &NotifySignal,
+        event_logger: Option<&EventLogger>,
+        alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,
+    ) {
+        Self::dispatch_policy_signal_with(
+            signal,
+            || {
+                if let Some(event_logger) = event_logger {
+                    event_logger.log("NOTIF policy");
+                }
+            },
+            |channel, title, body| Self::execute_channels(&[channel], title, body, alert_popup),
+        );
+    }
+
+    /// Runs the policy-selected log and channel effects. Production supplies
+    /// the event logger and platform executor; tests count the same effects.
+    pub(crate) fn dispatch_policy_signal_with(
+        signal: &NotifySignal,
+        mut log: impl FnMut(),
+        mut execute_channel: impl FnMut(NotificationChannel, &str, &str),
+    ) {
+        let (channel, body) = match signal {
+            NotifySignal::Toast(body) => (NotificationChannel::Toast, body.as_str()),
+            NotifySignal::Popup(body) => (NotificationChannel::Popup, body.as_str()),
+        };
+        log();
+        execute_channel(channel, "Smart Desk", body);
+    }
+
+    fn execute_channels(
+        channels: &[NotificationChannel],
+        title: &str,
+        body: &str,
+        alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,
+    ) {
+        Self::execute_channels_with(channels, title, body, |channel, title, body| match channel {
+            NotificationChannel::Toast => crate::notify::show(title, body),
+            NotificationChannel::Popup => {
+                alert_popup.lock().unwrap().show(format!("{}\n\n{}", title, body));
             }
+        });
+    }
+
+    fn execute_channels_with(
+        channels: &[NotificationChannel],
+        title: &str,
+        body: &str,
+        mut execute: impl FnMut(&NotificationChannel, &str, &str),
+    ) {
+        for channel in channels {
+            execute(channel, title, body);
         }
     }
 }
@@ -221,5 +311,15 @@ mod tests {
             notification_log_tag(&NotificationEvent::StandingTargetReached),
             "standing_target_reached"
         );
+    }
+
+    #[test]
+    fn dispatch_seam_executes_only_policy_selected_channels() {
+        let selected = vec![NotificationChannel::Popup];
+        let mut calls = Vec::new();
+        NotificationService::execute_channels_with(&selected, "title", "body", |channel, title, body| {
+            calls.push((*channel, title.to_string(), body.to_string()));
+        });
+        assert_eq!(calls, vec![(NotificationChannel::Popup, "title".into(), "body".into())]);
     }
 }

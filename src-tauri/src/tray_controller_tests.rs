@@ -74,6 +74,10 @@ fn tooltip_away_shows_zero() {
 mod policy_input {
     use chrono::{DateTime, Duration, TimeZone, Utc};
 
+    use crate::communication_policy::CommunicationPolicy;
+    use crate::communication_profile::{CommunicationProfile, EscalationStep};
+    use crate::communication_types::NotifySignal;
+    use crate::ergonomic_profile::ErgonomicProfile;
     use crate::session_manager::SessionManager;
     use crate::session_types::DeskState;
 
@@ -154,6 +158,30 @@ mod policy_input {
         assert_eq!(input.standing_lap, 0, "not standing — no lap");
     }
 
+    /// Standing maximum uses actual standing time, not the longer break clock
+    /// that continues through Away and Walking.
+    #[test]
+    fn standing_maximum_uses_standing_session_duration() {
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Standing;
+        m.state.stand_limit_secs = 600;
+        m.state.standing_session_started = Some(now() - Duration::seconds(300));
+        m.state.break_started = Some(now() - Duration::seconds(3600));
+
+        let input = m.policy_input(now(), true);
+        let standing_secs = m.get_live_standing_session_secs(now());
+        assert_eq!(input.elapsed_secs, 3600, "break progress clock remains unchanged");
+        assert_eq!(standing_secs, 300, "maximum uses actual standing time");
+        assert_eq!(input.standing_lap, 0);
+
+        let mut ergonomic = ErgonomicProfile::default();
+        ergonomic.limits.standing_max_secs = 600;
+        let mut policy = CommunicationPolicy::new(CommunicationProfile::default(), ergonomic);
+        let signals = policy.evaluate_with_stand_limit_fired(&input, m.state.session_limit_secs, standing_secs, false);
+        assert!(signals.accepted_events.is_empty(), "300 standing seconds is below the 600 second maximum despite the longer break clock");
+        assert!(signals.notify.is_none());
+    }
+
     /// nil — neither sitting nor standing: no elapsed time to escalate on.
     #[test]
     fn away_has_no_elapsed_time() {
@@ -172,5 +200,363 @@ mod policy_input {
         let m = SessionManager::new();
         assert!(!m.policy_input(now(), false).sensor_connected);
         assert!(m.policy_input(now(), true).sensor_connected);
+    }
+
+    fn sitting_signal_for_limits(profile_limit_secs: u32, user_limit_minutes: u32, elapsed_secs: i64) -> Option<NotifySignal> {
+        let mut session = SessionManager::new();
+        session.state.state = DeskState::Sitting;
+        session.state.sitting_started = Some(now() - Duration::seconds(elapsed_secs));
+        session.set_limit_minutes(user_limit_minutes);
+
+        let mut ergonomic = ErgonomicProfile::default();
+        ergonomic.limits.sitting_secs = profile_limit_secs;
+        session.set_ergo_profile(&ergonomic);
+        assert_eq!(
+            session.state.session_limit_secs,
+            i64::from(user_limit_minutes) * 60,
+            "profile reload must preserve the runtime session limit",
+        );
+
+        let mut communication = CommunicationProfile::default();
+        communication.escalation.sitting = vec![EscalationStep {
+            at: 0,
+            tray: "none".into(),
+            overlay: "hidden".into(),
+            popup_header: "neutral".into(),
+            notify: Some("toast".into()),
+        }];
+        let input = session.policy_input(now(), true);
+        CommunicationPolicy::new(communication, ergonomic)
+            .evaluate_with_stand_limit_fired(&input, session.state.session_limit_secs, 0, false)
+            .notify
+    }
+
+    #[test]
+    fn sitting_user_limit_below_profile_fires_at_runtime_limit() {
+        assert!(matches!(sitting_signal_for_limits(2_400, 30, 1_800), Some(NotifySignal::Toast(_))));
+    }
+
+    #[test]
+    fn sitting_user_limit_above_profile_waits_for_runtime_limit() {
+        assert!(sitting_signal_for_limits(1_800, 40, 2_100).is_none());
+    }
+
+    #[test]
+    fn zero_sitting_user_limit_keeps_immediate_alert_semantics() {
+        assert!(matches!(sitting_signal_for_limits(1_800, 0, 0), Some(NotifySignal::Toast(_))));
+    }
+
+    #[test]
+    fn policy_notification_dispatch_logs_channels_and_webhook_once_then_suppresses() {
+        use crate::notification_service::{NotificationChannel, NotificationService};
+
+        let mut session = SessionManager::new();
+        session.state.state = DeskState::Sitting;
+        session.state.sitting_started = Some(now() - Duration::seconds(1_800));
+        session.set_limit_minutes(30);
+
+        let mut ergonomic = ErgonomicProfile::default();
+        ergonomic.limits.sitting_secs = 2_400;
+        session.set_ergo_profile(&ergonomic);
+        let input = session.policy_input(now(), true);
+
+        for (notify_type, expected_channel, expected_webhook) in [
+            ("toast", NotificationChannel::Toast, true),
+            ("popup", NotificationChannel::Popup, false),
+        ] {
+            let mut communication = CommunicationProfile::default();
+            communication.escalation.sitting = vec![EscalationStep {
+                at: 0,
+                tray: "none".into(),
+                overlay: "hidden".into(),
+                popup_header: "neutral".into(),
+                notify: Some(notify_type.into()),
+            }];
+            let mut policy = CommunicationPolicy::new(communication, ergonomic.clone());
+            let first = policy.evaluate_with_stand_limit_fired(
+                &input,
+                session.state.session_limit_secs,
+                0,
+                false,
+            );
+            let second = policy.evaluate_with_stand_limit_fired(
+                &input,
+                session.state.session_limit_secs,
+                0,
+                false,
+            );
+            assert!(first.notify.is_some());
+            assert!(second.notify.is_none(), "the accepted sitting step is one-shot");
+
+            let mut log_count = 0;
+            let mut channels = Vec::new();
+            let mut webhook_bodies = Vec::new();
+            for notify in [first.notify.as_ref(), second.notify.as_ref()] {
+                crate::tray_controller::dispatch_notification_with(
+                    notify,
+                    |signal| NotificationService::dispatch_policy_signal_with(
+                        signal,
+                        || log_count += 1,
+                        |channel, title, body| channels.push((channel, title.to_string(), body.to_string())),
+                    ),
+                    |signal| {
+                        if let NotifySignal::Toast(body) = signal {
+                            webhook_bodies.push(body.clone());
+                        }
+                    },
+                );
+            }
+
+            assert_eq!(log_count, 1);
+            assert_eq!(channels.len(), 1);
+            assert_eq!(channels[0].0, expected_channel);
+            assert_eq!(channels[0].1, "Smart Desk");
+            assert_eq!(webhook_bodies.len(), usize::from(expected_webhook));
+            if expected_webhook {
+                assert_eq!(webhook_bodies, vec![channels[0].2.clone()]);
+            }
+        }
+    }
+
+    #[test]
+    fn resolved_intent_dispatch_uses_toast_popup_both_and_suppression_is_silent() {
+        use crate::notification_service::{NotificationChannel, NotificationService};
+        use crate::session_types::NotificationEvent;
+
+        let mut facts = crate::communication_policy::SessionNotificationFacts {
+            state: DeskState::Standing,
+            now: now(),
+            last_position_change_at: None,
+            sitting_seconds_total: 0,
+            standing_seconds: 600,
+            standing_target_secs: 600,
+            inactivity_fired: false,
+            posture_balance_fired: false,
+            standing_target_fired: false,
+            praise_fired: false,
+        };
+
+        for (backend, expected_channels) in [
+            ("toast", vec![NotificationChannel::Toast]),
+            ("popup", vec![NotificationChannel::Popup]),
+            ("both", vec![NotificationChannel::Toast, NotificationChannel::Popup]),
+        ] {
+            let mut communication = CommunicationProfile::default();
+            communication.notification_backend = backend.into();
+            let policy = CommunicationPolicy::new(communication, ErgonomicProfile::default());
+            let intents = policy.resolve_session_notifications(&facts, true);
+            assert_eq!(intents.len(), 1);
+            assert!(matches!(intents[0].event, NotificationEvent::StandingTargetReached));
+
+            let mut logs = Vec::new();
+            let mut executed_channels = Vec::new();
+            NotificationService::dispatch_with(
+                &intents,
+                |line| logs.push(line.to_string()),
+                |channels, _title, _body| executed_channels.extend_from_slice(channels),
+            );
+            assert_eq!(logs, vec!["NOTIF standing_target_reached"]);
+            assert_eq!(executed_channels, expected_channels);
+
+            facts.standing_target_fired = true;
+            let suppressed = policy.resolve_session_notifications(&facts, true);
+            assert!(suppressed.is_empty());
+            logs.clear();
+            executed_channels.clear();
+            NotificationService::dispatch_with(
+                &suppressed,
+                |line| logs.push(line.to_string()),
+                |channels, _title, _body| executed_channels.extend_from_slice(channels),
+            );
+            assert!(logs.is_empty());
+            assert!(executed_channels.is_empty());
+            facts.standing_target_fired = false;
+        }
+    }
+}
+
+mod notification_intent_count {
+    use crate::communication_policy::{CommunicationPolicy, PolicyInput};
+    use crate::communication_profile::{CommunicationProfile, EscalationStep};
+    use crate::communication_types::NotifySignal;
+    use crate::ergonomic_profile::ErgonomicProfile;
+    use crate::session::DeskState;
+
+    fn input(state: DeskState, elapsed_secs: i64, sensor_connected: bool) -> PolicyInput {
+        PolicyInput {
+            state,
+            elapsed_secs,
+            sensor_connected,
+            standing_lap_progress: 0.0,
+            standing_lap: 0,
+            standing_lap_flash: false,
+            continuous_computer_secs: 0,
+        }
+    }
+
+    fn policy() -> CommunicationPolicy {
+        let mut comm = CommunicationProfile::default();
+        comm.escalation.sitting = vec![EscalationStep {
+            at: 0,
+            tray: "red".into(),
+            overlay: "red".into(),
+            popup_header: "red".into(),
+            notify: Some("toast".into()),
+        }];
+        comm.snooze.notify_cooldowns_secs = vec![0];
+        let mut ergo = ErgonomicProfile::default();
+        ergo.limits.sitting_secs = 2400;
+        CommunicationPolicy::new(comm, ergo)
+    }
+
+    #[test]
+    fn first_uninterrupted_sit_limit_resolves_once() {
+        let mut policy = policy();
+        let input = input(DeskState::Sitting, 2400, true);
+
+        let first = policy.evaluate(&input);
+        let repeated_tick = policy.evaluate(&input);
+
+        assert!(matches!(first.notify, Some(NotifySignal::Toast(_))));
+        assert_eq!(usize::from(first.notify.is_some()), 1);
+        assert_eq!(usize::from(repeated_tick.notify.is_some()), 0);
+    }
+
+    #[test]
+    fn short_noncredited_break_return_has_one_policy_intent_per_sitting_stint() {
+        let mut policy = policy();
+        let sitting_at_limit = input(DeskState::Sitting, 2400, true);
+
+        let first_stint = policy.evaluate(&sitting_at_limit);
+        policy.on_position_changed(); // Sitting -> short break.
+        policy.on_position_changed(); // Short break -> Sitting; credited load is unchanged.
+        let returned_stint = policy.evaluate(&sitting_at_limit);
+
+        assert!(matches!(first_stint.notify, Some(NotifySignal::Toast(_))));
+        assert!(matches!(returned_stint.notify, Some(NotifySignal::Toast(_))));
+        assert_eq!(
+            usize::from(first_stint.notify.is_some()) + usize::from(returned_stint.notify.is_some()),
+            2,
+            "each sitting stint resolves one intent; no second producer is included"
+        );
+    }
+
+    #[test]
+    fn sensor_disconnect_intent_is_one_shot_and_reconnect_rearms_it() {
+        let mut policy = policy();
+        let disconnected = input(DeskState::Sitting, 0, false);
+
+        let first_loss = policy.evaluate(&disconnected);
+        let repeated_loss_tick = policy.evaluate(&disconnected);
+        policy.on_sensor_connected();
+        let connected_tick = policy.evaluate(&input(DeskState::Sitting, 0, true));
+        let second_loss = policy.evaluate(&disconnected);
+
+        assert!(matches!(first_loss.notify, Some(NotifySignal::Toast(_))));
+        assert_eq!(usize::from(repeated_loss_tick.notify.is_some()), 0);
+        assert_eq!(usize::from(connected_tick.notify.is_some()), 0);
+        assert!(matches!(second_loss.notify, Some(NotifySignal::Toast(_))));
+        assert_eq!(
+            usize::from(first_loss.notify.is_some()) + usize::from(second_loss.notify.is_some()),
+            2
+        );
+    }
+}
+
+#[cfg(test)]
+mod notification_policy_route_tests {
+    use chrono::Utc;
+    use crate::{
+        communication_policy::{CommunicationPolicy, PolicyInput, SessionNotificationFacts},
+        communication_profile::CommunicationProfile,
+        communication_types::NotifySignal,
+        ergonomic_profile::ErgonomicProfile,
+        session_types::{DeskState, NotificationEvent},
+    };
+
+    #[test]
+    fn one_policy_resolves_target_maximum_suppression_and_channels() {
+        let mut comm = CommunicationProfile::default();
+        comm.notification_backend = "popup".into();
+        let mut policy = CommunicationPolicy::new(comm, ErgonomicProfile::default());
+        let mut facts = SessionNotificationFacts {
+            state: DeskState::Standing,
+            now: Utc::now(),
+            last_position_change_at: None,
+            sitting_seconds_total: 0,
+            standing_seconds: 600,
+            standing_target_secs: 600,
+            inactivity_fired: false,
+            posture_balance_fired: false,
+            standing_target_fired: false,
+            praise_fired: false,
+        };
+
+        let target = policy.resolve_session_notifications(&facts, true);
+        assert_eq!(target.len(), 1);
+        assert!(matches!(&target[0].event, NotificationEvent::StandingTargetReached));
+        assert_eq!(target[0].channels, vec![crate::notification_service::NotificationChannel::Popup]);
+
+        let below_maximum = policy.resolve_session_notifications(&facts, false);
+        assert!(below_maximum.iter().all(|intent| !matches!(&intent.event, NotificationEvent::StandLimitReached)));
+        let max_secs = ErgonomicProfile::default().limits.standing_max_secs as i64;
+        let maximum = policy.evaluate_with_stand_limit_fired(&PolicyInput {
+            state: DeskState::Standing,
+            elapsed_secs: max_secs,
+            sensor_connected: true,
+            standing_lap_progress: 1.0,
+            standing_lap: 0,
+            standing_lap_flash: false,
+            continuous_computer_secs: 0,
+        }, ErgonomicProfile::default().limits.sitting_secs as i64, max_secs, false);
+        assert!(matches!(maximum.notify, Some(NotifySignal::Toast(_))));
+        assert!(matches!(maximum.accepted_events.as_slice(), [NotificationEvent::StandLimitReached]));
+        facts.praise_fired = true;
+        let after_maximum = policy.resolve_session_notifications(&facts, false);
+        assert!(after_maximum.iter().all(|intent| !matches!(&intent.event, NotificationEvent::StandLimitReached)));
+        assert_eq!(usize::from(maximum.notify.is_some()), 1);
+
+        facts.standing_target_fired = true;
+        assert!(policy.resolve_session_notifications(&facts, true).is_empty());
+    }
+
+    #[test]
+    fn accepted_intentless_maximum_persists_once_without_dispatch() {
+        let mut comm = CommunicationProfile::default();
+        for step in &mut comm.escalation.standing { step.notify = None; }
+        let mut policy = CommunicationPolicy::new(comm, ErgonomicProfile::default());
+        let max_secs = ErgonomicProfile::default().limits.standing_max_secs as i64;
+        let input = PolicyInput {
+            state: DeskState::Standing,
+            elapsed_secs: max_secs,
+            sensor_connected: true,
+            standing_lap_progress: 1.0,
+            standing_lap: 0,
+            standing_lap_flash: false,
+            continuous_computer_secs: 0,
+        };
+
+        let accepted = policy.evaluate_with_stand_limit_fired(
+            &input,
+            ErgonomicProfile::default().limits.sitting_secs as i64,
+            max_secs,
+            false,
+        );
+        assert_eq!(accepted.accepted_events.len(), 1);
+        assert!(accepted.notify.is_none(), "accepted event has zero notification dispatches");
+
+        let mut session = crate::session_manager::SessionManager::new();
+        session.record_notification_events(&accepted.accepted_events);
+        let persisted = crate::session_persistence::PersistedEngineState::from_session(&session, None);
+        assert!(persisted.stand_alert_fired);
+
+        let repeated = policy.evaluate_with_stand_limit_fired(
+            &input,
+            ErgonomicProfile::default().limits.sitting_secs as i64,
+            max_secs,
+            persisted.stand_alert_fired,
+        );
+        assert!(repeated.accepted_events.is_empty());
+        assert!(repeated.notify.is_none());
     }
 }

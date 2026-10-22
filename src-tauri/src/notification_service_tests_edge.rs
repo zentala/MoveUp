@@ -1,50 +1,36 @@
 //! notification_service_tests_edge.rs — Backend selection and edge case tests.
 
-use crate::notification_service::NotificationService;
+use crate::notification_service::{channels_for_backend, NotificationChannel, NotificationService};
 use crate::session_types::NotificationEvent;
 
 // ─── Backend selection logic ────────────────────────────────────────────────
 
-/// Helper: given a backend string, returns (use_toast, use_popup).
-fn backend_flags(backend: &str) -> (bool, bool) {
-    let use_toast = backend == "toast" || backend == "both";
-    let use_popup = backend == "popup" || backend == "both";
-    (use_toast, use_popup)
-}
-
 #[test]
 fn backend_toast_only() {
-    let (toast, popup) = backend_flags("toast");
-    assert!(toast);
-    assert!(!popup);
+    assert_eq!(channels_for_backend("toast"), vec![NotificationChannel::Toast]);
 }
 
 #[test]
 fn backend_popup_only() {
-    let (toast, popup) = backend_flags("popup");
-    assert!(!toast);
-    assert!(popup);
+    assert_eq!(channels_for_backend("popup"), vec![NotificationChannel::Popup]);
 }
 
 #[test]
 fn backend_both() {
-    let (toast, popup) = backend_flags("both");
-    assert!(toast);
-    assert!(popup);
+    assert_eq!(
+        channels_for_backend("both"),
+        vec![NotificationChannel::Toast, NotificationChannel::Popup]
+    );
 }
 
 #[test]
 fn backend_invalid_falls_through() {
-    let (toast, popup) = backend_flags("invalid");
-    assert!(!toast);
-    assert!(!popup);
+    assert!(channels_for_backend("invalid").is_empty());
 }
 
 #[test]
 fn backend_empty_string_falls_through() {
-    let (toast, popup) = backend_flags("");
-    assert!(!toast);
-    assert!(!popup);
+    assert!(channels_for_backend("").is_empty());
 }
 
 // ─── Intent struct fields ───────────────────────────────────────────────────

@@ -118,6 +118,7 @@ fn update_from_policy(app: &AppHandle) {
         app_state.alert_popup.lock().unwrap_or_else(|e| e.into_inner()).dismiss();
     }
     let snapshot = session.snapshot();
+    let stand_limit_fired = session.stand_alert_fired;
     // Every policy-facing derived value comes from the engine (E020-T05); this
     // adapter contributes only the sensor-connectivity fact the engine lacks.
     let input: PolicyInput = session.policy_input(Utc::now(), is_connected);
@@ -141,7 +142,24 @@ fn update_from_policy(app: &AppHandle) {
     );
     update_tooltip(app, &snapshot);
 
-    let signals = app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner()).evaluate(&input);
+    let signals = app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner())
+        .evaluate_with_stand_limit_fired(
+            &input,
+            snapshot.session_limit_secs,
+            snapshot.standing_session_secs,
+            stand_limit_fired,
+        );
+
+    if !signals.accepted_events.is_empty() {
+        let standing = snapshot.standing_session_secs;
+        let mut session = app_state.session.lock().unwrap_or_else(|e| e.into_inner());
+        session.record_notification_events(&signals.accepted_events);
+        if signals.accepted_events.iter().any(|event| matches!(event, crate::session_types::NotificationEvent::StandLimitReached)) {
+            if let Some(loggers) = app.try_state::<crate::Loggers>() {
+                loggers.event.log(&format!("ALERT stand_limit standing={}s", standing));
+            }
+        }
+    }
 
     tray_signal_exec::execute_tray(&signals.tray, app, &snapshot);
 
@@ -149,9 +167,15 @@ fn update_from_policy(app: &AppHandle) {
     tray_signal_exec::execute_overlay(&signals.overlay, &overlay, &snapshot);
     tray_signal_exec::execute_popup(&signals.popup, app);
 
-    if let Some(ref notify) = signals.notify {
-        tray_signal_exec::execute_notify(notify, &app_state);
-        push_to_webhook(&app_state, notify);
+    let event_logger = app.try_state::<crate::Loggers>().map(|loggers| loggers.event.clone());
+    dispatch_notification_with(
+        signals.notify.as_ref(),
+        |notify| tray_signal_exec::execute_notify(notify, &app_state, event_logger.as_deref()),
+        |notify| push_to_webhook(&app_state, notify),
+    );
+    if signals.notify.is_some() || !signals.accepted_events.is_empty() {
+        let session = app_state.session.lock().unwrap_or_else(|e| e.into_inner());
+        crate::session_persistence::save_via_app(app, &session);
     }
 }
 
@@ -176,6 +200,20 @@ fn push_to_webhook(app_state: &AppState, notify: &NotifySignal) {
         config.notify_webhook_url.as_deref(),
     ) {
         notifier.send(Notification::alert("MoveUp", message));
+    }
+}
+
+/// Runs the production notification path once for a policy result. A missing
+/// result has no channel, log, or webhook effects; only toasts are mirrored.
+pub(crate) fn dispatch_notification_with(
+    notify: Option<&NotifySignal>,
+    mut dispatch: impl FnMut(&NotifySignal),
+    mut webhook: impl FnMut(&NotifySignal),
+) {
+    let Some(notify) = notify else { return };
+    dispatch(notify);
+    if matches!(notify, NotifySignal::Toast(_)) {
+        webhook(notify);
     }
 }
 

@@ -129,6 +129,9 @@ pub struct Signals {
     pub popup: PopupSignal,
     /// Optional one-shot notification to fire this cycle.
     pub notify: Option<NotifySignal>,
+    /// Accepted state events whose one-shot flags must persist even when no
+    /// notification channel is selected.
+    pub accepted_events: Vec<crate::session_types::NotificationEvent>,
 }
 
 impl Default for Signals {
@@ -138,6 +141,7 @@ impl Default for Signals {
             overlay: OverlaySignal::Hidden,
             popup: PopupSignal::Neutral,
             notify: None,
+            accepted_events: Vec::new(),
         }
     }
 }

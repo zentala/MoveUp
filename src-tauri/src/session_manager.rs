@@ -190,6 +190,7 @@ impl SessionManager {
             state: self.state.state.clone(),
             sitting_seconds: live_sitting,
             standing_seconds: live_standing,
+            standing_session_secs: self.get_live_standing_session_secs(now),
             break_seconds: live_break,
             session_limit_secs: self.state.session_limit_secs,
             stand_limit_secs: self.state.stand_limit_secs,
@@ -197,7 +198,6 @@ impl SessionManager {
             position_changes: self.state.position_changes,
             limit_used_secs: self.compute_limit_used(now),
             daily_score: self.state.daily_score,
-            standing_session_secs: self.get_live_standing_session_secs(now),
             secs_since_last_break: self.get_secs_since_last_break(now),
             continuous_computer_secs: self.state.continuous_computer_secs,
             longest_computer_session_secs: self.state.longest_computer_session_secs,
@@ -239,6 +239,36 @@ impl SessionManager {
             },
             standing_lap_flash: lapping && bout / target > 0,
             continuous_computer_secs: self.state.continuous_computer_secs,
+        }
+    }
+
+    /// Exposes measurements and persisted one-shot state to CommunicationPolicy.
+    pub fn notification_facts(&self, now: DateTime<Utc>) -> crate::communication_policy::SessionNotificationFacts {
+        crate::communication_policy::SessionNotificationFacts {
+            state: self.state.state.clone(),
+            now,
+            last_position_change_at: self.state.last_position_change_at,
+            sitting_seconds_total: self.get_live_sitting_seconds_total(now),
+            standing_seconds: self.get_live_standing_seconds(now),
+            standing_target_secs: self.state.stand_limit_secs,
+            inactivity_fired: self.notify_inactivity_fired,
+            posture_balance_fired: self.notify_posture_balance_fired,
+            standing_target_fired: self.standing_target_reached_fired,
+            praise_fired: self.praise_halfway_fired_today,
+        }
+    }
+
+    /// Records events accepted by CommunicationPolicy so existing Store
+    /// persistence continues to survive restart and daily reset.
+    pub fn record_notification_events(&mut self, events: &[crate::session_types::NotificationEvent]) {
+        for event in events {
+            match event {
+                crate::session_types::NotificationEvent::Inactivity => self.notify_inactivity_fired = true,
+                crate::session_types::NotificationEvent::PostureBalance => self.notify_posture_balance_fired = true,
+                crate::session_types::NotificationEvent::Praise => self.praise_halfway_fired_today = true,
+                crate::session_types::NotificationEvent::StandLimitReached => self.stand_alert_fired = true,
+                crate::session_types::NotificationEvent::StandingTargetReached => self.standing_target_reached_fired = true,
+            }
         }
     }
 

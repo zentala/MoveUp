@@ -76,6 +76,7 @@ pub(crate) fn inactive_signals(inactive: &ChannelConfig) -> Signals {
         overlay: parse_overlay_signal(&inactive.overlay, 0.0),
         popup: parse_popup_signal(&inactive.popup_header),
         notify: None,
+        accepted_events: Vec::new(),
     }
 }
 
@@ -95,6 +96,7 @@ pub(crate) fn baseline_signals(
                 overlay: parse_overlay_signal(&bl.overlay, 0.0),
                 popup: parse_popup_signal(&bl.popup),
                 notify: None,
+                accepted_events: Vec::new(),
             }
         }
         DeskState::Standing => {
@@ -109,6 +111,7 @@ pub(crate) fn baseline_signals(
                 overlay,
                 popup: parse_popup_signal(&bl.popup),
                 notify: None,
+                accepted_events: Vec::new(),
             }
         }
         _ => Signals::default(),
@@ -153,6 +156,7 @@ pub(crate) fn disconnected_signals(
         overlay: OverlaySignal::Hidden,
         popup: PopupSignal::Gray,
         notify,
+        accepted_events: Vec::new(),
     };
     (signals, fired)
 }

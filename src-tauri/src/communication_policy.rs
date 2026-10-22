@@ -3,10 +3,10 @@
 
 use std::time::{Duration, Instant};
 use crate::communication_types::{NotifySignal, Signals};
+use crate::session_types::{DeskState, NotificationEvent};
 use crate::communication_profile::{CommunicationProfile, EscalationStep};
 use crate::communication_policy_helpers as helpers;
 use crate::ergonomic_profile::ErgonomicProfile;
-use crate::session_types::DeskState;
 
 /// Snapshot of session data passed to [`CommunicationPolicy::evaluate`] each cycle.
 ///
@@ -22,6 +22,21 @@ pub struct PolicyInput {
     pub standing_lap: u32,
     pub standing_lap_flash: bool,
     pub continuous_computer_secs: i64,
+}
+
+/// Raw session facts used by the single policy owner for one-shot notifications.
+/// These are measurements and persisted suppression state, not decisions.
+pub struct SessionNotificationFacts {
+    pub state: DeskState,
+    pub now: chrono::DateTime<chrono::Utc>,
+    pub last_position_change_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub sitting_seconds_total: i64,
+    pub standing_seconds: i64,
+    pub standing_target_secs: i64,
+    pub inactivity_fired: bool,
+    pub posture_balance_fired: bool,
+    pub standing_target_fired: bool,
+    pub praise_fired: bool,
 }
 
 /// Stateful policy engine that converts session snapshots into UI signals.
@@ -58,6 +73,24 @@ impl CommunicationPolicy {
 
     /// Evaluate current session state and return UI signals (called ~1/sec).
     pub fn evaluate(&mut self, input: &PolicyInput) -> Signals {
+        self.evaluate_with_stand_limit_fired(
+            input,
+            self.ergo_profile.limits.sitting_secs as i64,
+            input.elapsed_secs,
+            false,
+        )
+    }
+
+    /// Evaluates signals using the active runtime sitting limit and accepts
+    /// the standing maximum through the same threshold decision. The caller
+    /// supplies the persisted one-shot flag.
+    pub fn evaluate_with_stand_limit_fired(
+        &mut self,
+        input: &PolicyInput,
+        sitting_limit_secs: i64,
+        standing_max_elapsed_secs: i64,
+        stand_limit_fired: bool,
+    ) -> Signals {
         if !input.sensor_connected {
             let (sigs, fired) = helpers::disconnected_signals(&self.comm_profile, self.disconnect_notified);
             if fired { self.disconnect_notified = true; }
@@ -78,10 +111,7 @@ impl CommunicationPolicy {
         }
 
         let (limit_secs, steps) = match input.state {
-            DeskState::Sitting => (
-                self.ergo_profile.limits.sitting_secs as i64,
-                self.comm_profile.escalation.sitting.clone(),
-            ),
+            DeskState::Sitting => (sitting_limit_secs, self.comm_profile.escalation.sitting.clone()),
             DeskState::Standing => (
                 self.ergo_profile.limits.standing_max_secs as i64,
                 self.comm_profile.escalation.standing.clone(),
@@ -89,16 +119,93 @@ impl CommunicationPolicy {
             _ => return self.make_baseline(input),
         };
 
-        let offset = input.elapsed_secs - limit_secs;
+        let elapsed_secs = if input.state == DeskState::Standing {
+            standing_max_elapsed_secs
+        } else {
+            input.elapsed_secs
+        };
+        let offset = elapsed_secs - limit_secs;
         let active_step = steps.iter().enumerate().filter(|(_, s)| offset >= s.at).last();
 
         let mut signals = match active_step {
-            Some((idx, step)) => self.step_to_signals(step, idx, input),
+            Some((idx, step)) => self.step_to_signals(step, idx, input, sitting_limit_secs),
             None => self.make_baseline(input),
         };
 
         self.maybe_apply_screen_nudge(input, &mut signals);
+        let standing_max = self.ergo_profile.limits.standing_max_secs as i64;
+        if input.state == DeskState::Standing
+            && standing_max > 0
+            && standing_max_elapsed_secs >= standing_max
+            && !stand_limit_fired
+        {
+            signals.accepted_events.push(NotificationEvent::StandLimitReached);
+        }
         signals
+    }
+
+    /// Makes the threshold and suppression decision for every session event
+    /// notification. The session supplies facts and persisted one-shot flags;
+    /// only this policy returns dispatchable events.
+    pub fn decide_session_notifications(
+        &self,
+        facts: &SessionNotificationFacts,
+        periodic: bool,
+    ) -> Vec<NotificationEvent> {
+        if matches!(facts.state, DeskState::Away | DeskState::Walking) {
+            return Vec::new();
+        }
+        let mut events = Vec::new();
+        let config = &self.comm_profile.periodic_notifications;
+        if periodic {
+            if config.inactivity_enabled && !facts.inactivity_fired
+                && facts.last_position_change_at.is_some_and(|at| (facts.now - at).num_seconds() >= 3600)
+            {
+                events.push(NotificationEvent::Inactivity);
+            }
+            if config.posture_balance_enabled && !facts.posture_balance_fired
+                && facts.sitting_seconds_total >= self.ergo_profile.limits.posture_balance_min_sitting_secs as i64
+                && facts.sitting_seconds_total > facts.standing_seconds * 2
+            {
+                events.push(NotificationEvent::PostureBalance);
+            }
+            if !facts.standing_target_fired && facts.standing_target_secs > 0
+                && facts.standing_seconds >= facts.standing_target_secs
+            {
+                events.push(NotificationEvent::StandingTargetReached);
+            }
+        } else if facts.state == DeskState::Standing {
+            if config.praise_halfway_enabled && !facts.praise_fired && facts.standing_target_secs > 0
+                && facts.standing_seconds >= facts.standing_target_secs / 2
+            {
+                events.push(NotificationEvent::Praise);
+            }
+        }
+        events
+    }
+
+    /// Resolves every accepted session event into an executable notification.
+    /// Thresholds, suppression flags, and backend channels are selected here;
+    /// NotificationService only logs and performs those side effects.
+    pub fn resolve_session_notifications(
+        &self,
+        facts: &SessionNotificationFacts,
+        periodic: bool,
+    ) -> Vec<crate::notification_service::NotificationIntent> {
+        let events = self.decide_session_notifications(facts, periodic);
+        let ordinary_events: Vec<_> = events.iter()
+            .filter(|event| !matches!(event, NotificationEvent::StandLimitReached))
+            .cloned().collect();
+        let mut intents = crate::notification_service::NotificationService::build_intents(
+            &ordinary_events, facts.sitting_seconds_total, facts.standing_seconds,
+        );
+        if events.iter().any(|event| matches!(event, NotificationEvent::StandLimitReached)) {
+            intents.push(crate::notification_service::NotificationService::stand_limit_intent());
+        }
+        crate::notification_service::NotificationService::resolve_channels(
+            &mut intents, &self.comm_profile.notification_backend,
+        );
+        intents
     }
 
     /// Record a user dismiss — start snooze timer, advance index, reset notify count.
@@ -208,12 +315,16 @@ impl CommunicationPolicy {
         )
     }
 
-    fn step_to_signals(&mut self, step: &EscalationStep, idx: usize, input: &PolicyInput) -> Signals {
+    fn step_to_signals(
+        &mut self,
+        step: &EscalationStep,
+        idx: usize,
+        input: &PolicyInput,
+        sitting_limit_secs: i64,
+    ) -> Signals {
         let progress = match input.state {
-            DeskState::Sitting => {
-                let limit = self.ergo_profile.limits.sitting_secs as f32;
-                (input.elapsed_secs as f32 / limit).min(1.5)
-            }
+            DeskState::Sitting if sitting_limit_secs > 0 => (input.elapsed_secs as f32 / sitting_limit_secs as f32).min(1.5),
+            DeskState::Sitting => 0.0,
             DeskState::Standing => input.standing_lap_progress,
             _ => 0.0,
         };
@@ -223,7 +334,7 @@ impl CommunicationPolicy {
         let popup = helpers::parse_popup_signal(&step.popup_header);
         let notify = self.build_step_notify(step, idx, input);
 
-        Signals { tray, overlay, popup, notify }
+        Signals { tray, overlay, popup, notify, accepted_events: Vec::new() }
     }
 
     /// Cooldown before next notification, or `None` if all reminders exhausted.

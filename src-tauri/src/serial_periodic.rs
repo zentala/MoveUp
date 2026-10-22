@@ -33,7 +33,7 @@ pub fn check_periodic(
     port_name: &str,
     alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
-    let (ergo, comm) = active_profiles(app);
+    let (ergo, _comm) = active_profiles(app);
     session
         .lock()
         .unwrap_or_else(|e| e.into_inner())
@@ -58,15 +58,20 @@ pub fn check_periodic(
 
     steps::log_minute_snapshot(session, snapshot_logger, port_name, &ergo);
 
-    let tick = steps::collect_notification_intents(session, &comm);
-    NotificationService::dispatch(
-        &tick.intents,
-        &comm.notification_backend,
-        event_logger,
-        alert_popup,
-    );
+    let now = chrono::Utc::now();
+    let intents = {
+        let mut sess = session.lock().unwrap_or_else(|error| error.into_inner());
+        let facts = sess.notification_facts(now);
+        let intents = app.state::<AppState>().comm_policy
+            .lock().unwrap_or_else(|error| error.into_inner())
+            .resolve_session_notifications(&facts, true);
+        let events: Vec<_> = intents.iter().map(|intent| intent.event.clone()).collect();
+        sess.record_notification_events(&events);
+        intents
+    };
+    NotificationService::dispatch(&intents, event_logger, alert_popup);
     // Persist flags if any notifications were fired in this periodic check.
-    if tick.events_fired {
+    if !intents.is_empty() {
         save_session_state(app, session);
     }
 
@@ -85,7 +90,7 @@ pub fn handle_reading(
     event_logger: &Arc<EventLogger>,
     alert_popup: &Arc<Mutex<crate::alert_popup::AlertPopup>>,
 ) {
-    let (ergo, comm) = active_profiles(app);
+    let (ergo, _comm) = active_profiles(app);
 
     // Input inactivity is a heuristic, not a measurement of physical absence.
     let active = is_active();
@@ -183,21 +188,6 @@ pub fn handle_reading(
         ));
         let _ = app.emit(DESK_STATE_CHANGED, payload);
 
-        if state_before == DeskState::Sitting && payload.state == DeskState::Standing {
-            let praise = {
-                let mut sess = session.lock().unwrap();
-                sess.should_send_praise_halfway(&comm)
-            };
-            if praise {
-                let intent = NotificationService::praise_halfway_intent();
-                NotificationService::dispatch(
-                    &[intent],
-                    &comm.notification_backend,
-                    event_logger,
-                    alert_popup,
-                );
-            }
-        }
     }
 
     if let Some((ref credit, dur)) = result.break_credit {
@@ -210,31 +200,19 @@ pub fn handle_reading(
         // acknowledgment sequence owns persistence.
     }
 
-    let alert = { session.lock().unwrap().should_alert() };
-    if alert {
-        let sitting = session.lock().unwrap().snapshot().sitting_seconds;
-        event_logger.log(&format!("ALERT sit_limit sitting={}s", sitting));
-        let intent = NotificationService::sit_limit_intent();
-        NotificationService::dispatch(
-            &[intent],
-            &comm.notification_backend,
-            event_logger,
-            alert_popup,
-        );
-        save_session_state(app, session);
-    }
-
-    let stand_alert = { session.lock().unwrap().should_stand_alert() };
-    if stand_alert {
-        let standing = session.lock().unwrap().snapshot().standing_session_secs;
-        event_logger.log(&format!("ALERT stand_limit standing={}s", standing));
-        let intent = NotificationService::stand_limit_intent();
-        NotificationService::dispatch(
-            &[intent],
-            &comm.notification_backend,
-            event_logger,
-            alert_popup,
-        );
+    let now = chrono::Utc::now();
+    let intents = {
+        let mut sess = session.lock().unwrap_or_else(|error| error.into_inner());
+        let facts = sess.notification_facts(now);
+        let intents = app.state::<AppState>().comm_policy
+            .lock().unwrap_or_else(|error| error.into_inner())
+            .resolve_session_notifications(&facts, false);
+        let events: Vec<_> = intents.iter().map(|intent| intent.event.clone()).collect();
+        sess.record_notification_events(&events);
+        intents
+    };
+    NotificationService::dispatch(&intents, event_logger, alert_popup);
+    if !intents.is_empty() {
         save_session_state(app, session);
     }
 }

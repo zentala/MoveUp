@@ -235,13 +235,14 @@ pub(crate) fn execute_popup(signal: &PopupSignal, app: &AppHandle) {
 }
 
 /// Dispatches a [`NotifySignal`] to the appropriate notification backend.
-pub(crate) fn execute_notify(signal: &NotifySignal, app_state: &AppState) {
-    match signal {
-        NotifySignal::Toast(msg) => {
-            crate::notify::show("Smart Desk", msg);
-        }
-        NotifySignal::Popup(msg) => {
-            app_state.alert_popup.lock().unwrap_or_else(|e| e.into_inner()).show(msg.clone());
-        }
-    }
+pub(crate) fn execute_notify(
+    signal: &NotifySignal,
+    app_state: &AppState,
+    event_logger: Option<&crate::event_logger::EventLogger>,
+) {
+    crate::notification_service::NotificationService::dispatch_policy_signal(
+        signal,
+        event_logger,
+        &app_state.alert_popup,
+    );
 }
