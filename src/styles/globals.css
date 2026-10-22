@@ -12,23 +12,23 @@
 
 /* ── Tokens ──────────────────────────────────────────────────────── */
 :root {
-  /* Surfaces — warm near-black, oiled-steel feel */
-  --panel-base:     #141210;
-  --panel-raised:   #1c1a17;
-  --panel-elevated: #242118;
-  --panel-overlay:  #2c2920;
+  /* Shared charcoal surfaces */
+  --panel-base:     #161616;
+  --panel-raised:   #262626;
+  --panel-elevated: #303030;
+  --panel-overlay:  #393939;
 
   /* Borders — whisper-quiet, warm-tinted amber */
-  --rail-subtle:   rgba(255, 215, 140, 0.05);
-  --rail-default:  rgba(255, 215, 140, 0.10);
-  --rail-emphasis: rgba(255, 215, 140, 0.22);
-  --rail-active:   rgba(255, 215, 140, 0.45);
+  --rail-subtle:   #393939;
+  --rail-default:  #525252;
+  --rail-emphasis: #6f6f6f;
+  --rail-active:   #78a9ff;
 
   /* Text — warm off-white hierarchy */
-  --ink-primary:   #f0ebe0;
-  --ink-secondary: #b0a898;
-  --ink-tertiary:  #706858;
-  --ink-muted:     #403830;
+  --ink-primary:   #f4f4f4;
+  --ink-secondary: #c6c6c6;
+  --ink-tertiary:  #a8a8a8;
+  --ink-muted:     #6f6f6f;
 
   /* Amber beam — the active indicator light */
   --beam:      #d97706;
@@ -37,10 +37,10 @@
   --beam-dim:  rgba(217, 119, 6, 0.08);
 
   /* Semantic signals — synced with src-tauri/src/colors.rs & utils/colors.ts */
-  --signal-neutral: #5a5548;
+  --signal-neutral: #525252;
   --signal-warn:  #ffc107;
   --signal-alert: #f44336;
-  --signal-away:  #808080;
+  --signal-away:  #8d8d8d;
 
   /* KPI metric evaluation colors — NOT for position state */
   --signal-ok: #4caf50;
@@ -61,36 +61,24 @@
 
 /* ── Timeline skins ────────────────────────────────────────────── */
 .tl-skin-semantic {
-  --tl-sitting:  #8b3a3a;
-  --tl-standing: #3a6b4a;
-  --tl-walking:  #3a5a6b;
-  --tl-away:     #3a3a3a;
-  --tl-sit-opacity:   0.75;
-  --tl-stand-opacity:  0.7;
-  --tl-walk-opacity:   0.65;
-  --tl-away-opacity:   0.35;
+  --tl-sitting: var(--state-sitting);
+  --tl-standing: var(--state-standing);
+  --tl-walking: var(--state-walking);
+  --tl-away: var(--state-away);
 }
 
 .tl-skin-amber {
-  --tl-sitting:  #6b4226;
-  --tl-standing: #d97706;
-  --tl-walking:  #92700a;
-  --tl-away:     #2a2520;
-  --tl-sit-opacity:   0.8;
-  --tl-stand-opacity:  0.45;
-  --tl-walk-opacity:   0.4;
-  --tl-away-opacity:   0.5;
+  --tl-sitting: var(--state-sitting);
+  --tl-standing: var(--state-standing);
+  --tl-walking: var(--state-walking);
+  --tl-away: var(--state-away);
 }
 
 .tl-skin-clinical {
-  --tl-sitting:  #5c4a6b;
-  --tl-standing: #2a7a8a;
-  --tl-walking:  #3a7060;
-  --tl-away:     #2a2a30;
-  --tl-sit-opacity:   0.75;
-  --tl-stand-opacity:  0.7;
-  --tl-walk-opacity:   0.6;
-  --tl-away-opacity:   0.35;
+  --tl-sitting: var(--state-sitting);
+  --tl-standing: var(--state-standing);
+  --tl-walking: var(--state-walking);
+  --tl-away: var(--state-away);
 }
 
 /* ── Reset ──────────────────────────────────────────────────────── */
@@ -118,7 +106,7 @@ body {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: rgba(20, 18, 16, 0.84);
+  background: rgba(22, 22, 22, 0.84);
   backdrop-filter: blur(12px);
 }
 
@@ -241,9 +229,9 @@ body {
   transition: background 0.3s, box-shadow 0.3s;
 }
 
-.state-indicator__dot--sitting  { background: var(--signal-neutral); }
-.state-indicator__dot--standing { background: var(--beam);   box-shadow: 0 0 6px var(--beam-glow); }
-.state-indicator__dot--walking  { background: var(--beam);   box-shadow: 0 0 6px var(--beam-glow); }
+.state-indicator__dot--sitting  { background: #fa4d56; }
+.state-indicator__dot--standing { background: #42be65; }
+.state-indicator__dot--walking  { background: #78a9ff; }
 .state-indicator__dot--away     { background: var(--signal-away); }
 
 .state-indicator__label {

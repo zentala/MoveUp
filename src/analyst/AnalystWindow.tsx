@@ -17,6 +17,7 @@ export interface AnalystWindowProps {
 
 type TabId = "catalog" | "explorer";
 const RANGE_STORAGE_KEY = "desk:analyst:range";
+const TAB_ORDER: TabId[] = ["catalog", "explorer"];
 
 function loadStoredRange(): DateRange | null {
   if (typeof localStorage === "undefined") return null;
@@ -43,9 +44,28 @@ const tabButton = (active: boolean): React.CSSProperties => ({
 
 export function AnalystWindow({ catalog, snapshots, sessions, kpis, defaultRange }: AnalystWindowProps) {
   const [tab, setTab] = useState<TabId>("explorer");
+  const [focusedTab, setFocusedTab] = useState<TabId>("explorer");
   const [range, setRange] = useState<DateRange>(() => loadStoredRange() ?? defaultRange);
   const [pendingOpenDay, setPendingOpenDay] = useState<OpenDayRequest | null>(null);
   const pendingRequestId = useRef<string | null>(null);
+  const tabRefs = useRef<Record<TabId, HTMLButtonElement | null>>({ catalog: null, explorer: null });
+
+  const focusTab = (next: TabId) => {
+    setFocusedTab(next);
+    tabRefs.current[next]?.focus();
+  };
+  const onTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, current: TabId) => {
+    const index = TAB_ORDER.indexOf(current);
+    const next = event.key === "ArrowRight" ? TAB_ORDER[(index + 1) % TAB_ORDER.length]
+      : event.key === "ArrowLeft" ? TAB_ORDER[(index + TAB_ORDER.length - 1) % TAB_ORDER.length]
+        : event.key === "Home" ? TAB_ORDER[0] : event.key === "End" ? TAB_ORDER[TAB_ORDER.length - 1] : null;
+    if (next) { event.preventDefault(); focusTab(next); }
+    else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setTab(current);
+      setFocusedTab(current);
+    }
+  };
 
   useEffect(() => {
     const removeInvalidIfStillCurrent = (raw: string) => {
@@ -61,6 +81,7 @@ export function AnalystWindow({ catalog, snapshots, sessions, kpis, defaultRange
       if (pendingRequestId.current === request.requestId) return;
       pendingRequestId.current = request.requestId;
       setTab("explorer");
+      setFocusedTab("explorer");
       setRange((current) => rangeForOpenDay(current, request.day));
       setPendingOpenDay(request);
     };
@@ -95,11 +116,12 @@ export function AnalystWindow({ catalog, snapshots, sessions, kpis, defaultRange
       <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Analyst</h1>
       <p style={{ margin: "2px 0 0", fontSize: 12, color: chartColors.subtext }}>Inspect every data source the desk app produces, then explore it.</p>
     </header>
-    <nav role="tablist" style={{ borderBottom: `1px solid ${chartColors.gridline}`, marginBottom: 16 }}>
-      <button role="tab" aria-selected={tab === "catalog"} style={tabButton(tab === "catalog")} onClick={() => setTab("catalog")}>Catalog</button>
-      <button role="tab" aria-selected={tab === "explorer"} style={tabButton(tab === "explorer")} onClick={() => setTab("explorer")}>Explorer</button>
+    <nav role="tablist" aria-label="Analyst views" style={{ borderBottom: `1px solid ${chartColors.gridline}`, marginBottom: 16 }}>
+      <button ref={(node) => { tabRefs.current.catalog = node; }} id="analyst-tab-catalog" role="tab" aria-controls="analyst-panel-catalog" aria-selected={tab === "catalog"} tabIndex={focusedTab === "catalog" ? 0 : -1} style={tabButton(tab === "catalog")} onFocus={() => setFocusedTab("catalog")} onClick={() => { setTab("catalog"); setFocusedTab("catalog"); }} onKeyDown={(event) => onTabKeyDown(event, "catalog")}>Catalog</button>
+      <button ref={(node) => { tabRefs.current.explorer = node; }} id="analyst-tab-explorer" role="tab" aria-controls="analyst-panel-explorer" aria-selected={tab === "explorer"} tabIndex={focusedTab === "explorer" ? 0 : -1} style={tabButton(tab === "explorer")} onFocus={() => setFocusedTab("explorer")} onClick={() => { setTab("explorer"); setFocusedTab("explorer"); }} onKeyDown={(event) => onTabKeyDown(event, "explorer")}>Explorer</button>
     </nav>
-    {tab === "catalog" ? <CatalogTab data={catalog} /> : <ExplorerTab snapshots={snapshots} sessions={sessions} kpis={kpis}
-      range={range} onRangeChange={setRange} openDayRequest={pendingOpenDay} onOpenDayHandled={acknowledgeOpenDay} />}
+    {tab === "catalog" ? <section id="analyst-panel-catalog" role="tabpanel" aria-labelledby="analyst-tab-catalog" tabIndex={0}><CatalogTab data={catalog} /></section> :
+      <section id="analyst-panel-explorer" role="tabpanel" aria-labelledby="analyst-tab-explorer" tabIndex={0}><ExplorerTab snapshots={snapshots} sessions={sessions} kpis={kpis}
+        range={range} onRangeChange={setRange} openDayRequest={pendingOpenDay} onOpenDayHandled={acknowledgeOpenDay} /></section>}
   </div>;
 }

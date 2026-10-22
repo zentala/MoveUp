@@ -50,7 +50,10 @@ export function buildSegments(
   scale: TimelineScale,
   nowMs: number,
 ): { intervals: RenderedInterval[]; gaps: RenderedGap[] } {
-  const exact = normalizeIntervals(intervals, window);
+  const elapsedEnd = Math.min(window.endMs, Math.max(window.startMs, nowMs));
+  const exact = elapsedEnd > window.startMs
+    ? normalizeIntervals(intervals, { startMs: window.startMs, endMs: elapsedEnd })
+    : [];
   return {
     intervals: exact.map((interval) => renderSpan(interval, window, scale)),
     gaps: timelineGaps(exact, window, nowMs).map((gap) => renderSpan(gap, window, scale)),

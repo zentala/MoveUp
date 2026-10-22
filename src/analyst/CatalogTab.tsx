@@ -32,7 +32,7 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: "8px",
   fontSize: 12,
-  borderBottom: "1px solid #1a1a26",
+  borderBottom: `1px solid ${chartColors.gridline}`,
   verticalAlign: "top",
 };
 
@@ -134,8 +134,8 @@ function CatalogTable({ sources }: CatalogTableProps) {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           style={{
-            background: "#11111c",
-            border: "1px solid #2a2a3a",
+            background: chartColors.background,
+            border: `1px solid ${chartColors.gridline}`,
             color: chartColors.text,
             padding: "6px 10px",
             borderRadius: 4,

@@ -3,7 +3,7 @@
  * across all states and temperature levels.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { OneBarWidget } from "./OneBarWidget";
 import type { WidgetProps } from "@/types";
 
@@ -161,6 +161,15 @@ describe("OneBarWidget", () => {
     render(<OneBarWidget {...props({ onOpenSettings: onOpen })} />);
     screen.getByTitle("Settings").click();
     expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("exposes named share and settings icon controls and opens sharing", () => {
+    render(<OneBarWidget {...props()} />);
+    const share = screen.getByRole("button", { name: "Share my stats" });
+    expect(share).toHaveAttribute("title", "Share my stats");
+    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("title", "Settings");
+    fireEvent.click(share);
+    expect(screen.getByText("share my stats")).toBeInTheDocument();
   });
 
   it("big number shows break elapsed/standing target for standing", () => {

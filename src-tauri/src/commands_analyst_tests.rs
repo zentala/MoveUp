@@ -125,6 +125,29 @@ fn local_day_bounds_reuse_missing_and_ambiguous_midnight_resolution() {
 }
 
 #[test]
+fn local_hour_ticks_follow_half_hour_transition_and_preserve_repeated_hours() {
+    let lord_howe = t_local_day_bounds_for_range("2026-04-05", "2026-04-05",
+        &chrono_tz::Australia::Lord_Howe).unwrap();
+    let ticks = lord_howe[0].hour_ticks.as_ref().unwrap();
+    let start = chrono::DateTime::parse_from_rfc3339(&lord_howe[0].start_utc).unwrap();
+    let end = chrono::DateTime::parse_from_rfc3339(&lord_howe[0].end_utc).unwrap();
+    assert_eq!((end - start).num_minutes(), 24 * 60 + 30);
+    assert_eq!(ticks.len(), 24);
+    assert!(ticks.iter().any(|tick| tick.wall_time == "01:00" && tick.utc_offset_secs == 39_600));
+    assert!(!ticks.iter().any(|tick| tick.wall_time == "01:30"));
+    assert!(ticks.iter().any(|tick| tick.wall_time == "02:00" && tick.utc_offset_secs == 37_800));
+
+    let fall_back = t_local_day_bounds_for_range("2026-11-01", "2026-11-01",
+        &chrono_tz::America::New_York).unwrap();
+    let repeated = fall_back[0].hour_ticks.as_ref().unwrap().iter()
+        .filter(|tick| tick.wall_time == "01:00").collect::<Vec<_>>();
+    assert_eq!(repeated.len(), 2);
+    assert_eq!(repeated[0].utc_offset_secs, -14_400);
+    assert_eq!(repeated[1].utc_offset_secs, -18_000);
+    assert!(repeated[0].at_utc < repeated[1].at_utc);
+}
+
+#[test]
 fn local_day_bounds_preserve_range_validation() {
     let zone = chrono_tz::UTC;
     assert!(t_local_day_bounds_for_range("bad", "2026-05-16", &zone).is_err());

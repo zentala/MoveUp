@@ -8,6 +8,8 @@
  */
 import { chartColors } from "./chart-utils";
 import { formatDate, weekdayName } from "@/utils/format";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { UiIcon } from "@/components/UiIcon";
 
 export interface TimelineDetailHeaderProps {
   selectedDay: string;
@@ -16,15 +18,14 @@ export interface TimelineDetailHeaderProps {
 }
 
 const navBtn: React.CSSProperties = {
-  width: 22,
-  height: 22,
+  width: 28,
+  height: 28,
   background: "transparent",
   border: `1px solid ${chartColors.gridline}`,
   color: chartColors.subtext,
   borderRadius: 4,
   cursor: "pointer",
   fontFamily: "inherit",
-  fontSize: 12,
   lineHeight: 1,
 };
 
@@ -67,19 +68,21 @@ export function TimelineDetailHeader({
           type="button"
           onClick={onPrev}
           title="Previous day"
+          aria-label="Previous day"
           style={navBtn}
           data-testid="tl-prev"
         >
-          ‹
+          <UiIcon icon={ChevronLeft} />
         </button>
         <button
           type="button"
           onClick={onNext}
           title="Next day"
+          aria-label="Next day"
           style={navBtn}
           data-testid="tl-next"
         >
-          ›
+          <UiIcon icon={ChevronRight} />
         </button>
       </div>
     </div>

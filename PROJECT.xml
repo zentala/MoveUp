@@ -153,7 +153,7 @@
       <file name="overlay_standing.rs">Standing bar render logic</file>
       <file name="alert_popup.rs">AlertPopup — show/dismiss lifecycle</file>
       <file name="alert_popup_window.rs">WinAPI popup window thread</file>
-      <file name="commands_analyst.rs">Analyst IPC: get_snapshots_range, get_events_range, get_sessions_range — read range-scoped history from disk + SQLite</file>
+      <file name="commands_analyst.rs">Analyst IPC: range-scoped history plus query-local day bounds and exact local-hour ticks mapped to UTC instants and offsets</file>
       <file name="commands_health.rs">Health IPC: get_health_today, refresh_health_now, list_voice_notes(day) — both return a symmetric HealthView merged across every registered source (E021-T02, replaces commands_google_fit.rs)</file>
       <file name="health_models.rs">Source-agnostic DTOs: HealthSnapshot (steps + optional heart_rate_bpm/hrv_rmssd_ms + source_id + fetched_at_ms), HealthView, HealthErrorKind (alias of google_fit ErrorKind). ts-rs exported</file>
       <file name="health_source.rs">HealthSource trait (id/view/refresh) + HealthAggregator: merges sources by freshest fetched_at_ms, passes errors through with AuthRevoked outranking Transient. The inlet the LAN push source (T03) registers into</file>
@@ -219,7 +219,7 @@
 
       <dir name="widgets/">
         <file name="registry.ts">Widget map + resolver (active_widget string to component)</file>
-        <file name="OneBarWidget.tsx">Horizontal progress bar, temperature escalation, coach sentence</file>
+        <file name="OneBarWidget.tsx">Horizontal progress bar, temperature escalation, coach sentence; named share/settings icon actions on shared charcoal surfaces</file>
         <file name="TimelineZenWidget.tsx">Minimalist, big timeline, zero text, ultra compact</file>
         <file name="PlaceholderWidget.tsx">Dev verification widget</file>
         <file name="useActiveWidget.ts">Hook: resolves active widget from config</file>
@@ -238,6 +238,7 @@
       </dir>
 
       <dir name="components/">
+        <file name="UiIcon.tsx">Shared decorative Lucide icon wrapper with 16px default size and 1.5px stroke</file>
         <file name="HeightRail.tsx">Visual left-side accent bar</file>
         <file name="SessionProgress.tsx">Sitting session timer and progress</file>
         <file name="SettingsPanel.tsx">Settings UI — limits, calibration, notifications, widget picker, profile selector</file>
@@ -275,7 +276,7 @@
       </dir>
 
       <dir name="analyst/" purpose="Analyst window: data catalog + chart explorer (E012)">
-        <file name="AnalystWindow.tsx">Tabbed shell: Catalog + Explorer; injects fixtures in mockup mode, falls through to live hooks otherwise</file>
+        <file name="AnalystWindow.tsx">Catalog + Explorer tabs with linked panels, roving keyboard focus, and manual activation; injects fixtures in mockup mode, falls through to live hooks otherwise</file>
         <file name="CatalogTab.tsx">Sortable + filterable table over get_data_catalog</file>
         <file name="ExplorerTab.tsx">Composed Explorer view: range and day navigation, selected-day timeline, and score/credit details; supplemental events status stays separate from core history state</file>
         <file name="ExplorerTab.test.tsx">Vitest coverage for the composed Explorer shell and selected-day panel</file>
@@ -295,10 +296,10 @@
           <file name="DailyCompositionRing.tsx">Proportional day composition ring with clipped Unknown hatch and distinct Future arc</file>
           <file name="DailyCompositionRing.test.tsx">Vitest coverage for proportional denominators, Unknown hatching, and Future arc geometry</file>
           <file name="day-composition.css">Analyst-local charcoal tokens and day composition/tab layout</file>
-          <file name="TimelineDetail.tsx">Selected-day timeline fitted to exact query-local UTC bounds; preserves Unknown/Future spans and point-only snapshot observations</file>
+          <file name="TimelineDetail.tsx">Selected-day timeline fitted to exact query-local UTC bounds with backend-mapped wall-hour ticks and repeated-hour offsets; preserves Unknown/Future spans and point-only snapshot observations</file>
           <file name="timeline-segments.ts">Exact interval/gap geometry and 2px by 6px observation tick geometry</file>
           <file name="timeline-utils.ts">Calendar helpers and source-bounded timeline scales; snapshot points do not produce elapsed totals</file>
-          <file name="ChartCard.tsx">Card chrome shared by all charts</file>
+          <file name="ChartCard.tsx">Shared chart card chrome with a focusable help control, hover/focus tooltip, and Escape dismissal</file>
           <file name="DeskHeightTimeline.tsx">SVG area chart of desk height over time</file>
           <file name="StateGantt.tsx">Per-day horizontal Gantt of Sitting/Standing/Walking/Away</file>
           <file name="DailyScoreTrajectory.tsx">One line per day, hourly score buckets</file>
@@ -309,6 +310,11 @@
         <dir name="types/">
           <file name="catalog.ts">DataCatalog / DataSource wire types</file>
         </dir>
+      </dir>
+
+      <dir name="generated/">
+        <file name="LocalDayBounds.ts">Query-local date bounds with an optional nullable exact hourly tick map</file>
+        <file name="LocalHourTick.ts">Generated wall-hour label, exact UTC instant, and offset wire type</file>
       </dir>
 
       <dir name="pages/">
@@ -402,6 +408,7 @@
       <command name="get_snapshots_range">Analyst: flattened minute snapshots between two YYYY-MM-DD dates (E012-T01)</command>
       <command name="get_events_range">Analyst: parsed events.log rows between two YYYY-MM-DD dates (E012-T01)</command>
       <command name="get_sessions_range">Analyst: completed session rows between two YYYY-MM-DD dates (E012-T01)</command>
+      <command name="get_local_day_bounds_range">Analyst: exact query-local calendar bounds and backend-mapped local-hour tick evidence</command>
     </layer>
 
     <layer name="windows">

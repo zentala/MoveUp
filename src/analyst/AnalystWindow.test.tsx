@@ -31,6 +31,23 @@ describe("AnalystWindow selected-day receiver", () => {
     localStorage.removeItem(OPEN_ANALYST_DAY_KEY);
   });
 
+  it("keeps tabs linked and uses manual arrow/Home/End focus before activation", () => {
+    renderWindow();
+    const explorer = screen.getByRole("tab", { name: "Explorer" });
+    const catalog = screen.getByRole("tab", { name: "Catalog" });
+    expect(explorer).toHaveAttribute("aria-controls", "analyst-panel-explorer");
+    expect(document.getElementById("analyst-panel-explorer")).toHaveAttribute("aria-labelledby", "analyst-tab-explorer");
+    fireEvent.keyDown(explorer, { key: "ArrowLeft" });
+    expect(catalog).toHaveFocus();
+    expect(catalog).toHaveAttribute("aria-selected", "false");
+    fireEvent.keyDown(catalog, { key: "End" });
+    expect(explorer).toHaveFocus();
+    expect(explorer).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(explorer, { key: "ArrowLeft" });
+    fireEvent.keyDown(catalog, { key: "Enter" });
+    expect(catalog).toHaveAttribute("aria-selected", "true");
+  });
+
   it("shows both app tabs and opens Explorer from Catalog on a valid request", async () => {
     renderWindow();
     expect(screen.getByRole("tab", { name: "Catalog" })).toBeInTheDocument();

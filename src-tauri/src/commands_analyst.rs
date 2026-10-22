@@ -10,7 +10,7 @@
 use std::fs;
 use std::path::Path;
 
-use chrono::{NaiveDate, SecondsFormat, TimeZone};
+use chrono::{Duration, NaiveDate, Offset, SecondsFormat, TimeZone, Timelike};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
@@ -64,6 +64,23 @@ pub struct LocalDayBounds {
     pub zone_basis: String,
     /// Historical capture timezone is not recorded/reconstructed here.
     pub historical_source_zone: String,
+    /// Exact instants at which this query-local day reaches a local hour.
+    #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
+    pub hour_ticks: Option<Vec<LocalHourTick>>,
+}
+
+/// One authoritative local-hour tick mapped to its exact UTC instant and offset.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
+pub struct LocalHourTick {
+    /// Exact UTC instant in RFC3339 form.
+    pub at_utc: String,
+    /// Local wall-clock label in `HH:00` form.
+    pub wall_time: String,
+    /// UTC offset in seconds at this instant.
+    pub utc_offset_secs: i32,
 }
 
 /// One parsed line from `events.log`.
@@ -155,12 +172,26 @@ fn local_day_bounds_for_range<Tz: TimeZone>(
         .into_iter()
         .map(|date| {
             let (start, end) = crate::db_sessions::local_date_bounds(zone, &date, &date)?;
+            let mut hour_ticks = Vec::new();
+            let mut instant = start;
+            while instant < end {
+                let local = instant.with_timezone(zone);
+                if local.minute() == 0 && local.second() == 0 {
+                    hour_ticks.push(LocalHourTick {
+                        at_utc: instant.to_rfc3339_opts(SecondsFormat::Secs, true),
+                        wall_time: local.time().format("%H:%M").to_string(),
+                        utc_offset_secs: local.offset().fix().local_minus_utc(),
+                    });
+                }
+                instant += Duration::minutes(1);
+            }
             Ok(LocalDayBounds {
                 date_local: date,
                 start_utc: start.to_rfc3339_opts(SecondsFormat::Secs, true),
                 end_utc: end.to_rfc3339_opts(SecondsFormat::Secs, true),
                 zone_basis: "current-query-local".to_string(),
                 historical_source_zone: "unknown".to_string(),
+                hour_ticks: Some(hour_ticks),
             })
         })
         .collect()

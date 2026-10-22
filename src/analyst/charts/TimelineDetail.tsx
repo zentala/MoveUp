@@ -16,6 +16,7 @@ import type { SnapshotRow } from "@/test/analyst-fixtures";
 import { timelineColors } from "@/timeline/colors";
 import type { TimelineInterval } from "@/timeline/intervals";
 import { useLocalDayBoundsRange } from "../hooks/useLocalDayBoundsRange";
+import { HourTickLayer, TimelineLegend } from "./TimelineDetailLayers";
 import { chartColors } from "./chart-utils";
 import { TimelineDetailHeader } from "./TimelineDetailHeader";
 import {
@@ -136,6 +137,8 @@ export function TimelineDetail({
     () => dayBounds?.slice(1).map((day) => Date.parse(day.start_utc)) ?? [],
     [dayBounds],
   );
+  const hourTicks = useMemo(() => dayBounds?.every((day) => Array.isArray(day.hour_ticks) && day.hour_ticks.length > 0)
+    ? dayBounds.flatMap((day) => day.hour_ticks ?? []) : null, [dayBounds]);
 
   // Tick state so the now-indicator updates every minute when nowMs is not
   // injected for tests. When nowMs is provided, we use it directly and skip
@@ -253,9 +256,9 @@ export function TimelineDetail({
               y={20}
               width={gap.width}
               height={STRIP_HEIGHT - 40}
-              fill={gap.kind === "Unknown" ? "url(#timeline-unknown-hatch)" : timelineColors.Future}
-              fillOpacity={gap.kind === "Future" ? 0.25 : 1}
+              fill={gap.kind === "Unknown" ? "url(#timeline-unknown-hatch)" : "none"}
               stroke={gap.kind === "Future" ? timelineColors.Future : undefined}
+              strokeWidth={gap.kind === "Future" ? 1 : undefined}
             />
           ))}
           {chronology.intervals.map((s, i) => (
@@ -270,7 +273,6 @@ export function TimelineDetail({
               width={s.width}
               height={STRIP_HEIGHT - 40}
               fill={timelineColors[s.state]}
-              fillOpacity={0.92}
             />
           ))}
           {observationTicks.map((tick) => (
@@ -287,6 +289,7 @@ export function TimelineDetail({
             />
           ))}
           <DayDividerLayer dividers={dayDividers} scale={scale} stripHeight={STRIP_HEIGHT} />
+          {hourTicks ? <HourTickLayer ticks={hourTicks} scale={scale} stripHeight={STRIP_HEIGHT} /> : null}
           {nowPx !== null ? <NowIndicator x={nowPx} stripHeight={STRIP_HEIGHT} /> : null}
         </svg>
         ) : (
@@ -300,8 +303,10 @@ export function TimelineDetail({
           </p>
         )}
       </div>
+      {scale ? <TimelineLegend /> : null}
+      {scale && !hourTicks ? <p role="status" data-testid="hour-axis-unavailable" style={{ margin: "4px 0", color: chartColors.subtext, fontSize: 11 }}>Local-hour axis unavailable; calendar bounds and elapsed history remain available.</p> : null}
       <p style={{ margin: "6px 0", color: chartColors.subtext, fontSize: 11 }}>
-        Calendar basis: current query-local timezone; historical capture timezone unknown. Empty dates do not prove observation coverage. Observation ticks mark instants; duration unknown. Filled spans require recorded session endpoints.
+        Calendar basis: current query-local timezone; historical capture timezone unknown. Hour labels use the mapped local wall time; repeated hours include their UTC offset. Empty dates do not prove observation coverage. Observation ticks mark instants; duration unknown. Filled spans require recorded session endpoints.
       </p>
       <label style={{ display: "block", color: chartColors.subtext, fontSize: 11 }}>
         Timeline details

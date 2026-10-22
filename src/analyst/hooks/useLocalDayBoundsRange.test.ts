@@ -32,7 +32,7 @@ describe("useLocalDayBoundsRange", () => {
     await act(async () => vi.advanceTimersByTimeAsync(250));
     expect(result.current.status).toBe("ready");
     if (result.current.status !== "ready") throw new Error("expected ready");
-    expect(result.current.data).toEqual(rows);
+    expect(result.current.data).toEqual(rows.map((item) => ({ ...item, hour_ticks: null })));
     expect(vi.mocked(invoke)).toHaveBeenCalledWith("get_local_day_bounds_range", {
       from: "2026-03-07", to: "2026-03-09",
     });
@@ -48,6 +48,47 @@ describe("useLocalDayBoundsRange", () => {
     expect(result.current.status).toBe("error");
     if (result.current.status !== "error") throw new Error("expected error");
     expect(result.current.error).toBe("Invalid local-day bounds response");
+  });
+
+  it.each([
+    undefined,
+    null,
+    [{ at_utc: "bad", wall_time: "25:00", utc_offset_secs: "zero" }],
+    [{ at_utc: "2026-05-16T00:00:00Z", wall_time: "01:00", utc_offset_secs: 0 }],
+    [{ at_utc: "2026-05-16T09:00:59Z", wall_time: "09:00", utc_offset_secs: 0 }],
+    [{ at_utc: "2026-05-16T09:00:00.500Z", wall_time: "09:00", utc_offset_secs: 0 }],
+    [
+      { at_utc: "2026-05-16T01:00:00Z", wall_time: "01:00", utc_offset_secs: 0 },
+      { at_utc: "2026-05-16T00:00:00Z", wall_time: "00:00", utc_offset_secs: 0 },
+    ],
+    [{ at_utc: "2026-05-17T00:00:00Z", wall_time: "00:00", utc_offset_secs: 0 }],
+    [{ at_utc: "2026-05-16T23:00:00Z", wall_time: "01:00", utc_offset_secs: 7_200 }],
+    [],
+  ])(
+    "keeps valid bounds but marks an absent or invalid local-hour map unavailable (%j)", async (hourTicks) => {
+      const payload = [{ ...row("2026-05-16", "2026-05-16T00:00:00Z", "2026-05-17T00:00:00Z"), hour_ticks: hourTicks }];
+      vi.mocked(invoke).mockResolvedValueOnce(payload as unknown as LocalDayBounds[]);
+      const { result } = renderHook(() => useLocalDayBoundsRange("2026-05-16", "2026-05-16"));
+      await act(async () => vi.advanceTimersByTimeAsync(250));
+      expect(result.current.status).toBe("ready");
+      if (result.current.status !== "ready") throw new Error("expected valid calendar bounds");
+      expect(result.current.data[0].start_utc).toBe("2026-05-16T00:00:00Z");
+      expect(result.current.data[0].hour_ticks).toBeNull();
+    },
+  );
+
+  it("preserves a valid exact hourly map, including offsets", async () => {
+    const ticks = [
+      { at_utc: "2026-05-16T00:00:00Z", wall_time: "02:00", utc_offset_secs: 7200 },
+      { at_utc: "2026-05-16T01:00:00Z", wall_time: "03:00", utc_offset_secs: 7200 },
+    ];
+    vi.mocked(invoke).mockResolvedValueOnce([
+      { ...row("2026-05-16", "2026-05-16T00:00:00Z", "2026-05-17T00:00:00Z"), hour_ticks: ticks },
+    ] as unknown as LocalDayBounds[]);
+    const { result } = renderHook(() => useLocalDayBoundsRange("2026-05-16", "2026-05-16"));
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    if (result.current.status !== "ready") throw new Error("expected ready");
+    expect(result.current.data[0].hour_ticks).toEqual(ticks);
   });
 
   it.each([null, {}, [null]])("rejects malformed IPC payload %j as an error", async (payload) => {

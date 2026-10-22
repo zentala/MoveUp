@@ -4,14 +4,9 @@
  * panel aesthetic. Temperature variants modulate the base surface.
  */
 
-/* Temperature variants — warm surface shifts, subtle glows */
-.one-bar--calm    { --ob-bg: var(--panel-base);    --ob-glow: none; }
-.one-bar--warm    { --ob-bg: #12100c;              --ob-glow: 0 0 12px rgba(140,40,40,0.04); }
-.one-bar--hot     { --ob-bg: #140e0c;              --ob-glow: 0 0 16px rgba(180,40,40,0.06); }
-.one-bar--burning { --ob-bg: #16100c;              --ob-glow: 0 0 20px rgba(200,40,40,0.1); }
-.one-bar--standing { --ob-bg: #0e100c;             --ob-glow: 0 0 12px var(--beam-glow); }
-.one-bar--away    { --ob-bg: var(--panel-base);    --ob-glow: none; }
-.one-bar--reset   { --ob-bg: #0e110c;             --ob-glow: 0 0 14px var(--beam-glow); }
+/* Temperature is communicated by data; surfaces stay on the shared charcoal token. */
+.one-bar--calm, .one-bar--warm, .one-bar--hot, .one-bar--burning,
+.one-bar--standing, .one-bar--away, .one-bar--reset { --ob-bg: var(--panel-base); --ob-glow: none; }
 
 /* Main container — fills entire window */
 .one-bar {
@@ -75,8 +70,11 @@
   border: none;
   color: var(--ink-muted);
   cursor: pointer;
-  font-size: 12px;
-  padding: 2px 4px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-mono);
   transition: color 0.12s;
 }
@@ -87,8 +85,11 @@
   border: none;
   color: var(--ink-tertiary);
   cursor: pointer;
-  font-size: 14px;
-  padding: 2px 4px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-mono);
   transition: color 0.12s;
 }
@@ -97,7 +98,10 @@
 /* Timeline — grows to fill remaining space at bottom */
 .one-bar__timeline {
   margin-bottom: 0;
-  flex: 1;
+  flex: 0 0 24px;
+  height: 24px;
+  min-height: 24px;
+  max-height: 24px;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -105,9 +109,10 @@
 
 .one-bar__timeline-bar {
   display: flex;
-  flex: 1;
+  flex: 0 0 24px;
+  height: 24px;
   min-height: 24px;
-  max-height: 48px;
+  max-height: 24px;
   border-radius: var(--r-sm);
   overflow: hidden;
   background: var(--panel-raised);
@@ -116,15 +121,13 @@
 
 .one-bar__timeline-block {
   min-width: 2px;
-  transition: opacity 0.2s;
   cursor: pointer;
 }
-.one-bar__timeline-block:hover { opacity: 0.8; }
 
-.one-bar__timeline-block--sitting  { background-color: var(--tl-sitting);  opacity: var(--tl-sit-opacity); }
-.one-bar__timeline-block--standing { background-color: var(--tl-standing); opacity: var(--tl-stand-opacity); }
-.one-bar__timeline-block--walking  { background-color: var(--tl-walking);  opacity: var(--tl-walk-opacity); }
-.one-bar__timeline-block--away     { background-color: var(--tl-away);     opacity: var(--tl-away-opacity); }
+.one-bar__timeline-block--sitting  { background-color: var(--tl-sitting); }
+.one-bar__timeline-block--standing { background-color: var(--tl-standing); }
+.one-bar__timeline-block--walking  { background-color: var(--tl-walking); }
+.one-bar__timeline-block--away     { background-color: var(--tl-away); }
 
 .one-bar__timeline-block--current {
   box-shadow: inset -2px 0 4px rgba(255,255,255,0.2);
@@ -158,8 +161,9 @@
 /* Hour markers — faint vertical gridlines */
 .one-bar__timeline-hour {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 10px;
+  bottom: auto;
+  height: 14px;
   width: 1px;
   background: var(--rail-subtle);
   pointer-events: none;
@@ -168,12 +172,28 @@
 
 .one-bar__timeline-hour-label {
   position: absolute;
-  bottom: -14px;
+  top: -10px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 8px;
-  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 10px;
+  padding: 0 2px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-secondary);
+  background: var(--panel-base);
   pointer-events: none;
+  z-index: 2;
+}
+
+.one-bar__timeline-hour-label--start {
+  left: 0;
+  transform: none;
+}
+
+.one-bar__timeline-hour-label--end {
+  left: 0;
+  transform: translateX(-100%);
 }
 
 /* Timer area */

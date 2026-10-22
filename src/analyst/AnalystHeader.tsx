@@ -9,6 +9,8 @@
  */
 import { chartColors } from "./charts/chart-utils";
 import { formatDate, weekdayName } from "@/utils/format";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { UiIcon } from "@/components/UiIcon";
 
 export interface AnalystHeaderProps {
   /** Active day, `YYYY-MM-DD`. */
@@ -26,7 +28,6 @@ const navBtn: React.CSSProperties = {
   borderRadius: 6,
   cursor: "pointer",
   fontFamily: "inherit",
-  fontSize: 14,
   lineHeight: 1,
   display: "inline-flex",
   alignItems: "center",
@@ -57,7 +58,7 @@ export function AnalystHeader({
         data-testid="analyst-header-prev"
         style={navBtn}
       >
-        ◀
+        <UiIcon icon={ChevronLeft} />
       </button>
       <h2
         data-testid="analyst-header-title"
@@ -90,7 +91,7 @@ export function AnalystHeader({
         data-testid="analyst-header-next"
         style={navBtn}
       >
-        ▶
+        <UiIcon icon={ChevronRight} />
       </button>
     </header>
   );

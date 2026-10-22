@@ -18,6 +18,8 @@ import { OneBarTimer } from "./one-bar/OneBarTimer";
 import { KpiStrip } from "./one-bar/KpiStrip";
 import { HealthWidget } from "@/components/HealthWidget";
 import { ShareStats } from "@/components/ShareStats";
+import { Settings, Share2 } from "lucide-react";
+import { UiIcon } from "@/components/UiIcon";
 import "./one-bar/one-bar.css";
 
 /** Header props with share callback. */
@@ -37,17 +39,21 @@ const OneBarHeader: FC<HeaderProps> = (props) => (
     <div className="one-bar__header-actions">
       <button
         className="one-bar__share-btn"
+        type="button"
         onClick={props.onOpenShare}
         title="Share my stats"
+        aria-label="Share my stats"
       >
-        {"\u{2197}"}
+        <UiIcon icon={Share2} />
       </button>
       <button
         className="one-bar__settings-btn"
+        type="button"
         onClick={props.onOpenSettings}
         title="Settings"
+        aria-label="Settings"
       >
-        {"\u2699"}
+        <UiIcon icon={Settings} />
       </button>
     </div>
   </div>

@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalDayBounds } from "@/generated/LocalDayBounds";
+import type { LocalHourTick } from "@/generated/LocalHourTick";
 import type { SnapshotRow } from "@/test/analyst-fixtures";
 import { TimelineDetail } from "./TimelineDetail";
 
@@ -32,12 +33,18 @@ function bounds(from: string, to: string): LocalDayBounds[] {
   const last = Date.parse(`${to}T00:00:00Z`);
   return Array.from({ length: Math.floor((last - first) / 86_400_000) + 1 }, (_, index) => {
     const start = first + index * 86_400_000;
+    const hour_ticks: LocalHourTick[] = Array.from({ length: 24 }, (_, hour) => ({
+      at_utc: new Date(start + hour * 3_600_000).toISOString(),
+      wall_time: `${String(hour).padStart(2, "0")}:00`,
+      utc_offset_secs: 0,
+    }));
     return {
       date_local: new Date(start).toISOString().slice(0, 10),
       start_utc: new Date(start).toISOString(),
       end_utc: new Date(start + 86_400_000).toISOString(),
       zone_basis: "current-query-local",
       historical_source_zone: "unknown",
+      hour_ticks,
     };
   });
 }
@@ -117,6 +124,97 @@ describe("TimelineDetail", () => {
     );
     await loadBounds();
     expect(screen.getByTestId("timeline-scroller")).toBeTruthy();
+  });
+
+  it("renders only authoritative supplied hour ticks and keeps bounds when an old map is absent", async () => {
+    const start = "2026-05-16T00:00:00Z";
+    const end = "2026-05-17T00:00:00Z";
+    vi.mocked(invoke).mockReset().mockResolvedValueOnce([{
+      date_local: "2026-05-16", start_utc: start, end_utc: end,
+      zone_basis: "current-query-local", historical_source_zone: "unknown",
+      hour_ticks: [
+        { at_utc: "2026-05-16T00:00:00Z", wall_time: "00:00", utc_offset_secs: 0 },
+        { at_utc: "2026-05-16T01:00:00Z", wall_time: "01:00", utc_offset_secs: 0 },
+      ],
+    }]);
+    const firstView = render(<TimelineDetail range={{ from: "2026-05-16", to: "2026-05-16" }} selectedDay="2026-05-16"
+      snapshots={[]} onPrev={vi.fn()} onNext={vi.fn()} nowMs={Date.parse("2026-05-16T12:00:00Z")} />);
+    await loadBounds();
+    expect(screen.getByTestId("timeline-scroller")).toHaveAttribute("data-window-start-ms", String(Date.parse(start)));
+    expect(screen.getByTestId("hour-ticks").querySelectorAll("line")).toHaveLength(2);
+    firstView.unmount();
+
+    vi.mocked(invoke).mockReset().mockResolvedValueOnce([{
+      date_local: "2026-05-16", start_utc: start, end_utc: end,
+      zone_basis: "current-query-local", historical_source_zone: "unknown",
+    }]);
+    const { unmount } = render(<TimelineDetail range={{ from: "2026-05-16", to: "2026-05-16" }} selectedDay="2026-05-16"
+      snapshots={[]} onPrev={vi.fn()} onNext={vi.fn()} nowMs={Date.parse("2026-05-16T12:00:00Z")} />);
+    await loadBounds();
+    expect(screen.getByTestId("timeline-scroller")).toHaveAttribute("data-window-start-ms", String(Date.parse(start)));
+    expect(screen.getByTestId("hour-axis-unavailable")).toBeInTheDocument();
+    unmount();
+  });
+
+  it("labels both occurrences of a repeated local hour with their supplied offsets", async () => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+    vi.mocked(invoke).mockReset().mockResolvedValueOnce([{
+      date_local: "2026-11-01",
+      start_utc: "2026-11-01T04:00:00Z",
+      end_utc: "2026-11-02T05:00:00Z",
+      zone_basis: "current-query-local",
+      historical_source_zone: "unknown",
+      hour_ticks: [
+        { at_utc: "2026-11-01T04:00:00Z", wall_time: "00:00", utc_offset_secs: -14_400 },
+        { at_utc: "2026-11-01T05:00:00Z", wall_time: "01:00", utc_offset_secs: -14_400 },
+        { at_utc: "2026-11-01T06:00:00Z", wall_time: "01:00", utc_offset_secs: -18_000 },
+      ],
+    }]);
+    render(<TimelineDetail range={{ from: "2026-11-01", to: "2026-11-01" }} selectedDay="2026-11-01"
+      snapshots={[]} onPrev={vi.fn()} onNext={vi.fn()} nowMs={Date.parse("2026-11-01T12:00:00Z")} />);
+    await loadBounds();
+    const scroller = screen.getByTestId("timeline-scroller");
+    Object.defineProperty(scroller, "clientWidth", { configurable: true, value: 760 });
+    act(() => ResizeObserverMock.latest?.trigger(760));
+    const labels = [...screen.getByTestId("hour-ticks").querySelectorAll("text")];
+    expect(labels.map((node) => node.getAttribute("aria-label"))).toEqual(["00:00", "01:00 −04:00", "01:00 −05:00"]);
+    expect(labels[0]).toHaveAttribute("text-anchor", "start");
+    expect(labels[1]).toHaveAttribute("data-at-utc", "2026-11-01T05:00:00Z");
+    expect(labels[1]).toHaveAttribute("data-utc-offset-secs", "-14400");
+    expect(labels[2]).toHaveAttribute("data-at-utc", "2026-11-01T06:00:00Z");
+    expect(labels[2]).toHaveAttribute("data-utc-offset-secs", "-18000");
+    expect(labels[1].getAttribute("data-label-row")).not.toBe(labels[2].getAttribute("data-label-row"));
+    const boxes = labels.map((node) => {
+      const x = Number(node.getAttribute("x"));
+      const width = (node.getAttribute("aria-label")?.length ?? 0) * 6;
+      const anchor = node.getAttribute("text-anchor");
+      const left = anchor === "start" ? x : anchor === "end" ? x - width : x - width / 2;
+      return { row: node.getAttribute("data-label-row"), left, right: left + width };
+    });
+    expect(boxes.every((box) => box.left >= 0 && box.right <= 761)).toBe(true);
+    for (const row of new Set(boxes.map((box) => box.row))) {
+      const rowBoxes = boxes.filter((box) => box.row === row).sort((a, b) => a.left - b.left);
+      expect(rowBoxes.every((box, index) => index === 0 || rowBoxes[index - 1].right <= box.left + 1)).toBe(true);
+    }
+    expect([...screen.getByTestId("timeline-legend").querySelectorAll("li")].map((item) => item.textContent)).toEqual([
+      "Sitting", "Standing", "Walking", "Away", "Unknown", "Future", "Observation points",
+    ]);
+  });
+
+  it("clips rendered future intervals at the injected current instant without mutating source endpoints", async () => {
+    const now = Date.parse("2026-05-17T12:00:00Z");
+    const crossing = { startMs: now - 10 * 60_000, endMs: now + 10 * 60_000, state: "Standing" as const, provenance: "session" as const };
+    const future = { startMs: now + 60 * 60_000, endMs: now + 2 * 60 * 60_000, state: "Walking" as const, provenance: "session" as const };
+    render(<TimelineDetail range={{ from: "2026-05-17", to: "2026-05-17" }} selectedDay="2026-05-17"
+      snapshots={[]} intervals={[crossing, future]} onPrev={vi.fn()} onNext={vi.fn()} nowMs={now} />);
+    await loadBounds();
+    const segments = screen.getAllByTestId("timeline-segment");
+    expect(segments).toHaveLength(1);
+    expect(segments[0]).toHaveAttribute("data-start-ms", String(crossing.startMs));
+    expect(segments[0]).toHaveAttribute("data-end-ms", String(now));
+    expect(screen.getAllByTestId("timeline-future")).toHaveLength(1);
+    expect(future.startMs).toBe(now + 60 * 60_000);
+    expect(crossing.endMs).toBe(now + 10 * 60_000);
   });
 
   it("keeps snapshot readings as 2px point ticks and paints exact intervals only", async () => {
@@ -272,7 +370,7 @@ describe("TimelineDetail", () => {
     }));
     const start = Date.parse("2026-05-17T00:00:00Z");
     const end = Date.parse("2026-05-18T00:00:00Z");
-    const { container } = render(<TimelineDetail range={{ from: "2026-05-17", to: "2026-05-17" }}
+    render(<TimelineDetail range={{ from: "2026-05-17", to: "2026-05-17" }}
       selectedDay="2026-05-17" snapshots={[]} intervals={[]} onPrev={vi.fn()} onNext={vi.fn()}
       nowMs={Date.parse("2026-05-17T12:00:00Z")} showHeader={false} />);
 
@@ -298,7 +396,8 @@ describe("TimelineDetail", () => {
     expect(readySlot).toBe(loadingSlot);
     expect(readySlot).toHaveStyle({ height: "98px" });
     expect(readySlot.style.height).not.toBe("84px");
-    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(readySlot.querySelector('[role="status"]')).toBeNull();
+    expect(screen.getByTestId("hour-axis-unavailable")).toBeInTheDocument();
     expect(screen.getAllByTestId("timeline-unknown").length).toBeGreaterThan(0);
   });
 

@@ -30,13 +30,15 @@ describe("DailyScoreTrajectory", () => {
       sample("2026-10-22T09:01:00Z", 0),
       sample("2026-10-22T12:00:00Z", 150),
     ];
-    const { container, getByText } = render(<DailyScoreTrajectory data={rows} />);
+    const { container, getByText, getByRole } = render(<DailyScoreTrajectory data={rows} />);
 
     expect(container.querySelectorAll("circle.score-sample")).toHaveLength(3);
     expect(container.querySelector("path.score-line")).toBeNull();
     expect(container.textContent).toContain("3 recorded samples");
     expect(container.textContent).toContain("0 unknown");
-    expect(container.querySelector("svg")?.getAttribute("aria-label")).toContain("signed");
+    expect(
+      getByRole("img", { name: "Daily score trajectory with signed recorded samples" }),
+    ).toBeTruthy();
     expect(getByText("−90")).toBeTruthy();
     expect(getByText("+150")).toBeTruthy();
     expect(container.querySelector('circle[aria-label*="score −90"]')).toBeTruthy();

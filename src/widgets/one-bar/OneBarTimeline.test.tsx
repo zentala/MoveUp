@@ -4,10 +4,11 @@
  * Verifies: hour markers always present, session blocks render,
  * tooltips, empty state, live block.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { OneBarTimeline } from "./OneBarTimeline";
+import "./one-bar.css";
 import type { WidgetProps, SessionEntry } from "@/types";
 import { createOpenDayRequest, localCalendarDay, OPEN_ANALYST_DAY_KEY, parseOpenDayRequest } from "@/analyst/open-day";
 
@@ -64,7 +65,17 @@ describe("OneBarTimeline", () => {
   beforeEach(() => {
     localStorage.removeItem(OPEN_ANALYST_DAY_KEY);
     vi.mocked(invoke).mockReset().mockResolvedValue(undefined as never);
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        this.callback([{ target, contentRect: { width: 420 } as DOMRectReadOnly } as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      disconnect() {}
+      unobserve() {}
+    });
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   it("shows empty message when no sessions and no live time", () => {
     render(<OneBarTimeline {...baseProps({ limitUsedSecs: 0, todaySessions: [] })} />);
@@ -196,22 +207,25 @@ describe("OneBarTimeline", () => {
     const sessions = makeSessions(1, 0.1); // sessions within same hour
     render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
     const timeline = screen.getByTestId("one-bar-timeline");
+    const markers = timeline.querySelectorAll(".one-bar__timeline-hour");
     const hourLabels = timeline.querySelectorAll(".one-bar__timeline-hour-label");
-    // Should have at least start time and current time markers
+    // Keep all markers while showing the readable endpoint labels when width is unknown.
+    expect(markers.length).toBeGreaterThanOrEqual(2);
     expect(hourLabels.length).toBeGreaterThanOrEqual(2);
+    expect(hourLabels.length).toBeLessThanOrEqual(markers.length);
   });
 
   it("shows more markers for multi-hour sessions than single-hour", () => {
     const shortSessions = makeSessions(1, 0.1);
     const { unmount } = render(<OneBarTimeline {...baseProps({ todaySessions: shortSessions })} />);
     const shortMarkers = screen.getByTestId("one-bar-timeline")
-      .querySelectorAll(".one-bar__timeline-hour-label").length;
+      .querySelectorAll(".one-bar__timeline-hour").length;
     unmount();
 
     const longSessions = makeSessions(4, 3);
     render(<OneBarTimeline {...baseProps({ todaySessions: longSessions })} />);
     const longMarkers = screen.getByTestId("one-bar-timeline")
-      .querySelectorAll(".one-bar__timeline-hour-label").length;
+      .querySelectorAll(".one-bar__timeline-hour").length;
 
     expect(longMarkers).toBeGreaterThanOrEqual(shortMarkers);
   });
@@ -221,12 +235,14 @@ describe("OneBarTimeline", () => {
     const sessions = makeSessions(4, 10);
     render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
     const timeline = screen.getByTestId("one-bar-timeline");
+    const markers = timeline.querySelectorAll(".one-bar__timeline-hour");
     const hourLabels = timeline.querySelectorAll(".one-bar__timeline-hour-label");
     // Start + multiple hour boundaries + now = at least 5 markers for 10h span
-    expect(hourLabels.length).toBeGreaterThanOrEqual(5);
-    // Check that at least one label has ":00" (full hour boundary)
-    const texts = Array.from(hourLabels).map((el) => el.textContent ?? "");
-    expect(texts.some((t) => t.endsWith(":00"))).toBe(true);
+    expect(markers.length).toBeGreaterThanOrEqual(5);
+    expect(hourLabels.length).toBeGreaterThanOrEqual(2);
+    // The measured-width layout keeps full-hour labels when they fit.
+    const texts = Array.from(hourLabels).map((element) => element.textContent ?? "");
+    expect(texts.some((text) => text.endsWith(":00"))).toBe(true);
   });
 
   it("uses recorded endpoints rather than the nullable summary duration", () => {
@@ -247,6 +263,49 @@ describe("OneBarTimeline", () => {
     const labels = timeline.querySelectorAll(".one-bar__timeline-hour-label");
     for (const label of labels) {
       expect(label.textContent).toMatch(/\d+:\d{2}/);
+    }
+  });
+
+  it("keeps the compact axis and readable labels inside its 24px strip", () => {
+    const sessions = makeSessions(2, 3);
+    render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
+    const timeline = screen.getByTestId("one-bar-timeline");
+    const strip = screen.getByTestId("timeline-strip");
+    const labels = [...timeline.querySelectorAll<HTMLElement>(".one-bar__timeline-hour-label")];
+
+    expect(timeline).toHaveStyle({ height: "24px", minHeight: "24px", maxHeight: "24px" });
+    expect(strip).toHaveStyle({ height: "24px", minHeight: "24px" });
+    expect(labels.length).toBeGreaterThan(1);
+    expect(labels.every((label) => Number.parseFloat(getComputedStyle(label).fontSize) >= 10)).toBe(true);
+    expect(labels[0]).toHaveClass("one-bar__timeline-hour-label--start");
+    expect(labels[labels.length - 1]).toHaveClass("one-bar__timeline-hour-label--end");
+  });
+
+  it("keeps all tick markers and spaces the readable label subset within 420px", () => {
+    const sessions = makeSessions(1, 21);
+    render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
+    const timeline = screen.getByTestId("one-bar-timeline");
+    const markers = [...timeline.querySelectorAll<HTMLElement>(".one-bar__timeline-hour")];
+    const labels = [...timeline.querySelectorAll<HTMLElement>(".one-bar__timeline-hour-label")];
+
+    expect(markers.length).toBeGreaterThan(20);
+    expect(labels.length).toBeGreaterThan(2);
+    expect(labels.length).toBeLessThan(markers.length);
+    expect(labels[0]).toHaveClass("one-bar__timeline-hour-label--start");
+    expect(labels[labels.length - 1]).toHaveClass("one-bar__timeline-hour-label--end");
+    expect(labels.every((label) => Number.parseFloat(getComputedStyle(label).fontSize) >= 10)).toBe(true);
+
+    const boxes = labels.map((label) => {
+      const marker = label.parentElement!;
+      const center = Number.parseFloat(marker.style.left) / 100 * 420;
+      const width = (label.textContent?.length ?? 0) * 6 + 4;
+      const left = label.classList.contains("one-bar__timeline-hour-label--start")
+        ? center
+        : label.classList.contains("one-bar__timeline-hour-label--end") ? center - width : center - width / 2;
+      return { left, right: left + width };
+    });
+    for (let index = 1; index < boxes.length; index += 1) {
+      expect(boxes[index].left - boxes[index - 1].right).toBeGreaterThanOrEqual(8);
     }
   });
 });
