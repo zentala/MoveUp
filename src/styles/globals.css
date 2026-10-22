@@ -506,7 +506,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-tertiary);
+  color: var(--ink-secondary);
   margin-right: 8px;
   white-space: nowrap;
 }
@@ -515,7 +515,7 @@ body {
   background: transparent;
   border: 1px solid var(--rail-emphasis);
   border-radius: var(--r-sm);
-  color: var(--beam);
+  color: var(--ink-primary);
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
@@ -552,7 +552,7 @@ body {
   border: none;
   border-radius: var(--r-sm);
   background: transparent;
-  color: var(--ink-tertiary);
+  color: var(--ink-secondary);
   cursor: pointer;
   transition: color 0.12s, background 0.12s;
   white-space: nowrap;
@@ -565,7 +565,7 @@ body {
 
 .settings-tab--active {
   background: var(--beam-dim);
-  color: var(--beam);
+  color: var(--ink-primary);
 }
 
 .settings-panel__body {
@@ -605,8 +605,12 @@ body {
 
 .settings-panel__helper {
   font-size: 10px;
-  color: var(--ink-tertiary);
+  color: var(--ink-secondary);
   margin: 0;
+}
+
+.settings-panel .error-banner {
+  color: var(--ink-primary);
 }
 
 .settings-panel__field {

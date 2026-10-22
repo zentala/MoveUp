@@ -26,7 +26,7 @@
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--ink-muted, #888);
+  color: var(--ink-secondary, #b0a898);
   margin-bottom: 2px;
 }
 
@@ -44,7 +44,7 @@
 }
 
 .debug-row__label {
-  color: var(--ink-muted, #999);
+  color: var(--ink-secondary, #b0a898);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
