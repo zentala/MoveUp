@@ -30,7 +30,8 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
             standing_seconds      INTEGER DEFAULT 0,
             position_changes      INTEGER DEFAULT 0,
             session_limit_secs    INTEGER DEFAULT 2700,
-            break_credit          TEXT
+            break_credit          TEXT,
+            history_kind          TEXT
         )
         "#,
         [],
@@ -74,6 +75,11 @@ pub fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         // NULL says "unknown" where 'none' would claim a break earned nothing.
         if !cols.contains(&"break_credit".to_string()) {
             let _ = conn.execute("ALTER TABLE sessions ADD COLUMN break_credit TEXT", []);
+        }
+        // Only newly recorded individual spans have exact provenance. The
+        // nullable additive column leaves every existing mixed row unknown.
+        if !cols.contains(&"history_kind".to_string()) {
+            conn.execute("ALTER TABLE sessions ADD COLUMN history_kind TEXT", [])?;
         }
     }
 
@@ -132,6 +138,11 @@ pub struct SessionRow {
     /// unknown, not zero. Consumers must render it as unknown rather than
     /// silently treating it as "no credit".
     pub break_credit: Option<BreakCredit>,
+    /// Provenance is present only for newly recorded individual spans.
+    /// Missing/null stays unknown; unrecognized values are preserved as-is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, ts(optional))]
+    pub history_kind: Option<String>,
 }
 
 /// A single row from the `height_readings` table.

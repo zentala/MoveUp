@@ -99,8 +99,8 @@ pub(crate) fn insert_session_once(conn: &Connection, started_at: &str, ended_at:
         .with_timezone(&chrono::Local).format("%Y-%m-%d").to_string();
     let credit = break_credit.map(break_credit_to_db_str);
     let inserted = conn.execute("INSERT INTO sessions
-        (started_at, ended_at, state, duration_seconds, date_local, break_credit)
-        SELECT ?1, ?2, ?3, ?4, ?5, ?6 WHERE NOT EXISTS
+        (started_at, ended_at, state, duration_seconds, date_local, break_credit, history_kind)
+        SELECT ?1, ?2, ?3, ?4, ?5, ?6, 'individual' WHERE NOT EXISTS
         (SELECT 1 FROM sessions WHERE started_at = ?1 AND ended_at = ?2
           AND state = ?3 AND duration_seconds = ?4 AND break_credit IS ?6)",
         rusqlite::params![started_at, ended_at, state, duration_seconds, date, credit])?;
@@ -239,7 +239,7 @@ pub(crate) fn clipped_duration(row: &SessionRow, start: chrono::DateTime<chrono:
 /// Maps a database row to a [`SessionRow`].
 ///
 /// Expects the column order used by every `sessions` SELECT in `db_queries.rs`:
-/// `id, started_at, ended_at, state, duration_seconds, break_credit`.
+/// `id, started_at, ended_at, state, duration_seconds, break_credit, history_kind`.
 pub fn map_session_row(row: &rusqlite::Row) -> rusqlite::Result<SessionRow> {
     let credit: Option<String> = row.get(5)?;
     Ok(SessionRow {
@@ -249,5 +249,6 @@ pub fn map_session_row(row: &rusqlite::Row) -> rusqlite::Result<SessionRow> {
         state: row.get(3)?,
         duration_seconds: row.get(4)?,
         break_credit: credit.as_deref().and_then(crate::db::break_credit_from_db_str),
+        history_kind: row.get(6)?,
     })
 }

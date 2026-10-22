@@ -192,6 +192,93 @@ fn e015_break_credit_migration_adds_column_to_old_db() {
 }
 
 #[test]
+fn db_history_kind_migration_preserves_legacy_rows_and_is_idempotent() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute("CREATE TABLE sessions (id INTEGER PRIMARY KEY, started_at TEXT NOT NULL,
+        ended_at TEXT, state TEXT NOT NULL, duration_seconds INTEGER)", []).unwrap();
+    conn.execute("INSERT INTO sessions VALUES (19, '2026-09-06T09:00:00Z',
+        '2026-09-06T09:18:36Z', 'Standing', 1116)", []).unwrap();
+
+    init_schema(&conn).unwrap();
+    let marker: Option<String> = conn.query_row(
+        "SELECT history_kind FROM sessions WHERE id=19", [], |row| row.get(0)).unwrap();
+    assert_eq!(marker, None, "legacy mixed rows stay unknown after additive migration");
+    let default: Option<String> = conn.query_row(
+        "SELECT dflt_value FROM pragma_table_info('sessions') WHERE name='history_kind'",
+        [], |row| row.get(0)).unwrap();
+    assert_eq!(default, None, "migration must not default old rows to individual");
+
+    init_schema(&conn).unwrap();
+    let marker: Option<String> = conn.query_row(
+        "SELECT history_kind FROM sessions WHERE id=19", [], |row| row.get(0)).unwrap();
+    assert_eq!(marker, None, "repeated initialization must preserve unknown history");
+}
+
+#[test]
+fn db_history_kind_migration_failure_is_not_reported_as_success() {
+    let conn = test_conn();
+    conn.execute("ALTER TABLE sessions DROP COLUMN history_kind", []).unwrap();
+    conn.execute_batch("PRAGMA query_only = ON").unwrap();
+    assert!(init_schema(&conn).is_err(), "failed additive migration must reach its caller");
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM pragma_table_info('sessions')
+        WHERE name='history_kind'", [], |row| row.get(0)).unwrap();
+    assert_eq!(count, 0);
+}
+
+#[test]
+fn db_history_kind_new_only_round_trip_and_unknown_wire() {
+    let conn = test_conn();
+    let start = "2026-09-06T09:00:00.000Z";
+    let end = "2026-09-06T09:18:36.580Z";
+    insert_session(&conn, start, end, "Away", 1116).unwrap();
+    let legacy_replay = crate::db_sessions::insert_session_once(&conn, start, end, "Away", 1116, None).unwrap();
+    assert_eq!(legacy_replay, None, "a matching legacy row is not upgraded on replay");
+    let legacy_marker: Option<String> = conn.query_row(
+        "SELECT history_kind FROM sessions WHERE started_at=?1", [start], |row| row.get(0)).unwrap();
+    assert_eq!(legacy_marker, None);
+
+    let new_start = "2026-09-06T09:30:00.000Z";
+    let new_end = "2026-09-06T09:48:36.580Z";
+    let first = crate::db_sessions::insert_session_once(&conn, new_start, new_end, "Away", 1116, None).unwrap();
+    let duplicate = crate::db_sessions::insert_session_once(&conn, new_start, new_end, "Away", 1116, None).unwrap();
+    assert!(first.is_some(), "first insert owns its row id");
+    assert_eq!(duplicate, None, "deduplicated replay does not claim an existing row");
+    insert_session(&conn, "2026-09-06T10:00:00Z", "2026-09-06T10:10:00Z", "Standing", 600).unwrap();
+
+    let rows = rows_for_day(&conn);
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[0].history_kind, None, "ordinary insertion remains unmarked");
+    assert_eq!(rows[1].history_kind.as_deref(), Some("individual"));
+    let wire = serde_json::to_value(&rows[1]).unwrap();
+    assert_eq!(wire["history_kind"], "individual");
+    let legacy_wire = serde_json::to_value(&rows[0]).unwrap();
+    assert!(legacy_wire.get("history_kind").is_none(), "unknown provenance is omitted");
+
+    conn.execute("UPDATE sessions SET history_kind='unrecognized' WHERE state='Standing'", []).unwrap();
+    assert_eq!(rows_for_day(&conn)[2].history_kind.as_deref(), Some("unrecognized"));
+    let older: SessionRow = serde_json::from_value(serde_json::json!({
+        "id": 0, "start": new_start, "end": new_end, "state": "Away", "duration_secs": 1116,
+        "break_credit": null
+    })).unwrap();
+    assert_eq!(older.history_kind, None, "older wire payload remains readable");
+}
+
+#[test]
+fn db_history_kind_exports_only_the_actual_optional_session_type() {
+    use ts_rs::{Config, TS};
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let cfg = Config::new().with_large_int("number").with_out_dir(manifest.join("src"));
+    let relative = SessionRow::output_path().expect("SessionRow has an export path");
+    let target = cfg.out_dir().join(relative);
+    let allowed = manifest.parent().unwrap().join("src/generated/SessionRow.ts");
+    assert_eq!(target.parent().unwrap().canonicalize().unwrap(),
+        allowed.parent().unwrap().canonicalize().unwrap(), "export must stay in this checkout");
+    SessionRow::export(&cfg).unwrap();
+    let generated = std::fs::read_to_string(allowed).unwrap();
+    assert!(generated.contains("history_kind?: string"), "nullable provenance exports as optional wire field");
+}
+
+#[test]
 fn e015_break_credit_db_str_round_trips() {
     for credit in [BreakCredit::None, BreakCredit::Partial, BreakCredit::Full] {
         let raw = break_credit_to_db_str(&credit);
@@ -235,6 +322,7 @@ fn test_session_row_json_field_names() {
         state: "Sitting".to_string(),
         duration_seconds: Some(1800),
         break_credit: None,
+        history_kind: None,
     };
     let json = serde_json::to_value(&row).unwrap();
     assert!(json.get("id").is_none(), "id must be skipped in JSON");

@@ -12,4 +12,9 @@ export type SessionRow = { start: string, end: string | null, state: string, dur
  * unknown, not zero. Consumers must render it as unknown rather than
  * silently treating it as "no credit".
  */
-break_credit: BreakCredit | null, };
+break_credit: BreakCredit | null,
+/**
+ * Provenance is present only for newly recorded individual spans.
+ * Missing/null stays unknown; unrecognized values are preserved as-is.
+ */
+history_kind?: string, };

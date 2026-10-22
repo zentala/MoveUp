@@ -55,7 +55,7 @@ pub(crate) fn get_sessions_between(conn: &Connection,
     -> Result<Vec<SessionRow>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, started_at, ended_at, state, duration_seconds, break_credit FROM sessions \
+            "SELECT id, started_at, ended_at, state, duration_seconds, break_credit, history_kind FROM sessions \
              WHERE julianday(started_at) < julianday(?2) \
              AND julianday(ended_at) > julianday(?1) \
              AND ended_at IS NOT NULL \
