@@ -1,12 +1,13 @@
-/**
- * DailyScoreTrajectory.tsx — Line per day showing score over hour-of-day.
- *
- * Computes max score per hour bucket per day, then renders one polyline
- * per day plus a thicker average line.
- */
+/** DailyScoreTrajectory.tsx — recorded signed profile-score samples over time. */
 import type { SnapshotRow } from "@/test/analyst-fixtures";
 import { ChartCard } from "./ChartCard";
 import { DEFAULT_MARGIN, chartColors, scaleLinear } from "./chart-utils";
+import {
+  formatScore,
+  scoreObservations,
+  sourceLocalTimeLabel,
+  type ScoreObservation,
+} from "./score-derivations";
 
 export interface DailyScoreTrajectoryProps {
   data: SnapshotRow[];
@@ -14,22 +15,33 @@ export interface DailyScoreTrajectoryProps {
   height?: number;
 }
 
-function hourlyScores(rows: SnapshotRow[]): Map<string, Array<number | null>> {
-  // Producer-local day -> local-hour buckets; null is a real gap.
-  const map = new Map<string, Array<number | null>>();
-  for (const r of rows) {
-    const day = r.localDate;
-    if (!day || r.timezoneOffsetSecs == null || r.score == null) continue;
-    const localMs = new Date(r.ts).getTime() + r.timezoneOffsetSecs * 1000;
-    const hour = new Date(localMs).getUTCHours();
-    let arr = map.get(day);
-    if (!arr) {
-      arr = Array(24).fill(null);
-      map.set(day, arr);
-    }
-    if (arr[hour] === null || r.score > arr[hour]!) arr[hour] = r.score;
-  }
-  return map;
+function isPlottable(sample: ScoreObservation): sample is ScoreObservation & {
+  atMs: number;
+  score: number;
+  localDate: string;
+  timezoneOffsetSecs: number;
+} {
+  return sample.atMs !== null && sample.score !== null &&
+    sample.localDate !== null && sample.timezoneOffsetSecs !== null;
+}
+
+function representativeTicks(samples: readonly (ScoreObservation & {
+  atMs: number;
+  score: number;
+  localDate: string;
+  timezoneOffsetSecs: number;
+})[]): typeof samples[number][] {
+  if (samples.length <= 5) return [...samples];
+  const indices = [0, 0.25, 0.5, 0.75, 1].map((fraction) =>
+    Math.round(fraction * (samples.length - 1)));
+  return Array.from(new Set(indices), (index) => samples[index]);
+}
+
+function axisTimeLabel(sample: ScoreObservation): string {
+  if (!sample.localDate) return "Unknown";
+  const label = sourceLocalTimeLabel(sample);
+  const clock = label.match(/ (\d{2}:\d{2}):\d{2} UTC/);
+  return clock ? `${sample.localDate.slice(5)} ${clock[1]}` : "Unknown";
 }
 
 export function DailyScoreTrajectory({
@@ -40,74 +52,96 @@ export function DailyScoreTrajectory({
   const m = DEFAULT_MARGIN;
   const innerW = width - m.left - m.right;
   const innerH = height - m.top - m.bottom;
+  const summary = scoreObservations(data);
+  const samples = summary.observations.filter(isPlottable);
+  const values = samples.map((sample) => sample.score);
 
-  const days = Array.from(hourlyScores(data).entries()).sort(([a], [b]) => a.localeCompare(b));
-  const observedScores = days.flatMap(([, values]) => values.filter((score): score is number => score !== null));
-  const minScore = Math.min(0, ...observedScores);
-  const maxScore = Math.max(0, ...observedScores);
-
-  const x = scaleLinear(0, 23, 0, innerW);
+  let minScore = values.length ? Math.min(0, ...values) : -1;
+  let maxScore = values.length ? Math.max(0, ...values) : 1;
+  if (minScore === maxScore) {
+    minScore -= 1;
+    maxScore += 1;
+  }
   const y = scaleLinear(minScore, maxScore, innerH, 0);
+
+  let minTime = samples.length ? samples[0].atMs : 0;
+  let maxTime = samples.length ? samples[samples.length - 1].atMs : 1;
+  if (minTime === maxTime) {
+    minTime -= 30_000;
+    maxTime += 30_000;
+  }
+  const x = scaleLinear(minTime, maxTime, 0, innerW);
+  const scoreTicks = [0, 0.25, 0.5, 0.75, 1].map((fraction) =>
+    minScore + fraction * (maxScore - minScore));
+  const timeTicks = representativeTicks(samples);
 
   return (
     <ChartCard
       title="Daily score trajectory"
-      subtitle="Posture score by hour of day. One line per day."
-      help="Y = max posture score reached in each hour bucket; X = local hour-of-day. One line per day in the range — opacity grows with recency. Score is computed per the active ergonomic profile (see ADR 008)."
+      subtitle="Recorded signed profile points; gaps are unobserved."
+      help="Each point is a recorded daily score from the active ergonomic profile. Scores can be negative or exceed 100; they are not a percentage or health measure. Daily and long-break resets appear only through recorded score values—the snapshot has no reset-reason field. Points are not joined or interpolated. Local labels use the date and UTC offset stored with each sample."
     >
-      <svg width={width} height={height} role="img" aria-label="Daily score trajectory">
+      <p className="score-coverage" aria-live="polite">
+        {summary.recorded} recorded samples · {summary.unknown} unknown
+      </p>
+      {samples.length === 0 && (
+        <p className="score-empty">
+          {data.length === 0
+            ? "No score samples recorded"
+            : "No score samples can be plotted with recorded local time"}
+        </p>
+      )}
+      <svg
+        width={width}
+        height={height}
+        role="img"
+        aria-label="Daily score trajectory with signed recorded samples"
+      >
         <g transform={`translate(${m.left},${m.top})`}>
-          {/* Y grid */}
-          {[0, 0.25, 0.5, 0.75, 1].map((p) => {
-            const yy = innerH * (1 - p);
+          {scoreTicks.map((score, index) => {
+            const yy = y(score);
             return (
-              <g key={p} transform={`translate(0,${yy})`}>
+              <g key={index} transform={`translate(0,${yy})`}>
                 <line
                   x1={0}
                   x2={innerW}
-                  stroke={chartColors.gridline}
-                  strokeDasharray="3 4"
+                  stroke={score === 0 ? chartColors.axis : chartColors.gridline}
+                  strokeDasharray={score === 0 ? undefined : "3 4"}
                 />
                 <text x={-6} y={4} fontSize={10} textAnchor="end" fill={chartColors.axisText}>
-                  {Math.round(minScore + p * (maxScore - minScore))}
+                  {formatScore(score)}
                 </text>
               </g>
             );
           })}
-          {/* Hour ticks */}
-          {[0, 6, 12, 18, 23].map((h) => (
-            <g key={h} transform={`translate(${x(h)},${innerH})`}>
+          {timeTicks.map((sample, index) => (
+            <g key={`${sample.atMs}-${index}`} transform={`translate(${x(sample.atMs)},${innerH})`}>
               <line y2={4} stroke={chartColors.axis} />
               <text y={16} fontSize={10} fill={chartColors.axisText} textAnchor="middle">
-                {h}h
+                {axisTimeLabel(sample)}
               </text>
             </g>
           ))}
-          {days.map(([day, hours], i) => {
-            let drawing = false;
-            const path = hours.map((score, hour) => {
-              if (score === null) {
-                drawing = false;
-                return "";
-              }
-              const command = drawing ? "L" : "M";
-              drawing = true;
-              return `${command}${x(hour).toFixed(1)},${y(score).toFixed(1)}`;
-            }).filter(Boolean).join(" ");
-            const opacity = 0.35 + (i / Math.max(days.length - 1, 1)) * 0.55;
+          {samples.map((sample, index) => {
+            const label = `Recorded score ${formatScore(sample.score)} at ${sourceLocalTimeLabel(sample)}`;
             return (
-              <path
-                key={day}
-                d={path}
-                fill="none"
-                stroke={chartColors.score}
-                strokeOpacity={opacity}
-                strokeWidth={1.4}
-              />
+              <circle
+                key={`${sample.atMs}-${index}`}
+                className="score-sample"
+                cx={x(sample.atMs)}
+                cy={y(sample.score)}
+                r={2.8}
+                fill={chartColors.score}
+                aria-label={label}
+                data-score={sample.score}
+                data-at-ms={sample.atMs}
+              >
+                <title>{label}</title>
+              </circle>
             );
           })}
           <text x={-m.left + 4} y={-2} fontSize={10} fill={chartColors.axisText}>
-            score
+            score points
           </text>
         </g>
       </svg>
