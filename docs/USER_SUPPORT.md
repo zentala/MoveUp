@@ -140,9 +140,14 @@ uses a same-directory temporary file and a flushed replacement, and the plugin's
 independent exit-time writer is deregistered while Rust readers retain the shared
 Store. A sensor-independent 60-second checkpoint records its last success or
 current error in lifecycle state and `events.log`; failures produce a native
-notification with rate limiting. These checkpoints do not make forced process
-termination safe, and actual installed Windows lifecycle behavior remains a
-separate verification item.
+notification with rate limiting. After a successful checkpoint, recovery retains
+that saved known state. With healthy saves and normal scheduling, changes since
+the last successful save plus scheduling and save latency are usually the loss
+window; this is not a zero-loss guarantee. Failed saves are reported and may widen
+the window. Forced termination cannot run an immediate final flush, and unobserved
+offline time remains Unknown. This gives routine crash protection, but does not
+prove hardware or power-loss durability or the newly integrated runtime running
+on an installed Windows system.
 The installed ordinary PM3 probe checks HTTP status rather than JSON identity;
 compare the returned PID and version with the actual supervised process during
 installation and recovery checks.
@@ -163,9 +168,10 @@ expected: an exit without explicit user Quit intent remains restartable.
 
 Ordinary Windows PM3 stop is a different path: taskkill followed by force can
 terminate the process without running application cleanup. An observed successful
-stop left flush=not_attempted and no clean_exit. Flush-before-stop on that path
-remains an unresolved product requirement; command exit zero is not persistence
-evidence. Do not infer graceful save from the label SIGTERM in supervisor records.
+stop left flush=not_attempted and no clean_exit. A cooperative flush before that
+stop and completion of the final lifecycle diagnostics remain unresolved; command
+exit zero is not persistence evidence. Do not infer graceful save from the label
+SIGTERM in supervisor records.
 
 The reviewed PM3 login activation is now registered in the existing Windows Run
 entry. After the reviewed build and native readiness checks, readback verified

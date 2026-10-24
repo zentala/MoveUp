@@ -76,9 +76,11 @@ An unexpected exit, including exit code zero, is eligible for restart.
 Ordinary `stop` clears that restore intent. A separate per-user login activation
 must be verified if deliberate Quit should last only until the next login.
 
-Installation also requires verified flush-before-stop for Quit and development
-replacement, plus exactly one app process and actual recovery evidence. This
-preparation command does not implement or verify those lifecycle steps. Keep
+Installation also requires verifying cooperative Quit and development-replacement
+behavior, plus exactly one app process and actual recovery evidence. A successful
+checkpoint protects the last saved state, but it does not establish that Windows
+PM3 stop performs a cooperative final flush or completes its final diagnostics.
+This preparation command does not implement or verify those lifecycle steps. Keep
 the existing direct Windows login entry until the replacement is proven; then
 record its rollback value before disabling it. Never run both launch paths as
 competing owners. See [Support](./USER_SUPPORT.md#pm3-startup-diagnostics).
@@ -87,14 +89,21 @@ Current verification distinguishes three Windows termination paths. Native tray
 Quit saved Store state before PM3 stopped the app and it stayed stopped, although
 the final lifecycle summary did not complete. Native main-window close separately
 saved state and PM3 recovered the process. Ordinary Windows PM3 stop uses taskkill
-and can force termination without a cooperative flush; persistence on that path
-remains an unresolved product requirement, even when the command returns success.
+and can force termination without a cooperative flush. Cooperative flush-before-stop
+on that PM3 stop path and completion of final lifecycle diagnostics remain unresolved;
+a successful command is not proof of either.
 
 Settings and session state now use one application-owned writer. It writes a
 complete JSON snapshot through a same-directory temporary file, flushes that
 file, and replaces the settings file atomically. A periodic session checkpoint
-runs every 60 seconds independently of sensor readings. Neither mechanism can
-run after forced termination; Windows lifecycle verification remains separate.
+runs every 60 seconds independently of sensor readings. After a successful
+checkpoint, recovery retains the saved known state. When saves succeed and the
+schedule runs normally, the unsaved changes at risk are usually those since the
+last successful save plus scheduling and save latency—not zero loss. Failed saves
+are reported and can widen that window. Forced termination cannot run an immediate
+final flush, and time without observed sensor data remains Unknown after restart.
+This is crash protection, not proof of hardware or power-loss durability, or of the
+new runtime installed on Windows.
 The reviewed PM3 login activation is now registered in the existing Windows Run
 entry, with its REG_SZ type and exact value verified by readback after the reviewed
 build and native readiness checks. The previous value and type are retained for
