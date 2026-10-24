@@ -42,11 +42,14 @@
       <description>WidgetProps interface + registry; active_widget in AppConfig; widgets are FC components</description>
     </feature>
     <feature name="persistence">
-      <description>SQLite stores session history, today summaries</description>
+      <description>SQLite stores session history and today summaries; startup makes a bounded SQLite online backup of an existing valid database, validates the published copy before retaining up to 30 backups, and leaves startup available with a truthful logged backup error</description>
+      <source path="src-tauri/src/db_backup.rs" tests="src-tauri/src/db_backup.rs"/>
     </feature>
     <feature name="shared-session-store">
-      <description>One initialized plugin Store shared by settings, session save points and shutdown.</description>
+      <description>One initialized Store shared by Rust readers and an application-owned atomic JSON writer; the plugin's independent exit writer is deregistered, competing settings writers serialize, and a sensor-independent 60-second checkpoint records state and persistence errors</description>
       <source path="src-tauri/src/app_store.rs" tests="src-tauri/src/app_store_tests.rs"/>
+      <source path="src-tauri/src/store_persistence.rs" tests="src-tauri/src/store_persistence_tests.rs"/>
+      <source path="src-tauri/src/persistence_checkpoint.rs" tests="src-tauri/src/persistence_checkpoint_tests.rs"/>
     </feature>
     <feature name="settings">
       <description>Sit/stand limits, calibration, notification prefs, widget picker, profile selector — tauri-plugin-store</description>
@@ -102,7 +105,7 @@
       <file name="supervision_tests.rs">Isolated Quit acknowledgement, lost acknowledgement, unknown applicability, deadline, configuration and argument tests</file>
       <file name="supervision_process_tests.rs">Synthetic Node launcher tests for structured argv, inherited fixture environment, output caps and timeout</file>
       <file name="app_lifecycle_store.rs">OS-locked primary-run record; distinguishes prior clean exit, recorded failure and unknown interruption</file>
-      <file name="app_lifecycle_runtime.rs">Tauri adapters for persistence flush and bounded readiness; database contention preserves known initialization</file>
+      <file name="app_lifecycle_runtime.rs">Tauri adapters for persistence flush, checkpoint shutdown coordination and bounded readiness; database contention preserves known initialization</file>
       <file name="startup_diagnostics.rs">Best-effort early failure evidence and panic hook without engine or persistence locks</file>
       <file name="runtime_readiness.rs">Flat typed application readiness route; sensor absence degrades status without invalidating essential readiness</file>
       <file name="readiness_server.rs">Dedicated loopback-only readiness listener, DESK_READINESS_PORT (3391); independent of LAN display, with explicit configuration and bind failure</file>
@@ -122,7 +125,7 @@
       <file name="session_breaks.rs">Break credit rules: &lt;5min, 5-9min, gte10min (proportional multiplier)</file>
       <file name="serial.rs">Background serial reader — auto-detect, parse, emit events</file>
       <file name="serial_parser.rs">parse_distance + device detection helpers</file>
-      <file name="serial_periodic.rs">Periodic notification check loop</file>
+      <file name="serial_periodic.rs">Periodic notification check loop; observed notification intent persists immediately while timed checkpoints run independently</file>
       <file name="activity.rs">Windows idle detection via GetLastInputInfo</file>
       <file name="db.rs">SQLite connection + schema</file>
       <file name="db_sessions.rs">Session CRUD operations</file>

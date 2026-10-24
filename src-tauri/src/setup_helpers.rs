@@ -39,7 +39,6 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
     info!("App data dir: {:?}", app_data_dir);
 
     crate::app_store::initialize(app.handle()).map_err(std::io::Error::other)?;
-    crate::db_backup::backup_database(&app_data_dir);
     info!("DB path: {}", app_data_dir.join("desk.db").display());
 
     let logs_dir = app_data_dir.join("logs");
@@ -48,6 +47,18 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
     let event_logger = Arc::new(crate::event_logger::EventLogger::new(logs_dir));
     event_logger.log(&format!("START v{}", crate::APP_VERSION));
     lifecycle.attach_logger(event_logger.clone(), previous);
+    match crate::db_backup::backup_database(&app_data_dir) {
+        Ok(crate::db_backup::BackupOutcome::NoExistingDatabase) => {
+            event_logger.log("DB_BACKUP skipped: no existing database (first launch)");
+        }
+        Ok(crate::db_backup::BackupOutcome::Created(path)) => {
+            event_logger.log(&format!("DB_BACKUP created and validated: {}", path.display()));
+        }
+        Err(error) => {
+            log::error!("Automatic database backup failed; startup will continue: {error}");
+            event_logger.log(&format!("DB_BACKUP_FAILED action=check database access and free disk space error={error}"));
+        }
+    }
     app.manage(crate::Loggers {
         snapshot: snapshot_logger.clone(),
         event: event_logger.clone(),

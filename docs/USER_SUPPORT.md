@@ -135,9 +135,14 @@ session persistence works. Preserve this limitation in diagnostic reports.
 Graceful Quit and native close currently require a successful session Store
 save as well as the database flush. If the Store is unavailable or its save
 fails, MoveUp reports the failure and remains running; core HTTP readiness
-alone does not establish that Quit works. The shared Store correction is delivered
-and has passed real-plugin persistence tests; unavailable or failed Store state
-must still be treated as a persistence failure.
+alone does not establish that Quit works. The application-owned settings writer
+uses a same-directory temporary file and a flushed replacement, and the plugin's
+independent exit-time writer is deregistered while Rust readers retain the shared
+Store. A sensor-independent 60-second checkpoint records its last success or
+current error in lifecycle state and `events.log`; failures produce a native
+notification with rate limiting. These checkpoints do not make forced process
+termination safe, and actual installed Windows lifecycle behavior remains a
+separate verification item.
 The installed ordinary PM3 probe checks HTTP status rather than JSON identity;
 compare the returned PID and version with the actual supervised process during
 installation and recovery checks.
@@ -204,8 +209,9 @@ Your data is stored in:
 - `desk.db` — SQLite database with your session history
 - `logs\` — per-day event log and minute snapshots
 - `profiles\` — ergonomic and communication profiles (editable JSON)
-- `backups\` — timestamped copies of `desk.db`
-- the settings store written by `tauri-plugin-store`
+- `backups\` — up to 30 validated SQLite-consistent copies of an existing
+  `desk.db`; failures are recorded in `events.log` and do not block startup
+- the settings JSON store written by MoveUp's shared persistence owner
 
 Do not edit these files while MoveUp is running.
 

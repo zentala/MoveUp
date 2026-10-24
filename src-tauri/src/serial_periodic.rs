@@ -69,9 +69,11 @@ pub fn check_periodic(
         intents
     };
     NotificationService::dispatch(&intents, event_logger, alert_popup);
-    // This is the existing sensor-driven minute checkpoint. It also retains
-    // policy silence/repeat state when no notification fired this minute.
-    save_session_state(app, session);
+    // Notification events remain immediate writes. The independent lifecycle
+    // checkpoint owns the quiet minute snapshot when there was no event.
+    if !intents.is_empty() {
+        save_session_state(app, session);
+    }
 
     // Hot-reload communication and ergonomic profiles if files changed on disk.
     reload_profiles_if_changed(app);

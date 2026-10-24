@@ -133,28 +133,51 @@ impl FlushProgress {
 /// Explicit Store errors/missing Store block graceful exit; they are never saved.
 /// Only a completed attempt is reused by CloseRequested/Exit.
 pub fn prepare_shutdown(app: &AppHandle, user_quit: bool) -> Result<String, String> {
+    prepare_shutdown_inner(app, user_quit, true)
+}
+
+fn prepare_shutdown_inner(
+    app: &AppHandle,
+    user_quit: bool,
+    restart_on_failure: bool,
+) -> Result<String, String> {
     let mut progress = SHUTDOWN.try_lock().map_err(|_| "shutdown flush already in progress".to_string())?;
+    if let Err(error) = crate::persistence_checkpoint::stop(app) {
+        if restart_on_failure {
+            crate::persistence_checkpoint::start(app);
+        }
+        return Err(format!("Could not stop the periodic persistence checkpoint: {error}"));
+    }
     let report = flush(app, &mut progress);
     if let Some(lifecycle) = app.try_state::<Arc<AppLifecycle>>() {
         lifecycle.event(&format!("shutdown_flush {report}"));
     }
-    if !progress.complete() { return Err(report); }
+    if !progress.complete() {
+        if restart_on_failure {
+            crate::persistence_checkpoint::start(app);
+        }
+        return Err(report);
+    }
     progress.user_quit_pending |= user_quit;
     Ok(report)
 }
 
 pub fn cancel_shutdown(app: &AppHandle) -> Result<(), String> {
-    let mut progress = SHUTDOWN.try_lock().map_err(|_| "shutdown cancellation busy".to_string())?;
-    let state = app.state::<AppState>();
-    progress.cancel(&state.session, &state.db, |session| {
-        if crate::session_persistence::save_via_app(app, session) { "saved" } else { "failed" }
-    })?;
-    if let Some(lifecycle) = app.try_state::<Arc<AppLifecycle>>() { lifecycle.event("shutdown_cancelled"); }
-    Ok(())
+    let result = (|| {
+        let mut progress = SHUTDOWN.try_lock().map_err(|_| "shutdown cancellation busy".to_string())?;
+        let state = app.state::<AppState>();
+        progress.cancel(&state.session, &state.db, |session| {
+            if crate::session_persistence::save_via_app(app, session) { "saved" } else { "failed" }
+        })?;
+        if let Some(lifecycle) = app.try_state::<Arc<AppLifecycle>>() { lifecycle.event("shutdown_cancelled"); }
+        Ok(())
+    })();
+    crate::persistence_checkpoint::start(app);
+    result
 }
 
 pub fn shutdown(app: &AppHandle) {
-    let report = prepare_shutdown(app, false).unwrap_or_else(|error| error);
+    let report = prepare_shutdown_inner(app, false, false).unwrap_or_else(|error| error);
     // The user requested Quit only on the explicit tray path. Exit 0 by itself
     // never creates this intent, and a refused stop can cancel it before exit.
     if SHUTDOWN.try_lock().is_ok_and(|progress| progress.user_quit_pending) { request_quit(app); }
@@ -178,8 +201,14 @@ fn flush(app: &AppHandle, progress: &mut FlushProgress) -> String {
                 match crate::session_persistence::PersistedEngineState::from_session_with_policy(
                     session, reset, &policy, wall_now, monotonic_now,
                 ).save(store.inner()) {
-                    Ok(()) => "saved",
-                    Err(_) => "failed",
+                    Ok(()) => {
+                        crate::persistence_checkpoint::record_result(app, &Ok(()), wall_now);
+                        "saved"
+                    }
+                    Err(error) => {
+                        crate::persistence_checkpoint::record_result(app, &Err(error), wall_now);
+                        "failed"
+                    }
                 }
             }
             None => "skipped_store_missing",

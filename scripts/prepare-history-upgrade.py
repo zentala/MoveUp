@@ -39,6 +39,21 @@ PRODUCTION_IDENTITIES = (
 )
 DATABASE_NAME = "desk.db"
 SETTINGS_NAME = "settings.json"
+CURRENT_HISTORY_KIND_COLUMN = "history_kind"
+CURRENT_SESSION_COLUMN_SHAPES = {
+    "id": ("INTEGER", 0, None, 1),
+    "started_at": ("TEXT", 1, None, 0),
+    "ended_at": ("TEXT", 0, None, 0),
+    "state": ("TEXT", 1, None, 0),
+    "duration_seconds": ("INTEGER", 0, None, 0),
+    "sitting_seconds": ("INTEGER", 0, "0", 0),
+    "standing_seconds": ("INTEGER", 0, "0", 0),
+    "position_changes": ("INTEGER", 0, "0", 0),
+    "session_limit_secs": ("INTEGER", 0, "2700", 0),
+    "date_local": ("TEXT", 0, None, 0),
+    "break_credit": ("TEXT", 0, None, 0),
+    "history_kind": ("TEXT", 0, None, 0),
+}
 
 
 class PreparationError(Exception):
@@ -61,21 +76,55 @@ def _inside(path: Path, parent: Path) -> bool:
         return False
 
 
-def _session_columns(connection: sqlite3.Connection) -> tuple[str, ...]:
+def _session_column_rows(connection: sqlite3.Connection) -> tuple[tuple[object, ...], ...]:
     try:
         rows = connection.execute("PRAGMA table_info(sessions)").fetchall()
     except sqlite3.DatabaseError as exc:
         raise PreparationError(f"Cannot inspect sessions schema: {exc}") from exc
     if not rows:
         raise PreparationError("Required sessions table is missing")
-    return tuple(row[1] for row in rows)
+    return tuple(tuple(row) for row in rows)
 
 
-def _check_schema(connection: sqlite3.Connection) -> tuple[str, ...]:
-    columns = _session_columns(connection)
-    if "history_kind" in columns:
+def _check_schema(
+    connection: sqlite3.Connection, *, current_schema_backup_only: bool = False
+) -> tuple[str, ...]:
+    rows = _session_column_rows(connection)
+    columns = tuple(str(row[1]) for row in rows)
+    if CURRENT_HISTORY_KIND_COLUMN in columns:
+        if not current_schema_backup_only:
+            raise PreparationError(
+                "Schema is not eligible: history_kind is already present; stop for review"
+            )
+        expected_current = set(EXPECTED_SESSION_COLUMNS) | {CURRENT_HISTORY_KIND_COLUMN}
+        if len(columns) != len(expected_current) or set(columns) != expected_current:
+            raise PreparationError(
+                "Current backup-only schema is not exact: sessions columns were "
+                f"{columns!r}; expected the reviewed fields "
+                f"{tuple(EXPECTED_SESSION_COLUMNS) + (CURRENT_HISTORY_KIND_COLUMN,)!r}"
+            )
+        # PRAGMA table_info: cid, name, type, notnull, dflt_value, pk.
+        # Compare by name because supported CREATE/ALTER histories yield
+        # different valid column ordinals.
+        for row in rows:
+            name = str(row[1])
+            actual_shape = (
+                str(row[2]).strip().upper(),
+                row[3],
+                row[4],
+                row[5],
+            )
+            expected_shape = CURRENT_SESSION_COLUMN_SHAPES[name]
+            if actual_shape != expected_shape:
+                raise PreparationError(
+                    "Current backup-only schema has unsupported semantics for "
+                    f"{name}: found {actual_shape!r}; expected {expected_shape!r}"
+                )
+        return columns
+
+    if current_schema_backup_only:
         raise PreparationError(
-            "Schema is not eligible: history_kind is already present; stop for review"
+            "Current backup-only mode requires the reviewed history_kind TEXT column"
         )
     if len(columns) != len(EXPECTED_SESSION_COLUMNS) or set(columns) != set(
         EXPECTED_SESSION_COLUMNS
@@ -138,11 +187,15 @@ def _resolve_file(path_arg: Path, label: str) -> Path:
     return path
 
 
-def _inspect_database(source: Path) -> tuple[tuple[str, ...], int]:
+def _inspect_database(
+    source: Path, *, current_schema_backup_only: bool = False
+) -> tuple[tuple[str, ...], int]:
     connection: sqlite3.Connection | None = None
     try:
         connection = sqlite3.connect(_read_only_uri(source), uri=True, timeout=5.0)
-        columns = _check_schema(connection)
+        columns = _check_schema(
+            connection, current_schema_backup_only=current_schema_backup_only
+        )
         count = connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         if count <= 0:
             raise PreparationError("Refusing an empty sessions table")
@@ -195,6 +248,8 @@ def _write_database_copy(
     destination: Path,
     expected_columns: tuple[str, ...],
     expected_count: int,
+    *,
+    current_schema_backup_only: bool = False,
 ) -> int:
     source_connection: sqlite3.Connection | None = None
     backup_connection: sqlite3.Connection | None = None
@@ -208,7 +263,9 @@ def _write_database_copy(
         source_connection = sqlite3.connect(
             _read_only_uri(source), uri=True, timeout=5.0
         )
-        columns = _check_schema(source_connection)
+        columns = _check_schema(
+            source_connection, current_schema_backup_only=current_schema_backup_only
+        )
         source_count_before = source_connection.execute(
             "SELECT COUNT(*) FROM sessions"
         ).fetchone()[0]
@@ -224,7 +281,9 @@ def _write_database_copy(
         )
         if integrity != ("ok",):
             raise PreparationError(f"Database backup integrity check failed: {integrity!r}")
-        copied_columns = _check_schema(backup_connection)
+        copied_columns = _check_schema(
+            backup_connection, current_schema_backup_only=current_schema_backup_only
+        )
         copied_count = backup_connection.execute(
             "SELECT COUNT(*) FROM sessions"
         ).fetchone()[0]
@@ -259,7 +318,11 @@ def _write_database_copy(
 
 
 def prepare_backup(
-    source_arg: Path, settings_source_arg: Path, destination_dir_arg: Path
+    source_arg: Path,
+    settings_source_arg: Path,
+    destination_dir_arg: Path,
+    *,
+    current_schema_backup_only: bool = False,
 ) -> dict[str, object]:
     source = _resolve_file(source_arg, "Source database")
     settings_source = _resolve_file(settings_source_arg, "Settings source")
@@ -269,7 +332,9 @@ def prepare_backup(
     recovery_set = _validate_destination(
         (source, settings_source), destination_dir_arg
     )
-    expected_columns, expected_count = _inspect_database(source)
+    expected_columns, expected_count = _inspect_database(
+        source, current_schema_backup_only=current_schema_backup_only
+    )
     settings_bytes = _read_settings_source(settings_source)
 
     try:
@@ -308,7 +373,11 @@ def prepare_backup(
     database_copy = recovery_set / DATABASE_NAME
     try:
         copied_count = _write_database_copy(
-            source, database_copy, expected_columns, expected_count
+            source,
+            database_copy,
+            expected_columns,
+            expected_count,
+            current_schema_backup_only=current_schema_backup_only,
         )
     except PreparationError as exc:
         result: dict[str, object] = {
@@ -323,16 +392,27 @@ def prepare_backup(
             result["missing"] = []
         raise PartialPreparationError(str(exc), result) from exc
 
-    return {
+    result: dict[str, object] = {
         "status": "complete",
         "recovery_set": str(recovery_set),
         "database": DATABASE_NAME,
         "settings": SETTINGS_NAME,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "sessions": copied_count,
-        "eligible_schema": "date_local+break_credit; history_kind absent",
+        "mode": (
+            "backup-only-current-schema"
+            if current_schema_backup_only
+            else "legacy-upgrade-preparation"
+        ),
+        "migration": "not-performed",
         "integrity_check": "ok",
     }
+    if current_schema_backup_only:
+        result["source_schema"] = "reviewed current sessions columns; history_kind TEXT NULL"
+        result["backup_only"] = True
+    else:
+        result["eligible_schema"] = "date_local+break_credit; history_kind absent"
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -350,9 +430,22 @@ def main(argv: list[str] | None = None) -> int:
             f"{DESTINATION_PREFIX}…"
         ),
     )
+    parser.add_argument(
+        "--current-schema-backup-only",
+        action="store_true",
+        help=(
+            "prepare a protected copy of the exact current sessions schema; "
+            "this mode performs no migration and is not legacy-upgrade eligibility"
+        ),
+    )
     args = parser.parse_args(argv)
     try:
-        result = prepare_backup(args.source, args.settings_source, args.destination_dir)
+        result = prepare_backup(
+            args.source,
+            args.settings_source,
+            args.destination_dir,
+            current_schema_backup_only=args.current_schema_backup_only,
+        )
     except PartialPreparationError as exc:
         print(json.dumps(exc.result, indent=2), file=sys.stderr)
         return 2

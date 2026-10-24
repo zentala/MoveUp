@@ -5,7 +5,6 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
-use tauri_plugin_store::Store;
 
 use crate::commands::{ensure_initialized, AppState};
 use crate::communication_policy::CommunicationPolicy;
@@ -71,7 +70,8 @@ fn get_active_id(app: &AppHandle, key: &str) -> String {
 /// Persists a profile selection while retaining the old Store cache on failure.
 /// A failed save followed by a failed rollback save leaves disk state uncertain;
 /// both errors are returned so callers cannot report a coherent success.
-fn persist_active_id<R: Runtime>(store: &Store<R>, key: &str, id: &str) -> Result<(), String> {
+fn persist_active_id<R: Runtime>(store: &crate::app_store::AppStore<R>, key: &str, id: &str) -> Result<(), String> {
+    let store = store.write();
     let previous = store.get(key);
     store.set(key, serde_json::Value::String(id.to_string()));
     if let Err(save_error) = store.save() {
@@ -92,14 +92,17 @@ fn persist_active_id<R: Runtime>(store: &Store<R>, key: &str, id: &str) -> Resul
 /// Shared persistent communication switch used by the IPC wrapper and disposable Store tests.
 pub(crate) fn switch_communication_profile_persisted<R: Runtime>(
     app_data_dir: &Path,
-    store: &Store<R>,
+    store: &crate::app_store::AppStore<R>,
     policy: &Mutex<CommunicationPolicy>,
     id: &str,
 ) -> Result<(), String> {
     let path = profile_path(app_data_dir, "communication", id)?;
     let profile = load_communication_profile(&path)?;
+    // Checkpoints take policy before the Store writer. Keep that same order
+    // while changing the persisted selection and the live policy together.
+    let mut policy = policy.lock().unwrap_or_else(|e| e.into_inner());
     persist_active_id(store, KEY_ACTIVE_COMM, id)?;
-    policy.lock().unwrap_or_else(|e| e.into_inner()).set_comm_profile(profile);
+    policy.set_comm_profile(profile);
     log::info!("Switched communication profile to '{}'", id);
     Ok(())
 }
@@ -107,20 +110,20 @@ pub(crate) fn switch_communication_profile_persisted<R: Runtime>(
 /// Shared persistent ergonomic switch used by the IPC wrapper and disposable Store tests.
 pub(crate) fn switch_ergonomic_profile_persisted<R: Runtime>(
     app_data_dir: &Path,
-    store: &Store<R>,
+    store: &crate::app_store::AppStore<R>,
     policy: &Mutex<CommunicationPolicy>,
     session: &Mutex<SessionManager>,
     id: &str,
 ) -> Result<(), String> {
     let path = profile_path(app_data_dir, "ergonomic", id)?;
     let profile = load_profile::<ErgonomicProfile>(&path);
+    // Match checkpoint lock order: session, policy, then shared Store writer.
+    let mut session = session.lock().unwrap_or_else(|e| e.into_inner());
+    let mut policy = policy.lock().unwrap_or_else(|e| e.into_inner());
     persist_active_id(store, KEY_ACTIVE_ERGO, id)?;
-    {
-        let mut session = session.lock().unwrap_or_else(|e| e.into_inner());
-        session.state.session_limit_secs = profile.limits.sitting_secs as i64;
-        session.state.stand_limit_secs = profile.limits.standing_target_secs as i64;
-    }
-    policy.lock().unwrap_or_else(|e| e.into_inner()).set_ergo_profile(profile);
+    session.state.session_limit_secs = profile.limits.sitting_secs as i64;
+    session.state.stand_limit_secs = profile.limits.standing_target_secs as i64;
+    policy.set_ergo_profile(profile);
     log::info!("Switched ergonomic profile to '{}'", id);
     Ok(())
 }

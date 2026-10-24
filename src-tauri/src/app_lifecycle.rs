@@ -4,6 +4,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::{app_lifecycle_store::{RunStore, RunRecord, PreviousRun},
     event_logger::EventLogger, startup_diagnostics::{Diagnostic, StartupDiagnostics}};
 
+#[derive(Default, Clone)]
+pub struct CheckpointStatus {
+    pub last_success_utc: Option<String>,
+    pub last_error: Option<String>,
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct RunId {
     pub run_id: String,
@@ -33,6 +39,8 @@ pub struct AppLifecycle {
     pub setup_complete: AtomicBool,
     pub remote_listening: AtomicBool,
     pub quit_requested: AtomicBool,
+    pub checkpoint_worker: crate::persistence_checkpoint::CheckpointWorker,
+    pub checkpoint_status: Mutex<CheckpointStatus>,
     ready_logged: AtomicBool,
     exited: AtomicBool,
     store: Mutex<Option<RunStore>>,
@@ -45,6 +53,8 @@ impl AppLifecycle {
             failed: AtomicBool::new(false), tray_initialized: AtomicBool::new(false),
             persistence_initialized: AtomicBool::new(false), setup_complete: AtomicBool::new(false),
             remote_listening: AtomicBool::new(false), quit_requested: AtomicBool::new(false),
+            checkpoint_worker: crate::persistence_checkpoint::CheckpointWorker::default(),
+            checkpoint_status: Mutex::new(CheckpointStatus::default()),
             ready_logged: AtomicBool::new(false), exited: AtomicBool::new(false),
             store: Mutex::new(None), logger: OnceLock::new(),
         }

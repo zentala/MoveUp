@@ -90,7 +90,11 @@ saved state and PM3 recovered the process. Ordinary Windows PM3 stop uses taskki
 and can force termination without a cooperative flush; persistence on that path
 remains an unresolved product requirement, even when the command returns success.
 
-The shared Store correction is delivered; it does not resolve forced termination.
+Settings and session state now use one application-owned writer. It writes a
+complete JSON snapshot through a same-directory temporary file, flushes that
+file, and replaces the settings file atomically. A periodic session checkpoint
+runs every 60 seconds independently of sensor readings. Neither mechanism can
+run after forced termination; Windows lifecycle verification remains separate.
 The reviewed PM3 login activation is now registered in the existing Windows Run
 entry, with its REG_SZ type and exact value verified by readback after the reviewed
 build and native readiness checks. The previous value and type are retained for
@@ -110,8 +114,10 @@ That is `C:\Users\<you>\AppData\Roaming\io.zntl.desk\`. It contains:
 - `desk.db` — SQLite database with your sitting/standing sessions
 - `logs\YYYY-MM-DD\` — per-minute state snapshots and `events.log`
 - `profiles\` — ergonomic and communication profiles
-- `backups\` — timestamped copies of `desk.db`
-- the settings store written by `tauri-plugin-store`
+- `backups\` — up to 30 validated timestamped SQLite-consistent copies of an
+  existing `desk.db`; the first launch has no database to copy. Backup failures
+  are recorded in `logs\...\events.log` and do not prevent startup.
+- the settings JSON store, written by MoveUp's shared persistence owner
 
 The program folder (`%LOCALAPPDATA%\MoveUp\`) holds only the application
 itself, so reinstalling never touches your data.

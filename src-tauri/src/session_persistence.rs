@@ -38,17 +38,23 @@ pub(crate) fn save_via_app_result(
     app: &tauri::AppHandle,
     session: &SessionManager,
 ) -> Result<(), String> {
+    let wall_now = chrono::Utc::now();
+    let monotonic_now = std::time::Instant::now();
     let Some(store) = app.try_state::<crate::app_store::AppStore<tauri::Wry>>() else {
-        return Err("Failed to persist session state: shared AppStore is missing".into());
+        let result = Err("Failed to persist session state: shared AppStore is missing".into());
+        crate::persistence_checkpoint::record_result(app, &result, wall_now);
+        return result;
     };
     let reset = load_reset_after(store.inner());
-    save_via_app_with_reset_result(app, session, store.inner(), reset)
+    let result = save_via_app_session_at(app, session, store.inner(), reset, wall_now, monotonic_now);
+    crate::persistence_checkpoint::record_result(app, &result, wall_now);
+    result
 }
 
 pub(crate) fn save_via_app_with_reset(
     app: &tauri::AppHandle,
     session: &SessionManager,
-    store: &Store<tauri::Wry>,
+    store: &crate::app_store::AppStore<tauri::Wry>,
     reset: Option<String>,
 ) -> bool {
     save_via_app_with_reset_result(app, session, store, reset).is_ok()
@@ -57,19 +63,72 @@ pub(crate) fn save_via_app_with_reset(
 pub(crate) fn save_via_app_with_reset_result(
     app: &tauri::AppHandle,
     session: &SessionManager,
-    store: &Store<tauri::Wry>,
+    store: &crate::app_store::AppStore<tauri::Wry>,
     reset: Option<String>,
+) -> Result<(), String> {
+    let wall_now = chrono::Utc::now();
+    let monotonic_now = std::time::Instant::now();
+    let result = save_via_app_session_at(app, session, store, reset, wall_now, monotonic_now);
+    crate::persistence_checkpoint::record_result(app, &result, wall_now);
+    result
+}
+
+/// Saves the current manager and policy snapshot using one captured wall and
+/// monotonic clock pair. The periodic owner calls this without a sensor read.
+pub(crate) fn save_via_app_at(
+    app: &tauri::AppHandle,
+    wall_now: chrono::DateTime<chrono::Utc>,
+    monotonic_now: std::time::Instant,
+) -> Result<(), String> {
+    run_checkpoint_attempt(app, wall_now, || {
+        let state = app.try_state::<crate::commands::AppState>()
+            .ok_or_else(|| "Failed to persist session state: application state is missing".to_string())?;
+        let store = app.try_state::<crate::app_store::AppStore<tauri::Wry>>()
+            .ok_or_else(|| "Failed to persist session state: shared AppStore is missing".to_string())?;
+        let session = state.session.lock().unwrap_or_else(|error| error.into_inner());
+        let reset = load_reset_after(store.inner());
+        let policy = state.comm_policy.lock().unwrap_or_else(|error| error.into_inner());
+        PersistedEngineState::from_session_with_policy(
+            &session, reset, &policy, wall_now, monotonic_now,
+        ).save(store.inner())
+    })
+}
+
+/// Runs the checkpoint's one persistence attempt and owns its status/log/notice
+/// result so the worker cannot report the same outcome a second time.
+pub(crate) fn run_checkpoint_attempt<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    wall_now: chrono::DateTime<chrono::Utc>,
+    persist: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let result = persist();
+    crate::persistence_checkpoint::record_checkpoint_result(app, &result, wall_now);
+    result
+}
+
+fn save_via_app_session_at(
+    app: &tauri::AppHandle,
+    session: &SessionManager,
+    store: &crate::app_store::AppStore<tauri::Wry>,
+    reset: Option<String>,
+    wall_now: chrono::DateTime<chrono::Utc>,
+    monotonic_now: std::time::Instant,
 ) -> Result<(), String> {
     if let Some(state) = app.try_state::<crate::commands::AppState>() {
         let policy = state.comm_policy.lock().unwrap_or_else(|error| error.into_inner());
-        return save_with_policy_result(store, session, &policy, reset);
+        let snapshot = PersistedEngineState::from_session_with_policy(
+            session, reset, &policy, wall_now, monotonic_now,
+        );
+        return snapshot.save(store).inspect_err(|error| {
+            log::error!("Failed to persist session state: {error}");
+        });
     }
     PersistedEngineState::from_session(session, reset).save(store)
 }
 
 /// Shared production/test seam that writes one coherent engine + policy snapshot.
 pub fn save_with_policy<R: Runtime>(
-    store: &Store<R>,
+    store: &crate::app_store::AppStore<R>,
     session: &SessionManager,
     policy: &crate::communication_policy::CommunicationPolicy,
     reset: Option<String>,
@@ -78,7 +137,7 @@ pub fn save_with_policy<R: Runtime>(
 }
 
 pub(crate) fn save_with_policy_result<R: Runtime>(
-    store: &Store<R>,
+    store: &crate::app_store::AppStore<R>,
     session: &SessionManager,
     policy: &crate::communication_policy::CommunicationPolicy,
     reset: Option<String>,
@@ -95,13 +154,14 @@ pub(crate) fn save_with_policy_result<R: Runtime>(
 
 /// Clears persisted session state on daily reset, but preserves the
 /// reset timestamp so that DB seeding after restart filters correctly.
-pub fn clear<R: Runtime>(store: &Store<R>) {
+pub fn clear<R: Runtime>(store: &crate::app_store::AppStore<R>) {
+    let store = store.write();
     let pending = store.get(STORE_KEY).and_then(PersistedEngineState::from_stored_value)
         .map(|state| state.pending_history).unwrap_or_default();
     let mut reset_state = PersistedEngineState::empty_for_today();
     reset_state.pending_history = pending;
     reset_state.daily_reset_after = Some(chrono::Utc::now().to_rfc3339());
-    if let Err(error) = reset_state.save(store) {
+    if let Err(error) = reset_state.save_locked(&store) {
         log::error!("Failed to persist reset state: {}", error);
     }
 }
@@ -174,6 +234,56 @@ impl PersistedEngineState {
     /// `reset_after` is preserved from previous persisted state.
     pub fn from_session(session: &SessionManager, reset_after: Option<String>) -> Self {
         let tracker = &session.hourly_break_tracker;
+        let mut engine = session.state.clone();
+        let mut pending_history = session.pending_history.clone();
+
+        // A running posture is committed only at a later observed boundary.
+        // Persist its known prefix and projected counters without mutating the
+        // live manager or extending coverage beyond its last actual reading.
+        if let (Some(started), Some(end)) = (
+            session.history_span_started,
+            session.history_last_reading.into_iter().chain(session.state.last_tick_ts).max(),
+        ) {
+            if end > started {
+                let span = crate::session_types::CompletedSession {
+                    started_at: started.to_rfc3339(),
+                    ended_at: end.to_rfc3339(),
+                    duration_secs: (end - started).num_seconds(),
+                };
+                if !pending_history.iter().any(|pending| {
+                    pending.state == session.state.state
+                        && pending.span.started_at == span.started_at
+                        && pending.span.ended_at == span.ended_at
+                }) {
+                    pending_history.push(crate::session_types::PendingHistory {
+                        state: session.state.state.clone(),
+                        span,
+                        credit: None,
+                    });
+                }
+
+                let posture_start = match session.state.state {
+                    crate::session_types::DeskState::Sitting => engine.sitting_started,
+                    crate::session_types::DeskState::Standing => engine.standing_bout_started,
+                    _ => None,
+                };
+                if let Some(posture_start) = posture_start {
+                    let known_start = posture_start.max(started);
+                    let elapsed = (end - known_start).num_seconds().max(0);
+                    match session.state.state {
+                        crate::session_types::DeskState::Sitting => {
+                            engine.sitting_seconds += elapsed;
+                            engine.sitting_seconds_total += elapsed;
+                        }
+                        crate::session_types::DeskState::Standing => {
+                            engine.standing_seconds += elapsed;
+                            engine.standing_session_secs += elapsed;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
         Self {
             schema_version: ENGINE_SCHEMA_VERSION,
             // The counters belong to the last day the engine actually rolled
@@ -181,11 +291,11 @@ impl PersistedEngineState {
             // relabel yesterday's counters as today's.
             date_local: session.last_reset_date.format("%Y-%m-%d").to_string(),
             daily_reset_after: reset_after,
-            engine: Some(session.state.clone()),
-            pending_history: session.pending_history.clone(),
+            engine: Some(engine.clone()),
+            pending_history,
             notification_policy: None,
-            sitting_seconds: session.state.sitting_seconds,
-            daily_score: session.state.daily_score,
+            sitting_seconds: engine.sitting_seconds,
+            daily_score: engine.daily_score,
             hours_with_break: tracker.hours_with_break.clone(),
             hours_active: tracker.hours_active.clone(),
             current_away_secs: tracker.current_away_secs,
@@ -234,7 +344,15 @@ impl PersistedEngineState {
     }
 
     /// Saves persisted state to the store.
-    pub fn save<R: Runtime>(&self, store: &Store<R>) -> Result<(), String> {
+    pub fn save<R: Runtime>(&self, store: &crate::app_store::AppStore<R>) -> Result<(), String> {
+        let store = store.write();
+        self.save_locked(&store)
+    }
+
+    fn save_locked<R: Runtime>(
+        &self,
+        store: &crate::app_store::AppStoreWriteGuard<'_, R>,
+    ) -> Result<(), String> {
         let previous = store.get(STORE_KEY);
         let previous_state = match previous.as_ref() {
             Some(value) => Some(Self::from_stored_value(value.clone()).ok_or_else(|| {
@@ -377,6 +495,16 @@ impl SessionManager {
 
     /// Drops every "started at" anchor a live counter measures from.
     fn clear_live_anchors(&mut self) {
+        // A saved break duration is a known pre-exit prefix. Keep its semantic
+        // anchor so a real return to Sitting can award that credit, while the
+        // absence of a history span prevents charging any stopped-time gap.
+        let break_prefix = if self.state.state != crate::session_types::DeskState::Sitting {
+            self.state.break_started.map(|started| {
+                (started, self.state.break_seconds.max(self.observed_break_secs))
+            })
+        } else {
+            None
+        };
         self.history_span_started = None;
         self.history_last_reading = None;
         self.interrupted_history.clear();
@@ -388,6 +516,11 @@ impl SessionManager {
         self.state.standing_bout_started = None;
         self.state.last_tick_ts = None;
         self.state.last_accumulate_ts = None;
+        if let Some((started, known_secs)) = break_prefix {
+            self.state.break_started = Some(started);
+            self.state.break_seconds = known_secs;
+            self.observed_break_secs = known_secs;
+        }
     }
 }
 

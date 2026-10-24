@@ -101,9 +101,10 @@ impl AppConfig {
     }
 
     /// Saves this config to the store.
-    pub fn save<R: Runtime>(&self, store: &Store<R>) -> Result<(), String> {
+    pub fn save<R: Runtime>(&self, store: &crate::app_store::AppStore<R>) -> Result<(), String> {
         let value =
             serde_json::to_value(self).map_err(|e| format!("Failed to serialize config: {}", e))?;
+        let store = store.write();
         let previous = store.get("app_config");
         store.set("app_config", value);
         if let Err(save_error) = store.save() {

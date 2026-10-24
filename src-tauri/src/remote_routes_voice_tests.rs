@@ -48,7 +48,7 @@ struct Harness {
     state: RemoteState,
     db: Arc<Mutex<Option<Connection>>>,
     logs: tempfile::TempDir,
-    store: Arc<tauri_plugin_store::Store<MockRuntime>>,
+    store: crate::app_store::AppStore<MockRuntime>,
     _store_owner: tauri::App<MockRuntime>,
 }
 

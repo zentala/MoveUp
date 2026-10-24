@@ -12,6 +12,259 @@ fn app() -> tauri::App<MockRuntime> {
 }
 
 #[test]
+fn shared_store_closes_the_plugins_exit_writer_but_keeps_rust_readers() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let owner = app();
+    let store = crate::app_store::initialize_at(owner.handle(), &file).unwrap();
+    store.set("preserved_unknown_key", serde_json::json!({"keep": true}));
+    store.save().unwrap();
+
+    assert_eq!(store.get("preserved_unknown_key").unwrap()["keep"], true);
+    let plugin_reader = owner.store_builder(&file).build().unwrap();
+    assert!(
+        !std::ptr::eq(plugin_reader.as_ref(), &*store),
+        "a fresh plugin Store proves close_resource removed the shared Store from the plugin's exit-save registry"
+    );
+    assert_eq!(plugin_reader.get("preserved_unknown_key").unwrap()["keep"], true);
+    plugin_reader.close_resource();
+}
+
+#[test]
+fn checkpoint_recovers_known_sitting_prefix_without_crediting_the_restart_gap() {
+    use chrono::{Duration as ChronoDuration, Utc};
+
+    let temp = tempfile::tempdir().unwrap();
+    let settings_file = temp.path().join("settings.json");
+    let db_file = temp.path().join("desk.db");
+    let owner = app();
+    let store = crate::app_store::initialize_at(owner.handle(), &settings_file).unwrap();
+    let mut live = crate::session::SessionManager::new();
+    let t0 = Utc::now() - ChronoDuration::seconds(600);
+
+    // Establish a real Sitting span and keep every sensor observation within
+    // the existing five-minute coverage rule through t0 + 600 seconds.
+    // Five elapsed seconds of debounce establish Sitting at t0.
+    for offset in (-5..=0).chain((60..=600).step_by(60)) {
+        live.on_reading_at(720, true, t0 + ChronoDuration::seconds(offset));
+    }
+    assert_eq!(live.state.state, crate::session_types::DeskState::Sitting);
+    assert!(live.state.sitting_seconds == 0 && live.state.sitting_seconds_total == 0,
+        "the producer leaves the current interval uncommitted until a real boundary");
+    assert!(live.pending_history.is_empty());
+
+    let policy = crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    );
+    let checkpoint = crate::session_persistence::PersistedEngineState::from_session_with_policy(
+        &live,
+        None,
+        &policy,
+        t0 + ChronoDuration::seconds(600),
+        std::time::Instant::now(),
+    );
+    checkpoint.save(&store).unwrap();
+
+    assert!(live.pending_history.is_empty(), "checkpointing must not close or mutate the live interval");
+    assert_eq!(live.state.sitting_seconds, 0);
+    assert_eq!(live.state.sitting_seconds_total, 0);
+    let checkpoint_owner = app();
+    let checkpoint_store = crate::app_store::initialize_at(checkpoint_owner.handle(), &settings_file).unwrap();
+    let saved = crate::session_persistence::PersistedEngineState::load(&checkpoint_store).unwrap();
+    let row = saved.pending_history.as_slice();
+    assert_eq!(row.len(), 1, "the checkpoint carries one recoverable known prefix");
+    assert_eq!(row[0].state, crate::session_types::DeskState::Sitting);
+    assert_eq!(row[0].span.duration_secs, 600);
+    let saved_engine = saved.engine.as_ref().unwrap();
+    assert_eq!(saved_engine.sitting_seconds, 600);
+    assert_eq!(saved_engine.sitting_seconds_total, 600);
+
+    let db = rusqlite::Connection::open(&db_file).unwrap();
+    crate::db::init_schema(&db).unwrap();
+    let empty_totals = crate::db_sessions::load_today_totals(&db, None).unwrap();
+    let mut recovered = crate::session::SessionManager::new();
+    recovered.load_today_totals(&empty_totals);
+    recovered.load_persisted_state(&saved);
+    assert_eq!(recovered.pending_history.len(), 1);
+    assert_eq!(recovered.pending_history[0].span.duration_secs, 600);
+    assert!(recovered.state.last_tick_ts.is_none(), "restart must clear the live observation anchor");
+
+    // The stopped interval is unknown. A new coherent sample run starts a new
+    // observed prefix instead of extending Sitting through the outage.
+    for offset in 1200..=1205 {
+        recovered.on_reading_at(720, true, t0 + ChronoDuration::seconds(offset));
+    }
+    recovered.on_reading_at(720, true, t0 + ChronoDuration::seconds(1265));
+    assert_eq!(recovered.state.state, crate::session_types::DeskState::Sitting);
+    assert_eq!(recovered.history_span_started, Some(t0 + ChronoDuration::seconds(1205)));
+    assert_eq!(recovered.get_live_sitting_seconds(t0 + ChronoDuration::seconds(1265)), 660,
+        "the six hundred seconds of stopped time are not credited");
+    let after_resume = crate::session_persistence::PersistedEngineState::from_session(&recovered, None);
+    assert_eq!(after_resume.sitting_seconds, 660);
+    assert_eq!(after_resume.pending_history.len(), 2);
+    assert_eq!(after_resume.pending_history.iter().filter(|pending|
+        pending.span.duration_secs == 600).count(), 1,
+        "repeated checkpoints retain the original history row exactly once");
+
+    let mut inserted = Vec::new();
+    crate::serial_periodic_reset::persist_pending_history(&mut recovered, &db, |pending, id| {
+        inserted.push((pending.span.duration_secs, id));
+    }).unwrap();
+    assert_eq!(inserted.len(), 1, "the live manager retries only its restored pending row");
+    assert_eq!(inserted[0].0, 600);
+    let rows: i64 = db.query_row("SELECT COUNT(*) FROM sessions", [], |record| record.get(0)).unwrap();
+    assert_eq!(rows, 1, "the known prefix is stored once; the resumed live span stays open");
+
+    // A crash after the INSERT but before the next settings save replays the
+    // same durable envelope. The adapter recognizes the existing row.
+    let replay_owner = app();
+    let replay_store = crate::app_store::initialize_at(replay_owner.handle(), &settings_file).unwrap();
+    let replay_snapshot = crate::session_persistence::PersistedEngineState::load(&replay_store).unwrap();
+    let replay_totals = crate::db_sessions::load_today_totals(&db, None).unwrap();
+    let mut replayed = crate::session::SessionManager::new();
+    replayed.load_today_totals(&replay_totals);
+    replayed.load_persisted_state(&replay_snapshot);
+    assert_eq!(replayed.pending_history.len(), 1);
+    let mut replay_insertions = Vec::new();
+    crate::serial_periodic_reset::persist_pending_history(&mut replayed, &db, |pending, id| {
+        replay_insertions.push((pending.span.duration_secs, id));
+    }).unwrap();
+    assert!(replay_insertions.is_empty(), "replay acknowledges the already inserted observation without a duplicate");
+    let rows_after_replay: i64 = db.query_row("SELECT COUNT(*) FROM sessions", [], |record| record.get(0)).unwrap();
+    assert_eq!(rows_after_replay, 1, "first persistence and crash replay leave exactly one DB row");
+}
+
+#[test]
+fn checkpointed_standing_and_away_break_keeps_known_credit_across_restart() {
+    use chrono::{Duration as ChronoDuration, Utc};
+
+    let temp = tempfile::tempdir().unwrap();
+    let settings_file = temp.path().join("settings.json");
+    let db_file = temp.path().join("desk.db");
+    let owner = app();
+    let store = crate::app_store::initialize_at(owner.handle(), &settings_file).unwrap();
+    let mut live = crate::session::SessionManager::new();
+    let t0 = Utc::now() - ChronoDuration::seconds(1812);
+
+    for offset in -5..=0 {
+        live.on_reading_at(720, true, t0 + ChronoDuration::seconds(offset));
+    }
+    for offset in (60..=600).step_by(60) {
+        live.on_reading_at(720, true, t0 + ChronoDuration::seconds(offset));
+    }
+    for offset in 601..=606 {
+        live.on_reading_at(1200, true, t0 + ChronoDuration::seconds(offset));
+    }
+    assert_eq!(live.state.state, crate::session_types::DeskState::Standing);
+    for offset in (666..=1206).step_by(60) {
+        live.on_reading_at(1200, true, t0 + ChronoDuration::seconds(offset));
+    }
+    for offset in 1207..=1212 {
+        live.on_reading_at(720, false, t0 + ChronoDuration::seconds(offset));
+    }
+    assert_eq!(live.state.state, crate::session_types::DeskState::Away);
+    for offset in (1272..=1812).step_by(60) {
+        live.on_reading_at(720, false, t0 + ChronoDuration::seconds(offset));
+    }
+
+    let policy = crate::communication_policy::CommunicationPolicy::new(
+        crate::communication_profile::CommunicationProfile::default(),
+        crate::ergonomic_profile::ErgonomicProfile::default(),
+    );
+    let checkpoint = crate::session_persistence::PersistedEngineState::from_session_with_policy(
+        &live,
+        None,
+        &policy,
+        t0 + ChronoDuration::seconds(1812),
+        std::time::Instant::now(),
+    );
+    let expected_break = checkpoint.engine.as_ref().unwrap().break_seconds;
+    assert!(expected_break >= 1200, "fixture has an observed standing-plus-away break prefix");
+    assert_eq!(checkpoint.engine.as_ref().unwrap().sitting_seconds_total, 606);
+    assert_eq!(checkpoint.engine.as_ref().unwrap().standing_seconds, 606);
+    checkpoint.save(&store).unwrap();
+
+    let reopened_owner = app();
+    let reopened_store = crate::app_store::initialize_at(reopened_owner.handle(), &settings_file).unwrap();
+    let saved = crate::session_persistence::PersistedEngineState::load(&reopened_store).unwrap();
+    let db = rusqlite::Connection::open(&db_file).unwrap();
+    crate::db::init_schema(&db).unwrap();
+    let mut restored = crate::session::SessionManager::new();
+    restored.load_today_totals(&crate::db_sessions::load_today_totals(&db, None).unwrap());
+    restored.load_persisted_state(&saved);
+    assert_eq!(restored.state.sitting_seconds_total, 606, "raw Sitting prefix survives");
+    assert_eq!(restored.state.standing_seconds, 606, "raw Standing prefix survives");
+    assert_eq!(restored.state.break_seconds, expected_break);
+
+    // The outage is unknown. Only new readings establish a return to Sitting;
+    // the pre-crash observed break earns credit at that real transition.
+    for offset in 2400..=2405 {
+        restored.on_reading_at(720, true, t0 + ChronoDuration::seconds(offset));
+    }
+    assert_eq!(restored.state.state, crate::session_types::DeskState::Sitting);
+    assert_eq!(restored.state.last_break_secs, expected_break);
+    assert_eq!(restored.state.last_break_credit, crate::session_types::BreakCredit::Full);
+    assert_eq!(restored.state.sitting_seconds, 0);
+    assert_eq!(restored.state.sitting_seconds_total, 606, "break credit never changes raw history");
+    restored.on_reading_at(720, true, t0 + ChronoDuration::seconds(2465));
+    assert_eq!(restored.state.last_break_secs, expected_break, "a later reading does not apply break credit twice");
+
+    let pending = restored.pending_history.len();
+    assert_eq!(pending, 3, "the Sitting, Standing, and Away history prefixes are each retained once");
+    let mut inserted = Vec::new();
+    crate::serial_periodic_reset::persist_pending_history(&mut restored, &db, |row, id| {
+        inserted.push((row.state.clone(), row.span.duration_secs, id));
+    }).unwrap();
+    assert_eq!(inserted.len(), 3);
+    let rows: i64 = db.query_row("SELECT COUNT(*) FROM sessions", [], |record| record.get(0)).unwrap();
+    assert_eq!(rows, 3, "all known individual intervals persist once across the outage");
+}
+
+#[test]
+fn concurrent_settings_updates_are_saved_as_one_serialized_complete_store() {
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let owner = app();
+    let store = Arc::new(crate::app_store::initialize_at(owner.handle(), &file).unwrap());
+    let (first_entered_tx, first_entered_rx) = mpsc::channel();
+    let (release_first_tx, release_first_rx) = mpsc::channel();
+    let (second_done_tx, second_done_rx) = mpsc::channel();
+
+    let first_store = store.clone();
+    let first = thread::spawn(move || {
+        let writer = first_store.write();
+        writer.set("first_writer", serde_json::json!(true));
+        first_entered_tx.send(()).unwrap();
+        release_first_rx.recv().unwrap();
+        writer.save().unwrap();
+    });
+    first_entered_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+
+    let second_store = store.clone();
+    let second = thread::spawn(move || {
+        let writer = second_store.write();
+        writer.set("second_writer", serde_json::json!(true));
+        writer.save().unwrap();
+        second_done_tx.send(()).unwrap();
+    });
+    assert!(second_done_rx.recv_timeout(Duration::from_millis(30)).is_err(),
+        "the second complete update waits for the first writer to release the shared Store lock");
+    release_first_tx.send(()).unwrap();
+    first.join().unwrap();
+    second.join().unwrap();
+
+    let reader = app();
+    let reloaded = crate::app_store::initialize_at(reader.handle(), &file).unwrap();
+    assert_eq!(reloaded.get("first_writer"), Some(serde_json::json!(true)));
+    assert_eq!(reloaded.get("second_writer"), Some(serde_json::json!(true)));
+}
+
+#[test]
 fn startup_restores_both_selected_profiles_from_fresh_shared_store() {
     let temp = tempfile::tempdir().unwrap();
     let file = temp.path().join("settings.json");
@@ -242,9 +495,9 @@ fn shared_real_store_load_preserves_bytes_and_fresh_app_reloads_config_and_engin
     let app1 = app();
     let shared = crate::app_store::initialize_at(app1.handle(), &file).unwrap();
     let again = crate::app_store::initialize_at(app1.handle(), &file).unwrap();
-    assert!(Arc::ptr_eq(&shared, &again));
-    assert!(Arc::ptr_eq(&shared, &app1.state::<crate::app_store::AppStore<MockRuntime>>()));
-    assert!(Arc::ptr_eq(&shared, &app1.get_store(&file).unwrap()));
+    assert!(shared.shares_store_with(&again));
+    assert!(shared.shares_store_with(app1.state::<crate::app_store::AppStore<MockRuntime>>().inner()));
+    assert!(app1.get_store(&file).is_none(), "the exit-writing plugin must not retain a second registered Store");
     assert_eq!(fs::read(&file).unwrap(), bytes);
 
     let config = crate::config::AppConfig {
@@ -263,7 +516,7 @@ fn shared_real_store_load_preserves_bytes_and_fresh_app_reloads_config_and_engin
 
     let app2 = app();
     let reopened = crate::app_store::initialize_at(app2.handle(), &file).unwrap();
-    assert!(!Arc::ptr_eq(&shared, &reopened));
+    assert!(!shared.shares_store_with(&reopened));
     assert_eq!(reopened.get("unknown_key").unwrap()["keep"], 7);
     let loaded_config = crate::config::AppConfig::load(&reopened);
     assert_eq!(serde_json::to_value(loaded_config).unwrap(), serde_json::to_value(config).unwrap());

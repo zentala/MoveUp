@@ -16,6 +16,41 @@ use crate::relay_auth::{
 
 const TOKEN: &str = "mu_d_0123456789012345678901234567890123456789012";
 
+#[test]
+fn desk_record_save_and_clear_use_the_shared_settings_writer() {
+    use tauri::test::{mock_builder, mock_context, noop_assets};
+
+    fn app() -> tauri::App<tauri::test::MockRuntime> {
+        mock_builder().plugin(tauri_plugin_store::Builder::default().build())
+            .build(mock_context(noop_assets())).unwrap()
+    }
+
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let owner = app();
+    let store = crate::app_store::initialize_at(owner.handle(), &file).unwrap();
+    store.set("unknown_setting", json!({"keep": 17}));
+    store.save().unwrap();
+
+    let record = crate::relay_auth::DeskRecord {
+        desk_id: "synthetic-desk".into(),
+        desk_name: "Test desk".into(),
+        plan: Some("test-plan".into()),
+        expires_at: Some("2027-01-01T00:00:00Z".into()),
+    };
+    crate::relay_auth::save_desk(&store, &record).unwrap();
+    let reopened_owner = app();
+    let reopened = crate::app_store::initialize_at(reopened_owner.handle(), &file).unwrap();
+    assert_eq!(crate::relay_auth::load_desk(&reopened), Some(record));
+    assert_eq!(reopened.get("unknown_setting").unwrap()["keep"], 17);
+
+    crate::relay_auth::clear_desk(&reopened).unwrap();
+    let cleared_owner = app();
+    let cleared = crate::app_store::initialize_at(cleared_owner.handle(), &file).unwrap();
+    assert_eq!(crate::relay_auth::load_desk(&cleared), None);
+    assert_eq!(cleared.get("unknown_setting").unwrap()["keep"], 17);
+}
+
 // ─── Credential store ───────────────────────────────────────────────────────
 
 #[test]

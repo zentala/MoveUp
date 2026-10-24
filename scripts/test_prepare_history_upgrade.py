@@ -36,6 +36,24 @@ CREATE TABLE sessions (
     break_credit TEXT
 )
 """
+CREATE_CURRENT_SESSIONS = CREATE_SESSIONS.replace(
+    "\n)", "\n, history_kind TEXT\n)"
+)
+CREATE_FRESH_CURRENT_SESSIONS = """
+CREATE TABLE sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    state TEXT NOT NULL,
+    duration_seconds INTEGER,
+    sitting_seconds INTEGER DEFAULT 0,
+    standing_seconds INTEGER DEFAULT 0,
+    position_changes INTEGER DEFAULT 0,
+    session_limit_secs INTEGER DEFAULT 2700,
+    break_credit TEXT,
+    history_kind TEXT
+)
+"""
 SETTINGS_BYTES = b'{\n  "private-value": "DO_NOT_PRINT", "format": [1, 2]\n}\n'
 
 
@@ -64,12 +82,14 @@ class PrepareHistoryUpgradeTests(unittest.TestCase):
             self.source_writer.close()
         self.temporary.cleanup()
 
-    def create_database(self, rows: int = 3, *, wal: bool = False) -> None:
+    def create_database(
+        self, rows: int = 3, *, wal: bool = False, current_schema: bool = False
+    ) -> None:
         connection = sqlite3.connect(self.source)
         if wal:
             mode = connection.execute("PRAGMA journal_mode=WAL").fetchone()[0]
             self.assertEqual(mode.lower(), "wal")
-        connection.execute(CREATE_SESSIONS)
+        connection.execute(CREATE_CURRENT_SESSIONS if current_schema else CREATE_SESSIONS)
         connection.executemany(
             "INSERT INTO sessions (started_at, state, date_local, break_credit) "
             "VALUES (?, ?, ?, ?)",
@@ -83,10 +103,147 @@ class PrepareHistoryUpgradeTests(unittest.TestCase):
         if not wal:
             connection.close()
 
-    def prepare(self) -> dict[str, object]:
+    def prepare(self, *, current_schema_backup_only: bool = False) -> dict[str, object]:
         return prepare.prepare_backup(
-            self.source, self.settings_source, self.destination_dir
+            self.source,
+            self.settings_source,
+            self.destination_dir,
+            current_schema_backup_only=current_schema_backup_only,
         )
+
+    def test_current_schema_is_backup_only_and_source_remains_unchanged(self) -> None:
+        self.create_database(current_schema=True)
+        before = sqlite3.connect(self.source)
+        before_columns = before.execute("PRAGMA table_info(sessions)").fetchall()
+        before_rows = before.execute(
+            "SELECT id, started_at, state, date_local, break_credit, history_kind "
+            "FROM sessions ORDER BY id"
+        ).fetchall()
+        history_column = next(row for row in before_columns if row[1] == "history_kind")
+        self.assertEqual(history_column[2:], ("TEXT", 0, None, 0))
+
+        with self.assertRaisesRegex(prepare.PreparationError, "history_kind is already present"):
+            self.prepare()
+        self.assertEqual(list(self.destination_dir.iterdir()), [])
+
+        result = self.prepare(current_schema_backup_only=True)
+        recovery_set = Path(str(result["recovery_set"]))
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["mode"], "backup-only-current-schema")
+        self.assertEqual(result["migration"], "not-performed")
+        self.assertEqual(result["backup_only"], True)
+        self.assertIn("history_kind TEXT NULL", str(result["source_schema"]))
+        copied = sqlite3.connect(recovery_set / "desk.db")
+        self.assertEqual(copied.execute("PRAGMA integrity_check").fetchone(), ("ok",))
+        self.assertEqual(
+            copied.execute(
+                "SELECT id, started_at, state, date_local, break_credit, history_kind "
+                "FROM sessions ORDER BY id"
+            ).fetchall(),
+            before_rows,
+        )
+        self.assertEqual((recovery_set / "settings.json").read_bytes(), SETTINGS_BYTES)
+        self.assertEqual(before.execute("PRAGMA table_info(sessions)").fetchall(), before_columns)
+        self.assertEqual(
+            before.execute(
+                "SELECT id, started_at, state, date_local, break_credit, history_kind "
+                "FROM sessions ORDER BY id"
+            ).fetchall(),
+            before_rows,
+        )
+        copied.close()
+        before.close()
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            exit_code = prepare.main([
+                "--source", str(self.source),
+                "--settings-source", str(self.settings_source),
+                "--destination-dir", str(self.destination_dir),
+                "--current-schema-backup-only",
+            ])
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        report = json.loads(stdout.getvalue())
+        self.assertEqual(report["mode"], "backup-only-current-schema")
+        self.assertEqual(report["migration"], "not-performed")
+        self.assertTrue(report["backup_only"])
+
+    def test_current_backup_only_rejects_unknown_columns_and_history_kind_shapes(self) -> None:
+        invalid_definitions = (
+            "history_kind INTEGER",
+            "history_kind TEXT NOT NULL",
+            "history_kind TEXT DEFAULT 'individual'",
+            "history_kind TEXT, unexpected TEXT",
+        )
+        for definition in invalid_definitions:
+            with self.subTest(definition=definition):
+                self.source.unlink(missing_ok=True)
+                connection = sqlite3.connect(self.source)
+                schema = CREATE_SESSIONS.replace(
+                    "\n)", f"\n, {definition}\n)"
+                )
+                try:
+                    connection.execute(schema)
+                    if definition == "history_kind TEXT NOT NULL":
+                        connection.execute(
+                            "INSERT INTO sessions (started_at, state, history_kind) "
+                            "VALUES ('2026-10-22', 'Sitting', 'individual')"
+                        )
+                    else:
+                        connection.execute(
+                            "INSERT INTO sessions (started_at, state) "
+                            "VALUES ('2026-10-22', 'Sitting')"
+                        )
+                    connection.commit()
+                finally:
+                    connection.close()
+                with self.assertRaises(prepare.PreparationError):
+                    self.prepare(current_schema_backup_only=True)
+                self.assertEqual(list(self.destination_dir.iterdir()), [])
+
+    def test_current_backup_only_rejects_incompatible_prior_column_semantics(self) -> None:
+        invalid_definitions = (
+            ("started_at INTEGER NOT NULL", "started_at TEXT NOT NULL"),
+            ("started_at TEXT", "started_at TEXT NOT NULL"),
+        )
+        for invalid, expected in invalid_definitions:
+            with self.subTest(invalid=invalid):
+                self.source.unlink(missing_ok=True)
+                connection = sqlite3.connect(self.source)
+                schema = CREATE_CURRENT_SESSIONS.replace(expected, invalid)
+                try:
+                    connection.execute(schema)
+                    connection.execute(
+                        "INSERT INTO sessions (started_at, state) VALUES (?, ?)",
+                        ("2026-10-22T12:00:00Z", "Sitting"),
+                    )
+                    connection.commit()
+                finally:
+                    connection.close()
+                with self.assertRaises(prepare.PreparationError):
+                    self.prepare(current_schema_backup_only=True)
+                self.assertEqual(list(self.destination_dir.iterdir()), [])
+
+    def test_current_backup_only_accepts_supported_create_and_alter_layouts(self) -> None:
+        fresh = sqlite3.connect(":memory:")
+        fresh.execute(CREATE_FRESH_CURRENT_SESSIONS)
+        fresh.execute("ALTER TABLE sessions ADD COLUMN date_local TEXT")
+        self.assertEqual(
+            set(prepare._check_schema(fresh, current_schema_backup_only=True)),
+            set(prepare.EXPECTED_SESSION_COLUMNS) | {prepare.CURRENT_HISTORY_KIND_COLUMN},
+        )
+        fresh.close()
+
+        altered = sqlite3.connect(":memory:")
+        altered.execute(CREATE_SESSIONS)
+        altered.execute("ALTER TABLE sessions ADD COLUMN history_kind TEXT")
+        self.assertEqual(
+            set(prepare._check_schema(altered, current_schema_backup_only=True)),
+            set(prepare.EXPECTED_SESSION_COLUMNS) | {prepare.CURRENT_HISTORY_KIND_COLUMN},
+        )
+        altered.close()
 
     def test_complete_set_copies_wal_database_and_exact_settings_bytes(self) -> None:
         self.create_database(wal=True)

@@ -115,14 +115,16 @@ pub fn load_desk<R: Runtime>(store: &Store<R>) -> Option<DeskRecord> {
 }
 
 /// Persists the registration's public half.
-pub fn save_desk<R: Runtime>(store: &Store<R>, record: &DeskRecord) -> Result<(), String> {
+pub fn save_desk<R: Runtime>(store: &crate::app_store::AppStore<R>, record: &DeskRecord) -> Result<(), String> {
     let value = serde_json::to_value(record).map_err(|e| e.to_string())?;
+    let store = store.write();
     store.set(DESK_KEY, value);
     store.save().map_err(|e| e.to_string())
 }
 
 /// Forgets the registration's public half.
-pub fn clear_desk<R: Runtime>(store: &Store<R>) -> Result<(), String> {
+pub fn clear_desk<R: Runtime>(store: &crate::app_store::AppStore<R>) -> Result<(), String> {
+    let store = store.write();
     store.delete(DESK_KEY);
     store.save().map_err(|e| e.to_string())
 }

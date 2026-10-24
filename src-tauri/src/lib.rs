@@ -49,6 +49,10 @@ pub mod app_lifecycle_store;
 mod app_lifecycle_runtime;
 mod app_store;
 #[cfg(test)] mod app_store_tests;
+mod store_persistence;
+#[cfg(test)] mod store_persistence_tests;
+mod persistence_checkpoint;
+#[cfg(test)] mod persistence_checkpoint_tests;
 mod supervision;
 mod supervision_process;
 mod supervision_quit;
@@ -345,6 +349,8 @@ pub fn run() {
             if result.is_err() {
                 app.state::<Arc<app_lifecycle::AppLifecycle>>()
                     .fail(startup_diagnostics::Diagnostic::SetupFailed);
+            } else {
+                persistence_checkpoint::start(app.handle());
             }
             result
         })
