@@ -48,6 +48,151 @@ describe("useRemoteDesk", () => {
     expect(result.current.connected).toBe(true);
   });
 
+  it("carries stale producer metadata and records remote view receipt separately", async () => {
+    const useRemoteDesk = await importHook();
+    const { result } = renderHook(() => useRemoteDesk());
+    const ws = MockWebSocket.latest();
+    act(() => { ws.simulateOpen(); });
+    const liveObservation = {
+      span: {
+        state: "Sitting",
+        started_at: "2026-10-25T08:00:00Z",
+        observed_through: "2026-10-25T08:04:00Z",
+      },
+      last_observation_at: "2026-10-25T08:04:00Z",
+      snapshot_at: "2026-10-25T08:09:01Z",
+      quality: null,
+      reason: "stale",
+    };
+
+    act(() => {
+      ws.simulateMessage(makeSnapshot({ observation_quality: null, live_observation: liveObservation }));
+    });
+
+    expect(result.current.connected).toBe(true);
+    expect(result.current.observationQuality).toBeNull();
+    expect(result.current.liveObservation).toEqual(liveObservation);
+    expect(result.current.dashboardRefresh.lastSuccessAt).toEqual(expect.any(String));
+    expect(result.current.historyRefresh.lastSuccessAt).toEqual(expect.any(String));
+  });
+
+  it("does not let an older remote snapshot roll back current producer data", async () => {
+    const useRemoteDesk = await importHook();
+    const { result } = renderHook(() => useRemoteDesk());
+    const ws = MockWebSocket.latest();
+    act(() => { ws.simulateOpen(); });
+    const newest = {
+      span: {
+        state: "Standing",
+        started_at: "2026-10-25T08:05:00Z",
+        observed_through: "2026-10-25T08:10:00Z",
+      },
+      last_observation_at: "2026-10-25T08:10:00Z",
+      snapshot_at: "2026-10-25T08:10:01Z",
+      quality: "known",
+      reason: null,
+    };
+
+    act(() => {
+      ws.simulateMessage(makeSnapshot({ state: "Standing", observation_quality: "known", live_observation: newest }));
+      ws.simulateMessage(makeSnapshot({
+        state: "Sitting",
+        observation_quality: "known",
+        live_observation: {
+          ...newest,
+          span: {
+            ...newest.span,
+            state: "Sitting",
+            started_at: "2026-10-25T08:00:00Z",
+            observed_through: "2026-10-25T08:09:58Z",
+          },
+          last_observation_at: "2026-10-25T08:09:58Z",
+          snapshot_at: "2026-10-25T08:09:59Z",
+        },
+      }));
+    });
+
+    expect(result.current.state).toBe("Standing");
+    expect(result.current.liveObservation).toEqual(newest);
+  });
+
+  it("rejects an older remote snapshot even when its observation metadata is malformed", async () => {
+    const useRemoteDesk = await importHook();
+    const { result } = renderHook(() => useRemoteDesk());
+    const ws = MockWebSocket.latest();
+    act(() => { ws.simulateOpen(); });
+    const newest = {
+      span: {
+        state: "Standing",
+        started_at: "2026-10-25T08:05:00Z",
+        observed_through: "2026-10-25T08:10:00Z",
+      },
+      last_observation_at: "2026-10-25T08:10:00Z",
+      snapshot_at: "2026-10-25T08:10:01Z",
+      quality: "known",
+      reason: null,
+    };
+
+    act(() => {
+      ws.simulateMessage(makeSnapshot({ state: "Standing", observation_quality: "known", live_observation: newest }));
+      ws.simulateMessage(makeSnapshot({
+        state: "Sitting",
+        observation_quality: "known",
+        live_observation: {
+          ...newest,
+          span: {
+            ...newest.span,
+            state: "Sitting",
+            started_at: "2026-10-25T08:10:00Z",
+            observed_through: "2026-10-25T08:09:00Z",
+          },
+          last_observation_at: "2026-10-25T08:09:00Z",
+          snapshot_at: "2026-10-25T08:09:59Z",
+        },
+      }));
+    });
+
+    expect(result.current.state).toBe("Standing");
+    expect(result.current.liveObservation).toEqual(newest);
+  });
+
+  it("retains accepted remote data when a newer observation has invalid span bounds", async () => {
+    const useRemoteDesk = await importHook();
+    const { result } = renderHook(() => useRemoteDesk());
+    const ws = MockWebSocket.latest();
+    act(() => { ws.simulateOpen(); });
+    const newest = {
+      span: {
+        state: "Standing",
+        started_at: "2026-10-25T08:05:00Z",
+        observed_through: "2026-10-25T08:10:00Z",
+      },
+      last_observation_at: "2026-10-25T08:10:00Z",
+      snapshot_at: "2026-10-25T08:10:01Z",
+      quality: "known",
+      reason: null,
+    };
+
+    act(() => {
+      ws.simulateMessage(makeSnapshot({ state: "Standing", observation_quality: "known", live_observation: newest }));
+      ws.simulateMessage(makeSnapshot({
+        state: "Sitting",
+        live_observation: {
+          ...newest,
+          span: {
+            ...newest.span,
+            observed_through: "2026-10-25T08:12:00Z",
+          },
+          last_observation_at: "2026-10-25T08:12:00Z",
+          snapshot_at: "2026-10-25T08:11:01Z",
+        },
+      }));
+    });
+
+    expect(result.current.state).toBe("Standing");
+    expect(result.current.liveObservation).toEqual(newest);
+  });
+
   it("parses desk:state-changed event correctly", async () => {
     const useRemoteDesk = await importHook();
     const { result } = renderHook(() => useRemoteDesk());

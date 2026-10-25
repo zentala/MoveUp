@@ -24,6 +24,14 @@
       <description>SessionStateDto exposes the last confirmed posture span, observation freshness and reason, and snapshot time; its projection does not extrapolate beyond the last observation or mutate history.</description>
       <source path="src-tauri/src/session_live.rs"/>
       <source path="src-tauri/src/session_types.rs"/>
+      <source path="src/types.ts"/>
+      <source path="src/hooks/useDeskTypes.ts"/>
+      <source path="src/hooks/deskReducer.ts" tests="src/hooks/deskReducer.test.ts"/>
+      <source path="src/hooks/useDesk.ts" tests="src/hooks/useDesk.test.ts"/>
+      <source path="src/hooks/useRemoteDesk.ts" tests="src/hooks/useRemoteDesk.test.ts, src/hooks/useRemoteDeskExtra.test.ts"/>
+      <source path="src/hooks/useWidgetData.ts" tests="src/hooks/useWidgetData.test.ts"/>
+      <source path="src/hooks/useLiveObservation.ts" tests="src/hooks/useLiveObservation.test.ts"/>
+      <source path="src/pages/AnalystLive.tsx" tests="src/pages/AnalystLive.test.tsx"/>
     </feature>
     <feature name="points-system">
       <description>+1/min standing, +5/lap bonus, -0.5/min sitting; daily_score in tooltip + floating window</description>
@@ -231,11 +239,11 @@
         <file name="TimelineZenWidget.tsx">Minimalist, big timeline, zero text, ultra compact</file>
         <file name="PlaceholderWidget.tsx">Dev verification widget</file>
         <file name="useActiveWidget.ts">Hook: resolves active widget from config</file>
-        <file name="useWidgetData.ts">Hook: computes derived WidgetProps from useDesk + useTimer</file>
+        <file name="useWidgetData.ts">Hook: computes WidgetProps and carries source sample freshness and separate dashboard/history query receipts from useDesk</file>
         <file name="useDeskTypes.ts">Type definitions for desk hook data</file>
         <dir name="one-bar/">
           <file name="OneBarTimeline.tsx">Compact source-qualified chronology; renders exact completed intervals and leaves unrecorded elapsed time Unknown</file>
-          <file name="OneBarTimeline.test.tsx">Exact session endpoints, no credit-derived live duration, Unknown gaps and hour-marker regression</file>
+          <file name="OneBarTimeline.test.tsx">Exact session endpoints, no credit-derived live duration, Unknown gaps and hour-marker regression; 420px label-density case fixes a mid-June non-DST clock</file>
         </dir>
       </dir>
 
@@ -273,9 +281,11 @@
       </dir>
 
       <dir name="hooks/">
-        <file name="useDesk.ts">Main data hook — desk:* events, IPC state. Reports deskOnline: true and control capability as constants: inside Tauri there is no wire to negotiate</file>
-        <file name="useRemoteDesk.ts">The browser half. Owns the reducer, NOT the socket: selectTransport() picks the wire and the hook only subscribes, so one phone build serves both the LAN and the relay. Adds capabilities + deskOnline to the result</file>
-        <file name="useDeskTypes.ts">UseDeskResult (the reducer-shaped contract deskReducer.DeskView is derived from) plus DeskTransportFacts and UseDeskConnection — the transport facts are separate on purpose, a pure reducer cannot know whether a socket is up</file>
+        <file name="useDesk.ts">Main data hook — desk:* events, IPC state, producer sample facts and separate dashboard/history request receipts. Reports deskOnline: true and control capability as constants</file>
+        <file name="useRemoteDesk.ts">Browser transport adapter. Carries optional producer observation metadata and frontend snapshot/history receipts through the shared reducer; the socket remains owned by selectTransport()</file>
+        <file name="useDeskTypes.ts">UseDeskResult, producer observation data, per-query receipts, DeskTransportFacts and UseDeskConnection</file>
+        <file name="deskReducer.ts">Shared transport-independent reducer validates observation metadata and retains independent snapshot/history receipt state</file>
+        <file name="useLiveObservation.ts">Read-only Analyst snapshot hook using get_dashboard_state; it does not start auto-connect</file>
         <file name="useTimer.ts">Tick hook — 1s interval counter</file>
       </dir>
 
@@ -328,7 +338,7 @@
       </dir>
 
       <dir name="pages/">
-        <file name="AnalystLive.tsx">/#/analyst — live Analyst window (no fixture override)</file>
+        <file name="AnalystLive.tsx">/#/analyst — live Analyst window plus read-only current observation snapshot</file>
         <file name="AnalystMockup.tsx">DEV /#/mockup/analyst — Analyst window backed by fixtures</file>
         <file name="MockupGallery.tsx">DEV /#/mockup — list of all dev mockup routes</file>
       </dir>

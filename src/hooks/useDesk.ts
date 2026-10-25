@@ -81,28 +81,78 @@ export function useDesk(): UseDeskConnection {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    let stateRequest = 0;
+    let summaryRequest = 0;
+    let stateInFlight = false;
+    let summaryInFlight = false;
+    let stateRefreshPending = false;
+    let summaryRefreshPending = false;
     invoke("start_auto_connect").catch(console.error);
 
     const fetchState = async () => {
+      if (!active) return;
+      if (stateInFlight) {
+        stateRefreshPending = true;
+        return;
+      }
+      stateInFlight = true;
+      stateRefreshPending = false;
+      const request = ++stateRequest;
+      dispatch({ type: "query-started", query: "dashboard" });
       try {
         const dashboard = await invoke<DashboardState>("get_dashboard_state");
+        if (!active || request !== stateRequest) return;
         const dto = dashboard.session;
         dispatch({ type: "snapshot", session: dto, metrics: dashboard.metrics });
+        dispatch({ type: "query-succeeded", query: "dashboard", receivedAt: new Date().toISOString() });
         if (dto.state !== "Away" && dto.desk_height_cm > 0 && !portFetched.current) {
           portFetched.current = true;
           invoke<string | null>("get_connected_port")
-            .then((p) => { if (p) dispatch({ type: "port", port: p }); })
+            .then((p) => { if (active && request === stateRequest && p) dispatch({ type: "port", port: p }); })
             .catch(() => { portFetched.current = false; });
         }
       } catch (err) {
+        if (!active || request !== stateRequest) return;
+        dispatch({
+          type: "query-failed",
+          query: "dashboard",
+          message: err instanceof Error ? err.message : String(err),
+        });
         console.debug("get_dashboard_state not ready:", err);
+      } finally {
+        stateInFlight = false;
+        if (active && stateRefreshPending) void fetchState();
       }
     };
 
-    const fetchSummary = () => {
-      invoke<TodaySummaryDto>("get_today_summary")
-        .then((today) => dispatch({ type: "today-summary", today }))
-        .catch((err) => console.debug("get_today_summary not ready:", err));
+    const fetchSummary = async () => {
+      if (!active) return;
+      if (summaryInFlight) {
+        summaryRefreshPending = true;
+        return;
+      }
+      summaryInFlight = true;
+      summaryRefreshPending = false;
+      const request = ++summaryRequest;
+      dispatch({ type: "query-started", query: "history" });
+      try {
+        const today = await invoke<TodaySummaryDto>("get_today_summary");
+        if (!active || request !== summaryRequest) return;
+        dispatch({ type: "today-summary", today });
+        dispatch({ type: "query-succeeded", query: "history", receivedAt: new Date().toISOString() });
+      } catch (err) {
+        if (!active || request !== summaryRequest) return;
+        dispatch({
+          type: "query-failed",
+          query: "history",
+          message: err instanceof Error ? err.message : String(err),
+        });
+        console.debug("get_today_summary not ready:", err);
+      } finally {
+        summaryInFlight = false;
+        if (active && summaryRefreshPending) void fetchSummary();
+      }
     };
 
     fetchState();
@@ -111,52 +161,65 @@ export function useDesk(): UseDeskConnection {
     const stateInterval = setInterval(fetchState, 1000);
     const summaryInterval = setInterval(fetchSummary, 10000);
 
-    let cleanupFns: Array<() => void> = [];
+    const cleanupFns: Array<() => void> = [];
+    const register = <T,>(event: string, callback: (event: { payload: T }) => void) => {
+      void listen<T>(event, callback).then((unsubscribe) => {
+        if (active) cleanupFns.push(unsubscribe);
+        else unsubscribe();
+      }).catch(console.error);
+    };
 
-    async function subscribe() {
-      const unConnected = await listen<DeviceConnectedPayload>(
-        "desk:device-connected",
-        ({ payload }) => dispatch({ type: "device-connected", port: payload.port }),
+    register<DeviceConnectedPayload>("desk:device-connected", ({ payload }) => {
+      dispatch({ type: "device-connected", port: payload.port });
+      if (stateInFlight) stateRequest += 1;
+      fetchState();
+      fetchSummary();
+    });
+
+    register<null>("desk:device-lost", () => {
+      // A read begun before the loss event cannot restore connection state.
+      if (stateInFlight) stateRequest += 1;
+      stateRefreshPending = false;
+      dispatch({ type: "device-lost" });
+    });
+
+    register<StateChangedPayload>("desk:state-changed", ({ payload }) => {
+      // A dashboard read started before this authoritative event must not undo it.
+      if (stateInFlight) {
+        stateRequest += 1;
+        stateRefreshPending = true;
+      }
+      // A history read begun before this authoritative transition cannot
+      // publish stale sessions or a misleading new receipt time.
+      if (summaryInFlight) {
+        summaryRequest += 1;
+        summaryRefreshPending = true;
+      }
+      dispatch({ type: "state-changed", payload });
+      if (transitionTimer.current) clearTimeout(transitionTimer.current);
+      transitionTimer.current = setTimeout(
+        () => dispatch({ type: "clear-transition" }),
+        30_000,
       );
+      fetchSummary();
+    });
 
-      const unLost = await listen<null>("desk:device-lost", () =>
-        dispatch({ type: "device-lost" }),
-      );
+    register<SensorErrorPayload>("desk:sensor-error", ({ payload }) =>
+      dispatch({ type: "error", message: payload.message }),
+    );
 
-      const unState = await listen<StateChangedPayload>(
-        "desk:state-changed",
-        ({ payload }) => {
-          dispatch({ type: "state-changed", payload });
-          if (transitionTimer.current) clearTimeout(transitionTimer.current);
-          transitionTimer.current = setTimeout(
-            () => dispatch({ type: "clear-transition" }),
-            30_000,
-          );
-          // Refresh summary on state change
-          fetchSummary();
-        },
-      );
+    register<{ message: string }>("desk:db-error", ({ payload }) =>
+      dispatch({ type: "error", message: payload.message }),
+    );
 
-      const unError = await listen<SensorErrorPayload>(
-        "desk:sensor-error",
-        ({ payload }) => dispatch({ type: "error", message: payload.message }),
-      );
-
-      const unDbError = await listen<{ message: string }>(
-        "desk:db-error",
-        ({ payload }) => dispatch({ type: "error", message: payload.message }),
-      );
-
-      const unAlert = await listen<null>("desk:session-alert", () =>
-        dispatch({ type: "error", message: "Time to take a break!" }),
-      );
-
-      cleanupFns = [unConnected, unLost, unState, unError, unDbError, unAlert];
-    }
-
-    subscribe().catch(console.error);
+    register<null>("desk:session-alert", () =>
+      dispatch({ type: "error", message: "Time to take a break!" }),
+    );
 
     return () => {
+      active = false;
+      stateRequest += 1;
+      summaryRequest += 1;
       clearInterval(stateInterval);
       clearInterval(summaryInterval);
       if (transitionTimer.current) clearTimeout(transitionTimer.current);

@@ -7,6 +7,7 @@
  */
 import type {
   DeskState,
+  LiveObservation,
   SessionStateDto,
   MetricSnapshot,
   StateChangedPayload,
@@ -15,7 +16,7 @@ import type {
   SessionEntry,
 } from "@/types";
 import type { HealthView } from "@/generated/HealthView";
-import type { TransitionInfo, UseDeskResult } from "./useDeskTypes";
+import type { QueryStatus, TransitionInfo, UseDeskResult } from "./useDeskTypes";
 
 /** Default break reset threshold in seconds (10 min for full reset). */
 export const BREAK_RESET_THRESHOLD_SECS = 600;
@@ -34,6 +35,57 @@ const EMPTY_TODAY_SUMMARY: TodaySummaryDto = {
 };
 
 const DESK_STATES: readonly string[] = ["Sitting", "Standing", "Walking", "Away"];
+const LIVE_OBSERVATION_REASONS = [
+  "no_observation",
+  "pending_confirmation",
+  "stale",
+  "clock_rollback",
+] as const;
+
+function instant(value: unknown): number | null {
+  if (typeof value !== "string" || value.length === 0) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Rejects malformed or inconsistent metadata instead of repairing its meaning. */
+function normalizeLiveObservation(value: unknown): LiveObservation | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as LiveObservation;
+  const snapshotAt = instant(candidate.snapshot_at);
+  const lastObservationAt = candidate.last_observation_at === null
+    ? null
+    : instant(candidate.last_observation_at);
+  const isClockRollback = candidate.span === null && candidate.quality === null && candidate.reason === "clock_rollback";
+  if (snapshotAt === null || (candidate.last_observation_at !== null && lastObservationAt === null)) {
+    return null;
+  }
+  if (lastObservationAt !== null && lastObservationAt > snapshotAt && !isClockRollback) return null;
+  if (candidate.quality !== null && candidate.quality !== "known") return null;
+  if (candidate.reason !== null && !LIVE_OBSERVATION_REASONS.includes(candidate.reason as typeof LIVE_OBSERVATION_REASONS[number])) {
+    return null;
+  }
+
+  if (candidate.span === null) {
+    if (candidate.quality === "known") {
+      return candidate.reason === null && lastObservationAt !== null ? candidate : null;
+    }
+    return candidate.reason === null && candidate.last_observation_at !== null ? null : candidate;
+  }
+
+  const span = candidate.span;
+  const startedAt = instant(span?.started_at);
+  const observedThrough = instant(span?.observed_through);
+  if (!DESK_STATES.includes(span?.state) || startedAt === null || observedThrough === null ||
+      startedAt > observedThrough || observedThrough > snapshotAt ||
+      lastObservationAt === null || observedThrough > lastObservationAt) {
+    return null;
+  }
+  if (candidate.quality === "known" && candidate.reason !== null) return null;
+  return candidate;
+}
+
+const emptyQueryStatus = (): QueryStatus => ({ loading: false, lastSuccessAt: null, error: null });
 
 /**
  * Narrows a session row's `state` column, which the backend types as a plain
@@ -47,6 +99,11 @@ function toDeskState(raw: string): DeskState | null {
 /** Everything a transport-agnostic desk view needs to render. */
 export interface DeskReducerState {
   connected: boolean;
+  deviceLost: boolean;
+  observationQuality: "known" | null;
+  liveObservation: LiveObservation | null;
+  dashboardRefresh: QueryStatus;
+  historyRefresh: QueryStatus;
   port: string | null;
   state: DeskState;
   deskHeightCm: number;
@@ -77,6 +134,11 @@ export interface DeskReducerState {
 
 export const initialDeskState: DeskReducerState = {
   connected: false,
+  deviceLost: false,
+  observationQuality: null,
+  liveObservation: null,
+  dashboardRefresh: emptyQueryStatus(),
+  historyRefresh: emptyQueryStatus(),
   port: null,
   state: "Away",
   deskHeightCm: 0,
@@ -108,6 +170,9 @@ export type DeskAction =
       health?: HealthView;
     }
   | { type: "today-summary"; today: TodaySummaryDto }
+  | { type: "query-started"; query: "dashboard" | "history" }
+  | { type: "query-succeeded"; query: "dashboard" | "history"; receivedAt: string }
+  | { type: "query-failed"; query: "dashboard" | "history"; message: string }
   | { type: "state-changed"; payload: StateChangedPayload }
   | { type: "device-connected"; port: string | null }
   | { type: "device-lost" }
@@ -124,11 +189,32 @@ export function deskReducer(state: DeskReducerState, action: DeskAction): DeskRe
   switch (action.type) {
     case "snapshot": {
       const dto = action.session;
+      const liveObservation = normalizeLiveObservation(dto.live_observation);
+      const hasLiveObservation = dto.live_observation !== undefined && dto.live_observation !== null;
+      // Legacy producers may omit this additive field. A present but malformed
+      // value invalidates the snapshot as a whole so it cannot erase accepted
+      // observation facts while applying unrelated session fields.
+      if (hasLiveObservation && liveObservation === null) return state;
+      const currentSnapshotAt = instant(state.liveObservation?.snapshot_at);
+      // Keep a parseable producer timestamp for ordering even when another
+      // part of the observation metadata is malformed and must be discarded.
+      const incomingSnapshotAt = instant(dto.live_observation?.snapshot_at);
+      const clockRollback = liveObservation?.span === null &&
+        liveObservation.quality === null && liveObservation.reason === "clock_rollback";
+      if (currentSnapshotAt !== null && incomingSnapshotAt !== null && incomingSnapshotAt < currentSnapshotAt) {
+        if (!clockRollback) return state;
+        return { ...state, observationQuality: null, liveObservation };
+      }
+      const observationQuality = dto.observation_quality === "known" && liveObservation?.quality === "known"
+        ? "known"
+        : null;
       // A non-Away state with real height data proves the sensor is alive,
       // even when the device-connected event landed before we subscribed.
       const sensorAlive = dto.state !== "Away" && dto.desk_height_cm > 0;
       return {
         ...state,
+        observationQuality,
+        liveObservation,
         state: dto.state,
         deskHeightCm: dto.desk_height_cm,
         secsSinceLastBreak: dto.secs_since_last_break,
@@ -145,18 +231,33 @@ export function deskReducer(state: DeskReducerState, action: DeskAction): DeskRe
         metrics: action.metrics,
         todaySummary: action.today ?? state.todaySummary,
         health: action.health ?? state.health,
-        connected: sensorAlive ? true : state.connected,
+        connected: state.deviceLost ? false : sensorAlive ? true : state.connected,
       };
     }
 
     case "today-summary":
       return { ...state, todaySummary: action.today };
 
+    case "query-started": {
+      const key = action.query === "dashboard" ? "dashboardRefresh" : "historyRefresh";
+      return { ...state, [key]: { ...state[key], loading: true } };
+    }
+
+    case "query-succeeded": {
+      const key = action.query === "dashboard" ? "dashboardRefresh" : "historyRefresh";
+      return { ...state, [key]: { loading: false, lastSuccessAt: action.receivedAt, error: null } };
+    }
+
+    case "query-failed": {
+      const key = action.query === "dashboard" ? "dashboardRefresh" : "historyRefresh";
+      return { ...state, [key]: { ...state[key], loading: false, error: action.message } };
+    }
+
     case "state-changed": {
       const p = action.payload;
       return {
         ...state,
-        connected: true,
+        connected: state.deviceLost ? false : true,
         state: p.state,
         deskHeightCm: p.desk_height_cm,
         limitUsedSecs: p.limit_used_secs,
@@ -173,10 +274,10 @@ export function deskReducer(state: DeskReducerState, action: DeskAction): DeskRe
     }
 
     case "device-connected":
-      return { ...state, connected: true, port: action.port, error: null };
+      return { ...state, connected: true, deviceLost: false, port: action.port, error: null };
 
     case "device-lost":
-      return { ...state, connected: false, port: null };
+      return { ...state, connected: false, deviceLost: true, port: null };
 
     case "port":
       return { ...state, port: action.port };
@@ -237,6 +338,10 @@ export type DeskView = Omit<UseDeskResult, "calibrate" | "setSitLimit" | "setSta
 export function selectDeskView(state: DeskReducerState): DeskView {
   return {
     connected: state.connected,
+    observationQuality: state.observationQuality,
+    liveObservation: state.liveObservation,
+    dashboardRefresh: state.dashboardRefresh,
+    historyRefresh: state.historyRefresh,
     port: state.port,
     state: state.state,
     deskHeightCm: state.deskHeightCm,

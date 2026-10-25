@@ -118,6 +118,9 @@ export function useRemoteDesk(options: UseRemoteDeskOptions = {}): UseDeskConnec
       today: data.today,
       health: data.health,
     });
+    const receivedAt = new Date().toISOString();
+    dispatch({ type: "query-succeeded", query: "dashboard", receivedAt });
+    dispatch({ type: "query-succeeded", query: "history", receivedAt });
     // The health widget lives outside this hook's subtree, so hand it the
     // view directly rather than widening `UseDeskResult` for one consumer.
     if (data.health) publishRemoteHealth(data.health);

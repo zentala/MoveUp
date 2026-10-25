@@ -4,7 +4,7 @@
  */
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { SessionStateDto, StateChangedPayload, TodaySummaryDto } from "@/types";
+import type { DashboardState, SessionStateDto, StateChangedPayload, TodaySummaryDto } from "@/types";
 
 const invokeMock = vi.fn();
 const listeners = new Map<string, (e: { payload: unknown }) => void>();
@@ -79,6 +79,12 @@ function emit(event: string, payload: unknown) {
   handler({ payload });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   listeners.clear();
   invokeMock.mockReset();
@@ -100,6 +106,359 @@ describe("useDesk — happy path", () => {
     expect(result.current.limitRemaining).toBe(2280);
     expect(result.current.connected).toBe(true);
     expect(invokeMock).toHaveBeenCalledWith("start_auto_connect", undefined);
+  });
+
+  it("keeps connected sensor state separate from stale sample and dashboard/history receipts", async () => {
+    const liveObservation = {
+      span: {
+        state: "Sitting" as const,
+        started_at: "2026-10-25T08:00:00Z",
+        observed_through: "2026-10-25T08:04:00Z",
+      },
+      last_observation_at: "2026-10-25T08:04:00Z",
+      snapshot_at: "2026-10-25T08:09:01Z",
+      quality: null,
+      reason: "stale",
+    };
+    stubBackend({ session: makeSession({ live_observation: liveObservation }) });
+
+    const { result } = await renderDesk();
+
+    expect(result.current.connected).toBe(true);
+    expect(result.current.observationQuality).toBeNull();
+    expect(result.current.liveObservation).toEqual(liveObservation);
+    expect(result.current.dashboardRefresh).toMatchObject({ loading: false, error: null });
+    expect(result.current.dashboardRefresh.lastSuccessAt).toEqual(expect.any(String));
+    expect(result.current.historyRefresh).toMatchObject({ loading: false, error: null });
+    expect(result.current.historyRefresh.lastSuccessAt).toEqual(expect.any(String));
+  });
+
+  it("retains successful snapshot/history data and receipts when reconnect reads fail", async () => {
+    const liveObservation = {
+      span: {
+        state: "Sitting" as const,
+        started_at: "2026-10-25T08:00:00Z",
+        observed_through: "2026-10-25T08:04:00Z",
+      },
+      last_observation_at: "2026-10-25T08:04:00Z",
+      snapshot_at: "2026-10-25T08:04:01Z",
+      quality: "known",
+      reason: null,
+    };
+    const today: TodaySummaryDto = { ...emptySummary, sitting_secs: 240, sessions: [
+      { start: "08:00", end: null, state: "Sitting", duration_secs: null, break_credit: null },
+    ] };
+    stubBackend({ session: makeSession({ live_observation: liveObservation }), today });
+    const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+    const { result } = await renderDesk();
+    const dashboardSuccess = result.current.dashboardRefresh.lastSuccessAt;
+    const historySuccess = result.current.historyRefresh.lastSuccessAt;
+
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "get_dashboard_state") return Promise.reject(new Error("snapshot offline"));
+      if (cmd === "get_today_summary") return Promise.reject(new Error("history offline"));
+      return Promise.resolve(null);
+    });
+    await act(async () => {
+      emit("desk:device-connected", { port: "COM3" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.liveObservation).toEqual(liveObservation);
+    expect(result.current.todaySessions).toEqual(today.sessions);
+    expect(result.current.dashboardRefresh).toEqual({
+      loading: false,
+      lastSuccessAt: dashboardSuccess,
+      error: "snapshot offline",
+    });
+    expect(result.current.historyRefresh).toEqual({
+      loading: false,
+      lastSuccessAt: historySuccess,
+      error: "history offline",
+    });
+    expect(debugSpy).toHaveBeenCalledWith("get_dashboard_state not ready:", expect.any(Error));
+    expect(debugSpy).toHaveBeenCalledWith("get_today_summary not ready:", expect.any(Error));
+  });
+
+  it("ignores a slow dashboard reply made obsolete by a state-change event", async () => {
+    vi.useFakeTimers();
+    const older = deferred<DashboardState>();
+    const newer = deferred<DashboardState>();
+    let dashboardCalls = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "get_dashboard_state") {
+        dashboardCalls += 1;
+        return dashboardCalls === 1 ? older.promise : newer.promise;
+      }
+      if (cmd === "get_today_summary") return Promise.resolve(emptySummary);
+      if (cmd === "get_connected_port") return Promise.resolve("COM3");
+      return Promise.resolve(null);
+    });
+    const { result } = renderHook(() => useDesk());
+    await act(async () => { await Promise.resolve(); });
+
+    await act(async () => {
+      emit("desk:state-changed", {
+        state: "Standing", standing_seconds: 90, break_seconds: 30,
+        desk_height_cm: 110, position_changes: 4, last_break_secs: 0,
+        last_sitting_secs: 1200, break_credit: "full", limit_used_secs: 1500,
+      });
+      await Promise.resolve();
+    });
+    expect(result.current.state).toBe("Standing");
+    const newestObservation = {
+      span: {
+        state: "Standing" as const,
+        started_at: "2026-10-25T08:05:00Z",
+        observed_through: "2026-10-25T08:10:00Z",
+      },
+      last_observation_at: "2026-10-25T08:10:00Z",
+      snapshot_at: "2026-10-25T08:10:01Z",
+      quality: "known",
+      reason: null,
+    };
+    await act(async () => {
+      older.resolve({ session: makeSession(), metrics: [] });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(dashboardCalls).toBe(2);
+    await act(async () => {
+      newer.resolve({ session: makeSession({ state: "Standing", observation_quality: "known", live_observation: newestObservation }), metrics: [] });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.state).toBe("Standing");
+    expect(result.current.liveObservation).toEqual(newestObservation);
+    vi.useRealTimers();
+  });
+
+  it("coalesces dashboard and history polls until slow reads finish instead of starving them", async () => {
+    vi.useFakeTimers();
+    const firstDashboard = deferred<DashboardState>();
+    const secondDashboard = deferred<DashboardState>();
+    const firstSummary = deferred<TodaySummaryDto>();
+    const secondSummary = deferred<TodaySummaryDto>();
+    let dashboardCalls = 0;
+    let summaryCalls = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "get_dashboard_state") {
+        dashboardCalls += 1;
+        return dashboardCalls === 1 ? firstDashboard.promise : secondDashboard.promise;
+      }
+      if (cmd === "get_today_summary") {
+        summaryCalls += 1;
+        return summaryCalls === 1 ? firstSummary.promise : secondSummary.promise;
+      }
+      if (cmd === "get_connected_port") return Promise.resolve("COM3");
+      return Promise.resolve(null);
+    });
+    const { result } = renderHook(() => useDesk());
+
+    try {
+      await act(async () => { await Promise.resolve(); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(dashboardCalls).toBe(1);
+      expect(summaryCalls).toBe(1);
+
+      const firstObservation = {
+        span: {
+          state: "Sitting" as const,
+          started_at: "2026-10-25T08:00:00Z",
+          observed_through: "2026-10-25T08:02:30Z",
+        },
+        last_observation_at: "2026-10-25T08:02:30Z",
+        snapshot_at: "2026-10-25T08:02:31Z",
+        quality: "known",
+        reason: null,
+      };
+      await act(async () => {
+        firstDashboard.resolve({
+          session: makeSession({ observation_quality: "known", live_observation: firstObservation }),
+          metrics: [],
+        });
+        firstSummary.resolve({ ...emptySummary, sitting_secs: 100 });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(dashboardCalls).toBe(2);
+      expect(summaryCalls).toBe(2);
+      expect(result.current.liveObservation).toEqual(firstObservation);
+      expect(result.current.todaySittingSecs).toBe(100);
+      expect(result.current.dashboardRefresh).toMatchObject({ loading: true, error: null });
+      expect(result.current.dashboardRefresh.lastSuccessAt).toEqual(expect.any(String));
+
+      const nextObservation = {
+        span: {
+          state: "Standing" as const,
+          started_at: "2026-10-25T08:02:31Z",
+          observed_through: "2026-10-25T08:03:00Z",
+        },
+        last_observation_at: "2026-10-25T08:03:00Z",
+        snapshot_at: "2026-10-25T08:03:01Z",
+        quality: "known",
+        reason: null,
+      };
+      await act(async () => {
+        secondDashboard.resolve({
+          session: makeSession({ state: "Standing", observation_quality: "known", live_observation: nextObservation }),
+          metrics: [],
+        });
+        secondSummary.resolve({ ...emptySummary, standing_secs: 250 });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.state).toBe("Standing");
+      expect(result.current.liveObservation).toEqual(nextObservation);
+      expect(result.current.todayStandingSecs).toBe(250);
+      expect(result.current.dashboardRefresh.loading).toBe(false);
+      expect(result.current.historyRefresh.loading).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores an in-flight history response made obsolete by state-changed", async () => {
+    const baseline: TodaySummaryDto = {
+      ...emptySummary,
+      sitting_secs: 120,
+      sessions: [{ start: "08:00", end: "08:02", state: "Sitting", duration_secs: 120, break_credit: null }],
+    };
+    const stale: TodaySummaryDto = {
+      ...emptySummary,
+      sitting_secs: 900,
+      sessions: [{ start: "08:00", end: "08:15", state: "Sitting", duration_secs: 900, break_credit: null }],
+    };
+    const pendingSummary = deferred<TodaySummaryDto>();
+    stubBackend({ today: baseline });
+    const { result } = await renderDesk();
+    const previousSuccessAt = result.current.historyRefresh.lastSuccessAt;
+    let summaryCalls = 0;
+    const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "get_dashboard_state") return Promise.resolve({ session: makeSession(), metrics: [] });
+      if (cmd === "get_today_summary") {
+        summaryCalls += 1;
+        return summaryCalls === 1 ? pendingSummary.promise : Promise.reject(new Error("history offline"));
+      }
+      return Promise.resolve(null);
+    });
+
+    await act(async () => { emit("desk:device-connected", { port: "COM8" }); });
+    await act(async () => {
+      emit("desk:state-changed", {
+        state: "Standing", standing_seconds: 90, break_seconds: 30,
+        desk_height_cm: 110, position_changes: 4, last_break_secs: 0,
+        last_sitting_secs: 1200, break_credit: "full", limit_used_secs: 1500,
+      });
+    });
+    await act(async () => {
+      pendingSummary.resolve(stale);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.state).toBe("Standing");
+    expect(result.current.todaySessions).toEqual(baseline.sessions);
+    expect(result.current.historyRefresh).toEqual({
+      loading: false,
+      lastSuccessAt: previousSuccessAt,
+      error: "history offline",
+    });
+    expect(debugSpy).toHaveBeenCalledWith("get_today_summary not ready:", expect.any(Error));
+  });
+
+  it("keeps device-lost authoritative across a pending reply and the following normal poll", async () => {
+    vi.useFakeTimers();
+    const pendingDashboard = deferred<DashboardState>();
+    let dashboardCalls = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "get_dashboard_state") {
+        dashboardCalls += 1;
+        return dashboardCalls === 1
+          ? pendingDashboard.promise
+          : Promise.resolve({ session: makeSession({ state: "Sitting", desk_height_cm: 72.5 }), metrics: [] });
+      }
+      if (cmd === "get_today_summary") return Promise.resolve(emptySummary);
+      return Promise.resolve(null);
+    });
+    const rendered = renderHook(() => useDesk());
+
+    try {
+      await act(async () => { await Promise.resolve(); });
+      await act(async () => { emit("desk:device-lost", null); });
+      await act(async () => {
+        pendingDashboard.resolve({ session: makeSession({ state: "Sitting", desk_height_cm: 72.5 }), metrics: [] });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect.soft(rendered.result.current.connected).toBe(false);
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+      expect(dashboardCalls).toBeGreaterThanOrEqual(2);
+      expect(rendered.result.current.connected).toBe(false);
+    } finally {
+      rendered.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("retains accepted session and observation when a later native snapshot is malformed", async () => {
+    vi.useFakeTimers();
+    const newestObservation = {
+      span: {
+        state: "Standing" as const,
+        started_at: "2026-10-25T08:05:00Z",
+        observed_through: "2026-10-25T08:10:00Z",
+      },
+      last_observation_at: "2026-10-25T08:10:00Z",
+      snapshot_at: "2026-10-25T08:10:01Z",
+      quality: "known",
+      reason: null,
+    };
+    let dashboardCalls = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "get_dashboard_state") {
+        dashboardCalls += 1;
+        if (dashboardCalls === 1) {
+          return Promise.resolve({
+            session: makeSession({ state: "Standing", observation_quality: "known", live_observation: newestObservation }),
+            metrics: [],
+          });
+        }
+        return Promise.resolve({
+          session: makeSession({
+            state: "Sitting",
+            live_observation: { ...newestObservation, snapshot_at: "not-a-timestamp" },
+          }),
+          metrics: [],
+        });
+      }
+      if (cmd === "get_today_summary") return Promise.resolve(emptySummary);
+      return Promise.resolve(null);
+    });
+    const rendered = renderHook(() => useDesk());
+
+    try {
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      const acceptedReceipt = rendered.result.current.dashboardRefresh.lastSuccessAt;
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+
+      expect(rendered.result.current.state).toBe("Standing");
+      expect(rendered.result.current.liveObservation).toEqual(newestObservation);
+      expect(rendered.result.current.dashboardRefresh.lastSuccessAt).not.toBe(acceptedReceipt);
+    } finally {
+      rendered.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it("a state-changed event updates the counters and raises a transition", async () => {
@@ -288,6 +647,18 @@ describe("useDesk — commands", () => {
 });
 
 describe("useDesk — transport edge cases", () => {
+  it("cleans up subscriptions before remounting without duplicate listeners", async () => {
+    const first = await renderDesk();
+    expect(listeners.size).toBe(6);
+    first.unmount();
+    expect(listeners.size).toBe(0);
+
+    const second = await renderDesk();
+    expect(listeners.size).toBe(6);
+    second.unmount();
+    expect(listeners.size).toBe(0);
+  });
+
   it("a db-error event surfaces its message like a sensor error", async () => {
     const { result } = await renderDesk();
 

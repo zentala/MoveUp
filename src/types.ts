@@ -36,6 +36,8 @@ export type { StateChangedPayload } from "./generated/StateChangedPayload";
  * notification may read; `secs_since_last_break` is Debug-tab only (ADR 008).
  */
 export type { SessionStateDto } from "./generated/SessionStateDto";
+/** Producer-qualified current observation and its own freshness facts. */
+export type { LiveObservation } from "./generated/LiveObservation";
 /** Severity level for a KPI metric. */
 export type { MetricLevel } from "./generated/MetricLevel";
 /** Result of computing a single metric. */

@@ -4,7 +4,14 @@
  * Extracted from useDesk.ts to keep both files under the 250-line limit.
  */
 import type { TransportCapabilities } from "@/remote/transports";
-import type { DeskState, MetricSnapshot, PreviousSession, SessionEntry } from "@/types";
+import type { DeskState, LiveObservation, MetricSnapshot, PreviousSession, SessionEntry } from "@/types";
+
+/** One successful or pending read of a producer-owned snapshot/history source. */
+export interface QueryStatus {
+  loading: boolean;
+  lastSuccessAt: string | null;
+  error: string | null;
+}
 
 /** Transition info shown for 30s after a state change. */
 export interface TransitionInfo {
@@ -17,6 +24,13 @@ export interface TransitionInfo {
 /** Shape returned by the useDesk hook. */
 export interface UseDeskResult {
   connected: boolean;
+  /** Producer quality is only known or unavailable; connection is separate. */
+  observationQuality: "known" | null;
+  liveObservation: LiveObservation | null;
+  /** Frontend receipt state for the current snapshot query. */
+  dashboardRefresh: QueryStatus;
+  /** Frontend receipt state for the recorded-history query. */
+  historyRefresh: QueryStatus;
   port: string | null;
   state: DeskState;
   deskHeightCm: number;

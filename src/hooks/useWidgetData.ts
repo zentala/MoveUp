@@ -8,7 +8,8 @@
  * WebSocket (remote display) based on runtime environment.
  */
 import { useDeskAuto } from "@/hooks/useDeskAuto";
-import type { WidgetProps } from "@/types";
+import type { LiveObservation, WidgetProps } from "@/types";
+import type { QueryStatus } from "./useDeskTypes";
 
 /** Extended result including connection metadata for the overlay. */
 export interface WidgetDataResult {
@@ -19,6 +20,11 @@ export interface WidgetDataResult {
   sensorConnected: boolean;
   /** Whether the desk itself is reachable (false = relay up, desk asleep). */
   deskOnline: boolean;
+  /** Producer sample quality, independent of the physical connection. */
+  observationQuality: "known" | null;
+  liveObservation: LiveObservation | null;
+  dashboardRefresh: QueryStatus;
+  historyRefresh: QueryStatus;
 }
 
 /**
@@ -61,5 +67,9 @@ export function useWidgetData(onOpenSettings: () => void): WidgetDataResult {
     wsConnected: desk.wsConnected,
     sensorConnected: desk.connected,
     deskOnline: desk.deskOnline,
+    observationQuality: desk.observationQuality,
+    liveObservation: desk.liveObservation,
+    dashboardRefresh: desk.dashboardRefresh,
+    historyRefresh: desk.historyRefresh,
   };
 }

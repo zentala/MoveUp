@@ -282,30 +282,44 @@ describe("OneBarTimeline", () => {
   });
 
   it("keeps all tick markers and spaces the readable label subset within 420px", () => {
-    const sessions = makeSessions(1, 21);
-    render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
-    const timeline = screen.getByTestId("one-bar-timeline");
-    const markers = [...timeline.querySelectorAll<HTMLElement>(".one-bar__timeline-hour")];
-    const labels = [...timeline.querySelectorAll<HTMLElement>(".one-bar__timeline-hour-label")];
+    const fakeTimersWereActive = vi.isFakeTimers();
+    const previousClock = vi.getMockedSystemTime();
+    const previousNow = Date.now();
+    let unmount: (() => void) | undefined;
+    if (!fakeTimersWereActive) vi.useFakeTimers();
+    try {
+      // Mid-June is outside the Warsaw spring/fall clock-change window.
+      vi.setSystemTime(new Date("2026-06-15T12:00:00+02:00"));
+      const sessions = makeSessions(1, 21);
+      const view = render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
+      unmount = view.unmount;
+      const timeline = screen.getByTestId("one-bar-timeline");
+      const markers = [...timeline.querySelectorAll<HTMLElement>(".one-bar__timeline-hour")];
+      const labels = [...timeline.querySelectorAll<HTMLElement>(".one-bar__timeline-hour-label")];
 
-    expect(markers.length).toBeGreaterThan(20);
-    expect(labels.length).toBeGreaterThan(2);
-    expect(labels.length).toBeLessThan(markers.length);
-    expect(labels[0]).toHaveClass("one-bar__timeline-hour-label--start");
-    expect(labels[labels.length - 1]).toHaveClass("one-bar__timeline-hour-label--end");
-    expect(labels.every((label) => Number.parseFloat(getComputedStyle(label).fontSize) >= 10)).toBe(true);
+      expect(markers.length).toBeGreaterThan(20);
+      expect(labels.length).toBeGreaterThan(2);
+      expect(labels.length).toBeLessThan(markers.length);
+      expect(labels[0]).toHaveClass("one-bar__timeline-hour-label--start");
+      expect(labels[labels.length - 1]).toHaveClass("one-bar__timeline-hour-label--end");
+      expect(labels.every((label) => Number.parseFloat(getComputedStyle(label).fontSize) >= 10)).toBe(true);
 
-    const boxes = labels.map((label) => {
-      const marker = label.parentElement!;
-      const center = Number.parseFloat(marker.style.left) / 100 * 420;
-      const width = (label.textContent?.length ?? 0) * 6 + 4;
-      const left = label.classList.contains("one-bar__timeline-hour-label--start")
-        ? center
-        : label.classList.contains("one-bar__timeline-hour-label--end") ? center - width : center - width / 2;
-      return { left, right: left + width };
-    });
-    for (let index = 1; index < boxes.length; index += 1) {
-      expect(boxes[index].left - boxes[index - 1].right).toBeGreaterThanOrEqual(8);
+      const boxes = labels.map((label) => {
+        const marker = label.parentElement!;
+        const center = Number.parseFloat(marker.style.left) / 100 * 420;
+        const width = (label.textContent?.length ?? 0) * 6 + 4;
+        const left = label.classList.contains("one-bar__timeline-hour-label--start")
+          ? center
+          : label.classList.contains("one-bar__timeline-hour-label--end") ? center - width : center - width / 2;
+        return { left, right: left + width };
+      });
+      for (let index = 1; index < boxes.length; index += 1) {
+        expect(boxes[index].left - boxes[index - 1].right).toBeGreaterThanOrEqual(8);
+      }
+    } finally {
+      unmount?.();
+      if (fakeTimersWereActive) vi.setSystemTime(previousClock ?? new Date(previousNow));
+      else vi.useRealTimers();
     }
   });
 });

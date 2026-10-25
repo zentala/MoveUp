@@ -83,6 +83,294 @@ describe("deskReducer — happy path", () => {
     expect(s.connected).toBe(true);
   });
 
+  it("snapshot preserves the producer's stale observation metadata", () => {
+    const liveObservation = {
+      span: {
+        state: "Sitting" as const,
+        started_at: "2026-10-25T08:00:00Z",
+        observed_through: "2026-10-25T08:04:00Z",
+      },
+      last_observation_at: "2026-10-25T08:04:00Z",
+      snapshot_at: "2026-10-25T08:09:01Z",
+      quality: null,
+      reason: "stale",
+    };
+
+    const s = deskReducer(initialDeskState, {
+      type: "snapshot",
+      session: makeSession({
+        observation_quality: null,
+        live_observation: liveObservation,
+      }),
+      metrics: [],
+    });
+
+    expect(s.observationQuality).toBeNull();
+    expect(s.liveObservation).toEqual(liveObservation);
+  });
+
+  it("an older producer snapshot cannot roll back newer session or observation data", () => {
+    const newestObservation = {
+      span: {
+        state: "Standing" as const,
+        started_at: "2026-10-25T08:05:00Z",
+        observed_through: "2026-10-25T08:10:00Z",
+      },
+      last_observation_at: "2026-10-25T08:10:00Z",
+      snapshot_at: "2026-10-25T08:10:01Z",
+      quality: "known",
+      reason: null,
+    };
+    const latest = deskReducer(initialDeskState, {
+      type: "snapshot",
+      session: makeSession({ state: "Standing", live_observation: newestObservation }),
+      metrics: [],
+    });
+    const older = deskReducer(latest, {
+      type: "snapshot",
+      session: makeSession({
+        state: "Sitting",
+        live_observation: {
+          ...newestObservation,
+          span: {
+            ...newestObservation.span,
+            state: "Sitting",
+            started_at: "2026-10-25T08:00:00Z",
+            observed_through: "2026-10-25T08:09:58Z",
+          },
+          last_observation_at: "2026-10-25T08:09:58Z",
+          snapshot_at: "2026-10-25T08:09:59Z",
+        },
+      }),
+      metrics: [],
+    });
+
+    expect(older.state).toBe("Standing");
+    expect(older.liveObservation).toEqual(newestObservation);
+  });
+
+  it("rejects an older snapshot when its parseable observation metadata is malformed", () => {
+    const newestObservation = {
+      span: {
+        state: "Standing" as const,
+        started_at: "2026-10-25T08:05:00Z",
+        observed_through: "2026-10-25T08:10:00Z",
+      },
+      last_observation_at: "2026-10-25T08:10:00Z",
+      snapshot_at: "2026-10-25T08:10:01Z",
+      quality: "known",
+      reason: null,
+    };
+    const latest = deskReducer(initialDeskState, {
+      type: "snapshot",
+      session: makeSession({ state: "Standing", live_observation: newestObservation }),
+      metrics: [],
+    });
+    const staleMalformed = deskReducer(latest, {
+      type: "snapshot",
+      session: makeSession({
+        state: "Sitting",
+        live_observation: {
+          ...newestObservation,
+          span: {
+            ...newestObservation.span,
+            state: "Sitting",
+            started_at: "2026-10-25T08:10:00Z",
+            observed_through: "2026-10-25T08:09:00Z",
+          },
+          last_observation_at: "2026-10-25T08:09:00Z",
+          snapshot_at: "2026-10-25T08:09:59Z",
+        },
+      }),
+      metrics: [],
+    });
+
+    expect(staleMalformed.state).toBe("Standing");
+    expect(staleMalformed.liveObservation).toEqual(newestObservation);
+  });
+
+  it("rejects present malformed observations instead of partially applying session fields", () => {
+    const newestObservation = {
+      span: {
+        state: "Standing" as const,
+        started_at: "2026-10-25T08:05:00Z",
+        observed_through: "2026-10-25T08:10:00Z",
+      },
+      last_observation_at: "2026-10-25T08:10:00Z",
+      snapshot_at: "2026-10-25T08:10:01Z",
+      quality: "known",
+      reason: null,
+    };
+    const latest = deskReducer(initialDeskState, {
+      type: "snapshot",
+      session: makeSession({ state: "Standing", live_observation: newestObservation }),
+      metrics: [],
+    });
+    const malformedObservations = [
+      { ...newestObservation, snapshot_at: "not-a-timestamp" },
+      {
+        ...newestObservation,
+        span: {
+          ...newestObservation.span,
+          started_at: "2026-10-25T08:05:00Z",
+          observed_through: "2026-10-25T08:12:00Z",
+        },
+        last_observation_at: "2026-10-25T08:12:00Z",
+        snapshot_at: "2026-10-25T08:11:01Z",
+      },
+    ];
+
+    for (const liveObservation of malformedObservations) {
+      const rejected = deskReducer(latest, {
+        type: "snapshot",
+        session: makeSession({ state: "Sitting", live_observation: liveObservation }),
+        metrics: [],
+      });
+      expect(rejected.state).toBe("Standing");
+      expect(rejected.liveObservation).toEqual(newestObservation);
+    }
+  });
+
+  it("does not infer reconnection from stale dashboard facts after device-lost", () => {
+    const disconnected = deskReducer(initialDeskState, { type: "device-lost" });
+    const repeatedStaleSnapshot = deskReducer(disconnected, {
+      type: "snapshot",
+      session: makeSession({ state: "Sitting", desk_height_cm: 72.5 }),
+      metrics: [],
+    });
+
+    expect(repeatedStaleSnapshot.connected).toBe(false);
+  });
+
+  it("missing or malformed producer metadata stays unavailable", () => {
+    const valid = deskReducer(initialDeskState, {
+      type: "snapshot",
+      session: makeSession({
+        observation_quality: "known",
+        live_observation: {
+          span: {
+            state: "Sitting",
+            started_at: "2026-10-25T08:00:00Z",
+            observed_through: "2026-10-25T08:04:00Z",
+          },
+          last_observation_at: "2026-10-25T08:04:00Z",
+          snapshot_at: "2026-10-25T08:04:01Z",
+          quality: "known",
+          reason: null,
+        },
+      }),
+      metrics: [],
+    });
+    const legacy = deskReducer(valid, {
+      type: "snapshot",
+      session: makeSession(),
+      metrics: [],
+    });
+    const malformed = deskReducer(initialDeskState, {
+      type: "snapshot",
+      session: makeSession({
+        observation_quality: "known",
+        live_observation: {
+          span: {
+            state: "Sitting",
+            started_at: "2026-10-25T08:00:00Z",
+            observed_through: "2026-10-25T08:10:00Z",
+          },
+          last_observation_at: "2026-10-25T08:10:00Z",
+          snapshot_at: "2026-10-25T08:09:59Z",
+          quality: "known",
+          reason: null,
+        },
+      }),
+      metrics: [],
+    });
+
+    expect(legacy.liveObservation).toBeNull();
+    expect(legacy.observationQuality).toBeNull();
+    expect(malformed.liveObservation).toBeNull();
+    expect(malformed.observationQuality).toBeNull();
+  });
+
+  it("preserves the producer's clock-rollback reason without inventing a span", () => {
+    const current = deskReducer(initialDeskState, {
+      type: "snapshot",
+      session: makeSession({
+        observation_quality: "known",
+        live_observation: {
+          span: {
+            state: "Sitting",
+            started_at: "2026-10-25T08:00:00Z",
+            observed_through: "2026-10-25T08:10:00Z",
+          },
+          last_observation_at: "2026-10-25T08:10:00Z",
+          snapshot_at: "2026-10-25T08:10:01Z",
+          quality: "known",
+          reason: null,
+        },
+      }),
+      metrics: [],
+    });
+    const rollback = {
+      span: null,
+      last_observation_at: "2026-10-25T08:10:00Z",
+      snapshot_at: "2026-10-25T08:09:00Z",
+      quality: null,
+      reason: "clock_rollback",
+    };
+    const result = deskReducer(current, {
+      type: "snapshot",
+      session: makeSession({ state: "Away", desk_height_cm: 0, live_observation: rollback }),
+      metrics: [],
+    });
+
+    expect(result.state).toBe("Sitting");
+    expect(result.liveObservation).toEqual(rollback);
+    expect(result.liveObservation?.span).toBeNull();
+    expect(result.observationQuality).toBeNull();
+  });
+
+  it("keeps a known first sample when it has no positive-duration span", () => {
+    const liveObservation = {
+      span: null,
+      last_observation_at: "2026-10-25T08:00:00Z",
+      snapshot_at: "2026-10-25T08:00:00Z",
+      quality: "known",
+      reason: null,
+    };
+    const result = deskReducer(initialDeskState, {
+      type: "snapshot",
+      session: makeSession({ observation_quality: "known", live_observation: liveObservation }),
+      metrics: [],
+    });
+
+    expect(result.observationQuality).toBe("known");
+    expect(result.liveObservation).toEqual(liveObservation);
+    expect(result.liveObservation?.span).toBeNull();
+  });
+
+  it("query failures keep the last successful receipt and expose loading/error separately", () => {
+    const loading = deskReducer(initialDeskState, { type: "query-started", query: "dashboard" });
+    const succeeded = deskReducer(loading, {
+      type: "query-succeeded",
+      query: "dashboard",
+      receivedAt: "2026-10-25T08:10:00Z",
+    });
+    const retrying = deskReducer(succeeded, { type: "query-started", query: "dashboard" });
+    const failed = deskReducer(retrying, {
+      type: "query-failed",
+      query: "dashboard",
+      message: "snapshot unavailable",
+    });
+
+    expect(loading.dashboardRefresh).toMatchObject({ loading: true, lastSuccessAt: null, error: null });
+    expect(failed.dashboardRefresh).toEqual({
+      loading: false,
+      lastSuccessAt: "2026-10-25T08:10:00Z",
+      error: "snapshot unavailable",
+    });
+    expect(failed.historyRefresh).toEqual({ loading: false, lastSuccessAt: null, error: null });
+  });
+
   it("snapshot carries the health view, and omitting it keeps the last one", () => {
     const health = {
       configured: true,
