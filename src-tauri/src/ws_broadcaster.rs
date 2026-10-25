@@ -138,6 +138,7 @@ mod tests {
             session: SessionStateDto {
                 state: crate::session::DeskState::Sitting,
                 observation_quality: Some("known".to_string()),
+                live_observation: None,
                 sitting_seconds: 100,
                 standing_seconds: 50,
                 break_seconds: 0,

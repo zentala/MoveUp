@@ -104,6 +104,7 @@ mod serde_contract_tests {
         let dto = SessionStateDto {
             state: DeskState::Standing,
             observation_quality: Some("known".to_string()),
+            live_observation: None,
             sitting_seconds: 0,
             standing_seconds: 300,
             break_seconds: 300,
@@ -125,6 +126,8 @@ mod serde_contract_tests {
         let json = serde_json::to_value(&dto).unwrap();
         assert_eq!(json["state"], "Standing");
         assert_eq!(json["observation_quality"], "known");
+        assert_eq!(json["live_observation"], serde_json::Value::Null,
+            "serde emits Option::None as null for the additive projection");
 
         let unknown = SessionStateDto {
             observation_quality: None,
@@ -136,6 +139,8 @@ mod serde_contract_tests {
         let declaration = <SessionStateDto as ts_rs::TS>::decl(&ts_rs::Config::default());
         assert!(declaration.contains("observation_quality?: string | null"),
             "the generated DTO must describe both emitted null and legacy omission: {declaration}");
+        assert!(declaration.contains("live_observation?: LiveObservation | null"),
+            "the generated DTO must preserve nullable and legacy-omitted projection data: {declaration}");
     }
 
     #[test]

@@ -481,6 +481,8 @@ mod ts_export {
             .expect("StateChangedPayload exports");
         crate::session_types::SessionStateDto::export_all(&cfg)
             .expect("SessionStateDto exports");
+        crate::session_types::LiveObservation::export_all(&cfg)
+            .expect("LiveObservation exports");
         crate::db::TodaySummary::export_all(&cfg).expect("TodaySummary exports");
         crate::config::AppConfig::export_all(&cfg).expect("AppConfig exports");
         crate::health_models::HealthView::export_all(&cfg).expect("HealthView exports");
@@ -511,6 +513,7 @@ mod ts_export {
         let dto = crate::session_types::SessionStateDto::export_to_string(&config())
             .expect("SessionStateDto renders");
         assert!(dto.contains("limit_used_secs: number"), "got: {dto}");
+        assert!(dto.contains("live_observation?: LiveObservation | null"), "got: {dto}");
         assert!(!dto.contains("bigint"), "got: {dto}");
     }
 }

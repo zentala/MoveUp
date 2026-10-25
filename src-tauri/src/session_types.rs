@@ -145,7 +145,32 @@ pub struct SessionState {
     pub idle_secs: i64,
 }
 
-/// Serialisable DTO emitted with state-change events.
+/// A read-only projection of the currently confirmed observation and its freshness.
+/// The span endpoint is the last actual sample, never the requested snapshot time.
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
+pub struct LiveObservation {
+    pub span: Option<ObservedPostureSpan>,
+    pub last_observation_at: Option<String>,
+    pub snapshot_at: String,
+    /// `known` only while the engine's existing freshness predicate holds.
+    pub quality: Option<String>,
+    /// Supported values: no_observation, pending_confirmation, stale, clock_rollback.
+    pub reason: Option<String>,
+}
+
+/// One source-qualified posture interval proven by the current engine anchors.
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
+pub struct ObservedPostureSpan {
+    pub state: DeskState,
+    pub started_at: String,
+    pub observed_through: String,
+}
+
+/// Session state DTO emitted with state-change events and current snapshots.
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
 #[cfg_attr(test, ts(export_to = "../../src/generated/"))]
@@ -155,6 +180,9 @@ pub struct SessionStateDto {
     /// `None` means unknown (cold start, stale input or post-gap confirmation).
     #[cfg_attr(test, ts(type = "string | null", optional))]
     pub observation_quality: Option<String>,
+    /// Additive live history facts. Older producers may omit this field.
+    #[cfg_attr(test, ts(optional = nullable))]
+    pub live_observation: Option<LiveObservation>,
     pub sitting_seconds: i64,
     pub standing_seconds: i64,
     pub break_seconds: i64,

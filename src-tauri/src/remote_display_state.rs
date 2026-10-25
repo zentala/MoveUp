@@ -156,12 +156,48 @@ mod tests {
             crate::remote_routes_health_tests::remote_state(session.clone(), policy.clone(), today.clone())
                 .await;
 
+        let server_call_started_at = chrono::Utc::now();
         let via_server = crate::remote_server::build_remote_display_state(&state).await;
+        let server_call_finished_at = chrono::Utc::now();
+        let direct_call_started_at = chrono::Utc::now();
         let direct = build(&session, &policy, &today, state.health.view().await);
+        let direct_call_finished_at = chrono::Utc::now();
+
+        assert!(
+            server_call_finished_at <= direct_call_started_at,
+            "server and direct calls must be captured in order"
+        );
+
+        let via_server = serde_json::to_value(&via_server).unwrap();
+        let mut direct = serde_json::to_value(&direct).unwrap();
+        let server_snapshot_at = via_server["session"]["live_observation"]["snapshot_at"]
+            .as_str()
+            .filter(|timestamp| !timestamp.is_empty())
+            .and_then(|timestamp| chrono::DateTime::parse_from_rfc3339(timestamp).ok())
+            .expect("remote server payload must include a valid observation snapshot_at");
+        let direct_snapshot_at = direct["session"]["live_observation"]["snapshot_at"]
+            .as_str()
+            .filter(|timestamp| !timestamp.is_empty())
+            .and_then(|timestamp| chrono::DateTime::parse_from_rfc3339(timestamp).ok())
+            .expect("direct payload must include a valid observation snapshot_at");
+
+        assert!(
+            server_snapshot_at >= server_call_started_at
+                && server_snapshot_at <= server_call_finished_at,
+            "remote server snapshot_at must fall within its captured call interval"
+        );
+        assert!(
+            direct_snapshot_at >= direct_call_started_at
+                && direct_snapshot_at <= direct_call_finished_at,
+            "direct snapshot_at must fall within its captured call interval"
+        );
+
+        direct["session"]["live_observation"]["snapshot_at"] =
+            via_server["session"]["live_observation"]["snapshot_at"].clone();
 
         assert_eq!(
-            serde_json::to_value(&via_server).unwrap(),
-            serde_json::to_value(&direct).unwrap(),
+            via_server,
+            direct,
             "remote_server must derive the payload through remote_display_state::build"
         );
     }

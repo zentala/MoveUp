@@ -90,6 +90,251 @@ mod timer_live_tests {
     }
 
     #[test]
+    fn e028_live_observation_serializes_confirmed_span_through_last_reading() {
+        let t0 = Utc.timestamp_opt(1_800_000_000, 0).unwrap();
+        let started = t0 - chrono::Duration::seconds(600);
+        let snapshot_at = t0 + chrono::Duration::seconds(900);
+        let mut m = SessionManager::new();
+        m.state.state = DeskState::Sitting;
+        m.state.sitting_seconds = 123;
+        m.state.sitting_seconds_total = 456;
+        m.state.sitting_started = Some(started);
+        m.state.last_tick_ts = Some(t0);
+        m.history_span_started = Some(started);
+        m.history_last_reading = Some(t0);
+
+        let serialized = serde_json::to_value(m.snapshot_at(snapshot_at)).unwrap();
+
+        // Read the wire value so this fails behaviorally before the additive
+        // DTO field exists, rather than failing to compile on a missing field.
+        assert_eq!(
+            serialized["live_observation"]["span"],
+            serde_json::json!({
+                "state": "Sitting",
+                "started_at": started.to_rfc3339(),
+                "observed_through": t0.to_rfc3339(),
+            }),
+        );
+        assert_eq!(
+            serialized["live_observation"]["last_observation_at"],
+            t0.to_rfc3339(),
+        );
+        assert_eq!(
+            serialized["live_observation"]["snapshot_at"],
+            snapshot_at.to_rfc3339(),
+        );
+        assert!(serialized["live_observation"]["quality"].is_null());
+        assert_eq!(serialized["live_observation"]["reason"], "stale");
+
+        let fresh_snapshot = serde_json::to_value(
+            m.snapshot_at(t0 + chrono::Duration::seconds(300)),
+        ).unwrap();
+        assert_eq!(
+            fresh_snapshot["live_observation"]["span"]["observed_through"],
+            t0.to_rfc3339(),
+            "freshness is not extra observed duration",
+        );
+        assert_eq!(fresh_snapshot["live_observation"]["quality"], "known");
+        assert!(fresh_snapshot["live_observation"]["reason"].is_null());
+
+        // A read-only projection cannot close the span or alter its anchors.
+        assert_eq!(m.state.sitting_seconds, 123);
+        assert_eq!(m.state.sitting_seconds_total, 456);
+        assert_eq!(m.history_span_started, Some(started));
+        assert_eq!(m.history_last_reading, Some(t0));
+        assert!(m.pending_history.is_empty());
+    }
+
+    #[test]
+    fn e028_live_observation_has_no_span_without_valid_current_anchor() {
+        let t0 = Utc.timestamp_opt(1_800_000_000, 0).unwrap();
+        let cold = SessionManager::new();
+        let cold_wire = serde_json::to_value(cold.snapshot_at(t0)).unwrap();
+        assert!(cold_wire["live_observation"]["span"].is_null());
+        assert!(cold_wire["live_observation"]["last_observation_at"].is_null());
+        assert_eq!(cold_wire["live_observation"]["reason"], "no_observation");
+
+        let mut initial_debounce = SessionManager::new();
+        initial_debounce.last_reset_date = t0.with_timezone(&chrono::Local).date_naive();
+        initial_debounce.last_reset_check = t0 - chrono::Duration::seconds(120);
+        initial_debounce.on_reading_at(800, true, t0);
+        let debounce_wire = serde_json::to_value(initial_debounce.snapshot_at(t0)).unwrap();
+        assert!(debounce_wire["live_observation"]["span"].is_null());
+        assert_eq!(debounce_wire["live_observation"]["reason"], "pending_confirmation");
+
+        let mut pending = SessionManager::new();
+        pending.state.state = DeskState::Sitting;
+        pending.state.last_tick_ts = Some(t0);
+        pending.history_last_reading = Some(t0);
+        pending.history_span_started = Some(t0);
+        pending.pending_after_gap = true;
+        let pending_wire = serde_json::to_value(
+            pending.snapshot_at(t0 + chrono::Duration::seconds(1)),
+        ).unwrap();
+        assert!(pending_wire["live_observation"]["span"].is_null());
+        assert_eq!(pending_wire["live_observation"]["reason"], "pending_confirmation");
+
+        let rollback_wire = serde_json::to_value(
+            pending.snapshot_at(t0 - chrono::Duration::seconds(1)),
+        ).unwrap();
+        assert!(rollback_wire["live_observation"]["span"].is_null());
+        assert_eq!(rollback_wire["live_observation"]["reason"], "clock_rollback");
+    }
+
+    #[test]
+    fn e028_actual_readings_project_transition_and_local_day_endpoints_read_only() {
+        use chrono_tz::Europe::Warsaw;
+
+        let start = Utc.timestamp_opt(1_800_000_000, 0).unwrap();
+        let mut m = SessionManager::new();
+        m.last_reset_date = start.with_timezone(&chrono::Local).date_naive();
+        m.last_reset_check = start - chrono::Duration::seconds(120);
+
+        // Confirm Sitting through actual injected sensor readings.
+        for second in 0..=DEBOUNCE_COUNT {
+            m.on_reading_at(800, true, start + chrono::Duration::seconds(second as i64));
+        }
+        let sitting_confirmed = start + chrono::Duration::seconds(DEBOUNCE_COUNT as i64);
+        m.on_reading_at(800, true, sitting_confirmed + chrono::Duration::seconds(1));
+        let sitting_snapshot_at = sitting_confirmed + chrono::Duration::seconds(1);
+        let sitting_wire = serde_json::to_value(m.snapshot_at(sitting_snapshot_at)).unwrap();
+        assert_eq!(sitting_wire["live_observation"]["span"]["state"], "Sitting");
+        assert_eq!(
+            sitting_wire["live_observation"]["span"]["started_at"],
+            sitting_confirmed.to_rfc3339(),
+        );
+        assert_eq!(
+            sitting_wire["live_observation"]["span"]["observed_through"],
+            sitting_snapshot_at.to_rfc3339(),
+        );
+
+        // Keep feeding actual readings, then confirm Standing and extend its
+        // span with one more sample. The previous row and new live prefix meet
+        // at the same transition endpoint.
+        let standing_candidate = sitting_snapshot_at + chrono::Duration::seconds(1);
+        for second in 0..=DEBOUNCE_COUNT {
+            m.on_reading_at(
+                1200,
+                true,
+                standing_candidate + chrono::Duration::seconds(second as i64),
+            );
+        }
+        let transition_at = standing_candidate + chrono::Duration::seconds(DEBOUNCE_COUNT as i64);
+        m.on_reading_at(1200, true, transition_at + chrono::Duration::seconds(1));
+        let standing_snapshot_at = transition_at + chrono::Duration::seconds(1);
+        assert_eq!(m.state.state, DeskState::Standing);
+        assert_eq!(m.pending_history.last().unwrap().span.ended_at, transition_at.to_rfc3339());
+
+        let before_snapshot = (
+            m.state.sitting_seconds,
+            m.state.sitting_seconds_total,
+            m.state.standing_seconds,
+            m.state.position_changes,
+            m.history_span_started,
+            m.history_last_reading,
+            m.pending_history.iter().map(|pending| (
+                pending.state.clone(),
+                pending.span.started_at.clone(),
+                pending.span.ended_at.clone(),
+                pending.span.duration_secs,
+                pending.credit.clone(),
+            )).collect::<Vec<_>>(),
+        );
+        let standing_wire = serde_json::to_value(m.snapshot_at(standing_snapshot_at)).unwrap();
+        assert_eq!(standing_wire["live_observation"]["span"]["state"], "Standing");
+        assert_eq!(
+            standing_wire["live_observation"]["span"]["started_at"],
+            transition_at.to_rfc3339(),
+        );
+        assert_eq!(
+            standing_wire["live_observation"]["span"]["observed_through"],
+            standing_snapshot_at.to_rfc3339(),
+        );
+        assert_eq!(
+            before_snapshot,
+            (
+                m.state.sitting_seconds,
+                m.state.sitting_seconds_total,
+                m.state.standing_seconds,
+                m.state.position_changes,
+                m.history_span_started,
+                m.history_last_reading,
+                m.pending_history.iter().map(|pending| (
+                    pending.state.clone(),
+                    pending.span.started_at.clone(),
+                    pending.span.ended_at.clone(),
+                    pending.span.duration_secs,
+                    pending.credit.clone(),
+                )).collect::<Vec<_>>(),
+            ),
+            "snapshot projection cannot mutate counters or history",
+        );
+
+        let persisted = crate::session_persistence::PersistedEngineState::from_session(&m, None);
+        let persisted = crate::session_persistence::PersistedEngineState::from_stored_value(
+            serde_json::to_value(persisted).unwrap(),
+        ).unwrap();
+        let mut restored = SessionManager::new();
+        restored.load_persisted_state(&persisted);
+        let restored_wire = serde_json::to_value(
+            restored.snapshot_at(standing_snapshot_at + chrono::Duration::seconds(10)),
+        ).unwrap();
+        assert!(restored_wire["live_observation"]["span"].is_null());
+        assert!(restored_wire["live_observation"]["last_observation_at"].is_null());
+        assert_eq!(restored_wire["live_observation"]["reason"], "no_observation");
+
+        // Reuse the engine's existing local-day reset path at Warsaw midnight.
+        let boundary = Warsaw.with_ymd_and_hms(2027, 1, 16, 0, 0, 0)
+            .unwrap().with_timezone(&Utc);
+        let last_before_boundary = boundary - chrono::Duration::seconds(10);
+        let previous_local_day = boundary.with_timezone(&Warsaw).date_naive()
+            - chrono::Duration::days(1);
+        let mut daily = SessionManager::new();
+        daily.last_reset_date = previous_local_day;
+        daily.last_reset_check = boundary - chrono::Duration::seconds(120);
+        let daily_start = boundary - chrono::Duration::minutes(10);
+        for second in 0..=DEBOUNCE_COUNT {
+            daily.on_reading_at(800, true, daily_start + chrono::Duration::seconds(second as i64));
+        }
+        let daily_confirmed = daily_start + chrono::Duration::seconds(DEBOUNCE_COUNT as i64);
+        feed_regular(&mut daily, 800, daily_confirmed, last_before_boundary);
+        daily.last_reset_check = boundary - chrono::Duration::seconds(120);
+        let before_boundary = serde_json::to_value(daily.snapshot_at(boundary)).unwrap();
+        assert_eq!(
+            before_boundary["live_observation"]["span"]["observed_through"],
+            last_before_boundary.to_rfc3339(),
+        );
+        let next_local_day = boundary.with_timezone(&Warsaw).date_naive();
+        assert!(daily.check_daily_reset_at_boundary(
+            boundary + chrono::Duration::seconds(30),
+            next_local_day,
+            boundary,
+        ));
+        let after_boundary = serde_json::to_value(
+            daily.snapshot_at(boundary + chrono::Duration::seconds(30)),
+        ).unwrap();
+        assert!(after_boundary["live_observation"]["span"].is_null());
+        let resumed = boundary + chrono::Duration::seconds(40);
+        for second in 0..=DEBOUNCE_COUNT {
+            daily.on_reading_at(800, true, resumed + chrono::Duration::seconds(second as i64));
+        }
+        let resumed_confirmed = resumed + chrono::Duration::seconds(DEBOUNCE_COUNT as i64);
+        daily.on_reading_at(800, true, resumed_confirmed + chrono::Duration::seconds(1));
+        let resumed_wire = serde_json::to_value(
+            daily.snapshot_at(resumed_confirmed + chrono::Duration::seconds(1)),
+        ).unwrap();
+        assert_eq!(resumed_wire["live_observation"]["span"]["state"], "Sitting");
+        assert_eq!(
+            resumed_wire["live_observation"]["span"]["started_at"],
+            resumed_confirmed.to_rfc3339(),
+        );
+        assert_eq!(
+            resumed_wire["live_observation"]["span"]["observed_through"],
+            (resumed_confirmed + chrono::Duration::seconds(1)).to_rfc3339(),
+        );
+    }
+
+    #[test]
     fn stale_connected_observation_preserves_facts_and_waits_for_coherent_resume() {
         let t0 = Utc.timestamp_opt(1_800_000_000, 0).unwrap();
         let mut m = SessionManager::new();
@@ -100,7 +345,7 @@ mod timer_live_tests {
         m.state.last_position_change_at = Some(t0);
         m.state.last_tick_ts = Some(t0);
         m.history_last_reading = Some(t0);
-        m.history_span_started = Some(t0);
+        m.history_span_started = Some(t0 - chrono::Duration::seconds(60));
         let stale = t0 + chrono::Duration::seconds(301);
 
         assert!(!m.observation_is_fresh_at(stale));
@@ -109,6 +354,16 @@ mod timer_live_tests {
         assert_eq!(facts.standing_seconds, 0);
         assert_eq!(facts.last_position_change_at, Some(t0));
         assert!(m.policy_input(stale, true).sensor_connected);
+        let stale_wire = serde_json::to_value(m.snapshot_at(stale)).unwrap();
+        assert_eq!(
+            stale_wire["live_observation"]["span"]["started_at"],
+            (t0 - chrono::Duration::seconds(60)).to_rfc3339(),
+        );
+        assert_eq!(
+            stale_wire["live_observation"]["span"]["observed_through"],
+            t0.to_rfc3339(),
+            "a stale sample preserves only its previously confirmed prefix",
+        );
 
         // A real sample refreshes observation freshness without changing the
         // physical-connected input or inventing an Away transition.
@@ -121,6 +376,9 @@ mod timer_live_tests {
         assert_eq!(m.state.sitting_seconds, sitting_before_resume);
         assert_eq!(m.get_live_sitting_seconds(resumed), sitting_before_resume);
         assert_eq!(m.get_live_sitting_seconds_total(resumed), sitting_before_resume);
+        let pending_wire = serde_json::to_value(m.snapshot_at(resumed)).unwrap();
+        assert!(pending_wire["live_observation"]["span"].is_null());
+        assert_eq!(pending_wire["live_observation"]["reason"], "pending_confirmation");
         feed(&mut m, 800);
         let confirmed_at = m.state.last_tick_ts.unwrap();
         assert!(m.observation_is_fresh_at(confirmed_at));
@@ -128,6 +386,16 @@ mod timer_live_tests {
         assert_eq!(m.get_live_sitting_seconds(confirmed_at), sitting_before_resume + 5);
         assert_eq!(m.get_live_sitting_seconds_total(confirmed_at), sitting_before_resume + 5);
         assert!(m.policy_input(confirmed_at, true).observation_fresh);
+        let resumed_wire = serde_json::to_value(m.snapshot_at(confirmed_at)).unwrap();
+        assert_eq!(
+            resumed_wire["live_observation"]["span"]["started_at"],
+            resumed.to_rfc3339(),
+            "the resumed span starts after the unknown outage",
+        );
+        assert_eq!(
+            resumed_wire["live_observation"]["span"]["observed_through"],
+            confirmed_at.to_rfc3339(),
+        );
     }
 
     #[test]

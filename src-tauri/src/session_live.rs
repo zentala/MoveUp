@@ -10,6 +10,43 @@ use crate::session_types::*;
 use crate::session_manager::SessionManager;
 
 impl SessionManager {
+    /// Returns the current confirmed observation prefix and its freshness at
+    /// one injected instant. Staleness classifies quality but never extends
+    /// or removes the prefix already proven by the last actual sample.
+    pub(crate) fn live_observation_at(&self, now: DateTime<Utc>) -> LiveObservation {
+        let last_observation = self.history_last_reading.into_iter()
+            .chain(self.state.last_tick_ts).max();
+        let projection_end = last_observation
+            .filter(|last| now >= *last)
+            .and_then(|_| self.known_projection_end(now));
+        let span = projection_end
+            .and_then(|end| self.observed_span_at(end))
+            .map(|span| ObservedPostureSpan {
+                state: self.state.state.clone(),
+                started_at: span.started_at,
+                observed_through: span.ended_at,
+            });
+        let fresh = self.observation_is_fresh_at(now);
+        let reason = match last_observation {
+            None => Some("no_observation"),
+            Some(last) if now < last => Some("clock_rollback"),
+            Some(_) if self.pending_after_gap
+                || (self.history_span_started.is_none()
+                    && self.pending_count > 0
+                    && self.pending_state.is_some()) => Some("pending_confirmation"),
+            Some(_) if !fresh => Some("stale"),
+            Some(_) => None,
+        };
+
+        LiveObservation {
+            span,
+            last_observation_at: last_observation.map(|at| at.to_rfc3339()),
+            snapshot_at: now.to_rfc3339(),
+            quality: fresh.then(|| "known".to_string()),
+            reason: reason.map(str::to_string),
+        }
+    }
+
     /// Returns the last actual observation that can support a live projection.
     /// A gap threshold detects missing coverage; it does not extend it.
     pub(crate) fn known_projection_end(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {

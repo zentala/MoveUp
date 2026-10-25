@@ -20,6 +20,11 @@
     <feature name="session-tracking">
       <description>Tracks sitting session duration, enforces configurable limit (default 40 min), break credit rules (proportional multiplier)</description>
     </feature>
+    <feature name="live-observation">
+      <description>SessionStateDto exposes the last confirmed posture span, observation freshness and reason, and snapshot time; its projection does not extrapolate beyond the last observation or mutate history.</description>
+      <source path="src-tauri/src/session_live.rs"/>
+      <source path="src-tauri/src/session_types.rs"/>
+    </feature>
     <feature name="points-system">
       <description>+1/min standing, +5/lap bonus, -0.5/min sitting; daily_score in tooltip + floating window</description>
     </feature>
@@ -119,7 +124,7 @@
       <file name="commands_profiles.rs">Profile IPC: list_communication_profiles, list_ergonomic_profiles, get_active_profiles, switch_communication_profile, switch_ergonomic_profile, open_profile_in_editor, duplicate_profile. The engine half of a switch is extracted as switch_communication_profile_by_name / switch_ergonomic_profile_by_name (app_data_dir + handles, no AppHandle) so the relay command path can call it; the IPC wrappers add store persistence of the active ID on top</file>
       <file name="commands_profiles_tests.rs">16 tests for profile commands</file>
       <file name="session.rs">SessionManager constructor + re-exports</file>
-      <file name="session_types.rs">Structs: SessionState, SessionStateDto, DeskState, StateChangedPayload, AppConfig fields</file>
+      <file name="session_types.rs">Structs: SessionState, SessionStateDto, LiveObservation, ObservedPostureSpan, DeskState, StateChangedPayload, AppConfig fields</file>
       <file name="session_manager.rs">SessionManager impl: on_reading, state transitions, score accumulation</file>
       <file name="session_reading.rs">Reading processing logic split from session_manager</file>
       <file name="session_breaks.rs">Break credit rules: &lt;5min, 5-9min, gte10min (proportional multiplier)</file>
@@ -318,6 +323,8 @@
       <dir name="generated/">
         <file name="LocalDayBounds.ts">Query-local date bounds with an optional nullable exact hourly tick map</file>
         <file name="LocalHourTick.ts">Generated wall-hour label, exact UTC instant, and offset wire type</file>
+        <file name="LiveObservation.ts">Generated current observation DTO with nullable confirmed span, sample time, freshness quality and reason</file>
+        <file name="ObservedPostureSpan.ts">Generated confirmed posture span with observed start and end instants</file>
       </dir>
 
       <dir name="pages/">
