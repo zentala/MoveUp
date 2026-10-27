@@ -49,6 +49,7 @@ function rejectionEvent(reason: unknown): PromiseRejectionEvent {
 
 describe("UI diagnostics", () => {
   beforeEach(() => {
+    delete window.__MOVEUP_UI_DIAGNOSTICS__;
     logError.mockReset().mockResolvedValue(undefined);
   });
 
@@ -78,6 +79,10 @@ describe("UI diagnostics", () => {
     expect(message).not.toContain("PRIVATE");
     expect(message).not.toContain("SECRET");
     expect(message).not.toContain("http://");
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__?.last_error).toEqual({
+      source: "window", kind: "TypeError",
+      location: { module: "Popup.tsx", line: 12, column: 8 },
+    });
   });
 
   it("captures rejection location while discarding its message and query", () => {
@@ -197,5 +202,33 @@ describe("UI diagnostics", () => {
       "unhandledrejection",
       handlers.onRejection,
     );
+  });
+
+  it("initializes exactly the v1 fields without inventing completed requests", () => {
+    startDiagnostics();
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__).toEqual({
+      schema_version: 1, boot: "before_app", view: "other", last_error: null,
+      queries: {
+        dashboard: { outcome: "not_observed", last_result_ms: null, last_success_ms: null },
+        today_summary: { outcome: "not_observed", last_result_ms: null, last_success_ms: null },
+      },
+    });
+  });
+
+  it.each(["throw", "reject"])("retains a safe error before the logger can %s", async (mode) => {
+    const handlers = startDiagnostics();
+    logError.mockImplementationOnce(() => {
+      expect(window.__MOVEUP_UI_DIAGNOSTICS__?.last_error).toEqual({
+        source: "window", kind: "Error", location: null,
+      });
+      if (mode === "throw") throw new Error("PRIVATE sink");
+      return Promise.reject(new Error("PRIVATE sink"));
+    });
+    handlers.onError(errorEvent({ error: new Error("PRIVATE user data") }));
+    await Promise.resolve();
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__?.last_error).toEqual({
+      source: "window", kind: "Error", location: null,
+    });
+    expect(logError).toHaveBeenCalledOnce();
   });
 });

@@ -15,6 +15,7 @@ import { VoiceCapture } from "@/components/VoiceCapture";
 import { PairScreen } from "@/remote/PairScreen";
 import { RemoteControls } from "@/remote/RemoteControls";
 import { useControlCapability } from "@/remote/activeTransport";
+import { reportAppMounted, reportView } from "./uiDiagnostics";
 import "@/styles/globals.css";
 
 /** Whether we are running inside Tauri (desktop) or a browser (remote display). */
@@ -32,10 +33,15 @@ const VoiceCaptureGallery = lazy(() => import("@/mockup/VoiceCaptureGallery"));
 
 /**
  * Root router — decides which page to render based on `window.location.hash`.
- * Calls no hooks itself, so it never risks changing the hook count of a
- * conditional branch across renders (react-hooks/rules-of-hooks).
+ * Lifecycle hooks run before every route branch, preserving hook order.
  */
 export default function App() {
+  const hash = window.location.hash;
+  const view = hash === "#/analyst" ? "analyst"
+    : (!isTauri && hash.startsWith("#/pair")) ||
+      (import.meta.env.DEV && ["#/mockup", "#/mockup/analyst", "#/mockup/voice"].includes(hash))
+      ? "other" : "widget";
+  useEffect(() => { reportAppMounted(view); }, [view]);
   // BROWSER: /#/pair[?d=…&c=…] — pair this phone with a desk through the relay.
   // Browser-only: the desktop pairs from Settings → Remote, where it holds the
   // desk token this screen exists to obtain.
@@ -85,6 +91,8 @@ function MainApp() {
   // Only the relay transport is allowed to carry a write (D4); the LAN socket
   // reports `control: false` and the controls never mount.
   const canControl = useControlCapability();
+
+  useEffect(() => { reportView(showSettings ? "settings" : "widget"); }, [showSettings]);
 
   // Request Wake Lock in remote display mode to keep screen on
   useEffect(() => {

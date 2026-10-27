@@ -14,6 +14,7 @@ describe("AppErrorBoundary", () => {
   let consoleError: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    delete window.__MOVEUP_UI_DIAGNOSTICS__;
     logError.mockReset().mockResolvedValue(undefined);
     consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
@@ -44,6 +45,9 @@ describe("AppErrorBoundary", () => {
     expect(message).toMatch(/^UI_FAILURE source=render kind=TypeError/);
     expect(message).not.toContain("PRIVATE render message");
     expect(message).not.toContain("AppErrorBoundary.test.tsx?");
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__).toMatchObject({
+      boot: "fallback", last_error: { source: "render", kind: "TypeError", location: null },
+    });
   });
 
   it("keeps rendering children when they do not fail", () => {
@@ -55,5 +59,16 @@ describe("AppErrorBoundary", () => {
 
     expect(screen.getByText("Popup content")).toBeTruthy();
     expect(logError).not.toHaveBeenCalled();
+  });
+
+  it("retains fallback evidence when plugin logging fails", async () => {
+    logError.mockRejectedValue(new Error("PRIVATE logger failure"));
+    render(<AppErrorBoundary><BrokenPanel /></AppErrorBoundary>);
+    await Promise.resolve();
+    expect(screen.getByRole("alert")).toHaveTextContent("View unavailable.");
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__).toMatchObject({
+      boot: "fallback", last_error: { source: "render", kind: "TypeError" },
+    });
+    expect(JSON.stringify(window.__MOVEUP_UI_DIAGNOSTICS__)).not.toContain("PRIVATE");
   });
 });

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { DashboardState } from "@/types";
 import { deskReducer, initialDeskState, selectDeskView } from "./deskReducer";
+import { reportQueryResult } from "../uiDiagnostics";
 
 /** Reuse the existing local dashboard cadence; this hook never auto-connects. */
 const SNAPSHOT_REFRESH_MS = 1_000;
@@ -28,10 +29,12 @@ export function useLiveObservation() {
       try {
         const dashboard = await invoke<DashboardState>("get_dashboard_state");
         if (!active || request !== latestRequest.current) return;
+        reportQueryResult("dashboard", "succeeded");
         dispatch({ type: "snapshot", session: dashboard.session, metrics: dashboard.metrics });
         dispatch({ type: "query-succeeded", query: "dashboard", receivedAt: new Date().toISOString() });
       } catch (error) {
         if (!active || request !== latestRequest.current) return;
+        reportQueryResult("dashboard", "failed");
         dispatch({
           type: "query-failed",
           query: "dashboard",

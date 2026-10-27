@@ -16,6 +16,74 @@ const SAFE_ERROR_KINDS = new Set([
 
 type FailureSource = "render" | "window" | "rejection";
 
+type ViewCategory = "widget" | "settings" | "analyst" | "other";
+type QueryName = "dashboard" | "today_summary";
+type QueryResult = {
+  outcome: "not_observed" | "succeeded" | "failed";
+  last_result_ms: number | null;
+  last_success_ms: number | null;
+};
+
+type UiDiagnostics = {
+  schema_version: 1;
+  boot: "before_app" | "mounted" | "fallback" | "unknown";
+  view: ViewCategory;
+  queries: Record<QueryName, QueryResult>;
+  last_error: {
+    source: FailureSource;
+    kind: string;
+    location: { module: string; line: number | null; column: number | null } | null;
+  } | null;
+};
+
+declare global {
+  interface Window {
+    __MOVEUP_UI_DIAGNOSTICS__?: UiDiagnostics;
+  }
+}
+
+/** Window-local receipt evidence; never a freshness or renderer-health verdict. */
+function diagnostics(): UiDiagnostics {
+  return (window.__MOVEUP_UI_DIAGNOSTICS__ ??= {
+    schema_version: 1,
+    boot: "before_app",
+    view: "other",
+    queries: {
+      dashboard: { outcome: "not_observed", last_result_ms: null, last_success_ms: null },
+      today_summary: { outcome: "not_observed", last_result_ms: null, last_success_ms: null },
+    },
+    last_error: null,
+  });
+}
+
+export function reportAppMounted(view: ViewCategory): void {
+  const snapshot = diagnostics();
+  // A parent effect must not replace a child's committed error fallback.
+  if (snapshot.boot === "fallback") return;
+  snapshot.boot = "mounted";
+  snapshot.view = view;
+}
+
+export function reportView(view: ViewCategory): void {
+  diagnostics().view = view;
+}
+
+export function reportAppFallback(): void {
+  diagnostics().boot = "fallback";
+}
+
+export function reportQueryResult(query: QueryName, outcome: "succeeded" | "failed"): void {
+  const receivedAt = Date.now();
+  // Never publish malformed times or compare the JS clock with native clocks.
+  if (!Number.isSafeInteger(receivedAt) || receivedAt < 0 || receivedAt > 8_640_000_000_000_000) return;
+  const previous = diagnostics().queries[query];
+  diagnostics().queries[query] = {
+    outcome,
+    last_result_ms: receivedAt,
+    last_success_ms: outcome === "succeeded" ? receivedAt : previous.last_success_ms,
+  };
+}
+
 type SafeLocation = {
   module: string;
   line?: number;
@@ -130,7 +198,15 @@ function writeDiagnostic(
   value: unknown,
   location?: SafeLocation,
 ): void {
-  const fields = ["UI_FAILURE", `source=${source}`, `kind=${errorKind(value)}`];
+  const kind = errorKind(value);
+  diagnostics().last_error = {
+    source,
+    kind,
+    location: location
+      ? { module: location.module, line: location.line ?? null, column: location.column ?? null }
+      : null,
+  };
+  const fields = ["UI_FAILURE", `source=${source}`, `kind=${kind}`];
   if (location) fields.push(`module=${location.module}`);
   if (location?.line && location.column) {
     fields.push(`line=${location.line}`, `column=${location.column}`);
@@ -151,7 +227,12 @@ export function reportRenderFailure(error: unknown): void {
   writeDiagnostic("render", error, locationFromStack(error));
 }
 
+export function reportImportFailure(error: unknown): void {
+  writeDiagnostic("rejection", error, locationFromStack(error));
+}
+
 export function startUiDiagnostics(): () => void {
+  diagnostics();
   const onError = (event: ErrorEvent): void => {
     writeDiagnostic("window", event.error, locationFromErrorEvent(event));
   };

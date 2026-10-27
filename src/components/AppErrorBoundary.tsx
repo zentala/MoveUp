@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { reportRenderFailure } from "../uiDiagnostics";
+import { reportAppFallback, reportRenderFailure } from "../uiDiagnostics";
 
 type Props = {
   children: ReactNode;
@@ -17,6 +17,7 @@ export default class AppErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, _errorInfo: ErrorInfo): void {
+    reportAppFallback();
     reportRenderFailure(error);
   }
 

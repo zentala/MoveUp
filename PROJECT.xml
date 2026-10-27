@@ -236,10 +236,12 @@
     </layer>
 
     <layer name="react-frontend" path="src/">
-      <file name="main.tsx">React DOM root — starts best-effort UI diagnostics and mounts App under the render error boundary</file>
-      <file name="uiDiagnostics.ts">Captures render, window error and unhandled rejection events; logs allowlisted error kind and optional route-based location hints parsed from recognized stack frames</file>
-      <file name="uiDiagnostics.test.ts">Checks sanitized fields, recognized source/chunk frames, omitted message/private/foreign locations, logger failure containment and listener cleanup</file>
-      <file name="App.tsx">Root — widget system, settings panel, state management</file>
+      <file name="main.tsx">React DOM root — initializes window-local diagnostics before dynamically importing App; captures import failure without claiming a React mount</file>
+      <file name="main.test.tsx">Exercises App module evaluation failure, early listeners, missing root and import success before React commits</file>
+      <file name="uiDiagnostics.ts">Version 1 window-local boot/view, named dashboard/today_summary completion receipts and sanitized last error; retains error evidence before best-effort existing plugin logging</file>
+      <file name="uiDiagnostics.test.ts">Checks initial not_observed results, sanitized fields and recognized frames, omitted private/foreign locations, retained evidence across logger failure and listener cleanup</file>
+      <file name="App.tsx">Root — widget system, settings panel, state management and committed mount/view diagnostic categories</file>
+      <file name="App.test.tsx">Checks browser/Tauri routing and actual widget/settings/Analyst view categories without retaining route or pairing contents</file>
       <file name="types.ts">Shared types: DeskState, SessionStateDto, TodaySummaryDto, WidgetProps</file>
       <file name="welcome.tsx">Welcome popup entry point</file>
 
@@ -264,8 +266,8 @@
       </dir>
 
       <dir name="components/">
-        <file name="AppErrorBoundary.tsx">Render error boundary with a fixed accessible “View unavailable.” fallback</file>
-        <file name="AppErrorBoundary.test.tsx">Checks the render fallback, sanitized diagnostic and normal child rendering</file>
+        <file name="AppErrorBoundary.tsx">Render error boundary with a fixed accessible “View unavailable.” fallback and committed fallback diagnostic stage</file>
+        <file name="AppErrorBoundary.test.tsx">Checks fallback stage and copy, sanitized error retention despite logger failure and normal child rendering</file>
         <file name="UiIcon.tsx">Shared decorative Lucide icon wrapper with 16px default size and 1.5px stroke</file>
         <file name="HeightRail.tsx">Visual left-side accent bar</file>
         <file name="SessionProgress.tsx">Sitting session timer and progress</file>
@@ -293,11 +295,13 @@
       </dir>
 
       <dir name="hooks/">
-        <file name="useDesk.ts">Main data hook — desk:* events, IPC state, producer sample facts and separate dashboard/history request receipts. Reports deskOnline: true and control capability as constants</file>
+        <file name="useDesk.ts">Main data hook — desk:* events, IPC state, producer sample facts and separate dashboard/history request receipts. Publishes accepted get_dashboard_state/get_today_summary completion hints to window diagnostics; deskOnline and control remain constants</file>
+        <file name="useDesk.test.ts">Transport regressions plus named diagnostic receipts, retained success on failure/clock rollback and ignored unmounted or superseded callbacks</file>
         <file name="useRemoteDesk.ts">Browser transport adapter. Carries optional producer observation metadata and frontend snapshot/history receipts through the shared reducer; the socket remains owned by selectTransport()</file>
         <file name="useDeskTypes.ts">UseDeskResult, producer observation data, per-query receipts, DeskTransportFacts and UseDeskConnection</file>
         <file name="deskReducer.ts">Shared transport-independent reducer validates observation metadata and retains independent snapshot/history receipt state</file>
-        <file name="useLiveObservation.ts">Read-only Analyst snapshot hook using get_dashboard_state; it does not start auto-connect</file>
+        <file name="useLiveObservation.ts">Read-only Analyst snapshot hook using get_dashboard_state; publishes only accepted completion hints without extra polling or auto-connect</file>
+        <file name="useLiveObservation.test.ts">Snapshot regressions plus diagnostic not_observed/in-flight state, receipt-time success/failure and ignored post-unmount results</file>
         <file name="useTimer.ts">Tick hook — 1s interval counter</file>
       </dir>
 
