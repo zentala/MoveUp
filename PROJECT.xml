@@ -519,6 +519,10 @@
       <count>20 tests (8 build-report + 12 relay-e2e)</count>
     </layer>
 
+    <layer name="share-popup" path="tests/e2e/share-popup.test.ts" runner="pnpm test:share">
+      <note>Focused Playwright config starts strict dedicated Vite15431, never native Tauri. Real App/OneBarWidget uses public Tauri mocks before import; display and external navigation blocked. Tests cover420x240/320x240/420x200,200% text, full text reachability, clipboard URLs and native modal focus. Included in just check.</note>
+      <files>playwright.share.config.ts, tests/e2e/share-popup.fixture.ts, tests/e2e/share-popup.test.ts</files>
+    </layer>
     <layer name="e2e" path="tests/e2e/" runner="pnpm test:e2e">
       <note>Requires: tauri-driver --compatibility-mode</note>
     </layer>

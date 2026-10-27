@@ -8,7 +8,7 @@
  * - Twitter/Reddit buttons open the expected share URLs
  * - Clicking the overlay closes; clicking inside the modal does not
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ShareStats } from "./ShareStats";
 import type { MetricSnapshot } from "@/types";
@@ -34,6 +34,21 @@ const BASE_PROPS = {
   todayScore: 12.4,
   onClose: vi.fn(),
 };
+
+// jsdom has no native modal implementation. Actual focus/inert behavior is
+// exercised in Chromium by the focused Share browser suite.
+beforeAll(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+    configurable: true, value(this: HTMLDialogElement) { this.setAttribute("open", ""); this.querySelector<HTMLElement>("[autofocus]")?.focus(); },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, "close", {
+    configurable: true, value(this: HTMLDialogElement) { this.removeAttribute("open"); },
+  });
+});
+afterAll(() => {
+  Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
+  Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
+});
 
 beforeEach(() => {
   BASE_PROPS.onClose.mockClear();
@@ -86,7 +101,7 @@ describe("ShareStats", () => {
 
   it("opens a Reddit submit URL referencing MoveUp", () => {
     render(<ShareStats {...BASE_PROPS} />);
-    fireEvent.click(screen.getByText(/Share on Reddit/));
+    fireEvent.click(screen.getByRole("button", { name: "Reddit" }));
 
     const url = decodeURIComponent(vi.mocked(window.open).mock.calls[0][0] as string);
     expect(url).toContain("https://reddit.com/submit?title=");
@@ -95,7 +110,7 @@ describe("ShareStats", () => {
 
   it("closes when clicking the overlay but not the modal body", () => {
     render(<ShareStats {...BASE_PROPS} />);
-    fireEvent.click(screen.getByText("My Desk Stats Today"));
+    fireEvent.click(screen.getByText("Standing"));
     expect(BASE_PROPS.onClose).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText("share my stats").closest(".share-overlay")!);
@@ -106,5 +121,33 @@ describe("ShareStats", () => {
     render(<ShareStats {...BASE_PROPS} />);
     fireEvent.click(screen.getByTitle("Close"));
     expect(BASE_PROPS.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses a temporary textarea inside the modal when the clipboard API fails", async () => {
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("Unavailable"));
+    const copy = vi.fn(() => {
+      const area = document.querySelector("dialog textarea") as HTMLTextAreaElement;
+      expect(area.value).toContain("Score: +12 points");
+      return true;
+    });
+    Object.defineProperty(document, "execCommand", { configurable: true, value: copy });
+    render(<ShareStats {...BASE_PROPS} />);
+    const button = screen.getByRole("button", { name: "Copy Text" });
+    button.focus();
+    fireEvent.click(button);
+    expect(await screen.findByText("Copied!")).toBeInTheDocument();
+    expect(copy).toHaveBeenCalledWith("copy");
+    expect(document.querySelector("textarea")).toBeNull();
+    expect(button).toHaveFocus();
+    Reflect.deleteProperty(document, "execCommand");
+  });
+
+  it("labels the modal and handles native Escape cancellation", () => {
+    render(<ShareStats {...BASE_PROPS} />);
+    const dialog = screen.getByRole("dialog", { name: "share my stats" });
+    expect(dialog).toHaveAttribute("open");
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    fireEvent(dialog, new Event("cancel", { bubbles: false, cancelable: true }));
+    expect(BASE_PROPS.onClose).toHaveBeenCalledOnce();
   });
 });

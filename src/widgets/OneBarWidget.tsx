@@ -8,7 +8,7 @@
  * 3. KPI strip — today's metrics
  * 4. Timeline — session history at bottom
  */
-import { useState, type FC } from "react";
+import { useState, useRef, useEffect, type FC, type RefObject } from "react";
 import type { WidgetProps } from "@/types";
 import StateIndicator from "@/components/StateIndicator";
 import { computeTemperature } from "./one-bar/temperature";
@@ -25,10 +25,11 @@ import "./one-bar/one-bar.css";
 /** Header props with share callback. */
 interface HeaderProps extends WidgetProps {
   onOpenShare: () => void;
+  shareButtonRef: RefObject<HTMLButtonElement | null>;
 }
 
 /** Header row: StateIndicator (dot + label + height + activity) + share + gear. */
-const OneBarHeader: FC<HeaderProps> = (props) => (
+const OneBarHeader: FC<HeaderProps> = ({ shareButtonRef, ...props }) => (
   <div className="one-bar__header">
     <StateIndicator
       state={props.state}
@@ -38,6 +39,7 @@ const OneBarHeader: FC<HeaderProps> = (props) => (
     />
     <div className="one-bar__header-actions">
       <button
+        ref={shareButtonRef}
         className="one-bar__share-btn"
         type="button"
         onClick={props.onOpenShare}
@@ -62,6 +64,12 @@ const OneBarHeader: FC<HeaderProps> = (props) => (
 /** One Bar widget — horizontal layout with header, timer, KPIs, timeline. */
 export const OneBarWidget: FC<WidgetProps> = (props) => {
   const [showShare, setShowShare] = useState(false);
+  const shareButtonRef = useRef<HTMLButtonElement>(null);
+  const wasSharing = useRef(false);
+  useEffect(() => {
+    if (wasSharing.current && !showShare) shareButtonRef.current?.focus();
+    wasSharing.current = showShare;
+  }, [showShare]);
   const temperature = computeTemperature(props);
   const [skin] = useTimelineSkin();
 
@@ -70,7 +78,7 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
       className={`one-bar one-bar--${temperature} ${skinClassName(skin)}`}
       data-testid="one-bar-widget"
     >
-      <OneBarHeader {...props} onOpenShare={() => setShowShare(true)} />
+      <OneBarHeader {...props} shareButtonRef={shareButtonRef} onOpenShare={() => setShowShare(true)} />
       <OneBarTimer {...props} />
       <KpiStrip metrics={props.metrics}>
         <HealthWidget />

@@ -167,6 +167,28 @@ existing monospace face and compact spacing. The fallback has no decorative
 art or controls and does not retry or reload. This covers React render errors;
 it does not detect a native WebView or GPU hang/crash.
 
+### Share popup fit — 2026-10-27
+
+Keep the native 420×240 popup and its charcoal, monospace instrument identity.
+Replace the narrow, tall centered Share card and stacked actions with a
+viewport-bounded dialog: compact labelled header with Close, four readable stats
+in a compact grid, tracked time and attribution, and an equal-height footer row
+for Copy Text, Post on X and Reddit. Use existing tokens, named line action icons,
+at least 10px labels and at least 24px hit targets. Preserve full values and the
+existing clipboard text and destination semantics; no scaling or ellipsis.
+
+At 420×240 with ordinary data all content fits without scrolling. At constrained
+sizes or enlarged text only the explicitly labelled inner stats region may
+scroll vertically; header, Close and actions stay visible, and long values wrap.
+At narrow widths put action icons above their complete labels, recover compact
+padding and wrap labels only between words. Enlarged text keeps its full size;
+Copy Text, Copied!, Post on X and Reddit must never split individual words.
+The native modal dialog contains keyboard focus, starts on Close, closes on
+Escape and restores focus to Share. Background controls remain inert. This
+replaces the previous unconstrained 280px modal; it introduces no palette,
+native-window, data or API change. Rendered regressions cover the actual App
+containing OneBarWidget, not an isolated full-width component fixture.
+
 ## Official references
 
 [Carbon colors](https://www.carbondesignsystem.com/building-blocks/foundations/color/overview) and [layering](https://www.carbondesignsystem.com/building-blocks/foundations/color/guidelines) inform neutral layers/semantic roles; [Carbon tabs](https://www.carbondesignsystem.com/building-blocks/core/components/tabs/guidelines) informs selected-tab/panel matching and horizontal scrolling. Below-panel donut tabs are MoveUp's adaptation. [Lucide React](https://lucide.dev/guide/react/) supports named imports. [WAI tabs](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/) and [WCAG 2.2](https://www.w3.org/TR/WCAG22/) inform keyboard/contrast targets. Checked 2026-10-09; exact tokens are operator-accepted MoveUp choices, not a Carbon compliance claim.

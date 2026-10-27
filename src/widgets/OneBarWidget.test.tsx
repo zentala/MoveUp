@@ -2,10 +2,24 @@
  * OneBarWidget.test.tsx — verifies the One Bar widget renders correctly
  * across all states and temperature levels.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { OneBarWidget } from "./OneBarWidget";
 import type { WidgetProps } from "@/types";
+
+// Native modal behavior is covered in the real App browser tests, not jsdom.
+beforeAll(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+    configurable: true, value(this: HTMLDialogElement) { this.setAttribute("open", ""); },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, "close", {
+    configurable: true, value(this: HTMLDialogElement) { this.removeAttribute("open"); },
+  });
+});
+afterAll(() => {
+  Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
+  Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
+});
 
 function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
   return {
@@ -170,6 +184,8 @@ describe("OneBarWidget", () => {
     expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("title", "Settings");
     fireEvent.click(share);
     expect(screen.getByText("share my stats")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(share).toHaveFocus();
   });
 
   it("big number shows break elapsed/standing target for standing", () => {
