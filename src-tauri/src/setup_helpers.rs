@@ -44,7 +44,7 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
     let logs_dir = app_data_dir.join("logs");
     let snapshot_logger = Arc::new(crate::snapshot_logger::SnapshotLogger::new(logs_dir.clone()));
     snapshot_logger.cleanup_old_logs(7);
-    let event_logger = Arc::new(crate::event_logger::EventLogger::new(logs_dir));
+    let event_logger = Arc::new(crate::event_logger::EventLogger::new(logs_dir.clone()));
     event_logger.log(&format!("START v{}", crate::APP_VERSION));
     lifecycle.attach_logger(event_logger.clone(), previous);
     match crate::db_backup::backup_database(&app_data_dir) {
@@ -63,6 +63,9 @@ pub fn perform_app_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
         snapshot: snapshot_logger.clone(),
         event: event_logger.clone(),
     });
+    if crate::ui_diagnostics::initialize(app.handle(), lifecycle.identity.clone(), event_logger.clone(), logs_dir).is_err() {
+        log::warn!("UI diagnostics initialization failed; core startup continues");
+    }
     load_profiles(app.handle(), &event_logger);
 
     ensure_autostart(app.handle(), &event_logger);

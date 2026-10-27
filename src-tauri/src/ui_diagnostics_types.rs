@@ -122,6 +122,7 @@ impl PageObservation {
 pub enum EventKind {
     Created, Destroyed, NavigationStarted, NavigationCompleted { succeeded: bool },
     Show { succeeded: bool }, Focus { succeeded: bool }, Visibility { visible: bool },
+    WindowOperationFailed { operation: WindowOperation, category: WindowFailureCategory, code: Option<i32> },
     ProcessCapability { capability: Capability }, BrowserCapability { capability: Capability },
     NativeFailure { kind: u32, code: Option<i32> },
     ProcessFailed { kind: Option<i32>, reason: Option<i32>, exit_code: Option<i32> },
@@ -131,12 +132,19 @@ pub enum EventKind {
     AdapterFailure { operation: AdapterOperation, code: Option<i32> },
     ProbeStarted { id: u64 }, ProbeFinished { id: u64, result: Collection },
     ProbeDeadlineDispatchFailed { id: u64 },
+    CaptureFailed { probe: Option<u64> },
     Suspend, Resume,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AdapterOperation { Acquisition, NavigationRegistration, Cleanup, Script, Dispatch, RuntimeVersion }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WindowOperation { Show, Focus, Visibility }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WindowFailureCategory { Io, Platform }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Event {
     pub sequence: u64,

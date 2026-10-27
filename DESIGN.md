@@ -1,5 +1,21 @@
 # MoveUp design contract
 
+## Native UI diagnostics action - 2026-10-27
+
+Add **Save UI diagnostics** after **Open Analyst**, before the existing separator
+and Quit. Keep the native Windows menu typography, spacing, keyboard behavior and
+system theme. No new icon, window, dashboard, retry or reload control.
+
+The action collects main and only an already-existing Analyst without showing or
+focusing either window. Native confirmation states the actual saved report path;
+a published partial report retains its path with an explicit incomplete-collection warning.
+Write failures and unconfirmed publication remain distinct. Actual timeout and
+absent-window observations do not by themselves mean collection-system failure. A repeated request
+while capture is active reports that collection is already in progress.
+The report remains useful when React fails; it does not certify GPU painting or
+repair the installed application. Inspect this small menu in the isolated native
+test host before delivery; production installation is outside this change.
+
 Updated 2026-10-09. **Accepted target; implementation pending.** Canonical visual contract for popup and Analyst. The operator accepted the tokens below. Source baseline: `6e81da375fe4265325af2f33d2c1c1fac263640f` and working files read in this review. Browser/live QA: **NOT_CHECKED**. Independent coordinator review is required.
 
 ## Direction and scope

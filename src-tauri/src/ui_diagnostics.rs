@@ -102,6 +102,13 @@ impl DiagnosticState {
                 window.active_probe = None;
                 window.collection = result.clone();
             }
+            EventKind::CaptureFailed { probe } => {
+                if probe.is_none() || window.active_probe != *probe {
+                    self.counters.stale = self.counters.stale.saturating_add(1); return false;
+                }
+                window.active_probe = None;
+                window.collection = Collection::CollectionFailed { code: None };
+            }
             EventKind::ProbeDeadlineDispatchFailed { id } => {
                 if window.active_probe != Some(*id) {
                     self.counters.stale = self.counters.stale.saturating_add(1); return false;
@@ -121,12 +128,13 @@ impl DiagnosticState {
 
 enum Work {
     Event(Event),
+    Absent(WindowLabel),
     Snapshot(mpsc::Sender<DiagnosticState>),
     Report { directory: PathBuf, checkpoint: CheckpointObservation, runtime: Option<String>,
         reply: mpsc::Sender<Result<PathBuf, crate::ui_diagnostics_store::ReportError>> },
 }
 #[derive(Default)]
-struct Loss { dropped: AtomicU64, disconnected: AtomicU64 }
+struct Loss { dropped: AtomicU64, disconnected: AtomicU64, power_dropped: AtomicU64 }
 #[derive(Clone)]
 pub struct Diagnostics { sender: SyncSender<Work>, loss: Arc<Loss> }
 #[derive(Debug, PartialEq, Eq)]
@@ -147,9 +155,15 @@ impl Diagnostics {
             let mut state = DiagnosticState::new(identity);
             let mut sequence = 0u64;
             while let Ok(work) = receiver.recv() {
-                state.counters.dropped = worker_loss.dropped.load(Ordering::Relaxed);
+                state.counters.dropped = worker_loss.dropped.load(Ordering::Relaxed)
+                    .saturating_add(worker_loss.power_dropped.load(Ordering::Relaxed));
                 state.counters.disconnected = worker_loss.disconnected.load(Ordering::Relaxed);
                 match work {
+                    Work::Absent(label) => {
+                        let window = &mut state.windows[label.index()];
+                        window.present = Some(false); window.visible = None;
+                        window.active_probe = None; window.collection = Collection::NotPresent;
+                    }
                     Work::Event(mut event) => {
                         // Order is the worker's receipt order, independent of source clocks.
                         sequence = sequence.saturating_add(1);
@@ -202,6 +216,14 @@ impl Diagnostics {
     }
     /// No disk IO, session/JS locks, sleeps or waits on the producer path.
     pub fn submit(&self, event: Event) -> bool { self.send(Work::Event(event)) }
+    pub fn observed_absence(&self, label: WindowLabel) -> bool { self.send(Work::Absent(label)) }
+    pub fn collection_failed(&self, label: WindowLabel) -> bool { self.collection_failed_at(label, None) }
+    pub fn collection_failed_at(&self, label: WindowLabel, context: Option<(Generation, Option<u64>)>) -> bool {
+        let (generation, probe) = context.unwrap_or_default();
+        self.submit(Event { sequence: 0, utc: chrono::Utc::now(), window: label, generation,
+            kind: EventKind::CaptureFailed { probe } })
+    }
+    pub fn observe_power_drops(&self, total: u64) { self.loss.power_dropped.fetch_max(total, Ordering::Relaxed); }
     pub fn dropped(&self) -> u64 { self.loss.dropped.load(Ordering::Relaxed) }
     pub fn snapshot(&self) -> Option<Receiver<DiagnosticState>> {
         let (tx, rx) = mpsc::channel();
@@ -229,5 +251,128 @@ pub fn checkpoint(lifecycle: Option<&crate::app_lifecycle::AppLifecycle>) -> Che
         },
         Err(std::sync::TryLockError::WouldBlock) => CheckpointObservation::Contended,
         Err(std::sync::TryLockError::Poisoned(_)) => CheckpointObservation::Unavailable,
+    }
+}
+
+
+/// Application adapter shared with the isolated host; never initializes product persistence.
+pub struct UiRuntime {
+    pub diagnostics: Diagnostics,
+    directory: PathBuf,
+    capturing: std::sync::atomic::AtomicBool,
+    #[cfg(windows)] power: std::sync::Mutex<Option<crate::ui_diagnostics_power::PowerRegistration>>,
+}
+#[derive(Clone, Debug)]
+pub enum CaptureResult { Saved(PathBuf), Incomplete(PathBuf), Failed { stage: &'static str, published: Option<PathBuf> }, Unknown, Busy }
+
+pub fn initialize(app: &tauri::AppHandle, identity: crate::app_lifecycle::RunId,
+    logger: Arc<crate::event_logger::EventLogger>, directory: PathBuf) -> io::Result<()> {
+    use tauri::Manager;
+    if app.try_state::<Arc<UiRuntime>>().is_some() { return Err(io::ErrorKind::AlreadyExists.into()); }
+    let runtime = Arc::new(UiRuntime { diagnostics: Diagnostics::with_logger(identity, logger)?, directory,
+        capturing: std::sync::atomic::AtomicBool::new(false),
+        #[cfg(windows)] power: std::sync::Mutex::new(None) });
+    if !app.manage(runtime.clone()) { return Err(io::ErrorKind::AlreadyExists.into()); }
+    #[cfg(windows)] {
+        *runtime.power.lock().unwrap_or_else(|e| e.into_inner()) =
+            crate::ui_diagnostics_power::PowerRegistration::register(app.clone(), runtime.diagnostics.clone()).ok();
+        for (name, label) in [("main", WindowLabel::Main), ("analyst", WindowLabel::Analyst)] {
+            if let Some(window) = app.get_webview_window(name) {
+                if crate::ui_diagnostics_windows::install(window, runtime.diagnostics.clone(), label, 0).is_err() {
+                    runtime.diagnostics.collection_failed(label);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn capture(app: &tauri::AppHandle, complete: impl FnOnce(CaptureResult) + Send + 'static) {
+    use tauri::Manager;
+    let Some(runtime) = app.try_state::<Arc<UiRuntime>>().map(|s| s.inner().clone()) else {
+        complete(CaptureResult::Failed { stage: "diagnostics_unavailable", published: None }); return;
+    };
+    if runtime.capturing.swap(true, Ordering::AcqRel) { complete(CaptureResult::Busy); return; }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut version = None;
+        let mut incomplete = false;
+        #[cfg(windows)] {
+            runtime.diagnostics.observe_power_drops(crate::ui_diagnostics_power::dropped_callbacks());
+            let mut replies = Vec::new();
+            for label in [WindowLabel::Main, WindowLabel::Analyst] {
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                let context = Arc::new(std::sync::OnceLock::new());
+                if crate::ui_diagnostics_windows::collect_existing(&app, runtime.diagnostics.clone(), label, context.clone(), tx).is_err() {
+                    incomplete = true; runtime.diagnostics.collection_failed_at(label, context.get().copied());
+                } else { replies.push((label, context, rx)); }
+            }
+            let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+            for (label, context, reply) in replies {
+                match tokio::time::timeout_at(deadline, reply).await {
+                    Ok(Ok((runtime_version, failed))) => { incomplete |= failed; if version.is_none() { version = runtime_version; } }
+                    _ => { incomplete = true; runtime.diagnostics.collection_failed_at(label, context.get().copied()); }
+                }
+            }
+            runtime.diagnostics.observe_power_drops(crate::ui_diagnostics_power::dropped_callbacks());
+        }
+        let checkpoint = app.try_state::<Arc<crate::app_lifecycle::AppLifecycle>>()
+            .map(|life| crate::ui_diagnostics::checkpoint(Some(life.inner().as_ref())))
+            .unwrap_or(CheckpointObservation::Unavailable);
+        let result = match runtime.diagnostics.report(runtime.directory.clone(), checkpoint, version) {
+            Ok(reply) => match tokio::task::spawn_blocking(move || reply.recv_timeout(std::time::Duration::from_secs(5))).await {
+                Ok(Ok(Ok(path))) => written_report(path, incomplete),
+                Ok(Ok(Err(error))) => CaptureResult::Failed { stage: error.stage, published: error.published_path },
+                _ => CaptureResult::Unknown,
+            },
+            Err(_) => CaptureResult::Failed { stage: "writer_queue_unavailable", published: None },
+        };
+        runtime.capturing.store(false, Ordering::Release);
+        complete(result);
+    });
+}
+pub(crate) fn written_report(path: PathBuf, incomplete: bool) -> CaptureResult {
+    if incomplete { CaptureResult::Incomplete(path) } else { CaptureResult::Saved(path) }
+}
+pub fn save_from_tray(app: &tauri::AppHandle) {
+    capture(app, |result| { let (title, body) = confirmation(&result); crate::notify::show(&title, &body); });
+}
+pub fn confirmation(result: &CaptureResult) -> (String, String) {
+    match result {
+        CaptureResult::Saved(path) => ("UI diagnostics saved".into(), path.display().to_string()),
+        CaptureResult::Incomplete(path) => ("UI diagnostics incomplete".into(), format!("Report saved to {}. Some observations could not be collected; this does not establish UI health.", path.display())),
+        CaptureResult::Busy => ("UI diagnostics".into(), "Collection is already in progress.".into()),
+        CaptureResult::Unknown => ("UI diagnostics status unavailable".into(), "Could not confirm whether the report was saved.".into()),
+        CaptureResult::Failed { stage, published } => {
+            let body = match published { Some(path) => format!("Report written to {}, but cleanup failed ({stage}).", path.display()),
+                None => format!("Report could not be saved ({stage}).") };
+            ("UI diagnostics failed".into(), body)
+        }
+    }
+}
+/// Capture bounded error evidence immediately; retain no raw platform strings.
+pub fn native_failure(error: &tauri::Error) -> (WindowFailureCategory, Option<i32>) {
+    match error { tauri::Error::Io(error) => (WindowFailureCategory::Io, error.raw_os_error()),
+        _ => (WindowFailureCategory::Platform, None) }
+}
+pub fn show_and_focus(app: &tauri::AppHandle, window: &tauri::WebviewWindow, label: WindowLabel) {
+    use tauri::Manager;
+    let show = window.show(); let focus = window.set_focus();
+    #[cfg(windows)] if let Some(runtime) = app.try_state::<Arc<UiRuntime>>() {
+        for (operation, result) in [(WindowOperation::Show, show), (WindowOperation::Focus, focus)] {
+            let failure = result.as_ref().err().map(native_failure);
+            if crate::ui_diagnostics_windows::record_operation(window.clone(), runtime.diagnostics.clone(), label, operation,
+                result.is_ok(), failure).is_err() { runtime.diagnostics.collection_failed(label); }
+        }
+    }
+    #[cfg(not(windows))] let _ = (app, label, show, focus);
+}
+pub fn shutdown(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    #[cfg(windows)] {
+        crate::ui_diagnostics_windows::shutdown();
+        if let Some(runtime) = app.try_state::<Arc<UiRuntime>>() {
+            if let Ok(mut power) = runtime.power.try_lock() { if let Some(power) = power.as_mut() { let _ = power.close(); } }
+        }
     }
 }

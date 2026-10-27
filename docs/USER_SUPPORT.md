@@ -1,5 +1,28 @@
 # Support and Troubleshooting
 
+## Save a UI diagnostics report
+
+When a window is blank or unresponsive, use the native tray menu **Save UI
+diagnostics** before restarting anything. Collection does not show or create
+Analyst, reload a page, change settings or restart MoveUp. The native confirmation
+shows the actual report path under the existing daily logs directory. An
+incomplete report still has a saved path and an explicit collection warning;
+unconfirmed publication and write failures are reported separately.
+
+The bounded JSON includes run identity, window/navigation generations, native
+process/navigation/power events, probe outcomes and safe boot/view/query/error
+categories. It excludes page text, HTML, inputs, raw errors/stacks/URLs, settings
+and sensor history. Review the report before sharing: run identity and timestamps
+remain local support information. Nearby `events.log` retains bounded diagnostic
+receipts and write/loss counters expose gaps.
+
+A timeout is an observed lack of response, not proof of a crash. An absent
+Analyst is expected when it was never opened. DOM or a mounted React stage cannot
+prove that pixels were painted. Unsupported registrations, interrupted probes,
+collection failures and dropped events remain separate. Backend readiness and
+checkpoint availability are independent observations; neither proves UI health.
+Real sleep/resume and behavior of an installed version require their own checks.
+
 ## Common Issues and Solutions
 
 ### Issue: App won't start

@@ -10,11 +10,12 @@ pub struct Ticket { pub id: u64, pub generation: Generation, pub started: Durati
 pub enum Request { Start(Ticket), Reuse(Ticket), Throttled, Suspended }
 pub struct Probe {
     pub generation: Generation,
+    waiter: Option<tokio::sync::oneshot::Sender<(Option<String>, bool)>>,
     physical: Option<Ticket>, logical: bool, last_start: Option<Duration>, next_id: u64, suspended: bool,
 }
 impl Probe {
     pub fn new(generation: Generation) -> Self {
-        Self { generation, physical: None, logical: false, last_start: None, next_id: 0, suspended: false }
+        Self { generation, waiter: None, physical: None, logical: false, last_start: None, next_id: 0, suspended: false }
     }
     pub fn request(&mut self, now: Duration, manual: bool) -> Request {
         if self.suspended { return Request::Suspended; }
@@ -33,7 +34,27 @@ impl Probe {
     pub fn invalidate(&mut self, generation: Generation) {
         self.generation = generation; self.logical = false;
     }
+    pub fn pending(&self) -> bool { self.physical.is_some() && self.logical && !self.suspended }
     pub fn power(&mut self, suspended: bool) { self.suspended = suspended; self.logical = false; }
+    pub fn invalidate_observed(&mut self, generation: Generation, publish: impl FnOnce(Generation)) {
+        self.invalidate(generation);
+        // A resumed capture may immediately queue its report on another worker.
+        // Publish its settling observation before releasing that receiver.
+        publish(self.generation);
+        self.settle(None, false);
+    }
+    pub fn power_observed(&mut self, suspended: bool, publish: impl FnOnce(Generation)) {
+        self.power(suspended);
+        publish(self.generation);
+        self.settle(None, false);
+    }
+    pub fn watch(&mut self, waiter: tokio::sync::oneshot::Sender<(Option<String>, bool)>) {
+        // A manual capture is serialized by UiRuntime; replacing a sender closes its old receiver.
+        self.waiter = Some(waiter);
+    }
+    pub fn settle(&mut self, version: Option<String>, failed: bool) {
+        if let Some(waiter) = self.waiter.take() { let _ = waiter.send((version, failed)); }
+    }
     pub fn complete(&mut self, ticket: Ticket, result: Collection) -> Option<Collection> {
         if self.physical != Some(ticket) { return None; }
         self.physical = None;

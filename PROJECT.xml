@@ -14,7 +14,7 @@
 
   <functionality>
     <feature name="window-runtime-diagnostics-core">
-      <description>Application-local typed window generations and collection states, nonblocking queue of 128 observations, 64 recent event groups, truthful loss/write counters and exclusive daily JSON reports capped at 256 KiB. Opt-in Windows WebView2/power adapters and fixed version1 DOM/JS probe retain physical single-flight through timeout. Runtime/tray activation is separate.</description>
+      <description>Application-local typed window generations and collection states, nonblocking queue of 128 observations, 64 recent event groups, truthful loss/write counters and exclusive daily JSON reports capped at 256 KiB. Opt-in Windows WebView2/power adapters and fixed version1 DOM/JS probe retain physical single-flight through timeout. Production setup activates existing-window collection through the native Save UI diagnostics tray action; partial reports retain their path with an incomplete warning.</description>
       <source path="src-tauri/src/ui_diagnostics.rs" tests="src-tauri/src/ui_diagnostics_tests.rs"/>
       <source path="src-tauri/src/ui_diagnostics_types.rs"/>
       <source path="src-tauri/src/ui_diagnostics_store.rs"/>
@@ -23,6 +23,13 @@
       <source path="src-tauri/src/ui_diagnostics_probe.rs" tests="src-tauri/src/ui_diagnostics_windows_tests.rs"/>
       <source path="src-tauri/src/ui_diagnostics_probe.js" tests="src-tauri/src/ui_diagnostics_windows_tests.rs"/>
       <source path="src-tauri/src/ui_diagnostics_power.rs" tests="src-tauri/src/ui_diagnostics_windows_tests.rs"/>
+      <source path="src-tauri/src/tray.rs" tests="src-tauri/src/ui_diagnostics_tests.rs"/>
+      <source path="src-tauri/src/setup_helpers.rs"/>
+      <source path="src-tauri/src/lib.rs"/>
+      <source path="src/uiDiagnosticsProbe.test.ts"/>
+      <source path="src-tauri/examples/ui_diagnostics_smoke.rs"/>
+      <source path="src-tauri/build.rs">Reuses the existing Tauri resource for the Windows MSVC example's Common Controls v6 activation manifest; ordinary binary resource linkage is preserved.</source>
+      <fixture path="src-tauri/tests/ui_diagnostics_smoke.html" config="src-tauri/tauri.ui-diagnostics-test.conf.json">Distinct app identity and private temporary WebView profiles; actual navigation, absence/recreation and own-controller ProcessFailed evidence without product setup/plugins.</fixture>
       <dependencies>Windows-only webview2-com 0.38.2 and windows-core 0.61; existing windows crate adds Power and COM features.</dependencies>
       <decision-record>.arch/ADR/025-window-runtime-diagnostics.md</decision-record>
     </feature>

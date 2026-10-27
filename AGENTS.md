@@ -15,6 +15,11 @@ Follow [ADR 025](.arch/ADR/025-window-runtime-diagnostics.md), preserving
 UI/COM callbacks enqueue bounded typed observations without waiting on disk,
 JavaScript or session locks. Diagnostics cannot reload/restart the application
 or infer painting/crash causes from missing responses or DOM presence.
+Retain captured generation/probe provenance on delayed failures. Navigation and
+power settle logical capture waiters without releasing the physical script slot.
+Partial reports must show their actual path and incomplete-collection warning.
+The isolated diagnostics example has its own identity/private profiles and never
+calls product setup, starts plugins/services or controls production WebViews.
 
 ## Startup supervision
 

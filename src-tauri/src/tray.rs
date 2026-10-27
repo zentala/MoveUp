@@ -25,12 +25,14 @@ use crate::tray_icon::{generate_tray_icon, generate_tray_icon_no_dot, IconUpdate
 pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let analyst_item = MenuItem::with_id(app, "open-analyst", "Open Analyst", true, None::<&str>)?;
+    let diagnostics_item = MenuItem::with_id(app, "save-ui-diagnostics", "Save UI diagnostics", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     let menu = MenuBuilder::new(app)
         .item(&settings_item)
         .item(&analyst_item)
+        .item(&diagnostics_item)
         .item(&separator)
         .item(&quit_item)
         .build()?;
@@ -53,6 +55,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| match event.id().as_ref() {
             "settings" => show_main_window_settings(app),
             "open-analyst" => show_analyst_window(app),
+            "save-ui-diagnostics" => crate::ui_diagnostics::save_from_tray(app),
             "quit" => {
                 crate::supervision_quit::request(app);
             }
@@ -186,8 +189,7 @@ fn toggle_main_window(app: &AppHandle) {
             let _ = window.hide();
         } else {
             let _ = app.emit(DESK_SHOW_WIDGET, ());
-            let _ = window.show();
-            let _ = window.set_focus();
+            crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Main);
         }
     }
 }
@@ -196,8 +198,7 @@ fn toggle_main_window(app: &AppHandle) {
 fn show_main_window_settings(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = app.emit(DESK_SHOW_SETTINGS, ());
-        let _ = window.show();
-        let _ = window.set_focus();
+        crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Main);
     }
 }
 
@@ -213,8 +214,7 @@ pub fn open_analyst_window(app: AppHandle) {
 /// closed it earlier — Tauri destroys webview windows on close by default.
 fn show_analyst_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("analyst") {
-        let _ = window.show();
-        let _ = window.set_focus();
+        crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Analyst);
         return;
     }
     match tauri::WebviewWindowBuilder::new(
@@ -231,8 +231,7 @@ fn show_analyst_window(app: &AppHandle) {
     .build()
     {
         Ok(window) => {
-            let _ = window.show();
-            let _ = window.set_focus();
+            crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Analyst);
         }
         Err(e) => log::error!("tray: failed to (re)build analyst window: {}", e),
     }
@@ -240,5 +239,5 @@ fn show_analyst_window(app: &AppHandle) {
 
 /// Ordered list of menu item ids on the tray menu (test introspection).
 pub fn tray_menu_item_ids() -> &'static [&'static str] {
-    &["settings", "open-analyst", "quit"]
+    &["settings", "open-analyst", "save-ui-diagnostics", "quit"]
 }

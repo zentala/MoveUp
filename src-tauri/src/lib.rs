@@ -232,7 +232,7 @@ pub fn run() {
             if let Some(lifecycle) = app.try_state::<Arc<app_lifecycle::AppLifecycle>>() {
                 lifecycle.event("secondary_activation");
             }
-            if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.set_focus(); }
+            if let Some(w) = app.get_webview_window("main") { ui_diagnostics::show_and_focus(app, &w, ui_diagnostics_types::WindowLabel::Main); }
         }))
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -391,6 +391,7 @@ pub fn run() {
                 tray_icon::schedule_system_theme_check(app);
             }
             if let tauri::RunEvent::Exit = event {
+                ui_diagnostics::shutdown(app);
                 app_lifecycle_runtime::shutdown(app);
             }
         });

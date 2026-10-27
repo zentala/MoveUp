@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>MoveUp UI diagnostics fixture</title>
+<style>body{background:#161616;color:#f4f4f4;font:13px/1.5 Consolas,monospace;padding:16px}h1{font-size:16px}p{color:#c6c6c6}</style>
+<div id="root"><h1 id="role">Isolated native fixture</h1><p>Native WebView2 host. No sensor, session database or production plugins.</p></div>
+<script>
+const role = window.__FIXTURE_ROLE__ === "analyst" ? "analyst" : "widget";
+window.__MOVEUP_UI_DIAGNOSTICS__ = {
+  schema_version: 1, boot: "mounted", view: role,
+  queries: {
+    dashboard: { outcome: "not_observed", last_result_ms: null, last_success_ms: null },
+    today_summary: { outcome: "not_observed", last_result_ms: null, last_success_ms: null }
+  }, last_error: null
+};
+document.getElementById("role").textContent = role === "analyst" ? "Analyst fixture — responding" : "Main fixture — responding";
+window.fixtureFallback = () => {
+  window.__MOVEUP_UI_DIAGNOSTICS__.boot = "fallback";
+  window.__MOVEUP_UI_DIAGNOSTICS__.last_error = { source: "render", kind: "TypeError", location: null };
+  document.getElementById("root").innerHTML = "<h1>View unavailable.</h1><p>Explicit fixture fallback simulation; this is not a React or GPU diagnosis.</p>";
+};
+</script></html>

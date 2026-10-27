@@ -14,9 +14,17 @@ Window runtime diagnostics belong to the application adapter:
 `ui_diagnostics_store` caps JSON at 256 KiB and publishes reports exclusively
 under the existing daily log directory. A single background writer calls the
 existing result-returning EventLogger API. Checkpoint access is read-only and
-nonblocking. The core is registered but does not activate native callbacks or
-tray collection. Later Windows/JS adapters preserve separate Analyst identity,
-engine/history semantics and backend readiness. See
+nonblocking. Production setup activates existing-window native callbacks and power evidence;
+the native tray action collects main and only an already-existing Analyst.
+The fixed probe reads the window-local version1 publisher without content or
+raw errors. Logical timeout/navigation/power settle capture observations while
+physical ExecuteScript remains occupied until its callback. Late capture failures
+retain their originating generation/probe and cannot clear newer state. All
+bounded failures use the existing background sink and loss/write accounting.
+A partial publication retains its actual path with an incomplete warning.
+The standalone isolated example uses a distinct identity/private profiles and no
+product setup/plugins; its evidence does not certify the installed application.
+Adapters preserve separate Analyst identity, engine/history semantics and backend readiness. See
 [ADR 025](ADR/025-window-runtime-diagnostics.md).
 
 ```

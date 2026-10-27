@@ -6,6 +6,7 @@ use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
 use windows::core::{Interface, IUnknown, PWSTR};
 
 thread_local! {
+    static GENERATIONS: Cell<[u64; 2]> = Cell::new([0, 0]);
     static WINDOWS: RefCell<HashMap<usize, Rc<Entry>>> = RefCell::new(HashMap::new());
     static ENVIRONMENTS: RefCell<HashMap<usize, Environment>> = RefCell::new(HashMap::new());
 }
@@ -21,6 +22,10 @@ impl Entry {
             self.diagnostics.submit(Event { sequence: 0, utc, window: self.label,
                 generation: self.probe.borrow().generation, kind });
         }
+    }
+    fn finish(&self) { self.finish_with(false); }
+    fn finish_with(&self, failed: bool) {
+        self.probe.borrow_mut().settle(self.version.borrow().clone(), failed);
     }
     fn failure(&self, operation: AdapterOperation, code: Option<i32>) { self.emit(EventKind::AdapterFailure { operation, code }); }
 }
@@ -46,25 +51,38 @@ fn entry(label: WindowLabel) -> Option<Rc<Entry>> { WINDOWS.with(|w| w.borrow().
 
 /// Does not show/focus/create a window. No callbacks activate until explicitly called.
 pub fn install(window: WebviewWindow, diagnostics: Diagnostics, label: WindowLabel, generation: u64) -> tauri::Result<()> {
-    let app = window.app_handle().clone();
-    let app_events = app.clone();
-    window.on_window_event(move |event| {
-        if matches!(event, tauri::WindowEvent::Destroyed) { let _ = unregister(&app_events, label, generation); }
-    });
+    install_ready(window, diagnostics, label, generation, None)
+}
+fn install_ready(window: WebviewWindow, diagnostics: Diagnostics, label: WindowLabel, generation: u64,
+    ready: Option<Box<dyn FnOnce() + Send>>) -> tauri::Result<()> {
+    let observer = window.clone();
+    let events_app = window.app_handle().clone();
     window.with_webview(move |platform| {
-        if entry(label).is_some_and(|e| e.probe.borrow().generation.window == generation) { return; }
+        let acquired = unsafe { platform.controller().CoreWebView2() };
+        if let (Some(e), Ok(webview)) = (entry(label), acquired.as_ref()) {
+            if (generation == 0 && e.webview.as_raw() == webview.as_raw()) || e.probe.borrow().generation.window == generation {
+                if let Some(ready) = ready { ready(); } return;
+            }
+        }
+        let generation = GENERATIONS.with(|counter| {
+            let mut values = counter.get();
+            let next = if generation == 0 { values[label.index()].saturating_add(1) } else { generation };
+            values[label.index()] = values[label.index()].max(next); counter.set(values); next
+        });
         remove(label, None);
-        let webview = match unsafe { platform.controller().CoreWebView2() } {
+        let webview = match acquired {
             Ok(webview) => webview,
-            Err(error) => { acquisition_failed(&diagnostics, label, generation, error.code().0); return; }
+            Err(error) => { acquisition_failed(&diagnostics, label, generation, error.code().0); if let Some(ready) = ready { ready(); } return; }
         };
+        observer.on_window_event(move |event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) { let _ = unregister(&events_app, label, generation); }
+        });
         let e = Rc::new(Entry { label, diagnostics, webview, probe: RefCell::new(Probe::new(Generation { window: generation, navigation: 0 })),
-            clock: Instant::now(), closed: Cell::new(false), navigation_id: Cell::new(None), tokens: RefCell::new(Vec::new()), environment: Cell::new(None), version: RefCell::new(None) });
+            clock: Instant::now(), closed: Cell::new(false), navigation_id: Cell::new(None),
+            tokens: RefCell::new(Vec::new()), environment: Cell::new(None), version: RefCell::new(None) });
         WINDOWS.with(|w| w.borrow_mut().insert(key(label), e.clone()));
-        e.emit(EventKind::Created);
-        register_window(&e);
-        register_environment(&e, platform.environment());
-        let _ = app; // Tauri owns the dispatch; COM remains local to this callback.
+        e.emit(EventKind::Created); register_window(&e); register_environment(&e, platform.environment());
+        if let Some(ready) = ready { ready(); }
     })
 }
 pub(crate) fn acquisition_failed(diagnostics: &Diagnostics, window: WindowLabel, generation: u64, code: i32) {
@@ -104,8 +122,10 @@ fn register_window(e: &Rc<Entry>) {
             e.navigation_id.set(id);
             let mut generation = e.probe.borrow().generation;
             generation.navigation = generation.navigation.saturating_add(1);
-            e.probe.borrow_mut().invalidate(generation);
-            e.emit(EventKind::NavigationStarted);
+            e.probe.borrow_mut().invalidate_observed(generation, |generation| {
+                e.diagnostics.submit(Event { sequence: 0, utc: chrono::Utc::now(), window: e.label,
+                    generation, kind: EventKind::NavigationStarted });
+            });
         }
         Ok(())
     }));
@@ -174,23 +194,38 @@ fn register_environment(e: &Rc<Entry>, environment: ICoreWebView2Environment) {
     }
 }
 pub fn request(app: &AppHandle, label: WindowLabel, manual: bool) -> tauri::Result<()> {
-    let timer_app = app.clone();
-    app.run_on_main_thread(move || {
-        let Some(e) = entry(label) else { return };
-        let decision = e.probe.borrow_mut().request(e.clock.elapsed(), manual);
-        if let Request::Start(ticket) = decision {
+    let receiver = app.clone();
+    app.run_on_main_thread(move || request_on_sta(receiver, label, manual, None, None))
+}
+fn request_on_sta(timer_app: AppHandle, label: WindowLabel, manual: bool,
+    context: Option<std::sync::Arc<std::sync::OnceLock<(Generation, Option<u64>)>>>,
+    waiter: Option<tokio::sync::oneshot::Sender<(Option<String>, bool)>>) {
+    let Some(e) = entry(label) else { if let Some(waiter) = waiter { let _ = waiter.send((None, true)); } return };
+    if let Some(waiter) = waiter { e.probe.borrow_mut().watch(waiter); }
+    let decision = e.probe.borrow_mut().request(e.clock.elapsed(), manual);
+    if let Some(context) = context {
+        let probe = match decision { Request::Start(ticket) | Request::Reuse(ticket) => Some(ticket.id), _ => None };
+        let _ = context.set((e.probe.borrow().generation, probe));
+    }
+    match decision {
+        Request::Reuse(_) if !e.probe.borrow().pending() => { e.finish(); return; }
+        Request::Throttled | Request::Suspended => { e.finish(); return; }
+        Request::Start(ticket) => {
             e.emit(EventKind::ProbeStarted { id: ticket.id });
             let callback_entry = Rc::downgrade(&e);
             let result = probe::execute(&e.webview, move |result| {
-                if let Some(callback_entry) = callback_entry.upgrade() {
-                    let result = callback_entry.probe.borrow_mut().complete(ticket, result);
-                    if let Some(result) = result { callback_entry.emit(EventKind::ProbeFinished { id: ticket.id, result }); }
+                if let Some(e) = callback_entry.upgrade() {
+                    let result = e.probe.borrow_mut().complete(ticket, result);
+                    if let Some(result) = result {
+                        let failed = matches!(result, Collection::CollectionFailed { .. });
+                        e.emit(EventKind::ProbeFinished { id: ticket.id, result }); e.finish_with(failed);
+                    }
                 }
             });
             if let Err(error) = result {
                 let result = e.probe.borrow_mut().complete(ticket, Collection::CollectionFailed { code: Some(error.code().0) });
                 if let Some(result) = result { e.emit(EventKind::ProbeFinished { id: ticket.id, result }); }
-                return;
+                e.finish_with(true); return;
             }
             let deadline_diagnostics = e.diagnostics.clone();
             tauri::async_runtime::spawn(async move {
@@ -198,14 +233,65 @@ pub fn request(app: &AppHandle, label: WindowLabel, manual: bool) -> tauri::Resu
                 let result = timer_app.run_on_main_thread(move || {
                     if let Some(e) = entry(label).filter(|e| e.probe.borrow().generation.window == ticket.generation.window) {
                         let timed_out = e.probe.borrow_mut().timeout(ticket, e.clock.elapsed());
-                        if timed_out { e.emit(EventKind::ProbeFinished { id: ticket.id, result: Collection::Timeout }); }
+                        if timed_out { e.emit(EventKind::ProbeFinished { id: ticket.id, result: Collection::Timeout }); e.finish(); }
                     }
                 });
                 finish_deadline_dispatch(&deadline_diagnostics, label, ticket, result);
             });
         }
+        _ => {}
+    }
+}
+/// Actual presence lookup only; collection never shows/focuses/creates a window.
+pub fn collect_existing(app: &AppHandle, diagnostics: Diagnostics, label: WindowLabel,
+    context: std::sync::Arc<std::sync::OnceLock<(Generation, Option<u64>)>>,
+    waiter: tokio::sync::oneshot::Sender<(Option<String>, bool)>) -> tauri::Result<()> {
+    let receiver = app.clone();
+    app.run_on_main_thread(move || {
+        let name = if label == WindowLabel::Main { "main" } else { "analyst" };
+        if let Some(window) = receiver.get_webview_window(name) {
+            let ready_app = receiver.clone(); let failed = diagnostics.clone(); let unavailable = diagnostics.clone();
+            let visibility = window.clone();
+            if install_ready(window, diagnostics, label, 0, Some(Box::new(move || {
+                if entry(label).is_none() { unavailable.collection_failed(label); }
+                match visibility.is_visible() {
+                    Ok(visible) => window_evidence(label, EventKind::Visibility { visible }),
+                    Err(error) => { let (category, code) = crate::ui_diagnostics::native_failure(&error);
+                        window_evidence(label, EventKind::WindowOperationFailed { operation: WindowOperation::Visibility, category, code }); }
+                }
+                request_on_sta(ready_app, label, true, Some(context), Some(waiter));
+            }))).is_err() { failed.collection_failed(label); }
+        } else {
+            remove(label, None); diagnostics.observed_absence(label); let _ = waiter.send((None, false));
+        }
     })
 }
+pub fn window_evidence(label: WindowLabel, kind: EventKind) {
+    if let Some(e) = entry(label) { e.emit(kind); }
+}
+pub fn record_operation(window: WebviewWindow, diagnostics: Diagnostics, label: WindowLabel,
+    operation: WindowOperation, succeeded: bool, failure: Option<(WindowFailureCategory, Option<i32>)>) -> tauri::Result<()> {
+    publish_operation(&diagnostics, label, operation, succeeded, failure);
+    let visibility = window.clone(); let app = window.app_handle().clone();
+    install_ready(window, diagnostics, label, 0, Some(Box::new(move || {
+        match visibility.is_visible() {
+            Ok(visible) => window_evidence(label, EventKind::Visibility { visible }),
+            Err(error) => { let (category, code) = crate::ui_diagnostics::native_failure(&error);
+                window_evidence(label, EventKind::WindowOperationFailed { operation: WindowOperation::Visibility, category, code }); }
+        }
+        if operation == WindowOperation::Show && succeeded { let _ = request(&app, label, false); }
+    })))
+}
+pub(crate) fn publish_operation(diagnostics: &Diagnostics, label: WindowLabel, operation: WindowOperation,
+    succeeded: bool, failure: Option<(WindowFailureCategory, Option<i32>)>) {
+    let generation = entry(label).map(|e| e.probe.borrow().generation).unwrap_or_default();
+    let publish = |kind| { diagnostics.submit(Event { sequence: 0, utc: chrono::Utc::now(), window: label, generation, kind }); };
+    let kind = match operation { WindowOperation::Show => EventKind::Show { succeeded },
+        WindowOperation::Focus => EventKind::Focus { succeeded }, WindowOperation::Visibility => return };
+    publish(kind);
+    if let Some((category, code)) = failure { publish(EventKind::WindowOperationFailed { operation, category, code }); }
+}
+pub fn shutdown() { remove(WindowLabel::Main, None); remove(WindowLabel::Analyst, None); }
 pub(crate) fn finish_deadline_dispatch<E>(diagnostics: &Diagnostics, label: WindowLabel,
     ticket: probe::Ticket, result: std::result::Result<(), E>) {
     if result.is_err() {
@@ -247,6 +333,7 @@ fn remove(label: WindowLabel, generation: Option<u64>) {
             } else { ENVIRONMENTS.with(|all| all.borrow_mut().remove(&identity)); }
         }
     }
+    e.finish();
     WINDOWS.with(|w| w.borrow_mut().remove(&key(label)));
 }
 /// UI-thread only: caller retrieves versions as part of the final tray adapter.
@@ -256,5 +343,10 @@ pub fn runtime_version(label: WindowLabel) -> Option<String> {
 /// Called only on the UI thread after a real OS power callback dispatch.
 pub fn power(suspended: bool, utc: chrono::DateTime<chrono::Utc>) {
     let entries: Vec<_> = WINDOWS.with(|w| w.borrow().values().cloned().collect());
-    for e in entries { e.probe.borrow_mut().power(suspended); e.emit_at(if suspended { EventKind::Suspend } else { EventKind::Resume }, utc); }
+    for e in entries {
+        e.probe.borrow_mut().power_observed(suspended, |generation| {
+            e.diagnostics.submit(Event { sequence: 0, utc, window: e.label, generation,
+                kind: if suspended { EventKind::Suspend } else { EventKind::Resume } });
+        });
+    }
 }

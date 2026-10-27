@@ -2,6 +2,120 @@ use crate::ui_diagnostics::*;
 use crate::ui_diagnostics_types::*;
 use std::sync::{mpsc, Arc};
 #[test]
+fn r6_old_collection_failure_cannot_clear_new_navigation_probe() {
+    let handle = Diagnostics::start(identity(), |_| Ok(())).unwrap();
+    handle.submit(event(1, EventKind::Created));
+    handle.submit(event(2, EventKind::ProbeStarted { id: 1 }));
+    let mut navigation = event(3, EventKind::NavigationStarted); navigation.generation.navigation = 1;
+    handle.submit(navigation.clone());
+    navigation.kind = EventKind::ProbeStarted { id: 2 }; handle.submit(navigation);
+    handle.collection_failed_at(WindowLabel::Main, Some((event(1, EventKind::Created).generation, Some(1))));
+    let state = handle.snapshot().unwrap().recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+    assert_eq!(state.windows[0].active_probe, Some(2));
+}
+#[test]
+fn r6_incomplete_publication_keeps_path_and_explicit_collection_warning() {
+    let result = written_report(std::path::PathBuf::from("report.json"), true);
+    let (title, body) = confirmation(&result);
+    assert!(title.contains("incomplete")); assert!(body.contains("report.json"));
+}
+#[test]
+fn r6_collection_failure_reaches_actual_background_sink() {
+    let lines = Arc::new(std::sync::Mutex::new(Vec::<String>::new())); let sink = lines.clone();
+    let handle = Diagnostics::start(identity(), move |line| { sink.lock().unwrap().push(line.into()); Ok(()) }).unwrap();
+    handle.collection_failed(WindowLabel::Main);
+    let _ = handle.snapshot().unwrap().recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+    assert!(lines.lock().unwrap().iter().any(|line| line.contains("dispatch") || line.contains("capture_failed")));
+}
+#[cfg(windows)]
+#[test]
+fn r6_show_focus_results_survive_missing_com_entry() {
+    let handle = Diagnostics::start(identity(), |_| Ok(())).unwrap();
+    crate::ui_diagnostics_windows::publish_operation(&handle, WindowLabel::Main, WindowOperation::Show, false,
+        Some((WindowFailureCategory::Io, Some(5))));
+    let state = handle.snapshot().unwrap().recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+    assert!(state.recent.iter().any(|e| matches!(e.first.kind, EventKind::Show { succeeded: false })));
+    assert!(state.recent.iter().any(|e| matches!(e.first.kind, EventKind::WindowOperationFailed { code: Some(5), .. })));
+}
+#[test]
+fn r6_actual_probe_settles_navigation_and_power_waiters_without_releasing_physical_slot() {
+    use crate::ui_diagnostics_probe::{Probe, Request};
+    use std::time::Duration;
+    for power in [false, true] {
+        let mut probe = Probe::new(Generation { window: 1, navigation: 0 });
+        let Request::Start(ticket) = probe.request(Duration::ZERO, true) else { panic!() };
+        let (tx, mut rx) = tokio::sync::oneshot::channel(); probe.watch(tx);
+        if power { probe.power_observed(true, |_| {}); probe.power_observed(false, |_| {}); }
+        else { probe.invalidate_observed(Generation { window: 1, navigation: 1 }, |_| {}); }
+        assert_eq!(rx.try_recv().unwrap(), (None, false));
+        assert_eq!(probe.request(Duration::from_secs(4), true), Request::Reuse(ticket));
+        assert!(!probe.timeout(ticket, Duration::from_secs(4)));
+        assert!(probe.complete(ticket, Collection::Timeout).is_none());
+        assert!(matches!(probe.request(Duration::from_secs(5), true), Request::Start(_)));
+    }
+}
+#[test]
+fn interruption_is_queued_before_capture_can_publish_actual_report() {
+    use crate::ui_diagnostics_probe::{Probe, Request};
+    use std::time::Duration;
+    for transition in 0..3 {
+        let temp = tempfile::tempdir().unwrap();
+        let handle = Diagnostics::start(identity(), |_| Ok(())).unwrap();
+        handle.submit(event(1, EventKind::Created));
+        let mut probe = Probe::new(event(1, EventKind::Created).generation);
+        let Request::Start(ticket) = probe.request(Duration::ZERO, true) else { panic!() };
+        handle.submit(event(2, EventKind::ProbeStarted { id: ticket.id }));
+        let (tx, mut rx) = tokio::sync::oneshot::channel(); probe.watch(tx);
+        let mut premature_report = None;
+        let mut publish = |generation| {
+            // Exercise the exact capture/report schedule available when settlement is early.
+            if rx.try_recv().is_ok() {
+                premature_report = Some(handle.report(temp.path().into(), CheckpointObservation::Unavailable, None)
+                    .unwrap().recv_timeout(Duration::from_secs(5)).unwrap().unwrap());
+            }
+            let kind = match transition { 0 => EventKind::NavigationStarted, 1 => EventKind::Suspend, _ => EventKind::Resume };
+            handle.submit(Event { generation, kind, ..event(3, EventKind::Resume) });
+        };
+        if transition == 0 { probe.invalidate_observed(Generation { navigation: 1, ..ticket.generation }, &mut publish); }
+        else { probe.power_observed(transition == 1, &mut publish); }
+        assert!(premature_report.is_none(), "capture woke before the actual interruption reached the report queue");
+        assert_eq!(rx.try_recv().unwrap(), (None, false));
+        let path = handle.report(temp.path().into(), CheckpointObservation::Unavailable, None)
+            .unwrap().recv_timeout(Duration::from_secs(5)).unwrap().unwrap();
+        let report: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        assert_eq!(report["facts"]["windows"][0]["collection"]["state"], "interrupted");
+        assert!(report["facts"]["windows"][0]["active_probe"].is_null());
+        assert_eq!(probe.request(Duration::from_secs(4), true),
+            if transition == 1 { Request::Suspended } else { Request::Reuse(ticket) });
+        assert!(probe.complete(ticket, Collection::Timeout).is_none());
+    }
+}
+#[test]
+fn r6_failed_sink_and_stale_capture_provenance_survive_real_report() {
+    let temp = tempfile::tempdir().unwrap();
+    let handle = Diagnostics::start(identity(), |_| Err(std::io::ErrorKind::PermissionDenied.into())).unwrap();
+    handle.submit(event(1, EventKind::Created));
+    handle.submit(event(2, EventKind::ProbeStarted { id: 1 }));
+    handle.submit(event(3, EventKind::Resume));
+    handle.collection_failed_at(WindowLabel::Main, Some((event(1, EventKind::Created).generation, Some(1))));
+    let mut recreated = event(4, EventKind::Created); recreated.generation.window = 2;
+    handle.submit(recreated);
+    handle.collection_failed_at(WindowLabel::Main, Some((event(1, EventKind::Created).generation, Some(1))));
+    let path = handle.report(temp.path().into(), CheckpointObservation::Unavailable, None).unwrap()
+        .recv_timeout(std::time::Duration::from_secs(5)).unwrap().unwrap();
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    assert_eq!(report["facts"]["windows"][0]["generation"]["window"], 2);
+    assert_eq!(report["facts"]["windows"][0]["collection"]["state"], "not_requested");
+    assert_eq!(report["facts"]["writer"]["state"], "failed");
+    assert!(report["facts"]["counters"]["write_failures"].as_u64().unwrap() >= 4);
+    assert!(report["facts"]["recent"].as_array().unwrap().iter().any(|e|
+        e["first"]["kind"]["event"] == "capture_failed" && e["applied"] == false));
+}
+#[test]
+fn tray_report_action_is_reachable_without_a_working_frontend() {
+    assert!(crate::tray::tray_menu_item_ids().contains(&"save-ui-diagnostics"));
+}
+#[test]
 fn initial_presence_is_unknown_until_actual_absence_is_observed() {
     let mut state = DiagnosticState::new(identity());
     assert!(serde_json::to_value(&state.windows[0]).unwrap()["present"].is_null());
