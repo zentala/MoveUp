@@ -13,6 +13,14 @@
   </meta>
 
   <functionality>
+    <feature name="window-runtime-diagnostics-core">
+      <description>Application-local typed window generations and collection states, nonblocking queue of 128 observations, 64 recent event groups, truthful loss/write counters and exclusive daily JSON reports capped at 256 KiB. Core only; native and tray activation are separate.</description>
+      <source path="src-tauri/src/ui_diagnostics.rs" tests="src-tauri/src/ui_diagnostics_tests.rs"/>
+      <source path="src-tauri/src/ui_diagnostics_types.rs"/>
+      <source path="src-tauri/src/ui_diagnostics_store.rs"/>
+      <source path="src-tauri/src/event_logger.rs" tests="src-tauri/src/event_logger.rs"/>
+      <decision-record>.arch/ADR/025-window-runtime-diagnostics.md</decision-record>
+    </feature>
     <feature name="desk-state-detection">
       <description>Detects SITTING / STANDING / WALKING / AWAY based on sensor distance + keyboard/mouse activity</description>
       <debounce>5 stable readings required before state change</debounce>

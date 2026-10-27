@@ -8,6 +8,17 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 
 ## Component Map
 
+Window runtime diagnostics belong to the application adapter:
+`ui_diagnostics_types` defines bounded observations and unavailable states;
+`ui_diagnostics` owns a queue of 128 entries and 64 recent event groups;
+`ui_diagnostics_store` caps JSON at 256 KiB and publishes reports exclusively
+under the existing daily log directory. A single background writer calls the
+existing result-returning EventLogger API. Checkpoint access is read-only and
+nonblocking. The core is registered but does not activate native callbacks or
+tray collection. Later Windows/JS adapters preserve separate Analyst identity,
+engine/history semantics and backend readiness. See
+[ADR 025](ADR/025-window-runtime-diagnostics.md).
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    HARDWARE LAYER                            │

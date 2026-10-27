@@ -6,6 +6,16 @@ The canonical visual contract is [DESIGN.md](DESIGN.md). Read it before changing
 
 Read `.plan/VISION.md` before revising product plans. Preserve actual observations and identify missing data; never turn an unobserved interval into Away or use credited sitting load as a historical duration.
 
+## Window runtime diagnostics
+
+Follow [ADR 025](.arch/ADR/025-window-runtime-diagnostics.md), preserving
+[the separate Analyst window](.arch/ADR/012-analyst-dashboard-separate-window.md),
+[engine purity](.arch/ADR/015-pure-ergo-engine.md) and
+[backend readiness](.arch/ADR/024-application-lifecycle-readiness.md).
+UI/COM callbacks enqueue bounded typed observations without waiting on disk,
+JavaScript or session locks. Diagnostics cannot reload/restart the application
+or infer painting/crash causes from missing responses or DOM presence.
+
 ## Startup supervision
 
 Prefer installed PM3 on development machines where available. Once registered,
