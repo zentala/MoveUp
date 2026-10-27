@@ -7,7 +7,7 @@ impl DiagnosticState {
         Self { format_version: 1, identity,
             windows: [WindowSnapshot::unobserved(WindowLabel::Main), WindowSnapshot::unobserved(WindowLabel::Analyst)],
             recent: Default::default(), counters: Default::default(), writer: WriteState::NotAttempted,
-            report_writer: WriteState::NotAttempted }
+            report_writer: WriteState::NotAttempted, power: PowerState::default() }
     }
     pub fn observe(&mut self, mut event: Event) {
         // Validate before either generation checks or retained-event construction.
@@ -36,6 +36,22 @@ impl DiagnosticState {
             first: event, occurrences: 1, applied, payload_rejected });
     }
     fn apply(&mut self, event: &Event) -> bool {
+        // Process power evidence is independent of every window's generation/history.
+        match event.kind {
+            EventKind::PowerCapability { capability } => {
+                self.power.capability = capability;
+                if let Capability::RegistrationFailed { code } = capability {
+                    self.power_failure(event, PowerOperation::Registration, code);
+                }
+                return true;
+            }
+            EventKind::PowerFailure { operation, code } => {
+                if operation == PowerOperation::Unregistration { self.power.capability = Capability::RegistrationFailed { code }; }
+                self.power_failure(event, operation, code);
+                return true;
+            }
+            _ => {}
+        }
         if matches!(event.kind, EventKind::Suspend | EventKind::Resume) {
             for window in &mut self.windows {
                 if window.active_probe.take().is_some() { window.collection = Collection::Interrupted; }
@@ -86,9 +102,20 @@ impl DiagnosticState {
                 window.active_probe = None;
                 window.collection = result.clone();
             }
+            EventKind::ProbeDeadlineDispatchFailed { id } => {
+                if window.active_probe != Some(*id) {
+                    self.counters.stale = self.counters.stale.saturating_add(1); return false;
+                }
+                window.active_probe = None;
+                window.collection = Collection::CollectionFailed { code: None };
+            }
             _ => {}
         }
         true
+    }
+    fn power_failure(&mut self, event: &Event, operation: PowerOperation, code: Option<i32>) {
+        self.power.failure_count = self.power.failure_count.saturating_add(1);
+        self.power.last_failure = Some(PowerFailure { operation, code, utc: event.utc, sequence: event.sequence });
     }
 }
 

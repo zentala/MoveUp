@@ -115,11 +115,10 @@ fn sink_failure_is_recorded_and_later_success_is_recovery() {
 
 #[test]
 fn every_collection_and_capability_state_stays_distinct_in_reports() {
-    let variants = [Collection::Received(PageObservation { ready: DocumentReady::Complete,
+    let variants = [Collection::Received(PageObservation { schema_version: 1, ready: DocumentReady::Complete,
         visible: true, diagnostics_available: true, boot: BootStage::Mounted, view: ViewCategory::Widget,
         root_present: true, root_children: 1, width_px: 420, height_px: 240, display_none: false,
-        visibility_hidden: false, zero_opacity: false, query: QueryOutcome::Succeeded,
-        last_query_success_ms: Some(1), captured_error: false }),
+        visibility_hidden: false, zero_opacity: false, queries: Queries { dashboard: QueryHint::unobserved(), today_summary: QueryHint::unobserved() }, last_error: None }),
         Collection::Timeout, Collection::NotRequested, Collection::NotPresent,
         Collection::Unsupported, Collection::Interrupted, Collection::CollectionFailed { code: Some(-1) }];
     let mut encoded = std::collections::HashSet::new();
@@ -259,11 +258,11 @@ fn worker_never_persists_rejected_current_or_stale_probe_payloads() {
         let handle = Diagnostics::start(identity(), move |line| { sink.lock().unwrap().push(line.into()); Ok(()) }).unwrap();
         assert!(handle.submit(event(1, EventKind::Created)));
         assert!(handle.submit(event(2, EventKind::ProbeStarted { id: 1 })));
-        let mut page = PageObservation { ready: DocumentReady::Complete, visible: true, diagnostics_available: true,
+        let mut page = PageObservation { schema_version: 1, ready: DocumentReady::Complete, visible: true, diagnostics_available: true,
             boot: BootStage::Mounted, view: ViewCategory::Widget, root_present: true, root_children: 100003,
             width_px: 100001, height_px: 100002, display_none: false, visibility_hidden: false,
-            zero_opacity: false, query: QueryOutcome::Succeeded, last_query_success_ms: Some(8_640_000_000_000_001), captured_error: false };
-        if valid { page.root_children = 1; page.width_px = 420; page.height_px = 240; page.last_query_success_ms = Some(123); }
+            zero_opacity: false, queries: Queries { dashboard: QueryHint { outcome: QueryOutcome::Failed, last_result_ms: Some(8_640_000_000_000_001), last_success_ms: None }, today_summary: QueryHint::unobserved() }, last_error: None };
+        if valid { page.root_children = 1; page.width_px = 420; page.height_px = 240; page.queries.dashboard.last_result_ms = Some(123); }
         let mut rejected = event(3, EventKind::ProbeFinished { id: if stale == 2 { 2 } else { 1 }, result: Collection::Received(page) });
         if stale == 1 { rejected.generation.window = 0; }
         assert!(handle.submit(rejected));

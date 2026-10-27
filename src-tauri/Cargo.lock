@@ -1046,8 +1046,10 @@ dependencies = [
  "tower-http",
  "ts-rs",
  "uuid",
+ "webview2-com",
  "window-vibrancy",
  "windows",
+ "windows-core 0.61.2",
  "winreg 0.52.0",
  "wiremock",
 ]
