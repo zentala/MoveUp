@@ -112,6 +112,22 @@ than 60 seconds earn no credit at all.
 3. [Report the crash](https://github.com/zentala/MoveUp/issues) with the logs
    attached.
 
+### Issue: View unavailable
+
+**Problem:** the floating window displays only `View unavailable.`
+
+This means a React view failed while rendering. The application may write a
+best-effort `UI_FAILURE` line to `%LOCALAPPDATA%\io.zntl.desk\logs\MoveUp.log`.
+It contains an allowlisted error kind and, when a recognized stack frame
+points under the existing `/src/` or `/assets/` route, a basename with line
+and column. These route-based locations are hints only; they do not prove
+module ownership or authenticity. The entry does not include the raw exception
+message, stack, full path, URL or query. It may be absent if logging fails.
+
+This fallback covers React render errors. A native WebView or GPU hang/crash is
+outside React and is not caught by this boundary. This diagnostic does not
+establish the cause of an earlier blank view.
+
 ## Accessing Logs
 
 ### PM3 startup diagnostics

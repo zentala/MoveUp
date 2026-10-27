@@ -228,7 +228,9 @@
     </layer>
 
     <layer name="react-frontend" path="src/">
-      <file name="main.tsx">React DOM root — mounts App</file>
+      <file name="main.tsx">React DOM root — starts best-effort UI diagnostics and mounts App under the render error boundary</file>
+      <file name="uiDiagnostics.ts">Captures render, window error and unhandled rejection events; logs allowlisted error kind and optional route-based location hints parsed from recognized stack frames</file>
+      <file name="uiDiagnostics.test.ts">Checks sanitized fields, recognized source/chunk frames, omitted message/private/foreign locations, logger failure containment and listener cleanup</file>
       <file name="App.tsx">Root — widget system, settings panel, state management</file>
       <file name="types.ts">Shared types: DeskState, SessionStateDto, TodaySummaryDto, WidgetProps</file>
       <file name="welcome.tsx">Welcome popup entry point</file>
@@ -254,6 +256,8 @@
       </dir>
 
       <dir name="components/">
+        <file name="AppErrorBoundary.tsx">Render error boundary with a fixed accessible “View unavailable.” fallback</file>
+        <file name="AppErrorBoundary.test.tsx">Checks the render fallback, sanitized diagnostic and normal child rendering</file>
         <file name="UiIcon.tsx">Shared decorative Lucide icon wrapper with 16px default size and 1.5px stroke</file>
         <file name="HeightRail.tsx">Visual left-side accent bar</file>
         <file name="SessionProgress.tsx">Sitting session timer and progress</file>

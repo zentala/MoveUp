@@ -133,12 +133,23 @@ NOT_CHECKED until independently observed; this decision changes no popup/Analyst
 | 2026-10-09 | Full local day + Unknown/Future; shared compact/detail semantics | Operator direction, truthful observation coverage | Accepted; horizon/timezone evidence pending |
 | 2026-10-22 | Zero-duration snapshot ticks (2px by6px at strip top) replace guessed sample spans/full-height point stripes | A reading proves an instant, not observed duration; Unknown coverage and existing posture colors stay truthful | Accepted bounded representation; independent actual-host review pending |
 | 2026-10-22 | Move communication profile selection and editing to the Notifications tab; remove the three legacy notification toggles | The toggles are absent from `AppConfig` and do not affect policy; the existing profile selector, JSON editor, duplicate and reset actions preserve configuration through the active communication profile | Accepted for E027-T12; existing settings chrome and controls retained |
+| 2026-10-27 | Fixed render-failure fallback on opaque `--panel-base` using the existing monospace and ink tokens | A failed React tree must leave the popup readable without relying on that tree | Accepted for the blank-popup incident; no new palette, controls, retry or reload |
 | 2026-10-09 | Day heading then Range, timeline and one ring per day; remove main height/Day at a Glance | Operator correction supersedes extra panels; seven-day default within requested 5–7 | Accepted correction; stories/UX/plan precede revised implementation |
 | 2026-10-09 | Preserve semantic/amber/clinical preference and apply selected skin to popup and Analyst | Shared state identity without silently changing stored preference | Implementation interpretation; visual verification pending |
 | 2026-10-09 | Signed points and recorded event definitions replace score/100 and assumed goal semantics | Source evidence disproves fixed score scale and human-transition interpretation | Data truth accepted |
 | 2026-10-09 | Keep score trajectory and break-credit histogram in expandable details after correcting meaning/data | Explicit operator selection after explanations | Accepted; main day timeline stays primary |
 
 Implementer supplies source and tests; coordinator independently accepts. Required evidence: shared tokens/font, connected tabs, equal interval/ring totals, honest states, named icons, fixtures for DST/midnight/gaps/live/unknown enums. When authorized preview exists, verify popup 420×240, Analyst 1280×800 and narrow resizing; keyboard/focus/overflow/reduced motion and computed contrast. Until then live QA stays NOT_CHECKED. This author does not certify implementation. Instruction-file link to this contract is pending coordinator-owned work outside this write scope. [Private review](.plan/reports/2026-10-09-design-review.md).
+
+### Render-failure fallback — 2026-10-27
+
+If the popup's React tree throws during rendering, show a fixed, accessible
+message outside the failed subtree: “View unavailable.” This is the entire
+fallback copy. Use
+the opaque `--panel-base`, `--ink-primary` and `--ink-secondary` tokens, the
+existing monospace face and compact spacing. The fallback has no decorative
+art or controls and does not retry or reload. This covers React render errors;
+it does not detect a native WebView or GPU hang/crash.
 
 ## Official references
 
