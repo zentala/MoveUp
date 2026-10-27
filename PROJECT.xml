@@ -523,6 +523,10 @@
       <note>Focused Playwright config starts strict dedicated Vite15431, never native Tauri. Real App/OneBarWidget uses public Tauri mocks before import; display and external navigation blocked. Tests cover420x240/320x240/420x200,200% text, full text reachability, clipboard URLs and native modal focus. Included in just check.</note>
       <files>playwright.share.config.ts, tests/e2e/share-popup.fixture.ts, tests/e2e/share-popup.test.ts</files>
     </layer>
+    <layer name="analyst-containment" path="tests/e2e/analyst-containment.test.ts" runner="pnpm test:share">
+      <note>Real App Analyst route and asynchronous range hooks use pre-main public Tauri mocks with synthetic conflicting individual intervals. Existing dedicated Playwright server15431 only; native writes, external navigation and display transport blocked. Covers retained controls/Retry, unavailable composition, clean-range recovery without reload and1280/760 screenshots. Included in just check.</note>
+      <files>playwright.share.config.ts, tests/e2e/analyst-containment.fixture.ts, tests/e2e/analyst-containment.test.ts</files>
+    </layer>
     <layer name="e2e" path="tests/e2e/" runner="pnpm test:e2e">
       <note>Requires: tauri-driver --compatibility-mode</note>
     </layer>

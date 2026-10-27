@@ -15,6 +15,7 @@ import { useSnapshotsRange } from "./hooks/useSnapshotsRange";
 import { useTimelineNav } from "./hooks/useTimelineNav";
 import { formatRangeLabel, formatRefreshedAt } from "@/utils/format";
 import { localCalendarDay } from "./open-day";
+import { TimelineDataError } from "@/timeline/intervals";
 
 export interface ExplorerTabProps {
   range: DateRange;
@@ -34,7 +35,14 @@ export function ExplorerTab({ range, onRangeChange, snapshots: propSnapshots, se
   const eventsQuery = useEventsRange(range.from, range.to, !isLive);
   const snapshots = isLive ? (snapsQuery.status === "ready" ? snapsQuery.data : []) : propSnapshots ?? [];
   const sessions = isLive ? (sessionsQuery.status === "ready" ? sessionsQuery.data : []) : propSessions ?? [];
-  const intervals = useMemo(() => analystTimelineIntervals(sessions), [sessions]);
+  const history = useMemo(() => {
+    try {
+      return { intervals: analystTimelineIntervals(sessions), error: null };
+    } catch (cause) {
+      if (!(cause instanceof TimelineDataError)) throw cause;
+      return { intervals: [], error: `History unavailable: ${cause.message}` };
+    }
+  }, [sessions]);
   const nav = useTimelineNav({ rangeFrom: range.from, rangeTo: range.to });
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -53,11 +61,13 @@ export function ExplorerTab({ range, onRangeChange, snapshots: propSnapshots, se
   }, [openDayRequest?.requestId, openDayRequest?.day, nav.selectedDay, onOpenDayHandled]);
 
   const loading = isLive && (snapsQuery.status === "loading" || sessionsQuery.status === "loading");
-  const error = isLive
+  const queryError = isLive
     ? snapsQuery.status === "error" ? snapsQuery.error
       : sessionsQuery.status === "error" ? sessionsQuery.error
         : null
     : null;
+  const error = queryError ?? history.error;
+  const { intervals } = history;
   const eventsLoading = isLive && eventsQuery.status === "loading";
   const eventsError = isLive && eventsQuery.status === "error" ? eventsQuery.error : null;
   const rangeLabel = formatRangeLabel(range.from, range.to);
@@ -90,16 +100,18 @@ export function ExplorerTab({ range, onRangeChange, snapshots: propSnapshots, se
     </div>
     <section className="day-composition__panel" aria-label={`Selected day ${nav.selectedDay}`}>
       <div role="tabpanel" id="analyst-selected-day-panel" aria-labelledby={`analyst-day-${nav.selectedDay}`} aria-busy={loading} tabIndex={0}>
-        <TimelineDetail range={{ from: nav.selectedDay, to: nav.selectedDay }} selectedDay={nav.selectedDay}
-          snapshots={snapshots} intervals={intervals} onPrev={nav.prev} onNext={nav.next} nowMs={nowMs} showHeader={false} />
+        {error || loading ? <p className="day-composition__status" role={error ? "alert" : "status"}>
+          {error ?? "Loading observations…"}
+        </p> : <TimelineDetail range={{ from: nav.selectedDay, to: nav.selectedDay }} selectedDay={nav.selectedDay}
+          snapshots={snapshots} intervals={intervals} onPrev={nav.prev} onNext={nav.next} nowMs={nowMs} showHeader={false} />}
       </div>
       <DateNavigator range={range} selectedDay={nav.selectedDay} intervals={intervals}
         panelId="analyst-selected-day-panel" busy={loading} error={error} nowMs={nowMs} onSelectDay={nav.goTo} />
     </section>
-    <details className="analyst-day-details">
+    {!error && !loading ? <details className="analyst-day-details">
       <summary>Score and break-credit details for {nav.selectedDay}</summary>
       <DailyScoreTrajectory data={selectedSnapshots} />
       <BreakCreditHistogram data={selectedSessions} />
-    </details>
+    </details> : null}
   </div>;
 }
