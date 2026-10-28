@@ -323,3 +323,21 @@ and include:
 
 See the **[Optimization Guide](./OPTIMIZATION_GUIDE.md)** for memory baselines
 and the regression checklist.
+## Application reminders
+
+MoveUp shows policy-approved reminders in its existing main window. A reminder
+stays until you dismiss or snooze it, or its reason is no longer current. Automatic
+presentation does not request keyboard focus. Click the tray icon to focus the
+current reminder; the Analyst and phone display remain separate.
+
+Settings edits and an open Share dialog take priority. Messages wait until you
+return to status, without closing the current editor or dialog. In Notifications,
+choose a **Test appearance** and **Test reminder** to preview information, warning,
+urgent or success styling. A queued confirmation means you can return to status
+to view it. These are labelled tests, share one 60-second rate limit and leave
+your ergonomic session unchanged.
+
+If saving a response fails, keep the reminder open and choose **Retry saving**.
+This completes the pending save without applying your response twice, including
+after the view remounts. If the reminder connection fails, use **Retry connection**.
+Messages never supply missing observations or change your recorded posture history.

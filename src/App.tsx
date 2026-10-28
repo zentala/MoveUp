@@ -4,9 +4,12 @@
  * Core provides data via useWidgetData, OneBarWidget handles presentation.
  * Overlay progress bar is a separate native WinAPI window (not React).
  */
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { AppReminderContext, useAppReminder } from "@/hooks/useAppReminder";
+import { ApplicationReminder } from "@/components/ApplicationReminder";
 import { useWidgetData } from "@/hooks/useWidgetData";
 import { ActiveWidget } from "@/widgets/registry";
 import SettingsPanel from "@/components/SettingsPanel";
@@ -86,7 +89,18 @@ export default function App() {
 /** The main desk-tracker UI — all hooks live here, called unconditionally. */
 function MainApp() {
   const [showSettings, setShowSettings] = useState(false);
-  const { widgetProps, wsConnected, sensorConnected } = useWidgetData(() => setShowSettings(true));
+  const isMain = isTauri && (() => { try { return getCurrentWindow().label === "main"; } catch { return false; } })();
+  const reminders = useAppReminder(isMain);
+  const { protect } = reminders;
+  const openSettings = useCallback(() => {
+    if (!isMain) { setShowSettings(true); return; }
+    void protect("settings").then(() => setShowSettings(true)).catch(() => {});
+  }, [isMain, protect]);
+  const closeSettings = () => {
+    if (!isMain) { setShowSettings(false); return; }
+    void protect(null).then(() => setShowSettings(false)).catch(() => {});
+  };
+  const { widgetProps, wsConnected, sensorConnected } = useWidgetData(openSettings);
   const isRemote = !isTauri;
   // Only the relay transport is allowed to carry a write (D4); the LAN socket
   // reports `control: false` and the controls never mount.
@@ -106,13 +120,16 @@ function MainApp() {
   // Tauri's event bridge doesn't exist in remote-display (plain browser) mode.
   useEffect(() => {
     if (!isTauri) return;
-    const unWidget = listen("desk:show-widget", () => setShowSettings(false));
-    const unSettings = listen("desk:show-settings", () => setShowSettings(true));
+    const unWidget = listen("desk:show-widget", () => {
+      if (!isMain) setShowSettings(false);
+      else void protect(null).then(() => setShowSettings(false)).catch(() => {});
+    });
+    const unSettings = listen("desk:show-settings", openSettings);
     return () => {
       unWidget.then((u) => u());
       unSettings.then((u) => u());
     };
-  }, []);
+  }, [isMain, protect, openSettings]);
 
   // Debug: poll overlay state every 2s — DEV only
   const [overlayDebug, setOverlayDebug] = useState<Record<string, unknown> | null>(null);
@@ -131,17 +148,31 @@ function MainApp() {
   if (showSettings) {
     return (
       <main className="app">
-        <SettingsPanel onClose={() => setShowSettings(false)} />
+        <AppReminderContext.Provider value={isMain ? reminders : null}>
+          <SettingsPanel onClose={closeSettings} />
+          {reminders.error && <p role="alert" className="app__reminder-error">{reminders.error}</p>}
+        </AppReminderContext.Provider>
       </main>
     );
   }
 
   return (
     <main className="app">
+      {isMain && reminders.error && (!reminders.ready || !reminders.snapshot?.active) && <p role="alert" className="app__reminder-error">
+        {reminders.error} <button className="btn" onClick={reminders.retryConnection}>Retry connection</button>
+      </p>}
       {isRemote && wsConnected !== undefined && (
         <ConnectionOverlay wsConnected={wsConnected} sensorConnected={sensorConnected} />
       )}
-      <ActiveWidget {...widgetProps} />
+      <div className="app__status" hidden={!!(isMain && reminders.ready && reminders.snapshot?.active
+        && !reminders.protectedFlow && !reminders.snapshot.protected_flow)}>
+        <ActiveWidget {...widgetProps} onOpenSettings={openSettings}
+          onShareChange={isMain ? (open) => protect(open ? "share" : null) : undefined} />
+      </div>
+      {isMain && reminders.ready && reminders.snapshot?.active && !reminders.protectedFlow && !reminders.snapshot.protected_flow
+        && <ApplicationReminder message={reminders.snapshot.active} busy={reminders.busy} error={reminders.error}
+          retrySave={reminders.retrySave} onAction={reminders.acknowledge}
+          onReconnect={reminders.snapshot.presentation_error && !reminders.retrySave ? reminders.retryConnection : undefined} />}
 
       {isRemote && canControl && (
         <RemoteControls

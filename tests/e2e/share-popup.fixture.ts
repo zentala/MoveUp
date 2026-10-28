@@ -1,6 +1,6 @@
 /** Browser-only synthetic IPC. Import before the real application bootstrap. */
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
-import type { SessionStateDto, MetricSnapshot } from '../../src/types';
+import type { SessionStateDto, MetricSnapshot, AppReminderSnapshot } from '../../src/types';
 
 const scenario = new URLSearchParams(location.search).get('share-fixture') ?? 'normal';
 const stress = scenario === 'stress';
@@ -20,8 +20,20 @@ const metrics: MetricSnapshot[] = empty ? [] : [
   { id: 'longest_session', label: 'Longest session', result: { value: 1800, display: stress ? '123456h 59m' : '30m', level: 'yellow', is_personal_best: false } },
 ];
 mockWindows('main');
-mockIPC((command) => {
+let reminder: AppReminderSnapshot = { session_id: 'share-fixture', revision: 0, active: null, pending: null,
+  protected_flow: null, last_retirement: null, presentation_error: null, client_id: null };
+mockIPC((command, raw) => {
+  const args = raw as Record<string, unknown>;
   switch (command) {
+    case 'get_app_reminder_snapshot': return { ...reminder };
+    case 'claim_app_reminder_client':
+      if (args.previousClientId !== reminder.client_id) throw new Error('stale_client');
+      reminder = { ...reminder, revision: reminder.revision + 1, client_id: args.clientId as string };
+      return { ...reminder };
+    case 'set_app_reminder_flow':
+      if (args.clientId !== reminder.client_id) throw new Error('stale_client_update');
+      reminder = { ...reminder, revision: reminder.revision + 1, protected_flow: args.flow as AppReminderSnapshot['protected_flow'] };
+      return { ...reminder };
     case 'get_dashboard_state': return { session, metrics };
     case 'get_today_summary': return {
       sitting_secs: session.sitting_seconds_total, standing_secs: session.standing_seconds,

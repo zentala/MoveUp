@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
-  testMatch: ['share-popup.test.ts', 'analyst-containment.test.ts'],
+  testMatch: ['share-popup.test.ts', 'analyst-containment.test.ts', 'application-reminders.test.ts'],
   workers: 1,
   retries: 0,
   reporter: 'list',

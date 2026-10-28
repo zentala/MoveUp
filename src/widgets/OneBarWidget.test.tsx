@@ -3,7 +3,7 @@
  * across all states and temperature levels.
  */
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OneBarWidget } from "./OneBarWidget";
 import type { WidgetProps } from "@/types";
 
@@ -49,6 +49,15 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     ...overrides,
   };
 }
+
+it("retains the current view when the main protected Share handshake fails", async () => {
+  const protect = vi.fn().mockRejectedValue(new Error("stale_client_update"));
+  render(<OneBarWidget {...props({ onShareChange: protect })} />);
+  fireEvent.click(screen.getByRole("button", { name: "Share my stats" }));
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Could not change the Share view"));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(protect).toHaveBeenCalledOnce();
+});
 
 describe("OneBarWidget", () => {
   it("renders without crashing", () => {

@@ -15,7 +15,7 @@ const baseUrl = "http://localhost:1443";
 export default defineConfig({
   testDir: "./tests/e2e",
   testMatch: "*.test.ts",
-  testIgnore: ["**/share-popup.test.ts", "**/analyst-containment.test.ts"], // Dedicated strict15431 browser-only suites.
+  testIgnore: ["**/share-popup.test.ts", "**/analyst-containment.test.ts", "**/application-reminders.test.ts"], // Dedicated strict15431 browser-only suites.
 
   fullyParallel: false, // Run tests serially to avoid port conflicts
   forbidOnly: !!process.env.CI,

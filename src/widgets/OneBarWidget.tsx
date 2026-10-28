@@ -66,6 +66,18 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
   const [showShare, setShowShare] = useState(false);
   const shareButtonRef = useRef<HTMLButtonElement>(null);
   const wasSharing = useRef(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const shareChanging = useRef(false);
+  async function changeShare(open: boolean) {
+    if (!props.onShareChange) { setShowShare(open); setShareError(null); return; }
+    if (shareChanging.current) return;
+    shareChanging.current = true;
+    try {
+      await props.onShareChange(open);
+      setShowShare(open); setShareError(null);
+    } catch { setShareError("Could not change the Share view. Please retry."); }
+    finally { shareChanging.current = false; }
+  }
   useEffect(() => {
     if (wasSharing.current && !showShare) shareButtonRef.current?.focus();
     wasSharing.current = showShare;
@@ -78,7 +90,8 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
       className={`one-bar one-bar--${temperature} ${skinClassName(skin)}`}
       data-testid="one-bar-widget"
     >
-      <OneBarHeader {...props} shareButtonRef={shareButtonRef} onOpenShare={() => setShowShare(true)} />
+      <OneBarHeader {...props} shareButtonRef={shareButtonRef} onOpenShare={() => { void changeShare(true); }} />
+      {shareError && <p role="alert">{shareError}</p>}
       <OneBarTimer {...props} />
       <KpiStrip metrics={props.metrics}>
         <HealthWidget />
@@ -92,7 +105,7 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
           todayStandingSecs={props.todayStandingSecs}
           todaySittingSecs={props.todaySittingSecs}
           todayScore={props.todayScore}
-          onClose={() => setShowShare(false)}
+          onClose={() => { void changeShare(false); }}
         />
       )}
     </div>

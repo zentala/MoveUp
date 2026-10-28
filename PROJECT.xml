@@ -20,6 +20,11 @@
       <source path="src-tauri/src/notification_service.rs" tests="src-tauri/src/notification_service_tests_edge.rs"/>
       <source path="src-tauri/src/communication_types.rs"/>
       <source path="src/generated/AppReminderSnapshot.ts"/>
+      <source path="src/hooks/useAppReminder.ts" tests="src/hooks/useAppReminder.test.ts"/>
+      <source path="src/components/ApplicationReminder.tsx" tests="src/components/ApplicationReminder.test.tsx"/>
+      <source path="src/components/application-reminder.css"/>
+      <source path="tests/e2e/application-reminders.test.ts"/>
+      <source path="tests/e2e/application-reminders.fixture.ts"/>
     </feature>
     <feature name="window-runtime-diagnostics-core">
       <description>Application-local typed window generations and collection states, nonblocking queue of 128 observations, 64 recent event groups, truthful loss/write counters and exclusive daily JSON reports capped at 256 KiB. Opt-in Windows WebView2/power adapters and fixed version1 DOM/JS probe retain physical single-flight through timeout. Production setup activates existing-window collection through the native Save UI diagnostics tray action; partial reports retain their path with an incomplete warning.</description>

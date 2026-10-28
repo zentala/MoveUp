@@ -48,6 +48,7 @@ export type { MetricSnapshot };
 export type { DashboardState } from "./generated/DashboardState";
 /** Serial port info returned by the `list_ports` command. */
 export type { PortInfo } from "./generated/PortInfo";
+export type { AppReminderSnapshot } from "./generated/AppReminderSnapshot";
 /**
  * A single tracked session within a day.
  *
@@ -177,6 +178,8 @@ export interface WidgetProps {
   metrics: MetricSnapshot[];
   error: string | null;
   onOpenSettings: () => void;
+  /** Main owns the native protected-flow handshake; widgets retain their dialog state. */
+  onShareChange?: (open: boolean) => Promise<void>;
 }
 
 /** A widget is a pure presentation component receiving WidgetProps. */
