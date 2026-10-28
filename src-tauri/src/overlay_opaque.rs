@@ -50,7 +50,8 @@ pub(crate) fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>, bar_height:
             style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(wnd_proc),
             cbClsExtra: 0,
-            cbWndExtra: std::mem::size_of::<isize>() as i32,
+            // State pointer, then the monotonic time of the last exposure check.
+            cbWndExtra: (2 * std::mem::size_of::<isize>()) as i32,
             hInstance: hinstance,
             hIcon: HICON::default(),
             hCursor: arrow_cursor,
@@ -92,7 +93,7 @@ pub(crate) fn run_event_loop_opaque(state: Arc<Mutex<OverlayState>>, bar_height:
         SetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(0), state_ptr as isize);
 
         // 5. Make window visible and set timer
-        let _ = ShowWindow(hwnd, SW_SHOW);
+        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
         let _ = UpdateWindow(hwnd);
 
         if SetTimer(Some(hwnd), TIMER_ID, TIMER_INTERVAL_MS, None) == 0 {
@@ -180,6 +181,9 @@ pub(crate) unsafe extern "system" fn wnd_proc(
                         }
                     }
 
+                    drop(s);
+                    // Native presentation can dispatch messages: never hold state here.
+                    recover_exposure(hwnd, state);
                     let _ = InvalidateRect(Some(hwnd), None, false.into());
                 }
             }
@@ -243,4 +247,111 @@ pub(crate) unsafe extern "system" fn wnd_proc(
             DefWindowProcA(hwnd, msg, wparam, lparam)
         }
     }
+}
+
+/// Repair only evidenced ordinary occlusion, not intentional topmost/modal/fullscreen
+/// presentation. The own TOPMOST style is deliberately not a recovery precondition:
+/// the installed one-raise experiment recovered exposure while that bit was set.
+#[cfg(target_os = "windows")]
+unsafe fn recover_exposure(hwnd: windows::Win32::Foundation::HWND, state: &Mutex<OverlayState>) {
+    use windows::Win32::{Foundation::RECT, Graphics::Gdi::*,
+        System::SystemInformation::GetTickCount64, UI::WindowsAndMessaging::*};
+
+    let time_slot = WINDOW_LONG_PTR_INDEX(std::mem::size_of::<isize>() as i32);
+    let now = GetTickCount64();
+    let previous = GetWindowLongPtrW(hwnd, time_slot) as u64;
+    if previous != 0 && now.saturating_sub(previous) < 1000 { return; }
+    {
+        let Ok(mut state) = state.lock() else { return; };
+        // Keep coalesced requests during the cooldown; consume one eligible attempt
+        // even when blocked or already exposed. Cached visible/animation cannot retry.
+        let requested = std::mem::take(&mut state.presentation_requested);
+        if !state.visible || !requested { return; }
+    }
+    SetWindowLongPtrW(hwnd, time_slot, now as isize);
+
+    let mut bar = RECT::default();
+    if GetWindowRect(hwnd, &mut bar).is_err() || bar.right <= bar.left || bar.bottom <= bar.top {
+        return;
+    }
+    let mut monitor = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default() };
+    if !GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mut monitor).as_bool() {
+        return;
+    }
+    let mut ordinary_cover = false;
+    let mut current = GetTopWindow(None).unwrap_or_default();
+    // Fail closed on an incomplete/changing list; inspect metadata, never mutate a cover.
+    for _ in 0..4096 {
+        if current == hwnd {
+            let hidden = !IsWindowVisible(hwnd).as_bool();
+            if ordinary_cover || hidden {
+                let mut flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER;
+                if hidden { flags |= SWP_SHOWWINDOW; }
+                if let Err(error) = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, flags) {
+                    log::warn!("[OPAQUE] Exposure recovery failed: {error}");
+                }
+            }
+            return;
+        }
+        if current.is_invalid() { return; }
+        if IsWindowVisible(current).as_bool() && !IsIconic(current).as_bool() {
+            let mut rect = RECT::default();
+            if GetWindowRect(current, &mut rect).is_err() { return; }
+            if rect.left < bar.right && rect.right > bar.left
+                && rect.top < bar.bottom && rect.bottom > bar.top {
+                let style = GetWindowLongPtrW(current, GWL_EXSTYLE) as u32;
+                // WS_VISIBLE/geometry survive DWM cloaking. Known invisible surfaces
+                // must be excluded before either the blocker or ordinary-cover branch.
+                if surface_not_presented(current, style) {
+                    current = match GetWindow(current, GW_HWNDNEXT) {
+                        Ok(next) => next,
+                        Err(_) => return,
+                    };
+                    continue;
+                }
+                if style & (WS_EX_TOPMOST.0 | WS_EX_DLGMODALFRAME.0) != 0
+                    || GetWindow(current, GW_OWNER).is_ok_and(|owner| !owner.is_invalid())
+                    || covers_monitor(&rect, &monitor.rcMonitor) {
+                    return;
+                }
+                ordinary_cover = true;
+            }
+        }
+        current = match GetWindow(current, GW_HWNDNEXT) {
+            Ok(next) => next,
+            Err(_) => return,
+        };
+    }
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn surface_not_presented(hwnd: windows::Win32::Foundation::HWND, style: u32) -> bool {
+    use windows::Win32::{Graphics::Dwm::*, UI::WindowsAndMessaging::*};
+
+    let mut cloaked = 0u32;
+    if DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &mut cloaked as *mut _ as _,
+        std::mem::size_of_val(&cloaked) as u32).is_ok() && cloaked != 0 {
+        return true;
+    }
+    if style & WS_EX_LAYERED.0 != 0 {
+        let mut alpha = 255u8;
+        let mut flags = LAYERED_WINDOW_ATTRIBUTES_FLAGS::default();
+        if GetLayeredWindowAttributes(hwnd, None, Some(&mut alpha), Some(&mut flags)).is_ok()
+            && flags.0 & LWA_ALPHA.0 != 0 && alpha == 0 {
+            return true;
+        }
+    }
+    // Unknown alpha (including per-pixel layered content) is not asserted transparent.
+    // WS_EX_TRANSPARENT controls painting/input behavior, not pixel opacity.
+    false
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn covers_monitor(
+    window: &windows::Win32::Foundation::RECT,
+    monitor: &windows::Win32::Foundation::RECT,
+) -> bool {
+    window.left <= monitor.left && window.top <= monitor.top
+        && window.right >= monitor.right && window.bottom >= monitor.bottom
 }

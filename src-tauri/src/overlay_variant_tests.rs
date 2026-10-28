@@ -5,9 +5,9 @@ use crate::overlay_renderer::{DataSource, OverlayRenderer, OverlayState, demo_pr
 
 /// Helper: create renderer with Live data source.
 fn renderer_live() -> OverlayRenderer {
-    let renderer = OverlayRenderer::new();
-    renderer.state.lock().unwrap().data_source = DataSource::Live;
-    renderer
+    let mut state = OverlayState::default();
+    state.data_source = DataSource::Live;
+    OverlayRenderer { state: std::sync::Arc::new(std::sync::Mutex::new(state)) }
 }
 
 #[test]
@@ -122,7 +122,7 @@ fn set_variant_clamped_to_2() {
 
 #[test]
 fn set_variant_ignored_in_demo_mode() {
-    let renderer = OverlayRenderer::new();
+    let renderer = renderer_live();
     renderer.state.lock().unwrap().data_source = DataSource::Demo;
     renderer.set_variant(2);
     let state = renderer.state.lock().unwrap();

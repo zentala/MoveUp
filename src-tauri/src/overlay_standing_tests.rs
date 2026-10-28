@@ -4,9 +4,9 @@ use std::time::{Duration, Instant};
 use crate::overlay_renderer::{DataSource, OverlayRenderer};
 
 fn renderer_live() -> OverlayRenderer {
-    let r = OverlayRenderer::new();
-    r.state.lock().unwrap().data_source = DataSource::Live;
-    r
+    let mut state = crate::overlay_renderer::OverlayState::default();
+    state.data_source = DataSource::Live;
+    OverlayRenderer { state: std::sync::Arc::new(std::sync::Mutex::new(state)) }
 }
 
 #[test]
