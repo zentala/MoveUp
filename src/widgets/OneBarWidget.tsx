@@ -13,7 +13,7 @@ import type { WidgetProps } from "@/types";
 import StateIndicator from "@/components/StateIndicator";
 import { computeTemperature } from "./one-bar/temperature";
 import { useTimelineSkin, skinClassName } from "@/hooks/useTimelineSkin";
-import { OneBarTimeline } from "./one-bar/OneBarTimeline";
+import { formatObservationAnnouncement, formatObservationStatus, formatObservationViewDetails, OneBarTimeline } from "./one-bar/OneBarTimeline";
 import { OneBarTimer } from "./one-bar/OneBarTimer";
 import { KpiStrip } from "./one-bar/KpiStrip";
 import { HealthWidget } from "@/components/HealthWidget";
@@ -36,6 +36,16 @@ const OneBarHeader: FC<HeaderProps> = (props) => (
       idleSecs={props.idleSecs}
       showActivity
     />
+    <span className="one-bar__observation-status" aria-live="off" tabIndex={0} data-testid="timeline-observation-status"
+      aria-label={formatObservationStatus(props.liveObservation, props.dashboardRefresh)}
+      title={formatObservationStatus(props.liveObservation, props.dashboardRefresh)}>
+      {formatObservationStatus(props.liveObservation, props.dashboardRefresh).replace(/ · View .*/, "")}
+      <span aria-live="off" data-testid="view-response-details"> · {formatObservationViewDetails(props.dashboardRefresh)}</span>
+    </span>
+    <span role="status" aria-live="polite" data-testid="timeline-observation-announcement"
+      style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}>
+      Device connection status unknown · {formatObservationAnnouncement(props.liveObservation, props.dashboardRefresh)}
+    </span>
     <div className="one-bar__header-actions">
       <button
         className="one-bar__share-btn"

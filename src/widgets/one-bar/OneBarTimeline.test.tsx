@@ -5,11 +5,13 @@
  * tooltips, empty state, live block.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { OneBarTimeline } from "./OneBarTimeline";
 import "./one-bar.css";
 import type { WidgetProps, SessionEntry } from "@/types";
+import type { LiveObservation } from "@/generated/LiveObservation";
+import { computeHourMarkers } from "@/utils/timeline";
 import { createOpenDayRequest, localCalendarDay, OPEN_ANALYST_DAY_KEY, parseOpenDayRequest } from "@/analyst/open-day";
 
 function baseProps(overrides: Partial<WidgetProps> = {}): WidgetProps {
@@ -203,6 +205,273 @@ describe("OneBarTimeline", () => {
     expect(screen.getAllByTestId("timeline-unknown")).toHaveLength(1);
   });
 
+  it("renders the retained live span before a completed row and stops at observed-through", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-25T11:03:00+02:00"));
+    const liveObservation: LiveObservation = {
+      span: {
+        state: "Sitting",
+        started_at: "2026-10-25T10:00:00+02:00",
+        observed_through: "2026-10-25T10:20:00+02:00",
+      },
+      last_observation_at: "2026-10-25T10:20:00+02:00",
+      snapshot_at: "2026-10-25T11:00:00+02:00",
+      quality: null,
+      reason: "stale",
+    };
+    const props = { ...baseProps({ todaySessions: [] }), liveObservation };
+    try {
+      render(<OneBarTimeline {...props} />);
+      expect(screen.getByTestId("timeline-live-block")).toHaveAttribute(
+        "data-end-ms",
+        String(Date.parse(liveObservation.span!.observed_through)),
+      );
+      expect(screen.getAllByTestId("timeline-unknown")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("grows the live prefix on a new reading without waiting for the minute display tick", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-25T10:00:05Z"));
+    const makeObservation = (through: string): LiveObservation => ({
+      span: {
+        state: "Sitting",
+        started_at: "2026-10-25T10:00:00Z",
+        observed_through: through,
+      },
+      last_observation_at: through,
+      snapshot_at: through,
+      quality: "known",
+      reason: null,
+    });
+    const firstProps = { ...baseProps({ todaySessions: [], dashboardRefresh: { loading: false, lastSuccessAt: "2026-10-25T10:00:05Z", error: null } }), liveObservation: makeObservation("2026-10-25T10:00:05Z") };
+    try {
+      const view = render(<OneBarTimeline {...firstProps} />);
+      expect(screen.getByTestId("timeline-live-block")).toHaveAttribute("data-end-ms", String(Date.parse("2026-10-25T10:00:05Z")));
+
+      vi.setSystemTime(new Date("2026-10-25T10:00:06Z"));
+      view.rerender(<OneBarTimeline {...{ ...firstProps,
+        dashboardRefresh: { loading: false, lastSuccessAt: "2026-10-25T10:00:06Z", error: null },
+        liveObservation: makeObservation("2026-10-25T10:00:06Z") }} />);
+
+      expect(screen.getByTestId("timeline-live-block")).toHaveAttribute("data-end-ms", String(Date.parse("2026-10-25T10:00:06Z")));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not let a future producer snapshot extend the popup's current-time window", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-25T10:21:05Z"));
+    const observation: LiveObservation = {
+      span: { state: "Sitting", started_at: "2026-10-25T10:00:00Z", observed_through: "2026-10-25T10:20:00Z" },
+      last_observation_at: "2026-10-25T10:20:00Z",
+      snapshot_at: "2026-10-26T12:00:00Z",
+      quality: null,
+      reason: "stale",
+    };
+    try {
+      render(<OneBarTimeline {...baseProps({ todaySessions: [], liveObservation: observation,
+        dashboardRefresh: { loading: false, lastSuccessAt: "2026-10-25T10:21:05Z", error: null } })} />);
+      expect(screen.getByTestId("timeline-strip")).toHaveAttribute("data-end-ms", String(Date.parse("2026-10-25T10:21:05Z")));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("follows the client clock backward across local midnight on success and on the next failure tick", () => {
+    const originalTimeZone = process.env.TZ;
+    vi.stubEnv("TZ", "Europe/Warsaw");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-27T00:01:00Z"));
+    const row: SessionEntry = {
+      start: "2026-10-26T22:30:00Z", end: "2026-10-26T22:40:00Z", state: "Sitting",
+      duration_secs: 600, break_credit: null, history_kind: "individual",
+    };
+    const propsAt = (lastSuccessAt: string, error: string | null) => baseProps({ todaySessions: [row],
+      dashboardRefresh: { loading: false, lastSuccessAt, error } });
+    try {
+      const view = render(<OneBarTimeline {...propsAt("2026-10-27T00:01:00Z", null)} />);
+      vi.setSystemTime(new Date("2026-10-26T22:59:00Z"));
+      view.rerender(<OneBarTimeline {...propsAt("2026-10-26T22:59:00Z", null)} />);
+      expect(screen.getByTestId("timeline-strip")).toHaveAttribute("data-end-ms", String(Date.parse("2026-10-26T22:59:00Z")));
+
+      vi.setSystemTime(new Date("2026-10-26T22:50:00Z"));
+      view.rerender(<OneBarTimeline {...propsAt("2026-10-26T22:59:00Z", "dashboard refresh failed")} />);
+      act(() => vi.advanceTimersByTime(60_000));
+      expect(screen.getByTestId("timeline-strip")).toHaveAttribute("data-end-ms", String(Date.parse("2026-10-26T22:51:00Z")));
+    } finally {
+      vi.useRealTimers();
+      if (originalTimeZone === undefined) vi.unstubAllEnvs();
+      else process.env.TZ = originalTimeZone;
+    }
+  });
+
+  it("uses the rendered window origin for hour markers when an older retained prefix remains", () => {
+    const originalTimeZone = process.env.TZ;
+    vi.stubEnv("TZ", "UTC");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-25T14:05:00Z"));
+    const prior: LiveObservation = {
+      span: { state: "Sitting", started_at: "2026-10-25T10:00:00Z", observed_through: "2026-10-25T10:20:00Z" },
+      last_observation_at: "2026-10-25T10:20:00Z", snapshot_at: "2026-10-25T10:20:00Z", quality: null, reason: "stale",
+    };
+    const current: LiveObservation = {
+      span: { state: "Standing", started_at: "2026-10-25T13:00:00Z", observed_through: "2026-10-25T14:00:00Z" },
+      last_observation_at: "2026-10-25T14:00:00Z", snapshot_at: "2026-10-25T14:00:00Z", quality: "known", reason: null,
+    };
+    const laterRow: SessionEntry = {
+      start: "2026-10-25T12:00:00Z", end: "2026-10-25T12:10:00Z", state: "Sitting",
+      duration_secs: 600, break_credit: null, history_kind: "individual",
+    };
+    try {
+      const view = render(<OneBarTimeline {...baseProps({ todaySessions: [], liveObservation: prior })} />);
+      view.rerender(<OneBarTimeline {...baseProps({ todaySessions: [laterRow], liveObservation: current })} />);
+      const firstHourLabel = screen.getByTestId("one-bar-timeline").querySelector(".one-bar__timeline-hour-label");
+      expect(firstHourLabel).toHaveTextContent("10:00");
+      expect(screen.getByTestId("timeline-strip")).toHaveAttribute("data-start-ms", String(Date.parse(prior.span!.started_at)));
+    } finally {
+      vi.useRealTimers();
+      if (originalTimeZone === undefined) vi.unstubAllEnvs();
+      else process.env.TZ = originalTimeZone;
+    }
+  });
+
+  it("ends marker instants and proportions at the same window end as the strip", () => {
+    const originalTimeZone = process.env.TZ;
+    vi.stubEnv("TZ", "UTC");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-25T14:05:00Z"));
+    const refresh = { loading: false, lastSuccessAt: "2026-10-25T14:05:00Z", error: null };
+    const row: SessionEntry = {
+      start: "2026-10-25T10:00:00Z", end: "2026-10-25T10:10:00Z", state: "Sitting",
+      duration_secs: 600, break_credit: null, history_kind: "individual",
+    };
+    const laterRow: SessionEntry = {
+      start: "2026-10-25T11:00:00Z", end: "2026-10-25T11:10:00Z", state: "Standing",
+      duration_secs: 600, break_credit: null, history_kind: "individual",
+    };
+    try {
+      const view = render(<OneBarTimeline {...baseProps({ todaySessions: [row], dashboardRefresh: refresh })} />);
+      vi.setSystemTime(new Date("2026-10-25T15:00:00Z"));
+      view.rerender(<OneBarTimeline {...baseProps({ todaySessions: [row, laterRow], dashboardRefresh: refresh })} />);
+      const markers = [...screen.getByTestId("one-bar-timeline").querySelectorAll<HTMLElement>(".one-bar__timeline-hour")];
+      const endLabel = markers[markers.length - 1]?.querySelector(".one-bar__timeline-hour-label--end");
+      expect(endLabel).toHaveTextContent("14:05");
+      expect(endLabel).not.toHaveTextContent("15:00");
+      const noon = markers[2];
+      const expectedPct = ((Date.parse("2026-10-25T12:00:00Z") - Date.parse(row.start)) /
+        (Date.parse("2026-10-25T14:05:00Z") - Date.parse(row.start))) * 100;
+      expect(Number.parseFloat(noon!.style.left)).toBeCloseTo(expectedPct, 2);
+      expect(screen.getByTestId("timeline-strip")).toHaveAttribute("data-end-ms", String(Date.parse("2026-10-25T14:05:00Z")));
+    } finally {
+      vi.useRealTimers();
+      if (originalTimeZone === undefined) vi.unstubAllEnvs();
+      else process.env.TZ = originalTimeZone;
+    }
+  });
+
+  it("clips a continuing live span at today's Warsaw local midnight", () => {
+    const originalTimeZone = process.env.TZ;
+    vi.stubEnv("TZ", "Europe/Warsaw");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-27T00:03:00Z"));
+    const observation: LiveObservation = {
+      span: { state: "Standing", started_at: "2026-10-26T22:58:00Z", observed_through: "2026-10-26T23:02:00Z" },
+      last_observation_at: "2026-10-26T23:02:00Z",
+      snapshot_at: "2026-10-26T23:02:00Z",
+      quality: "known",
+      reason: null,
+    };
+    try {
+      render(<OneBarTimeline {...baseProps({ todaySessions: [], liveObservation: observation,
+        dashboardRefresh: { loading: false, lastSuccessAt: "2026-10-27T00:03:00Z", error: null } })} />);
+      expect(screen.getByTestId("timeline-strip")).toHaveAttribute("data-start-ms", String(Date.parse("2026-10-26T23:00:00Z")));
+      expect(screen.getByTestId("timeline-live-block")).toHaveAttribute("data-start-ms", String(Date.parse("2026-10-26T23:00:00Z")));
+    } finally {
+      vi.useRealTimers();
+      if (originalTimeZone === undefined) vi.unstubAllEnvs();
+      else process.env.TZ = originalTimeZone;
+    }
+  });
+
+  it("replaces the live block with its recorded row in either arrival order", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-25T11:03:00+02:00"));
+    const liveObservation: LiveObservation = {
+      span: {
+        state: "Sitting",
+        started_at: "2026-10-25T10:00:00+02:00",
+        observed_through: "2026-10-25T10:20:00+02:00",
+      },
+      last_observation_at: "2026-10-25T10:20:00+02:00",
+      snapshot_at: "2026-10-25T11:00:00+02:00",
+      quality: null,
+      reason: "stale",
+    };
+    const row: SessionEntry = {
+      start: "2026-10-25T10:00:00+02:00",
+      end: "2026-10-25T10:20:00+02:00",
+      state: "Sitting",
+      duration_secs: 1200,
+      break_credit: null,
+      history_kind: "individual",
+    };
+    try {
+      const liveFirst = render(<OneBarTimeline {...{ ...baseProps({ todaySessions: [] }), liveObservation }} />);
+      expect(screen.getAllByTestId("timeline-live-block")).toHaveLength(1);
+      liveFirst.rerender(<OneBarTimeline {...{ ...baseProps({ todaySessions: [row] }), liveObservation }} />);
+      expect(screen.queryByTestId("timeline-live-block")).not.toBeInTheDocument();
+      expect(screen.getAllByTestId("timeline-segment")).toHaveLength(1);
+      expect(screen.getByTestId("timeline-segment")).toHaveAttribute("data-end-ms", String(Date.parse(row.end!)));
+      liveFirst.unmount();
+
+      const rowFirst = render(<OneBarTimeline {...baseProps({ todaySessions: [row] })} />);
+      expect(screen.getAllByTestId("timeline-segment")).toHaveLength(1);
+      rowFirst.rerender(<OneBarTimeline {...{ ...baseProps({ todaySessions: [row] }), liveObservation }} />);
+      expect(screen.getAllByTestId("timeline-segment")).toHaveLength(1);
+      expect(screen.queryByTestId("timeline-live-block")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retains the closed posture prefix while the new live posture arrives before its row", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-25T10:21:05Z"));
+    const oldObservation: LiveObservation = {
+      span: { state: "Sitting", started_at: "2026-10-25T10:00:00Z", observed_through: "2026-10-25T10:20:00Z" },
+      last_observation_at: "2026-10-25T10:20:00Z", snapshot_at: "2026-10-25T10:20:00Z", quality: "known", reason: null,
+    };
+    const nextObservation: LiveObservation = {
+      span: { state: "Standing", started_at: "2026-10-25T10:20:00Z", observed_through: "2026-10-25T10:21:00Z" },
+      last_observation_at: "2026-10-25T10:21:00Z", snapshot_at: "2026-10-25T10:21:00Z", quality: "known", reason: null,
+    };
+    const closedRow: SessionEntry = {
+      start: oldObservation.span!.started_at, end: oldObservation.span!.observed_through,
+      state: "Sitting", duration_secs: 1200, break_credit: null, history_kind: "individual",
+    };
+    try {
+      const view = render(<OneBarTimeline {...{ ...baseProps({ todaySessions: [] }), liveObservation: oldObservation }} />);
+      view.rerender(<OneBarTimeline {...{ ...baseProps({ todaySessions: [] }), liveObservation: nextObservation }} />);
+      expect(screen.getAllByTestId("timeline-segment")).toHaveLength(1);
+      expect(screen.getByTestId("timeline-segment")).toHaveAttribute("data-start-ms", String(Date.parse(oldObservation.span!.started_at)));
+      expect(screen.getByTestId("timeline-live-block")).toHaveAttribute("data-end-ms", String(Date.parse(nextObservation.span!.observed_through)));
+
+      // A failed history refresh leaves the prior prefix visible until its row arrives.
+      view.rerender(<OneBarTimeline {...{ ...baseProps({ todaySessions: [], dashboardRefresh: { loading: false, lastSuccessAt: null, error: "history refresh failed" } }), liveObservation: nextObservation }} />);
+      expect(screen.getAllByTestId("timeline-segment")).toHaveLength(1);
+      expect(screen.getByTestId("timeline-live-block")).toBeInTheDocument();
+      view.rerender(<OneBarTimeline {...{ ...baseProps({ todaySessions: [closedRow] }), liveObservation: nextObservation }} />);
+      expect(screen.getAllByTestId("timeline-live-block")).toHaveLength(1);
+      expect(screen.getByTestId("timeline-segment")).toHaveAttribute("data-start-ms", String(Date.parse(closedRow.start)));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("always shows hour markers when sessions exist", () => {
     const sessions = makeSessions(1, 0.1); // sessions within same hour
     render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
@@ -243,6 +512,56 @@ describe("OneBarTimeline", () => {
     // The measured-width layout keeps full-hour labels when they fit.
     const texts = Array.from(hourLabels).map((element) => element.textContent ?? "");
     expect(texts.some((text) => text.endsWith(":00"))).toBe(true);
+  });
+
+  it("keeps both distinct repeated local-hour instants and labels their runtime offsets", () => {
+    const originalTimeZone = process.env.TZ;
+    vi.stubEnv("TZ", "Europe/Warsaw");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-25T01:30:00Z"));
+    try {
+      const markers = computeHourMarkers({ startMs: Date.parse("2026-10-24T22:00:00Z"), endMs: Date.now() });
+      const repeated = markers.filter((marker) => marker.label.startsWith("2:00"));
+      expect(repeated).toHaveLength(2);
+      expect(repeated.map((marker) => marker.atMs)).toEqual([
+        Date.parse("2026-10-25T00:00:00Z"),
+        Date.parse("2026-10-25T01:00:00Z"),
+      ]);
+      expect(repeated.map((marker) => marker.label)).toEqual(["2:00 UTC+02:00", "2:00 UTC+01:00"]);
+      expect(repeated[1].leftPct).toBeGreaterThan(repeated[0].leftPct);
+    } finally {
+      vi.useRealTimers();
+      if (originalTimeZone === undefined) vi.unstubAllEnvs();
+      else process.env.TZ = originalTimeZone;
+    }
+  });
+
+  it("keeps Lord Howe half-hour transition markers truthful and after a second-fold start", () => {
+    const originalTimeZone = process.env.TZ;
+    vi.stubEnv("TZ", "Australia/Lord_Howe");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-04T16:45:00Z"));
+    try {
+      const startBeforeFold = Date.parse("2026-04-04T14:10:00Z");
+      const markers = computeHourMarkers({ startMs: startBeforeFold, endMs: Date.now() });
+      expect(markers.some((marker) => marker.atMs === Date.parse("2026-04-04T15:30:00Z") && marker.label === "2:00")).toBe(true);
+      expect(markers.some((marker) => marker.label === "1:00" && marker.atMs === Date.parse("2026-04-04T15:00:00Z"))).toBe(false);
+
+      const secondFoldStart = Date.parse("2026-04-04T15:15:00Z");
+      const fromSecondFold = computeHourMarkers({ startMs: secondFoldStart, endMs: Date.now() });
+      expect(fromSecondFold.slice(1, -1).every((marker) => marker.atMs > secondFoldStart)).toBe(true);
+      expect(fromSecondFold.some((marker) => marker.atMs === Date.parse("2026-04-04T15:30:00Z") && marker.label === "2:00")).toBe(true);
+      expect(fromSecondFold.some((marker) => marker.atMs === Date.parse("2026-04-04T16:30:00Z") && marker.label === "3:00")).toBe(true);
+      for (const marker of fromSecondFold.slice(1, -1)) {
+        const local = new Date(marker.atMs);
+        const actual = local.getHours() + ":" + String(local.getMinutes()).padStart(2, "0");
+        expect(marker.label.startsWith(actual)).toBe(true);
+      }
+    } finally {
+      vi.useRealTimers();
+      if (originalTimeZone === undefined) vi.unstubAllEnvs();
+      else process.env.TZ = originalTimeZone;
+    }
   });
 
   it("uses recorded endpoints rather than the nullable summary duration", () => {

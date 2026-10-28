@@ -12,6 +12,7 @@
  *   have no Rust counterpart and stay hand-written.
  */
 import type { DeskState } from "./generated/DeskState";
+import type { LiveObservation } from "./generated/LiveObservation";
 import type { MetricSnapshot } from "./generated/MetricSnapshot";
 import type { SessionRow } from "./generated/SessionRow";
 
@@ -145,6 +146,10 @@ export interface PreviousSession {
 /** Data provided by core to every widget — pure presentation contract. */
 export interface WidgetProps {
   connected: boolean;
+  /** Producer-qualified live posture span and its freshness reason. */
+  liveObservation?: LiveObservation | null;
+  /** Frontend response receipt/error state; it is not producer freshness. */
+  dashboardRefresh?: { loading: boolean; lastSuccessAt: string | null; error: string | null };
   port: string | null;
   state: DeskState;
   deskHeightCm: number;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import type { LiveObservation } from "@/types";
 import { initialDeskState, selectDeskView } from "./deskReducer";
 import type { UseDeskConnection } from "./useDeskTypes";
@@ -52,16 +52,44 @@ describe("useWidgetData", () => {
   });
 
   it("passes producer freshness and independent view receipts to widget consumers", () => {
-    const { result } = renderHook(() => useWidgetData(() => undefined));
+    const { result, rerender } = renderHook(() => useWidgetData(() => undefined));
 
     expect(result.current.sensorConnected).toBe(true);
     expect(result.current.observationQuality).toBeNull();
     expect(result.current.liveObservation?.reason).toBe("stale");
+    expect(result.current.widgetProps.liveObservation).toEqual(result.current.liveObservation);
+    expect(result.current.widgetProps.dashboardRefresh).toEqual(result.current.dashboardRefresh);
     expect(result.current.dashboardRefresh).toEqual({
       loading: false,
       lastSuccessAt: "2026-10-25T08:09:02Z",
       error: "temporary refresh failure",
     });
     expect(result.current.historyRefresh.error).toBeNull();
+
+    const updatedObservation: LiveObservation = {
+      span: {
+        state: "Standing",
+        started_at: "2026-10-25T08:10:00Z",
+        observed_through: "2026-10-25T08:11:00Z",
+      },
+      last_observation_at: "2026-10-25T08:11:00Z",
+      snapshot_at: "2026-10-25T08:11:00Z",
+      quality: "known",
+      reason: null,
+    };
+    act(() => {
+      mockDesk.current = {
+        ...(mockDesk.current as UseDeskConnection),
+        liveObservation: updatedObservation,
+        dashboardRefresh: { loading: true, lastSuccessAt: "2026-10-25T08:09:02Z", error: null },
+      } satisfies UseDeskConnection;
+      rerender();
+    });
+    expect(result.current.widgetProps.liveObservation).toEqual(updatedObservation);
+    expect(result.current.widgetProps.dashboardRefresh).toEqual({
+      loading: true,
+      lastSuccessAt: "2026-10-25T08:09:02Z",
+      error: null,
+    });
   });
 });

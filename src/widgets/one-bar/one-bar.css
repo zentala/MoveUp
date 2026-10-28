@@ -54,6 +54,18 @@
   color: var(--ink-muted);
 }
 
+.one-bar__observation-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-inline: 8px;
+  overflow: hidden;
+  color: var(--ink-tertiary);
+  font-size: 10px;
+  line-height: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .one-bar__height {
   color: var(--ink-muted);
   font-weight: 400;

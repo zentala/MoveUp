@@ -6,6 +6,7 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { OneBarWidget } from "./OneBarWidget";
 import type { WidgetProps } from "@/types";
+import type { LiveObservation } from "@/types";
 
 function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
   return {
@@ -111,6 +112,50 @@ describe("OneBarWidget", () => {
   it("shows activity status in header via StateIndicator", () => {
     render(<OneBarWidget {...props({ idleSecs: 0 })} />);
     expect(screen.getByText("Active")).toBeInTheDocument();
+  });
+
+  it("shows observation and view-response status without changing compact strip geometry", () => {
+    const liveObservation: LiveObservation = {
+      span: {
+        state: "Sitting",
+        started_at: "2026-10-24T10:00:00Z",
+        observed_through: "2026-10-24T10:20:00Z",
+      },
+      last_observation_at: "2026-10-24T10:20:00Z",
+      snapshot_at: "2026-10-24T11:00:00Z",
+      quality: null,
+      reason: "stale",
+    };
+    render(<OneBarWidget {...props({
+      liveObservation,
+      dashboardRefresh: { loading: false, lastSuccessAt: "2026-10-24T11:00:01Z", error: "temporary read failure" },
+    })} />);
+
+    const status = screen.getByTestId("timeline-observation-status");
+    expect(status).toHaveTextContent("Sitting observed through");
+    expect(status).toHaveTextContent("sensor observation stale");
+    expect(status).toHaveTextContent("View update failed: temporary read failure");
+    expect(screen.getByTestId("timeline-strip")).toHaveStyle({ height: "24px", minHeight: "24px" });
+  });
+
+  it("does not announce routine request-start and response changes in the live status", () => {
+    const liveObservation: LiveObservation = {
+      span: { state: "Sitting", started_at: "2026-10-24T10:00:00Z", observed_through: "2026-10-24T10:20:00Z" },
+      last_observation_at: "2026-10-24T10:20:00Z",
+      snapshot_at: "2026-10-24T10:20:00Z",
+      quality: "known",
+      reason: null,
+    };
+    const common = { ...props({ liveObservation }) };
+    const view = render(<OneBarWidget {...{ ...common,
+      dashboardRefresh: { loading: true, lastSuccessAt: "2026-10-24T11:00:00Z", error: null } }} />);
+    const status = screen.getByTestId("timeline-observation-announcement");
+    const announcement = status.textContent;
+    view.rerender(<OneBarWidget {...{ ...common,
+      dashboardRefresh: { loading: false, lastSuccessAt: "2026-10-24T11:00:01Z", error: null } }} />);
+    expect(screen.getByTestId("timeline-observation-announcement").textContent).toBe(announcement);
+    expect(screen.getByTestId("view-response-details")).toHaveTextContent("View response received");
+    expect(screen.getByTestId("view-response-details")).toHaveAttribute("aria-live", "off");
   });
 
   it("shows elapsed/total as big number", () => {

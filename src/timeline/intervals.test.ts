@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { LiveObservation } from "@/generated/LiveObservation";
 import {
   dayComposition,
   intervalPosition,
   localDayWindow,
+  mergeTimelineIntervals,
   normalizeIntervals,
   observationMarkers,
   recordedTimelineIntervals,
@@ -61,6 +63,71 @@ describe("shared chronological intervals", () => {
     expect(markers[0].connected).toBe(false);
     expect(markers[0].observationQuality).toBe("known");
     expect(markers[1].observationQuality).toBeNull();
+  });
+
+  it("renders the confirmed current span before a completed row and stops at its observed endpoint", () => {
+    const observation: LiveObservation = {
+      span: {
+        state: "Sitting",
+        started_at: "2026-10-25T10:00:00+02:00",
+        observed_through: "2026-10-25T10:20:00+02:00",
+      },
+      last_observation_at: "2026-10-25T10:20:00+02:00",
+      snapshot_at: "2026-10-25T11:00:00+02:00",
+      quality: null,
+      reason: "stale",
+    };
+    const nowMs = ms("2026-10-25T11:03:00+02:00");
+    const window = {
+      startMs: ms("2026-10-25T10:00:00+02:00"),
+      endMs: ms("2026-10-25T12:00:00+02:00"),
+    };
+    const intervals = mergeTimelineIntervals([], observation, window, nowMs);
+
+    expect(intervals).toEqual([{
+      startMs: window.startMs,
+      endMs: ms("2026-10-25T10:20:00+02:00"),
+      state: "Sitting",
+      current: true,
+      provenance: "live",
+    }]);
+    expect(dayComposition(intervals, window, nowMs).totals.Sitting).toBe(20 * 60_000);
+    expect(timelineGaps(intervals, window, nowMs)).toEqual([
+      { startMs: ms("2026-10-25T10:20:00+02:00"), endMs: nowMs, kind: "Unknown" },
+      { startMs: nowMs, endMs: window.endMs, kind: "Future" },
+    ]);
+  });
+
+  it("replaces the live prefix with the same recorded interval when the row arrives", () => {
+    const observation: LiveObservation = {
+      span: {
+        state: "Sitting",
+        started_at: "2026-10-25T10:00:00+02:00",
+        observed_through: "2026-10-25T10:20:00+02:00",
+      },
+      last_observation_at: "2026-10-25T10:20:00+02:00",
+      snapshot_at: "2026-10-25T11:00:00+02:00",
+      quality: null,
+      reason: "stale",
+    };
+    const recorded = [{
+      start: "2026-10-25T10:00:00+02:00",
+      end: "2026-10-25T10:20:00+02:00",
+      state: "Sitting",
+      history_kind: "individual",
+    }];
+    const liveOnly = mergeTimelineIntervals([], observation, undefined, ms("2026-10-25T11:03:00+02:00"));
+    const afterRow = mergeTimelineIntervals(recorded, observation, undefined, ms("2026-10-25T11:03:00+02:00"));
+
+    expect(liveOnly).toHaveLength(1);
+    expect(afterRow).toEqual([{
+      startMs: ms("2026-10-25T10:00:00+02:00"),
+      endMs: ms("2026-10-25T10:20:00+02:00"),
+      state: "Sitting",
+      provenance: "session",
+    }]);
+    expect(afterRow.reduce((total, item) => total + item.endMs - item.startMs, 0))
+      .toBe(liveOnly.reduce((total, item) => total + item.endMs - item.startMs, 0));
   });
 
   it("uses actual individual session endpoints and leaves legacy break summaries unqualified", () => {

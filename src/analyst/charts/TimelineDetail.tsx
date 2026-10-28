@@ -152,16 +152,17 @@ export function TimelineDetail({
     const id = window.setInterval(() => setNowTick(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, [nowMs]);
+  const currentNowTick = nowMs ?? nowTick;
 
   const chronology = useMemo(
     () => scale && timelineWindow
-      ? buildSegments(intervals, timelineWindow, scale, nowTick)
+      ? buildSegments(intervals, timelineWindow, scale, currentNowTick)
       : { intervals: [], gaps: [] },
-    [intervals, timelineWindow, scale, nowTick],
+    [intervals, timelineWindow, scale, currentNowTick],
   );
   const observationTicks = useMemo(
-    () => scale && timelineWindow ? buildObservationTicks(snapshots, scale, timelineWindow, nowTick) : [],
-    [snapshots, scale, timelineWindow, nowTick],
+    () => scale && timelineWindow ? buildObservationTicks(snapshots, scale, timelineWindow, currentNowTick) : [],
+    [snapshots, scale, timelineWindow, currentNowTick],
   );
   const [selectedDetail, setSelectedDetail] = useState("");
   const selectedObservation = selectedDetail.startsWith("observation-")
@@ -175,10 +176,10 @@ export function TimelineDetail({
     : undefined;
 
   const nowPx = useMemo(() => {
-    return scale && nowTick >= scale.startMs && nowTick <= scale.endMs
-      ? msToPx(nowTick, scale)
+    return scale && currentNowTick >= scale.startMs && currentNowTick <= scale.endMs
+      ? msToPx(currentNowTick, scale)
       : null;
-  }, [scale, nowTick]);
+  }, [scale, currentNowTick]);
 
   // Smooth-scroll to selected day's centre whenever selectedDay changes.
   useEffect(() => {

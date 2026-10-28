@@ -1,4 +1,5 @@
 import type { DeskState } from "@/types";
+import type { LiveObservation } from "@/generated/LiveObservation";
 
 export interface TimelineWindow { startMs: number; endMs: number }
 export type TimelineLabel = DeskState | "Unknown" | "Future";
@@ -184,6 +185,76 @@ export function preferRecordedIntervals(
 
 export function recordedTimelineIntervals(sessions: readonly SessionIntervalEntry[]): TimelineInterval[] {
   return sessionIntervals(sessions);
+}
+
+/** Retain observed prefixes until an individually recorded row replaces them. */
+export function retainLiveObservationIntervals(
+  retained: readonly LiveObservation[],
+  current: LiveObservation | null | undefined,
+  sessions: readonly SessionIntervalEntry[],
+): LiveObservation[] {
+  const bySpan = new Map<string, LiveObservation>();
+  for (const observation of [...retained, ...(current ? [current] : [])]) {
+    const span = observation.span;
+    if (!span) continue;
+    const key = `${span.state}\u0000${span.started_at}`;
+    const previous = bySpan.get(key);
+    if (!previous || Date.parse(span.observed_through) >= Date.parse(previous.span!.observed_through)) {
+      bySpan.set(key, observation);
+    }
+  }
+
+  const recorded = sessionIntervals(sessions);
+  return [...bySpan.values()].filter((observation) => {
+    const span = observation.span!;
+    const startMs = Date.parse(span.started_at);
+    const endMs = Date.parse(span.observed_through);
+    return !recorded.some((row) => row.state === span.state && row.startMs <= startMs && row.endMs >= endMs);
+  });
+}
+
+/** Merge individually recorded spans with the producer's confirmed live prefix. */
+export function mergeTimelineIntervals(
+  sessions: readonly SessionIntervalEntry[],
+  observation: LiveObservation | null | undefined,
+  window?: TimelineWindow,
+  nowMs = Date.now(),
+  retained: readonly LiveObservation[] = [],
+): TimelineInterval[] {
+  const recorded = normalizeIntervals(sessionIntervals(sessions), window);
+  const bySpan = new Map<string, TimelineInterval>();
+  for (const candidate of [...retained, ...(observation ? [observation] : [])]) {
+    const span = candidate.span;
+    if (!span) continue;
+    const startMs = Date.parse(span.started_at);
+    const endMs = Date.parse(span.observed_through);
+    const snapshotMs = Date.parse(candidate.snapshot_at);
+    const lastObservationMs = candidate.last_observation_at == null
+      ? Number.NaN
+      : Date.parse(candidate.last_observation_at);
+    const isCurrent = candidate === observation;
+    const supportedQuality = candidate.quality === "known" && candidate.reason === null ||
+      candidate.quality === null && ["stale", "pending_confirmation"].includes(candidate.reason ?? "");
+    if (!supportedQuality || !Number.isFinite(startMs) || !Number.isFinite(endMs) ||
+        !Number.isFinite(snapshotMs) || !Number.isFinite(lastObservationMs) ||
+        endMs <= startMs || endMs > lastObservationMs || lastObservationMs > snapshotMs ||
+        (isCurrent && (snapshotMs > nowMs || endMs > nowMs)) || !KNOWN_STATES.has(span.state)) {
+      throw new TimelineDataError("Invalid or unsupported live observation span");
+    }
+    const key = `${span.state}\u0000${span.started_at}`;
+    const previous = bySpan.get(key);
+    if (!previous || endMs > previous.endMs || (isCurrent && endMs === previous.endMs)) {
+      bySpan.set(key, {
+        startMs,
+        endMs,
+        state: span.state,
+        current: isCurrent,
+        provenance: "live",
+      });
+    }
+  }
+  const live = normalizeIntervals([...bySpan.values()], window);
+  return preferRecordedIntervals(recorded, live);
 }
 
 /** Every elapsed hole remains Unknown; time after now remains a separate Future span. */

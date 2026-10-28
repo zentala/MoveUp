@@ -32,6 +32,7 @@ export default function AnalystLive() {
     data-refresh-last-success-at={observation.refresh.lastSuccessAt ?? undefined}
     data-refresh-error={observation.refresh.error ?? undefined}
   >
-    <AnalystWindow defaultRange={defaultRange()} />
+    <AnalystWindow defaultRange={defaultRange()} liveObservation={observation.liveObservation}
+      dashboardRefresh={observation.refresh} />
   </div>;
 }

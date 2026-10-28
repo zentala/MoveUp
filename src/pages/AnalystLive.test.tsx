@@ -35,6 +35,8 @@ describe("AnalystLive", () => {
   beforeEach(() => {
     localStorage.removeItem("desk:analyst:range");
     vi.mocked(invoke).mockReset();
+    const observedThrough = Date.now() - 10 * 60_000;
+    const spanStarted = observedThrough - 4 * 60_000;
     vi.mocked(invoke).mockImplementation(async (command) => {
       // Real range commands return vectors, including an empty history.
       if (rangeCommands.includes(command)) return [] as never;
@@ -45,11 +47,11 @@ describe("AnalystLive", () => {
           live_observation: {
             span: {
               state: "Sitting",
-              started_at: "2026-10-25T08:00:00Z",
-              observed_through: "2026-10-25T08:04:00Z",
+              started_at: new Date(spanStarted).toISOString(),
+              observed_through: new Date(observedThrough).toISOString(),
             },
-            last_observation_at: "2026-10-25T08:04:00Z",
-            snapshot_at: "2026-10-25T08:09:01Z",
+            last_observation_at: new Date(observedThrough).toISOString(),
+            snapshot_at: new Date(observedThrough + 1_000).toISOString(),
             quality: null,
             reason: "stale",
           },
@@ -74,7 +76,9 @@ describe("AnalystLive", () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("get_dashboard_state"));
     expect(invoke).not.toHaveBeenCalledWith("start_auto_connect", undefined);
     expect(screen.getByTestId("analyst-live-observation")).toHaveAttribute("data-observation-reason", "stale");
-    expect(screen.getByTestId("analyst-live-observation")).toHaveAttribute("data-observed-through", "2026-10-25T08:04:00Z");
+    expect(screen.getByTestId("analyst-live-observation").getAttribute("data-observed-through")).toBeTruthy();
+    expect(screen.getByTestId("live-observation-status")).toHaveTextContent("Last confirmed Sitting through");
+    expect(screen.getByTestId("live-observation-status")).toHaveTextContent("View response received");
     expect(screen.getByRole("tab", { name: "Catalog" })).toHaveAttribute("aria-selected", "false");
     expect(screen.getByRole("tab", { name: "Explorer" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("explorer-tab")).toBeInTheDocument();

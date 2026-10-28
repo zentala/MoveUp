@@ -6,12 +6,16 @@ import type { DateRange } from "./DateRangePicker";
 import { chartColors } from "./charts/chart-utils";
 import type { DataCatalog } from "./types/catalog";
 import { OPEN_ANALYST_DAY_KEY, parseOpenDayRequest, rangeForOpenDay, type OpenDayRequest } from "./open-day";
+import type { LiveObservation } from "@/generated/LiveObservation";
+import type { QueryStatus } from "@/hooks/useDeskTypes";
 
 export interface AnalystWindowProps {
   catalog?: DataCatalog;
   snapshots?: SnapshotRow[];
   sessions?: SessionRow[];
   kpis?: DailyKpi[];
+  liveObservation?: LiveObservation | null;
+  dashboardRefresh?: QueryStatus;
   defaultRange: DateRange;
 }
 
@@ -42,7 +46,8 @@ const tabButton = (active: boolean): React.CSSProperties => ({
   fontSize: 13, cursor: "pointer", fontFamily: "inherit",
 });
 
-export function AnalystWindow({ catalog, snapshots, sessions, kpis, defaultRange }: AnalystWindowProps) {
+export function AnalystWindow({ catalog, snapshots, sessions, kpis, liveObservation = null,
+  dashboardRefresh, defaultRange }: AnalystWindowProps) {
   const [tab, setTab] = useState<TabId>("explorer");
   const [focusedTab, setFocusedTab] = useState<TabId>("explorer");
   const [range, setRange] = useState<DateRange>(() => loadStoredRange() ?? defaultRange);
@@ -122,6 +127,7 @@ export function AnalystWindow({ catalog, snapshots, sessions, kpis, defaultRange
     </nav>
     {tab === "catalog" ? <section id="analyst-panel-catalog" role="tabpanel" aria-labelledby="analyst-tab-catalog" tabIndex={0}><CatalogTab data={catalog} /></section> :
       <section id="analyst-panel-explorer" role="tabpanel" aria-labelledby="analyst-tab-explorer" tabIndex={0}><ExplorerTab snapshots={snapshots} sessions={sessions} kpis={kpis}
+        liveObservation={liveObservation} dashboardRefresh={dashboardRefresh}
         range={range} onRangeChange={setRange} openDayRequest={pendingOpenDay} onOpenDayHandled={acknowledgeOpenDay} /></section>}
   </div>;
 }

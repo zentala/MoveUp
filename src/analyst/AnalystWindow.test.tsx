@@ -10,6 +10,8 @@ import {
   analystDefaultRange,
 } from "@/test/analyst-fixtures";
 import { createOpenDayRequest, OPEN_ANALYST_DAY_KEY } from "./open-day";
+import type { LiveObservation } from "@/generated/LiveObservation";
+import type { QueryStatus } from "@/hooks/useDeskTypes";
 
 const testCatalog: DataCatalog = {
   generated_at: "2026-05-16T00:00:00Z",
@@ -20,9 +22,9 @@ const testCatalog: DataCatalog = {
   })),
 };
 
-function renderWindow() {
+function renderWindow(overrides: { liveObservation?: LiveObservation | null; dashboardRefresh?: QueryStatus } = {}) {
   return render(<AnalystWindow catalog={testCatalog} snapshots={analystSnapshotsFixture} sessions={analystSessionsFixture}
-    kpis={analystDailyKpisFixture} defaultRange={analystDefaultRange} />);
+    kpis={analystDailyKpisFixture} defaultRange={analystDefaultRange} {...overrides} />);
 }
 
 describe("AnalystWindow selected-day receiver", () => {
@@ -59,6 +61,54 @@ describe("AnalystWindow selected-day receiver", () => {
     expect(await screen.findByRole("region", { name: "Daily timeline for 2026-05-17" })).toBeInTheDocument();
     await waitFor(() => expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBeNull());
     expect(screen.getByRole("tab", { name: "Explorer" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("relays live observation and independent view refresh updates into Explorer status", () => {
+    const now = Date.now();
+    const knownThrough = new Date(now - 30_000).toISOString();
+    const known: LiveObservation = {
+      span: {
+        state: "Sitting",
+        started_at: new Date(now - 90_000).toISOString(),
+        observed_through: knownThrough,
+      },
+      last_observation_at: knownThrough,
+      snapshot_at: knownThrough,
+      quality: "known",
+      reason: null,
+    };
+    const stale: LiveObservation = {
+      span: {
+        state: "Sitting",
+        started_at: new Date(now - 11 * 60_000).toISOString(),
+        observed_through: new Date(now - 10 * 60_000).toISOString(),
+      },
+      last_observation_at: new Date(now - 10 * 60_000).toISOString(),
+      snapshot_at: new Date(now - 5 * 60_000).toISOString(),
+      quality: null,
+      reason: "stale",
+    };
+    const response = (lastSuccessAt: string | null, error: string | null): QueryStatus => ({
+      loading: false, lastSuccessAt, error,
+    });
+    const view = renderWindow({ liveObservation: known, dashboardRefresh: response(new Date(now - 28_000).toISOString(), null) });
+    const status = screen.getByTestId("live-observation-status");
+    expect(status).toHaveTextContent("Observed Sitting through");
+    expect(status).toHaveTextContent("View response received");
+
+    view.rerender(<AnalystWindow catalog={testCatalog} snapshots={analystSnapshotsFixture} sessions={analystSessionsFixture}
+      kpis={analystDailyKpisFixture} defaultRange={analystDefaultRange} liveObservation={stale}
+      dashboardRefresh={response(new Date(now - 28_000).toISOString(), "temporary read failure")} />);
+    expect(status).toHaveTextContent("Last confirmed Sitting through");
+    expect(status).toHaveTextContent("sensor observation stale");
+    expect(status).toHaveTextContent("View update failed: temporary read failure");
+    expect(status).toHaveTextContent("last view response received");
+
+    view.rerender(<AnalystWindow catalog={testCatalog} snapshots={analystSnapshotsFixture} sessions={analystSessionsFixture}
+      kpis={analystDailyKpisFixture} defaultRange={analystDefaultRange} liveObservation={null}
+      dashboardRefresh={response(null, "offline")} />);
+    expect(status).toHaveTextContent("Current observation unavailable");
+    expect(status).toHaveTextContent("View update failed: offline");
   });
 
   it("explicitly selects an in-range historical request, independent of the 02:00 initializer", async () => {

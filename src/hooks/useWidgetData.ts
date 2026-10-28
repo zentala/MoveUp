@@ -41,6 +41,8 @@ export function useWidgetData(onOpenSettings: () => void): WidgetDataResult {
   return {
     widgetProps: {
       connected: desk.connected,
+      liveObservation: desk.liveObservation,
+      dashboardRefresh: desk.dashboardRefresh,
       port: desk.port,
       state: desk.state,
       deskHeightCm: desk.deskHeightCm,
