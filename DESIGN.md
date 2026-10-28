@@ -212,5 +212,76 @@ one non-activating topmost reassertion restored the screen pixels without a
 process restart or focus change. The original event causing that loss remains
 unknown. Disposable native regression evidence must distinguish a normal
 covering window from intentional topmost surfaces and preserve foreground.
-Source/test acceptance does not claim installed replacement; the existing
-installation retains only the separately authorized one-off presentation repair.
+Source/test acceptance alone does not establish the installed version. Verify
+the current runtime separately before attributing a recurrent visibility symptom
+to this mechanism.
+
+## Application-owned reminder view — 2026-10-28
+
+### Sitting baseline progress correction
+
+A configured visible sitting baseline carries the authoritative credited sitting
+load divided by its configured limit, preserving the existing neutral-to-warning
+color semantics. It must not collapse nonzero load to a one-pixel zero-progress
+bar before the first escalation or while snoozed. For example,5min of40min fills
+one eighth of the existing 4px track. Explicit hidden/disabled/inactive choices
+remain respected; standing retains its own lap progress. This corrects lost
+numeric input, without changing colors, history, break credit or native raising.
+
+### Message surface and lifecycle
+
+The owner requests a persistent, readable MoveUp reminder in the existing
+420×240 frameless main popup, in place of its ordinary status view while a
+reminder is active. Use the existing charcoal instrument style, monospace,
+spacing, radii and named icons. Lead with a short action-oriented heading,
+the actual policy-supported reason and values, then equal-height actions in a
+stable footer. Do not hardcode a forty-minute limit or invent a completed break.
+
+Give reminder categories distinct opaque backgrounds derived from the existing
+semantic palette: neutral information, amber warning, red urgent reminder and
+green acknowledgement where that category actually exists. Define local
+semantic notice-surface tokens; keep readable ink text and measured contrast.
+Color supplements a text label/icon and never changes historical posture colors.
+No illustration, decorative gradient, new font or global theme replacement.
+
+Use `--notice-info-bg: var(--panel-raised)`; warning, urgent and success surfaces
+mix 75% `--panel-base` with 25% of `--signal-warn`, `--signal-alert` and
+`--signal-ok` respectively in sRGB. Notice copy uses ink-primary/ink-secondary;
+do not use ink-tertiary for essential small text on the tinted surfaces. Reuse
+the 20px/600 page heading and 13px body scale. Controls use the existing raised
+surface and an ink-tertiary boundary where necessary for 3:1 contrast; retain
+the existing focus outline and equal heights.
+
+Automatic reminders use this same main popup without activating it or stealing
+keyboard focus. An active reminder does not expire on a short timer or hide on
+ordinary focus loss. It remains until an explicit close/dismiss/snooze action or
+the authoritative policy makes that reminder obsolete. Escape is handled only
+when MoveUp has focus. Dismissal returns to the normal status surface and uses
+existing policy acknowledgement/snooze rules; do not fabricate a new interval.
+Manual tray activation exposes the current message with usable keyboard focus.
+Do not destroy settings edits or an open Share dialog when a reminder arrives:
+retain the pending message and present it when that foreground flow returns.
+
+At 420×240 ordinary content fits without scrolling. Under enlarged text or
+constrained size, only a labelled message body may scroll; heading, Close and
+footer actions remain reachable. Reuse existing controls and focus styles, with
+at least 24px hit targets and no clipped labels. Do not duplicate the reminder
+in a second application window or the Windows notification center. Silent and
+disabled policy channels remain silent, and duplicate transport events cannot
+reopen an acknowledged message. Loading/remount must recover an active message
+from the owning adapter rather than relying on a one-shot frontend event.
+
+In Settings, reuse the existing Test command for a clearly labelled reminder
+preview. One small appearance selector (information, warning, urgent, success)
+shares its control height with the adjacent Test button. Every preview says it
+is a test and leaves real session/policy/snooze unchanged; the shared 60s limit
+remains. If Settings/Share defers presentation, show a short readable queued
+confirmation and tell the person to return to status. Do not close/discard a
+settings draft to show the preview. This allows inspection of the requested
+backgrounds through the product's normal UI, without a debug control surface.
+
+This replaces the requested reminder presentation, not the separate Analyst
+window or the top-of-screen native bar. Extend existing browser geometry and
+native lifecycle regressions. Independently inspect actual Windows popup images
+for the warning/urgent states, normal return, narrow/text stress and protected
+Settings/Share context before claiming visual acceptance.
