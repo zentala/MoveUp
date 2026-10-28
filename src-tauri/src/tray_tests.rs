@@ -5,6 +5,30 @@ use crate::tray::icon_for_state_and_progress;
 use crate::tray_icon::{generate_tray_icon, generate_tray_icon_no_dot, IconUpdate, TrayAppearance};
 
 #[test]
+fn actual_tray_host_action_focuses_presented_reminder_instead_of_hiding_it() {
+    use crate::app_reminders::{AppReminderState, ProtectedFlow, ReminderSource};
+    use crate::communication_types::ReminderCategory;
+    use crate::tray::{main_window_action, MainWindowAction};
+    let state = AppReminderState::default();
+    let mut guard = state.0.lock().unwrap();
+    guard.claim(None, "main").unwrap();
+    assert_eq!(main_window_action(true, guard.retain_on_focus_loss()), MainWindowAction::Hide);
+    assert_eq!(main_window_action(false, guard.retain_on_focus_loss()), MainWindowAction::ShowStatus);
+    guard.publish(crate::commands_reminders::preview_draft(ReminderCategory::Info), ReminderSource::Test, chrono::Local::now().date_naive());
+    let revision = guard.snapshot().revision;
+    guard.record_presentation(revision, Ok(()));
+    // Automatic presentation does not activate: the first manual click must focus it,
+    // without the status-routing event that would replace the current message.
+    assert_eq!(main_window_action(true, guard.retain_on_focus_loss()), MainWindowAction::FocusReminder);
+    assert_eq!(main_window_action(false, guard.retain_on_focus_loss()), MainWindowAction::FocusReminder);
+    for (sequence, flow) in [(1, ProtectedFlow::Settings), (2, ProtectedFlow::Share)] {
+        guard.set_flow("main", sequence, Some(flow)).unwrap();
+        assert_eq!(main_window_action(true, guard.retain_on_focus_loss()), MainWindowAction::Hide);
+        assert_eq!(main_window_action(false, guard.retain_on_focus_loss()), MainWindowAction::ShowStatus);
+    }
+}
+
+#[test]
 fn tray_contrast_changes_only_white_silhouette_and_round_trips_every_state() {
     let mut frames = vec![generate_tray_icon_no_dot().unwrap()];
     for state in [DeskState::Sitting, DeskState::Standing, DeskState::Walking, DeskState::Away] {

@@ -185,13 +185,26 @@ fn icon_path_for_state(
 /// Toggles the main window between visible/hidden.
 fn toggle_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
-        } else {
-            let _ = app.emit(DESK_SHOW_WIDGET, ());
-            crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Main);
+        match main_window_action(window.is_visible().unwrap_or(false), crate::commands_reminders::retain_on_focus_loss(app)) {
+            MainWindowAction::Hide => { let _ = window.hide(); }
+            MainWindowAction::ShowStatus => {
+                let _ = app.emit(DESK_SHOW_WIDGET, ());
+                crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Main);
+            }
+            MainWindowAction::FocusReminder => {
+                crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Main);
+            }
         }
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum MainWindowAction { Hide, ShowStatus, FocusReminder }
+
+/// The same final host-action selection used by the actual left-click callback.
+pub(crate) fn main_window_action(visible: bool, presented_reminder: bool) -> MainWindowAction {
+    if presented_reminder { MainWindowAction::FocusReminder }
+    else if visible { MainWindowAction::Hide } else { MainWindowAction::ShowStatus }
 }
 
 /// Opens the main window directly to the Settings view.

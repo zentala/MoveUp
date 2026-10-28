@@ -299,8 +299,8 @@ mod policy_input {
         let input = session.policy_input(now(), true);
 
         for (notify_type, expected_channel, expected_webhook) in [
-            ("toast", NotificationChannel::Toast, true),
-            ("popup", NotificationChannel::Popup, false),
+            ("toast", NotificationChannel::Main, true),
+            ("popup", NotificationChannel::Main, false),
         ] {
             let mut communication = CommunicationProfile::default();
             communication.escalation.sitting = vec![EscalationStep {
@@ -317,6 +317,7 @@ mod policy_input {
                 0,
                 false,
             );
+            let first_draft = policy.take_reminder();
             let second = policy.evaluate_with_stand_limit_fired(
                 &input,
                 session.state.session_limit_secs,
@@ -334,8 +335,9 @@ mod policy_input {
                     notify,
                     |signal| NotificationService::dispatch_policy_signal_with(
                         signal,
+                        first_draft.as_ref(),
                         || log_count += 1,
-                        |channel, title, body| channels.push((channel, title.to_string(), body.to_string())),
+                        |channel, title, body, _draft| channels.push((channel, title.to_string(), body.to_string())),
                     ),
                     |signal| {
                         if let NotifySignal::Toast(body) = signal {
@@ -348,7 +350,7 @@ mod policy_input {
             assert_eq!(log_count, 1);
             assert_eq!(channels.len(), 1);
             assert_eq!(channels[0].0, expected_channel);
-            assert_eq!(channels[0].1, "Smart Desk");
+            assert_eq!(channels[0].1, "MoveUp");
             assert_eq!(webhook_bodies.len(), usize::from(expected_webhook));
             if expected_webhook {
                 assert_eq!(webhook_bodies, vec![channels[0].2.clone()]);
@@ -376,9 +378,9 @@ mod policy_input {
         };
 
         for (backend, expected_channels) in [
-            ("toast", vec![NotificationChannel::Toast]),
-            ("popup", vec![NotificationChannel::Popup]),
-            ("both", vec![NotificationChannel::Toast, NotificationChannel::Popup]),
+            ("toast", vec![NotificationChannel::Main]),
+            ("popup", vec![NotificationChannel::Main]),
+            ("both", vec![NotificationChannel::Main]),
         ] {
             let mut communication = CommunicationProfile::default();
             communication.notification_backend = backend.into();
@@ -536,7 +538,7 @@ mod notification_policy_route_tests {
         let target = policy.resolve_session_notifications(&facts, true);
         assert_eq!(target.len(), 1);
         assert!(matches!(&target[0].event, NotificationEvent::StandingTargetReached));
-        assert_eq!(target[0].channels, vec![crate::notification_service::NotificationChannel::Popup]);
+        assert_eq!(target[0].channels, vec![crate::notification_service::NotificationChannel::Main]);
 
         let below_maximum = policy.resolve_session_notifications(&facts, false);
         assert!(below_maximum.iter().all(|intent| !matches!(&intent.event, NotificationEvent::StandLimitReached)));

@@ -6,6 +6,41 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Semantic facts resolved by policy, independent of the presentation transport.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum ReminderReason {
+    SittingLimit, StandingLimit, ScreenBreak, Inactivity, PostureBalance, Praise, StandingTarget, Preview, DeviceDisconnected,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum ReminderCategory { Info, Warning, Urgent, Success }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReminderDraft {
+    /// Monotonic accepted occurrence from its producer; transport retries retain it.
+    pub occurrence: u64,
+    pub reason: ReminderReason,
+    pub category: ReminderCategory,
+    pub title: String,
+    pub body: String,
+    pub elapsed_secs: Option<i64>,
+    pub limit_secs: Option<i64>,
+    /// The actual position-change observation, not a derived threshold.
+    pub position_anchor: Option<String>,
+    pub observation_day: Option<chrono::NaiveDate>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[serde(rename_all = "snake_case")]
+pub enum RetirementReason {
+    Acknowledged, ContextChanged, ProfileDisabled, ObservationUnavailable, Replaced,
+}
+
 // ---------------------------------------------------------------------------
 // TraySignal
 // ---------------------------------------------------------------------------

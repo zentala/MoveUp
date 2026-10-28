@@ -363,12 +363,14 @@ mod tests {
                 &sitting_input(2700), 2400, 0, false, reminder_now,
             );
             assert!(matches!(signals.notify, Some(NotifySignal::Toast(_))));
+            let metadata = policy.take_reminder();
             crate::tray_controller::dispatch_notification_with(
                 signals.notify.as_ref(),
                 |signal| NotificationService::dispatch_policy_signal_with(
                     signal,
+                    metadata.as_ref(),
                     || log_count += 1,
-                    |_channel, _title, _body| channel_count += 1,
+                    |_channel, _title, _body, _metadata| channel_count += 1,
                 ),
                 |signal| {
                     if matches!(signal, NotifySignal::Toast(_)) {
@@ -408,8 +410,9 @@ mod tests {
             exhausted_ladder.notify.as_ref(),
             |signal| NotificationService::dispatch_policy_signal_with(
                 signal,
+                None,
                 || log_count += 1,
-                |_channel, _title, _body| channel_count += 1,
+                |_channel, _title, _body, _metadata| channel_count += 1,
             ),
             |_signal| webhook_count += 1,
         );

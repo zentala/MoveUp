@@ -236,12 +236,16 @@ pub(crate) fn execute_popup(signal: &PopupSignal, app: &AppHandle) {
 
 /// Dispatches a [`NotifySignal`] to the appropriate notification backend.
 pub(crate) fn execute_notify(
+    app: &AppHandle,
     signal: &NotifySignal,
+    draft: Option<&crate::communication_types::ReminderDraft>,
     app_state: &AppState,
     event_logger: Option<&crate::event_logger::EventLogger>,
 ) {
     crate::notification_service::NotificationService::dispatch_policy_signal(
+        app,
         signal,
+        draft,
         event_logger,
         &app_state.alert_popup,
     );

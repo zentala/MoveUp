@@ -145,13 +145,35 @@ fn update_from_policy(app: &AppHandle) {
     );
     update_tooltip(app, &snapshot);
 
-    let signals = app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner())
-        .evaluate_with_stand_limit_fired(
+    let facts = app_state.session.lock().unwrap_or_else(|error| error.into_inner()).notification_facts(Utc::now());
+    let (signals, reminder, reminders_changed) = {
+        let mut policy = app_state.comm_policy.lock().unwrap_or_else(|e| e.into_inner());
+        let signals = policy.evaluate_with_stand_limit_fired(
             &input,
             snapshot.session_limit_secs,
             snapshot.standing_session_secs,
             stand_limit_fired,
         );
+        // Only short pure state reconciliation under policy -> presentation state.
+        // No caller ever acquires policy while retaining the presentation mutex.
+        let mut reminders_changed = false;
+        if let Some(reminders) = app.try_state::<crate::app_reminders::AppReminderState>() {
+            let mut guard = reminders.0.lock().unwrap_or_else(|error| error.into_inner());
+            let before = guard.snapshot().revision;
+            guard.reconcile(|entry|
+                policy.reminder_obsolete_reason(&entry.draft, entry.day, &input, &facts,
+                    snapshot.session_limit_secs, snapshot.standing_session_secs, std::time::Instant::now()));
+            reminders_changed = before != guard.snapshot().revision;
+        }
+        let reminder = policy.take_reminder().map(|mut draft| {
+            draft.observation_day = Some(facts.now.with_timezone(&chrono::Local).date_naive()); draft
+        });
+        (signals, reminder, reminders_changed)
+    };
+    // Event/native work only after policy and presentation mutexes are released.
+    if reminders_changed {
+        crate::commands_reminders::announce(app);
+    }
 
     if !signals.accepted_events.is_empty() {
         let standing = snapshot.standing_session_secs;
@@ -173,7 +195,7 @@ fn update_from_policy(app: &AppHandle) {
     let event_logger = app.try_state::<crate::Loggers>().map(|loggers| loggers.event.clone());
     dispatch_notification_with(
         signals.notify.as_ref(),
-        |notify| tray_signal_exec::execute_notify(notify, &app_state, event_logger.as_deref()),
+        |notify| tray_signal_exec::execute_notify(app, notify, reminder.as_ref(), &app_state, event_logger.as_deref()),
         |notify| push_to_webhook(&app_state, notify),
     );
     if notification_state_needs_save(

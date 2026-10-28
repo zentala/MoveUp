@@ -13,6 +13,14 @@
   </meta>
 
   <functionality>
+    <feature name="application-owned-reminders">
+      <description>Bounded active/pending main-window reminders with policy-sourced reasons and values, occurrence deduplication, session/message identities, snapshot/event revisions, protected Settings/Share client handshake, persistence-safe acknowledgement retries and rate-limited test previews. Automatic Windows presentation does not request focus; only a presented unprotected active reminder prevents hide-on-blur.</description>
+      <source path="src-tauri/src/app_reminders.rs" tests="src-tauri/src/app_reminders_tests.rs"/>
+      <source path="src-tauri/src/commands_reminders.rs" tests="src-tauri/src/app_reminders_tests.rs"/>
+      <source path="src-tauri/src/notification_service.rs" tests="src-tauri/src/notification_service_tests_edge.rs"/>
+      <source path="src-tauri/src/communication_types.rs"/>
+      <source path="src/generated/AppReminderSnapshot.ts"/>
+    </feature>
     <feature name="window-runtime-diagnostics-core">
       <description>Application-local typed window generations and collection states, nonblocking queue of 128 observations, 64 recent event groups, truthful loss/write counters and exclusive daily JSON reports capped at 256 KiB. Opt-in Windows WebView2/power adapters and fixed version1 DOM/JS probe retain physical single-flight through timeout. Production setup activates existing-window collection through the native Save UI diagnostics tray action; partial reports retain their path with an incomplete warning.</description>
       <source path="src-tauri/src/ui_diagnostics.rs" tests="src-tauri/src/ui_diagnostics_tests.rs"/>
