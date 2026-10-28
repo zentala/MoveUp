@@ -192,3 +192,25 @@ containing OneBarWidget, not an isolated full-width component fixture.
 ## Official references
 
 [Carbon colors](https://www.carbondesignsystem.com/building-blocks/foundations/color/overview) and [layering](https://www.carbondesignsystem.com/building-blocks/foundations/color/guidelines) inform neutral layers/semantic roles; [Carbon tabs](https://www.carbondesignsystem.com/building-blocks/core/components/tabs/guidelines) informs selected-tab/panel matching and horizontal scrolling. Below-panel donut tabs are MoveUp's adaptation. [Lucide React](https://lucide.dev/guide/react/) supports named imports. [WAI tabs](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/) and [WCAG 2.2](https://www.w3.org/TR/WCAG22/) inform keyboard/contrast targets. Checked 2026-10-09; exact tokens are operator-accepted MoveUp choices, not a Carbon compliance claim.
+
+## Native overlay exposure recovery — 2026-10-28
+
+The existing 4px opaque native bar must recover exposure when policy requests it
+visible and an ordinary non-topmost window obscures it despite its topmost style.
+Use the existing renderer loop with conditional checks at no more than once per
+second, and reassert only after observed loss of native presentation. Preserve
+the current geometry, colors, progress semantics and input focus. Native calls
+must run without holding the shared renderer mutex and must not activate the bar
+or modify another window. Yield to intentional topmost/modal windows and
+fullscreen surfaces. Hidden/Away/stale/disabled policy decisions must not cause
+a raise. No unconditional animation-frame raising, new watchdog, thread or
+presence policy is introduced.
+
+This replaces reliance on startup-only topmost placement, justified by paired
+native captures: the bar still rendered but was covered by an ordinary window;
+one non-activating topmost reassertion restored the screen pixels without a
+process restart or focus change. The original event causing that loss remains
+unknown. Disposable native regression evidence must distinguish a normal
+covering window from intentional topmost surfaces and preserve foreground.
+Source/test acceptance does not claim installed replacement; the existing
+installation retains only the separately authorized one-off presentation repair.

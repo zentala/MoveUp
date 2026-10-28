@@ -4,6 +4,10 @@ MoveUp helps its owner understand time spent sitting, standing and away from the
 
 Product entrypoints: [Purpose, current user and proposed audience](PURPOSE.md) and [User flows, current limitations and proposed experience](UX.md). The canonical visual contract remains [DESIGN.md](../DESIGN.md).
 
+## Replaceable presence inputs and preserved motivation — 2026-10-28
+
+The owner proposes treating Away/presence as an output independent of the input adapter: Windows input activity today, possible USB ultrasonic or other physical presence sensors later, initially attached to the computer and potentially to a controller. Record this as an architectural direction to assess, not an implemented integration, selected device or approved replacement of current credit/presence rules. Keep physical desk presence distinct from keyboard activity, desk height and room occupancy; unavailable observations must remain unknown. The owner also reports missing top-of-screen status and stand-up reminders and requests investigation of their actual behavior and regression coverage. Preserve configurable motivation signals and distinguish policy decisions, native execution and observed delivery before claiming reliability.
+
 ## Understandable accounting during AI-assisted work — 2026-10-27
 
 The owner reports less continuous computer use during AI-assisted work, unexpected Away while still present, and a red history/large sitting balance that appears inconsistent with time spent away. The owner requests an evidence-based investigation, an explanation of the actual algorithm, and a whole-application UX review focused on the popup. Document who the application serves and its user flows; keep raw chronology, credit-adjusted balance, overtime and signed motivational score distinguishable.
