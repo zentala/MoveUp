@@ -33,6 +33,21 @@ mod tests {
     // ── 1. Notification count increments and resets ──────────────────────────
 
     #[test]
+    fn sitting_baseline_numeric_during_snooze_uses_runtime_limit() {
+        let now = Instant::now();
+        let mut policy = default_policy();
+        policy.snooze_for_at(5, now);
+        let signals = policy.evaluate_with_stand_limit_fired_at(
+            &sitting_input(319), 1200, 0, false, now,
+        );
+        assert!(signals.notify.is_none());
+        assert!(matches!(signals.overlay,
+            crate::communication_types::OverlaySignal::Neutral { progress }
+                if (progress - 0.26583334).abs() < 0.000001),
+            "snooze must silence escalation without losing credited sitting load");
+    }
+
+    #[test]
     fn notify_count_increments_on_fire() {
         let mut p = default_policy();
         let sig = p.evaluate(&sitting_input(2400));

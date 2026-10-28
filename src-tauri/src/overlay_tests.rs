@@ -342,6 +342,47 @@ mod native_exposure {
     } }
 
     #[test]
+    fn sitting_baseline_numeric_reaches_executor_and_native_painted_width() { unsafe {
+        use crate::{communication_policy::{CommunicationPolicy, PolicyInput},
+            communication_profile::CommunicationProfile, communication_types::OverlaySignal,
+            ergonomic_profile::ErgonomicProfile, session::DeskState,
+            session_manager::SessionManager, tray_signal_exec::execute_overlay};
+        let foreground = GetForegroundWindow();
+        let f = Fixture::new();
+        // Deliberately leave snapshot sitting load at zero: the executor must use policy output.
+        let snapshot = SessionManager::new().snapshot();
+        let now = std::time::Instant::now();
+        for snoozed in [false, true] {
+            for (elapsed, limit, expected_progress, expected_width) in [
+                (319, 2400, 0.13291667, 13), (319, 1200, 0.26583334, 26),
+                (0, 2400, 0.0, 1),
+            ] {
+                let mut policy = CommunicationPolicy::new(
+                    CommunicationProfile::default(), ErgonomicProfile::default(),
+                );
+                if snoozed { policy.snooze_for_at(5, now); }
+                let signals = policy.evaluate_with_stand_limit_fired_at(&PolicyInput {
+                    state: DeskState::Sitting, elapsed_secs: elapsed,
+                    sensor_connected: true, observation_fresh: true,
+                    standing_lap_progress: 0.0, standing_lap: 0, standing_lap_flash: false,
+                    continuous_computer_secs: 0,
+                }, limit, 0, false, now);
+                assert!(matches!(signals.overlay, OverlaySignal::Neutral { progress }
+                    if (progress - expected_progress).abs() < 0.000001));
+                assert!(signals.notify.is_none());
+                execute_overlay(&signals.overlay, &f.renderer, &snapshot);
+                let (r, g, b, _) = color_for_progress(expected_progress);
+                let color = u32::from(r) | (u32::from(g) << 8) | (u32::from(b) << 16);
+                let row = f.painted_row();
+                assert!(row[..expected_width].iter().all(|pixel| *pixel == color));
+                assert!(row[expected_width..].iter().all(|pixel| *pixel == 0),
+                    "actual GDI fill must stop at {expected_width}px, snoozed={snoozed}");
+            }
+        }
+        assert_eq!(GetForegroundWindow(), foreground);
+    } }
+
+    #[test]
     fn sitting_warning_limit_and_pulse_execute_policy_and_recover_native_exposure() { unsafe {
         use crate::{communication_policy::{CommunicationPolicy, PolicyInput},
             communication_profile::CommunicationProfile, communication_types::OverlaySignal,

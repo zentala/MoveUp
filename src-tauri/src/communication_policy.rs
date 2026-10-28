@@ -142,7 +142,7 @@ impl CommunicationPolicy {
         // Check snooze — if still active, return baseline only
         if let Some(until) = self.snoozed_until {
             if now < until {
-                return self.make_baseline(input);
+                return self.make_baseline(input, sitting_limit_secs);
             } else {
                 self.snoozed_until = None;
             }
@@ -154,7 +154,7 @@ impl CommunicationPolicy {
                 self.ergo_profile.limits.standing_max_secs as i64,
                 self.comm_profile.escalation.standing.clone(),
             ),
-            _ => return self.make_baseline(input),
+            _ => return self.make_baseline(input, sitting_limit_secs),
         };
 
         let elapsed_secs = if input.state == DeskState::Standing {
@@ -186,7 +186,7 @@ impl CommunicationPolicy {
                 notification_elapsed_secs,
                 now,
             ),
-            None => self.make_baseline(input),
+            None => self.make_baseline(input, sitting_limit_secs),
         };
 
         self.maybe_apply_screen_nudge(input, &mut signals);
@@ -512,10 +512,16 @@ impl CommunicationPolicy {
         }
     }
 
-    fn make_baseline(&self, input: &PolicyInput) -> Signals {
+    fn make_baseline(&self, input: &PolicyInput, sitting_limit_secs: i64) -> Signals {
+        let sitting_progress = if sitting_limit_secs > 0 {
+            (input.elapsed_secs as f32 / sitting_limit_secs as f32).min(1.5)
+        } else {
+            0.0
+        };
         helpers::baseline_signals(
             &input.state,
             &self.comm_profile.baseline,
+            sitting_progress,
             input.standing_lap_progress,
             input.standing_lap,
             input.standing_lap_flash,

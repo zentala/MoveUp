@@ -56,6 +56,63 @@ mod tests {
         assert!(sig.notify.is_none());
     }
 
+    #[test]
+    fn sitting_baseline_numeric_uses_runtime_limit_before_escalation_and_during_snooze() {
+        let now = std::time::Instant::now();
+        for snoozed in [false, true] {
+            for (elapsed, limit, expected) in [
+                (319, 2400, 0.13291667), (319, 1200, 0.26583334),
+                (0, 2400, 0.0), (319, 0, 0.0), (319, -1, 0.0),
+                (3600, 2400, 1.5), (7200, 2400, 1.5),
+            ] {
+                let mut profile = CommunicationProfile::default();
+                // Isolate baseline even for deliberately invalid limits.
+                profile.escalation.sitting.clear();
+                let mut policy = CommunicationPolicy::new(profile, ErgonomicProfile::default());
+                if snoozed { policy.snooze_for_at(5, now); }
+                let signals = policy.evaluate_with_stand_limit_fired_at(
+                    &sitting_input(elapsed), limit, 0, false, now,
+                );
+                let OverlaySignal::Neutral { progress } = signals.overlay else {
+                    panic!("visible sitting baseline must retain neutral semantics");
+                };
+                assert!((progress - expected).abs() < 0.000001,
+                    "elapsed={elapsed}, limit={limit}, snoozed={snoozed}: {progress} != {expected}");
+                assert!(signals.notify.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn sitting_baseline_numeric_preserves_hidden_and_observation_guards() {
+        let now = std::time::Instant::now();
+        for snoozed in [false, true] {
+            for overlay in ["hidden", "none", ""] {
+                let mut profile = CommunicationProfile::default();
+                profile.baseline.sitting.overlay = overlay.into();
+                let mut policy = CommunicationPolicy::new(profile, ErgonomicProfile::default());
+                if snoozed { policy.snooze_for_at(5, now); }
+                assert_eq!(policy.evaluate_with_stand_limit_fired_at(
+                    &sitting_input(319), 2400, 0, false, now,
+                ).overlay, OverlaySignal::Hidden);
+            }
+            for (state, fresh, connected) in [
+                (DeskState::Away, true, true), (DeskState::Walking, true, true),
+                (DeskState::Sitting, false, true), (DeskState::Sitting, true, false),
+            ] {
+                let mut policy = default_policy();
+                if snoozed { policy.snooze_for_at(5, now); }
+                let mut input = sitting_input(319);
+                input.state = state;
+                input.observation_fresh = fresh;
+                input.sensor_connected = connected;
+                assert_eq!(policy.evaluate_with_stand_limit_fired_at(
+                    &input, 2400, 0, false, now,
+                ).overlay, OverlaySignal::Hidden);
+            }
+        }
+    }
+
     // ── 2. Sitting warning (escalation at=-600) ───────────────────────────────
 
     #[test]
@@ -199,7 +256,8 @@ mod tests {
         let signals = policy.evaluate(&input);
 
         assert!(signals.notify.is_none());
-        assert!(matches!(signals.overlay, OverlaySignal::Neutral { .. }));
+        assert!(matches!(signals.overlay, OverlaySignal::Neutral { progress }
+            if (progress - 1.5).abs() < 0.000001));
     }
 
     fn standing_session_facts() -> SessionNotificationFacts {
