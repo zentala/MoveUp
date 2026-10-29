@@ -98,8 +98,14 @@ test('320x240 enlarged action words stay whole before and after Copy', async ({ 
 test('ordinary 420x240 complete Share geometry', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 420, height: 240 });
   await openShare(page);
-  await expect(page.locator('.share-card')).toContainText('42%');
-  await expect(page.locator('.share-card')).toContainText('+12 pts');
+  await expect(page.getByRole('dialog', { name: 'share my stats' })).toBeVisible();
+  const shareCard = page.locator('.share-card');
+  for (const value of ['1h20m tracked', 'Standing', '42%', 'Position changes', '7', 'Longest session', '30m', 'Score', '+12 pts', 'Tracked by MoveUp', 'desk.labs.zentala.agency']) {
+    await expect(shareCard).toContainText(value);
+  }
+  for (const name of ['Close', 'Copy Text', 'Share on X', 'Reddit', 'Facebook']) {
+    await expect(page.getByRole('button', { name, exact: true })).toBeInViewport();
+  }
   await page.screenshot({ path: testInfo.outputPath('share-420x240.png') });
   expect(await layoutIssues(page)).toEqual([]);
 });
@@ -112,7 +118,7 @@ for (const size of [{ width: 420, height: 240 }, { width: 320, height: 240 }, { 
         await openShare(page, scenario);
         if (enlarged) await page.addStyleTag({ content: 'html { font-size: 200%; }' });
         await expect(page.getByRole('dialog', { name: 'share my stats' })).toBeVisible();
-        for (const name of ['Close', 'Copy Text', 'Post on X', 'Reddit']) await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+        for (const name of ['Close', 'Copy Text', 'Share on X', 'Reddit', 'Facebook']) await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
         for (const label of ['Standing', 'Position changes', 'Longest session', 'Score']) await expect(page.locator('.share-card__label', { hasText: label })).toHaveCount(1);
         await expect(page.locator('.share-card')).toContainText('tracked');
         await expect(page.locator('.share-card')).toContainText('Tracked by MoveUp');
@@ -153,25 +159,40 @@ for (const size of [{ width: 420, height: 240 }, { width: 320, height: 240 }, { 
   }
 }
 
-test('clipboard and exact social destinations preserve sharing semantics', async ({ page }) => {
+test('clipboard and exact social destinations preserve sharing semantics', async ({ page }, info) => {
   await page.setViewportSize({ width: 420, height: 240 });
   await openShare(page);
-  const expected = 'My desk stats today:\n🧍 Standing: 42%\n🔄 Position changes: 7\n⏱️ Longest session: 30m\n🏆 Score: +12 points\n\nTracked by MoveUp — desk.zentala.io';
+  const expected = 'With MoveUp, I am building a habit of changing position. Here are my desk stats for today:\n🧍 Standing: 42%\n🔄 Position changes: 7\n⏱️ Longest session: 30m\n🏆 Score: +12 points\n\nTracked by MoveUp — desk.labs.zentala.agency';
   await page.getByRole('button', { name: 'Copy Text' }).click();
   expect(await page.evaluate(() => window.shareTest.copied)).toBe(expected);
-  await page.getByRole('button', { name: 'Post on X' }).click();
+  await page.getByRole('button', { name: 'Share on X' }).click();
+  await expect(page.locator('.share-modal [role="status"]')).toContainText('Continue in your browser to review and post on X. Nothing was posted.');
   await page.getByRole('button', { name: 'Reddit', exact: true }).click();
+  await page.getByRole('button', { name: 'Facebook', exact: true }).click();
+  await expect(page.locator('.share-modal [role="status"]')).toContainText('Continue in your browser to review and post on Facebook. Nothing was posted.');
   const urls = await page.evaluate(() => window.shareTest.opened);
-  expect(urls).toHaveLength(2);
-  const x = new URL(urls[0]), reddit = new URL(urls[1]);
-  expect(x.origin + x.pathname).toBe('https://twitter.com/intent/tweet');
-  expect(x.searchParams.get('text')).toBe(expected);
-  expect(x.searchParams.get('url')).toBe('https://desk.zentala.io');
-  expect(reddit.origin + reddit.pathname).toBe('https://reddit.com/submit');
-  expect(reddit.searchParams.get('title')).toBe('My desk ergonomics stats today — tracked by MoveUp');
-  expect(reddit.searchParams.get('text')).toBe(expected);
-  expect(reddit.searchParams.get('url')).toBe('https://desk.zentala.io');
-  expect(reddit.searchParams.get('selftext')).toBe('true');
+  expect(urls).toEqual([
+    { destination: 'x', text: expected },
+    { destination: 'reddit', text: expected },
+    { destination: 'facebook', text: expected },
+  ]);
+  expect(await page.evaluate(() => window.shareTest.copied)).toBe(expected);
+  await page.screenshot({ path: info.outputPath('share-destination-feedback-420x240.png') });
+});
+
+test('Facebook copies personal text before a retryable native composer failure', async ({ page }, info) => {
+  await page.setViewportSize({ width: 420, height: 240 });
+  await openShare(page, 'opener-fail');
+  await page.getByRole('button', { name: 'Facebook', exact: true }).click();
+  await expect(page.getByTestId('copy-error')).toHaveCount(0);
+  expect(await page.evaluate(() => window.shareTest.copied)).toContain('With MoveUp, I am building a habit');
+  await expect(page.getByTestId('share-open-error')).toContainText('Could not open Facebook.');
+  await page.screenshot({ path: info.outputPath('share-native-opener-error-420x240.png') });
+  await page.getByRole('button', { name: 'Retry Facebook' }).click();
+  await expect(page.locator('.share-modal [role="status"]')).toContainText('Continue in your browser to review and post on Facebook. Nothing was posted.');
+  expect(await page.evaluate(() => window.shareTest.opened)).toEqual([
+    { destination: 'facebook', text: expect.any(String) },
+  ]);
 });
 
 test('both copy methods can fail visibly and Retry can recover', async ({ page }, info) => {
@@ -198,6 +219,10 @@ test('both copy methods can fail visibly and Retry can recover', async ({ page }
   for (const selector of scaledSelectors) expect(enlargedFonts[selector]).toBe(baselineFonts[selector] * 2);
 
   await expect(copyError).toHaveText('Copy failed.');
+  await expect(copyError).toBeInViewport();
+  for (const name of ['Close', 'Copy Text', 'Share on X', 'Reddit', 'Facebook']) {
+    await expect(page.getByRole('button', { name, exact: true })).toBeInViewport();
+  }
   const shareCard = page.locator('.share-card');
   await expect(shareCard).toContainText('Automatic copy failed. Retry or select the text below and copy it.');
   for (const value of ['42%', 'Position changes', '7', '30m', '+12 pts']) await expect(shareCard).toContainText(value);
@@ -239,11 +264,12 @@ test('both copy methods can fail visibly and Retry can recover', async ({ page }
   expect(manualGeometry.box.top).toBeGreaterThanOrEqual(manualGeometry.scroller.top - 1);
   expect(manualGeometry.box.right).toBeLessThanOrEqual(manualGeometry.scroller.right + 1);
   expect(manualGeometry.box.bottom).toBeLessThanOrEqual(manualGeometry.scroller.bottom + 1);
+  await page.screenshot({ path: info.outputPath('share-copy-failed-200pct-manual-field-420x240.png') });
   await page.keyboard.press('Shift+Tab');
   await expect(page.getByRole('button', { name: 'Retry copy' })).toBeInViewport();
-  for (const name of ['Close', 'Copy Text', 'Post on X', 'Reddit']) await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+  for (const name of ['Close', 'Copy Text', 'Share on X', 'Reddit', 'Facebook']) await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   expect(await layoutIssues(page, true)).toEqual([]);
-  await page.screenshot({ path: info.outputPath('share-copy-failed-200pct-manual-420x240.png') });
+  await page.screenshot({ path: info.outputPath('share-copy-failed-200pct-retry-focus-420x240.png') });
 
   await page.getByRole('button', { name: 'Retry copy' }).click();
   await expect(page.getByRole('button', { name: 'Copied!' })).toBeVisible();
@@ -255,14 +281,14 @@ test('native modal contains keyboard focus, Escape and Close restore Share focus
   await page.setViewportSize({ width: 420, height: 240 });
   await openShare(page);
   const dialog = page.getByRole('dialog', { name: 'share my stats' });
-  await expect(page.getByRole('button', { name: 'Close' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
-  await expect(page.getByRole('button', { name: 'Reddit', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Facebook', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: 'Close' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
   // Native inert background rejects programmatic focus as well as Tab.
   await page.getByRole('button', { name: 'Settings', exact: true }).evaluate(button => button.focus());
-  await expect(page.getByRole('button', { name: 'Close' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
   for (let i = 0; i < 8; i++) {
     await page.keyboard.press('Tab');
     expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
@@ -276,6 +302,6 @@ test('native modal contains keyboard focus, Escape and Close restore Share focus
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Share my stats', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Share my stats', exact: true })).toBeFocused();
 });

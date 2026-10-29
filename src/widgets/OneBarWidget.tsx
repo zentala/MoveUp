@@ -19,8 +19,9 @@ import { OneBarTimer } from "./one-bar/OneBarTimer";
 import { KpiStrip } from "./one-bar/KpiStrip";
 import { HealthWidget } from "@/components/HealthWidget";
 import { ShareStats } from "@/components/ShareStats";
-import { CalendarDays, Settings, Share2 } from "lucide-react";
+import { CalendarDays, Info, Settings, Share2, X } from "lucide-react";
 import { UiIcon } from "@/components/UiIcon";
+import { formatIdleTime } from "@/utils/format";
 import { createOpenDayRequest, localCalendarDay, OPEN_ANALYST_DAY_KEY } from "@/analyst/open-day";
 import "./one-bar/one-bar.css";
 
@@ -28,6 +29,7 @@ import "./one-bar/one-bar.css";
 interface HeaderProps extends WidgetProps {
   onOpenShare: () => void;
   onOpenToday: () => void;
+  onCloseMain: () => void;
   shareButtonRef: RefObject<HTMLButtonElement | null>;
   observationDetailsRef: RefObject<HTMLDetailsElement | null>;
 }
@@ -87,10 +89,21 @@ function observationSummary(observation: LiveObservation | null | undefined, ref
   return refresh?.error ? `View refresh failed · ${observationStatus}` : observationStatus;
 }
 
-const OneBarHeader: FC<HeaderProps> = ({ shareButtonRef, observationDetailsRef, onOpenToday, ...props }) => {
+function observationCue(observation: LiveObservation | null | undefined, refresh: WidgetProps["dashboardRefresh"]): string | null {
+  const cues: string[] = [];
+  if (observation?.reason === "stale") cues.push("Stale");
+  else if (observation?.reason === "clock_rollback") cues.push("Clock changed");
+  else if (observation?.reason === "pending_confirmation") cues.push("Pending");
+  else if (observation?.quality !== "known") cues.push("Unknown");
+  if (refresh?.error) cues.push("View error");
+  return cues.length > 0 ? cues.join(" · ") : null;
+}
+
+const OneBarHeader: FC<HeaderProps> = ({ shareButtonRef, observationDetailsRef, onOpenToday, onCloseMain, ...props }) => {
   const headingId = useId();
   const state = headerState(props.liveObservation, props.state, props.dashboardRefresh);
   const statusSummary = observationSummary(props.liveObservation, props.dashboardRefresh);
+  const statusCue = observationCue(props.liveObservation, props.dashboardRefresh);
 
   return (
     <div className="one-bar__header">
@@ -100,7 +113,7 @@ const OneBarHeader: FC<HeaderProps> = ({ shareButtonRef, observationDetailsRef, 
         showHeight={state.showHeight && props.deskHeightCm > 0}
         deskHeightCm={props.deskHeightCm}
         idleSecs={props.idleSecs}
-        showActivity={props.showActivityStatus ?? true}
+        showActivity={false}
       />
       <details className="one-bar__observation-details" data-testid="observation-details" ref={observationDetailsRef}>
         <summary
@@ -109,7 +122,8 @@ const OneBarHeader: FC<HeaderProps> = ({ shareButtonRef, observationDetailsRef, 
           aria-label={`Observation status: ${statusSummary}. Activate for details.`}
           title={`Observation status: ${statusSummary}`}
         >
-          {statusSummary}
+          <UiIcon icon={Info} />
+          {statusCue && <span>{statusCue}</span>}
         </summary>
         <section className="one-bar__observation-panel" role="region" aria-labelledby={headingId}>
           <header className="one-bar__observation-panel-header">
@@ -152,6 +166,7 @@ const OneBarHeader: FC<HeaderProps> = ({ shareButtonRef, observationDetailsRef, 
           >
             <p>Desk-state estimates use desk-height observations and recent Windows keyboard/mouse input; they do not measure physical posture or attention.</p>
             <p>No recent input can also mean reading, listening, thinking, or AI work. Low input alone does not prove that you left the desk.</p>
+            {props.showActivityStatus !== false && <p><strong>Input activity:</strong> {props.idleSecs >= 30 ? `No recent input · ${formatIdleTime(props.idleSecs)}` : "Recent input"}</p>}
             <p><strong>Observation:</strong> {statusSummary}</p>
             <p><strong>View response:</strong> <span aria-live="off" data-testid="view-response-details">{formatObservationViewDetails(props.dashboardRefresh)}</span></p>
             <p>Timeline colors identify recorded desk state and time.</p>
@@ -194,6 +209,17 @@ const OneBarHeader: FC<HeaderProps> = ({ shareButtonRef, observationDetailsRef, 
         >
           <UiIcon icon={Settings} />
         </button>
+        {props.onShareChange && (
+          <button
+            className="one-bar__close-btn"
+            type="button"
+            onClick={onCloseMain}
+            title="Close popup to tray"
+            aria-label="Close popup to tray"
+          >
+            <UiIcon icon={X} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -208,7 +234,21 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
   const [shareError, setShareError] = useState<string | null>(null);
   const shareChanging = useRef(false);
   const [todayError, setTodayError] = useState<string | null>(null);
+  const [closeMainError, setCloseMainError] = useState<string | null>(null);
   const todayChanging = useRef(false);
+  const closeMainChanging = useRef(false);
+  async function closeMain() {
+    if (closeMainChanging.current) return;
+    closeMainChanging.current = true;
+    setCloseMainError(null);
+    try {
+      await invoke("hide_main_window");
+    } catch {
+      setCloseMainError("Could not close the popup. Please retry.");
+    } finally {
+      closeMainChanging.current = false;
+    }
+  }
   async function openToday() {
     if (todayChanging.current) return;
     todayChanging.current = true;
@@ -243,7 +283,8 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
       className={`one-bar one-bar--${temperature} ${skinClassName(skin)}`}
       data-testid="one-bar-widget"
     >
-      <OneBarHeader {...props} shareButtonRef={shareButtonRef} observationDetailsRef={observationDetailsRef} onOpenShare={() => { void changeShare(true); }} onOpenToday={() => { void openToday(); }} />
+      <OneBarHeader {...props} shareButtonRef={shareButtonRef} observationDetailsRef={observationDetailsRef} onOpenShare={() => { void changeShare(true); }} onOpenToday={() => { void openToday(); }} onCloseMain={() => { void closeMain(); }} />
+      {closeMainError && <div className="one-bar__action-error" role="alert"><span>{closeMainError}</span><button type="button" onClick={() => { void closeMain(); }}>Retry close</button></div>}
       {todayError && <div className="one-bar__action-error" role="alert"><span>{todayError}</span><button type="button" onClick={() => { void openToday(); }}>Retry opening Analyst</button></div>}
       {shareError && !showShare && <p role="alert">{shareError}</p>}
       <OneBarTimer {...props} />

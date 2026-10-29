@@ -3,7 +3,7 @@
  * across all states and temperature levels.
  */
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { OneBarWidget } from "./OneBarWidget";
 import type { WidgetProps } from "@/types";
 import type { LiveObservation } from "@/types";
@@ -112,6 +112,40 @@ it("does not open Analyst with a missing day when saving the request fails and c
 });
 
 describe("OneBarWidget", () => {
+  it("keeps main actions above the full status and hides the popup through its native command", async () => {
+    vi.mocked(invoke).mockClear();
+    const { container } = render(<OneBarWidget {...props({ onShareChange: vi.fn(), idleSecs: 0 })} />);
+
+    const actionRow = container.querySelector<HTMLElement>(".one-bar__header-actions");
+    expect(actionRow).not.toBeNull();
+    expect(actionRow!.children).toHaveLength(4);
+    expect(screen.getByRole("button", { name: "Share my stats" })).toBeInTheDocument();
+    expect(within(actionRow!).getByRole("button", { name: "Open Analyst for today's local day" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close popup to tray" })).toBeInTheDocument();
+    expect(screen.getByText("Estimated Sitting")).toBeInTheDocument();
+    expect(screen.getByText("73 cm")).toBeInTheDocument();
+    expect(document.querySelector(".state-indicator")?.textContent).not.toContain("Recent input");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close popup to tray" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("hide_main_window"));
+  });
+
+  it("keeps the popup visible and offers retry when the native hide fails", async () => {
+    let failuresRemaining = 1;
+    vi.mocked(invoke).mockReset().mockImplementation(async (command: string) => {
+      if (command === "hide_main_window" && failuresRemaining-- > 0) throw new Error("native hide failed");
+      return null;
+    });
+    render(<OneBarWidget {...props({ onShareChange: vi.fn() })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Close popup to tray" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not close the popup. Please retry.");
+    fireEvent.click(screen.getByRole("button", { name: "Retry close" }));
+    await waitFor(() => expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "hide_main_window")).toHaveLength(2));
+    expect(screen.getByTestId("one-bar-widget")).toBeInTheDocument();
+  });
+
   it("renders without crashing", () => {
     render(<OneBarWidget {...props()} />);
     expect(screen.getByTestId("one-bar-widget")).toBeInTheDocument();
@@ -183,8 +217,9 @@ describe("OneBarWidget", () => {
     expect(screen.getByText("Estimated Away")).toBeInTheDocument();
   });
 
-  it("shows activity status in header via StateIndicator", () => {
+  it("moves enabled activity status into the accessible details", () => {
     render(<OneBarWidget {...props({ idleSecs: 0 })} />);
+    expect(document.querySelector(".state-indicator")?.textContent).not.toContain("Recent input");
     expect(screen.getByText("Recent input")).toBeInTheDocument();
   });
 
@@ -244,8 +279,8 @@ describe("OneBarWidget", () => {
     })} />);
 
     const status = screen.getByTestId("timeline-observation-status");
-    expect(status).toHaveTextContent("Sitting observed through");
-    expect(status).toHaveTextContent("sensor observation stale");
+    expect(status).toHaveAttribute("aria-label", expect.stringContaining("Sitting observed through"));
+    expect(status).toHaveTextContent("Stale · View error");
     expect(screen.getByTestId("view-response-details")).toHaveTextContent("View update failed: temporary read failure");
     expect(screen.getByTestId("timeline-strip")).toHaveStyle({ height: "24px", minHeight: "24px" });
   });
@@ -267,7 +302,7 @@ describe("OneBarWidget", () => {
       dashboardRefresh: { loading: false, lastSuccessAt: "2026-10-29T00:00:01Z", error: null },
     })} />);
 
-    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    expect(document.querySelector(".state-indicator__label")).toHaveTextContent("Unknown");
     expect(screen.queryByText("Sitting")).not.toBeInTheDocument();
     expect(screen.getByText("Recent input")).toBeInTheDocument();
     expect(screen.queryByText("72 cm")).not.toBeInTheDocument();
@@ -319,9 +354,9 @@ describe("OneBarWidget", () => {
 
     expect(screen.getByText("Last estimate Sitting")).toBeInTheDocument();
     expect(screen.getByText("72 cm")).toBeInTheDocument();
-    expect(screen.getByTestId("timeline-observation-status")).toHaveTextContent("View refresh failed");
-    expect(screen.getByTestId("timeline-observation-status")).toHaveTextContent("Sitting observed through");
-    expect(screen.getByTestId("timeline-observation-status")).not.toHaveTextContent("sensor observation stale");
+    expect(screen.getByTestId("timeline-observation-status")).toHaveAttribute("aria-label", expect.stringContaining("View refresh failed"));
+    expect(screen.getByTestId("timeline-observation-status")).toHaveAttribute("aria-label", expect.stringContaining("Sitting observed through"));
+    expect(screen.getByTestId("timeline-observation-status")).toHaveTextContent("View error");
     expect(screen.getByTestId("view-response-details")).toHaveTextContent("View update failed: snapshot unavailable");
     expect(screen.getByTestId("view-response-details")).toHaveTextContent("last response received");
   });

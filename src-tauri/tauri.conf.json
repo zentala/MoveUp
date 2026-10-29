@@ -16,6 +16,7 @@
         "title": "MoveUp",
         "width": 420,
         "height": 240,
+        "alwaysOnTop": true,
         "resizable": true,
         "decorations": false,
         "transparent": true,

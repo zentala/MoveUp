@@ -14,7 +14,7 @@
 
   <functionality>
     <feature name="application-owned-reminders">
-      <description>Bounded active/pending main-window reminders with policy-sourced reasons and values, occurrence deduplication, session/message identities, snapshot/event revisions, protected Settings/Share client handshake, persistence-safe acknowledgement retries and rate-limited test previews. Main Settings and the separate Welcome window may request previews; presentation, claims and acknowledgement remain owned by the main window. Automatic Windows presentation does not request focus; only a presented unprotected active reminder prevents hide-on-blur.</description>
+      <description>Bounded active/pending main-window reminders with policy-sourced reasons and values, occurrence deduplication, session/message identities, snapshot/event revisions, protected Settings/Share client handshake, persistence-safe acknowledgement retries and rate-limited test previews. Main Settings and the separate Welcome window may request previews; presentation, claims and acknowledgement remain owned by the main window. Automatic Windows presentation does not request focus, and losing main-window focus neither hides the window nor changes reminder acknowledgement or snooze state.</description>
       <source path="src-tauri/src/app_reminders.rs" tests="src-tauri/src/app_reminders_tests.rs"/>
       <source path="src-tauri/src/commands_reminders.rs" tests="src-tauri/src/app_reminders_tests.rs"/>
       <source path="src-tauri/src/notification_service.rs" tests="src-tauri/src/notification_service_tests_edge.rs"/>
@@ -43,7 +43,7 @@
       <source path="src-tauri/examples/ui_diagnostics_smoke.rs"/>
       <source path="src-tauri/build.rs">Reuses the existing Tauri resource for the Windows MSVC example's Common Controls v6 activation manifest; ordinary binary resource linkage is preserved.</source>
       <fixture path="src-tauri/tests/ui_diagnostics_smoke.html" config="src-tauri/tauri.ui-diagnostics-test.conf.json">Distinct app identity and private temporary WebView profiles; actual navigation, absence/recreation and own-controller ProcessFailed evidence without product setup/plugins.</fixture>
-      <dependencies>Windows-only webview2-com 0.38.2 and windows-core 0.61; existing windows crate adds Power and COM features.</dependencies>
+      <dependencies>Windows-only webview2-com 0.38.2 and windows-core 0.61; existing windows crate adds Power, COM and Shell features.</dependencies>
       <decision-record>.arch/ADR/025-window-runtime-diagnostics.md</decision-record>
     </feature>
     <feature name="desk-state-detection">
@@ -65,6 +65,20 @@
       <source path="src/hooks/useWidgetData.ts" tests="src/hooks/useWidgetData.test.ts"/>
       <source path="src/hooks/useLiveObservation.ts" tests="src/hooks/useLiveObservation.test.ts"/>
       <source path="src/pages/AnalystLive.tsx" tests="src/pages/AnalystLive.test.tsx"/>
+    </feature>
+    <feature name="compact-popup-and-personal-sharing">
+      <description>The main popup remains topmost and visible across focus loss without reactivating or taking typing focus; its explicit X hides only the main window. Personal sharing uses the current public site, copies truthful desk statistics and routes X, Reddit and Facebook through an allow-listed native URL opener without posting.</description>
+      <source path="src/widgets/OneBarWidget.tsx" tests="src/widgets/OneBarWidget.test.tsx, tests/e2e/ux-flows.test.ts"/>
+      <source path="src/widgets/one-bar/one-bar.css" tests="tests/e2e/ux-flows.test.ts"/>
+      <source path="src/components/ShareStats.tsx" tests="src/components/ShareStats.test.tsx, tests/e2e/share-popup.test.ts"/>
+      <source path="src/components/share-stats.css" tests="tests/e2e/share-popup.test.ts"/>
+      <source path="src-tauri/src/commands.rs" tests="src-tauri/src/commands.rs"/>
+      <source path="src-tauri/src/commands_share.rs" tests="src-tauri/src/commands_share.rs"/>
+      <source path="src-tauri/src/lib.rs" tests="src-tauri/src/lib.rs"/>
+      <source path="src-tauri/tauri.conf.json"/>
+      <source path="src-tauri/Cargo.toml"/>
+      <source path="tests/e2e/ux-flows.fixture.ts"/>
+      <source path="tests/e2e/share-popup.fixture.ts"/>
     </feature>
     <feature name="break-credit-accounting">
       <description>The session engine remains authoritative for credited sitting balance and captures each applied break-credit rule, observed duration, source times, and actual capped before/applied/after values. The widget labels the full balance, shows overtime separately, and discloses only captured facts; it does not reconstruct history from the active profile.</description>

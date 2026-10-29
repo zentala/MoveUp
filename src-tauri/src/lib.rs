@@ -271,6 +271,7 @@ pub fn run() {
                     commands::stop_reading,
                     commands::get_session_state,
                     commands::get_dashboard_state,
+                    commands::hide_main_window,
                     commands::get_connected_port,
                     commands::get_today_summary,
                     commands::inject_reading,
@@ -288,6 +289,7 @@ pub fn run() {
                     commands_config::save_settings,
                     commands_config::get_overlay_state,
                     commands_share::get_share_text,
+                    commands_share::open_share_destination,
                     commands_backup::list_db_backups,
                     commands_backup::restore_db_backup,
                     commands_profiles::list_communication_profiles,
@@ -322,6 +324,7 @@ pub fn run() {
                     commands::stop_reading,
                     commands::get_session_state,
                     commands::get_dashboard_state,
+                    commands::hide_main_window,
                     commands::get_connected_port,
                     commands::get_today_summary,
                     commands::trigger_test_notification,
@@ -337,6 +340,7 @@ pub fn run() {
                     commands_config::get_settings,
                     commands_config::save_settings,
                     commands_share::get_share_text,
+                    commands_share::open_share_destination,
                     commands_backup::list_db_backups,
                     commands_backup::restore_db_backup,
                     commands_profiles::list_communication_profiles,
@@ -388,11 +392,8 @@ pub fn run() {
                         }
                     }
                 }
-                if let tauri::WindowEvent::Focused(false) = event {
-                    if !commands_reminders::retain_on_focus_loss(window.app_handle()) {
-                        let _ = window.hide();
-                    }
-                }
+                // Deliberately do nothing on focus loss: keep the main popup visible
+                // without reactivating it, so the newly focused application keeps typing focus.
             }
         })
         .build(tauri::generate_context!())

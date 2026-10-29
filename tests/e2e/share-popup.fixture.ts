@@ -6,6 +6,7 @@ const scenario = new URLSearchParams(location.search).get('share-fixture') ?? 'n
 const stress = scenario === 'stress';
 const empty = scenario === 'empty';
 const clipboardFailure = scenario === 'clipboard-fail';
+const openerFailure = scenario === 'opener-fail';
 const observationMs = Date.now();
 const observationAt = new Date(observationMs).toISOString();
 const session: SessionStateDto = {
@@ -61,6 +62,10 @@ mockIPC((command, raw) => {
       window.shareTest.healthLoaded = true;
       return { configured: false, sources: [], error: null };
     case 'refresh_health_now': return { configured: false, sources: [], error: null };
+    case 'open_share_destination':
+      if (openerFailure && window.shareTest.openAttempts++ === 0) throw new Error('Synthetic shell opener unavailable');
+      window.shareTest.opened.push({ destination: String(args.destination), text: String(args.text) });
+      return null;
     case 'start_auto_connect': case 'plugin:log|log': return null;
     case 'get_overlay_state': return null;
     default: throw new Error(`Unexpected synthetic IPC: ${command}`);
@@ -68,7 +73,7 @@ mockIPC((command, raw) => {
 }, { shouldMockEvents: true });
 
 // Capture rather than execute clipboard writes and external navigation.
-Object.assign(window, { shareTest: { copied: '', opened: [] as string[], clipboardFailuresRemaining: clipboardFailure ? 1 : 0, healthLoaded: false } });
+Object.assign(window, { shareTest: { copied: '', opened: [] as { destination: string; text: string }[], openAttempts: 0, clipboardFailuresRemaining: clipboardFailure ? 1 : 0, healthLoaded: false } });
 Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
   writeText: async (text: string) => {
     if (window.shareTest.clipboardFailuresRemaining > 0) {
@@ -81,10 +86,10 @@ Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
 if (clipboardFailure) {
   Object.defineProperty(document, 'execCommand', { configurable: true, value: () => false });
 }
-window.open = (url) => { window.shareTest.opened.push(String(url)); return null; };
+window.open = () => { throw new Error('Native opener must be used; external navigation is forbidden in Share fixture'); };
 window.WebSocket = class { constructor() { throw new Error('Display transport forbidden in Share fixture'); } } as typeof WebSocket;
 
 declare global {
-  interface Window { shareTest: { copied: string; opened: string[]; clipboardFailuresRemaining: number; healthLoaded: boolean } }
+  interface Window { shareTest: { copied: string; opened: { destination: string; text: string }[]; openAttempts: number; clipboardFailuresRemaining: number; healthLoaded: boolean } }
 }
 await import('../../src/main');

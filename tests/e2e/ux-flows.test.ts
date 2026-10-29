@@ -58,16 +58,15 @@ async function expectFullStateCaption(page: Page, expected: string, expectedActi
   const actions = page.locator('.one-bar__header-actions');
   const today = actions.getByRole('button', { name: "Open Analyst for today's local day" });
   await expect(caption).toHaveText(expected);
-  const activity = page.locator('.state-indicator__activity');
-  await expect(activity).toHaveText(expectedActivity);
+  await expect(page.locator('.state-indicator__activity')).toHaveCount(0);
+  await expect(page.locator('.one-bar__observation-body')).toContainText(`Input activity: ${expectedActivity}`);
   await expect(today).toBeVisible();
   await expect(today).toBeInViewport();
-  await expect(actions.getByRole('button')).toHaveCount(3);
+  await expect(actions.getByRole('button')).toHaveCount(4);
   for (const button of await actions.getByRole('button').all()) await expect(button).toBeInViewport();
   const dimensions = await caption.evaluate(element => {
     const header = element.closest('.one-bar__header')!;
     const status = element.closest('.state-indicator')!;
-    const activity = status.querySelector<HTMLElement>('.state-indicator__activity')!;
     const fragments = (node: HTMLElement) => {
       const range = document.createRange();
       range.selectNodeContents(node);
@@ -84,14 +83,6 @@ async function expectFullStateCaption(page: Page, expected: string, expectedActi
         box: element.getBoundingClientRect().toJSON(),
         fragments: fragments(element),
       },
-      activity: {
-        clientWidth: activity.clientWidth,
-        scrollWidth: activity.scrollWidth,
-        clientHeight: activity.clientHeight,
-        scrollHeight: activity.scrollHeight,
-        box: activity.getBoundingClientRect().toJSON(),
-        fragments: fragments(activity),
-      },
       header: header.getBoundingClientRect().toJSON(),
       status: status.getBoundingClientRect().toJSON(),
       actions: header.querySelector<HTMLElement>('.one-bar__header-actions')!.getBoundingClientRect().toJSON(),
@@ -99,22 +90,22 @@ async function expectFullStateCaption(page: Page, expected: string, expectedActi
       height: status.querySelector<HTMLElement>('.state-indicator__height')?.getBoundingClientRect().toJSON() ?? null,
     };
   });
-  for (const text of [dimensions.label, dimensions.activity]) {
-    expect(text.clientWidth).toBeGreaterThan(0);
-    expect(text.scrollWidth).toBeLessThanOrEqual(text.clientWidth + 1);
-    expect(text.scrollHeight).toBeLessThanOrEqual(text.clientHeight + 1);
-    expect(text.fragments.length).toBeGreaterThan(0);
-    for (const fragment of text.fragments) {
-      expect(fragment.left).toBeGreaterThanOrEqual(dimensions.header.x - 1);
-      expect(fragment.top).toBeGreaterThanOrEqual(dimensions.header.y - 1);
-      expect(fragment.right).toBeLessThanOrEqual(dimensions.header.right + 1);
-      expect(fragment.bottom).toBeLessThanOrEqual(dimensions.header.bottom + 1);
-    }
+  expect(dimensions.label.clientWidth).toBeGreaterThan(0);
+  expect(dimensions.label.scrollWidth).toBeLessThanOrEqual(dimensions.label.clientWidth + 1);
+  expect(dimensions.label.scrollHeight).toBeLessThanOrEqual(dimensions.label.clientHeight + 1);
+  expect(dimensions.label.fragments.length).toBeGreaterThan(0);
+  for (const fragment of dimensions.label.fragments) {
+    expect(fragment.left).toBeGreaterThanOrEqual(dimensions.header.x - 1);
+    expect(fragment.top).toBeGreaterThanOrEqual(dimensions.header.y - 1);
+    expect(fragment.right).toBeLessThanOrEqual(dimensions.header.right + 1);
+    expect(fragment.bottom).toBeLessThanOrEqual(dimensions.header.bottom + 1);
   }
   expect(dimensions.status.bottom).toBeLessThanOrEqual(dimensions.header.bottom + 1);
   if (dimensions.height) expect(dimensions.height.right).toBeLessThanOrEqual(dimensions.header.right + 1);
-  expect(dimensions.actions.top).toBeGreaterThanOrEqual(dimensions.status.bottom - 1);
-  expect(dimensions.actions.bottom).toBeLessThanOrEqual(dimensions.details.top + 1);
+  expect(dimensions.actions.y + dimensions.actions.height).toBeLessThanOrEqual(dimensions.status.y + 1);
+  expect(dimensions.actions.bottom).toBeLessThanOrEqual(dimensions.header.bottom + 1);
+  expect(dimensions.details.y).toBeLessThanOrEqual(dimensions.status.bottom + 2);
+  expect(dimensions.details.y + dimensions.details.height).toBeGreaterThanOrEqual(dimensions.status.y - 2);
   expect(dimensions.details.right).toBeLessThanOrEqual(dimensions.header.right + 1);
 }
 
@@ -255,11 +246,11 @@ test('480x420 Welcome keeps its footer reachable with measured 2x text growth', 
 test('real App reports no sensor reading and exposes truthful calibration help', async ({ page }, info) => {
   await openApp(page, 'no-reading');
   await expect(page.getByTestId('timeline-observation-announcement')).not.toContainText(/device connection/i);
-  await expect(page.getByTestId('timeline-observation-status')).toContainText('No sensor observations yet');
-  await expect(page.getByText('Unknown', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('timeline-observation-status')).toHaveAttribute('aria-label', /No sensor observations yet/);
+  await expect(page.locator('.state-indicator__label')).toHaveText('Unknown');
   await expect(page.getByText('Sitting', { exact: true })).toHaveCount(0);
   await expect(page.getByText('72 cm', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('Recent input', { exact: true })).toBeVisible();
+  await expect(page.locator('.one-bar__observation-body')).toContainText('Input activity: Recent input');
   await expect(page.getByTestId('one-bar-big-number')).toContainText('10:00 / 40:00');
   await expectFullStateCaption(page, 'Unknown', 'Recent input');
 
@@ -268,7 +259,8 @@ test('real App reports no sensor reading and exposes truthful calibration help',
   const panel = page.getByRole('region', { name: 'How to read this status' });
   const scrollBody = page.getByRole('region', { name: 'Status explanation' });
   const close = page.getByRole('button', { name: 'Close status details' });
-  await expect(summary).toHaveCSS('display', 'list-item');
+  await expect(summary).toHaveCSS('display', 'flex');
+  await expect(summary).toContainText('Unknown');
   const summaryTarget = await summary.boundingBox();
   expect(summaryTarget).not.toBeNull();
   expect(summaryTarget!.height).toBeGreaterThanOrEqual(24);
@@ -310,7 +302,7 @@ test('real App reports no sensor reading and exposes truthful calibration help',
   await page.screenshot({ path: info.outputPath('app-observation-details-end-420x240.png') });
 
   const enlargedSelectors = [
-    '.state-indicator__label', '.state-indicator__activity', '.one-bar__observation-status',
+    '.state-indicator__label', '.one-bar__observation-status',
     '.one-bar__observation-panel-header h2', '.one-bar__observation-close', '.one-bar__observation-body',
   ];
   const baseline = await page.evaluate(selectors => Object.fromEntries(selectors.map(selector => {
@@ -373,10 +365,10 @@ test('real App qualifies observed Sitting, inferred Away, and stale posture sepa
 
   await page.goto('/?settings-fixture=inferred-away');
   await expect(page.getByTestId('one-bar-widget')).toBeVisible();
-  await expect(page.getByText('Unknown', { exact: true })).toBeVisible();
+  await expect(page.locator('.state-indicator__label')).toHaveText('Unknown');
   await expectFullStateCaption(page, 'Unknown', 'No recent input · 10m 0s');
   await expect(page.getByText('Estimated Away', { exact: true })).toHaveCount(0);
-  await expect(page.locator('.state-indicator__activity')).toContainText('No recent input');
+  await expect(page.locator('.one-bar__observation-body')).toContainText('Input activity: No recent input · 10m 0s');
 
   await page.goto('/?settings-fixture=stale-observation');
   await expect(page.getByTestId('one-bar-widget')).toBeVisible();
@@ -393,7 +385,7 @@ test('real App keeps a captured estimate distinct from a failed dashboard refres
   await expect(page.getByText('Estimated Sitting', { exact: true })).toBeVisible();
   await expectFullStateCaption(page, 'Estimated Sitting', 'Recent input');
   await expect(page.getByText('72 cm', { exact: true })).toBeVisible();
-  await expect(summary).not.toContainText('View refresh failed');
+  await expect(summary).not.toHaveAttribute('aria-label', /View refresh failed/);
   await page.screenshot({ path: info.outputPath('app-view-refresh-current-420x240.png') });
 
   await page.evaluate(() => window.uxSettingsTest.failNextDashboardRefresh());
@@ -401,15 +393,16 @@ test('real App keeps a captured estimate distinct from a failed dashboard refres
   await expect(page.getByText('Estimated Sitting', { exact: true })).toBeVisible();
   await expectFullStateCaption(page, 'Estimated Sitting', 'Recent input');
   await expect(page.getByText('72 cm', { exact: true })).toBeVisible();
-  await expect(summary).not.toContainText('View refresh failed');
+  await expect(summary).not.toHaveAttribute('aria-label', /View refresh failed/);
 
   await page.evaluate(() => window.uxSettingsTest.rejectDashboardRefresh());
   await expect(page.getByText('Last estimate Sitting', { exact: true })).toBeVisible();
   await expectFullStateCaption(page, 'Last estimate Sitting', 'Recent input');
   await expect(page.getByText('72 cm', { exact: true })).toBeVisible();
-  await expect(summary).toContainText('View refresh failed');
-  await expect(summary).toContainText('Sitting observed through');
-  await expect(summary).not.toContainText('sensor observation stale');
+  await expect(summary).toContainText('View error');
+  await expect(summary).toHaveAttribute('aria-label', /View refresh failed/);
+  await expect(summary).toHaveAttribute('aria-label', /Sitting observed through/);
+  await expect(summary).not.toHaveAttribute('aria-label', /sensor observation stale/);
   await expectSummaryTextFits(summary);
   await page.screenshot({ path: info.outputPath('app-view-refresh-failed-420x240.png') });
 
@@ -650,7 +643,7 @@ test('real App does not apply the activity draft after a failed settings save', 
   await page.screenshot({ path: info.outputPath('settings-activity-save-error-420x240.png') });
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(page.getByTestId('one-bar-widget')).toBeVisible();
-  await expect(page.getByText('Recent input', { exact: true })).toBeVisible();
+  await expect(page.locator('.one-bar__observation-body')).toContainText('Input activity: Recent input');
   expect(await page.evaluate(() => window.uxSettingsTest.blocked)).toEqual([]);
 });
 
@@ -743,6 +736,82 @@ test('compact Today entry requests the current local Analyst day', async ({ page
   const expectedDay = `${requestedDate.getFullYear()}-${String(requestedDate.getMonth() + 1).padStart(2, '0')}-${String(requestedDate.getDate()).padStart(2, '0')}`;
   expect(request.day).toBe(expectedDay);
   expect(request.requestId).toBeTruthy();
+  expect(await page.evaluate(() => window.uxSettingsTest.blocked)).toEqual([]);
+});
+
+test('main popup actions occupy their own top row and X requests a main-only hide', async ({ page }, testInfo) => {
+  await openApp(page, 'popup-full');
+  const appConfig = JSON.parse(readFileSync(resolve('src-tauri/tauri.conf.json'), 'utf8')) as {
+    app?: { windows?: Array<{ label?: string; alwaysOnTop?: boolean }> };
+  };
+  expect(appConfig.app?.windows?.find(window => window.label === 'main')?.alwaysOnTop).toBe(true);
+  const actions = page.locator('.one-bar__header-actions');
+  const state = page.locator('.one-bar__header .state-indicator');
+  await expect(actions).toBeVisible();
+  await expect(actions.locator('button')).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'Close popup to tray' })).toBeVisible();
+  await expect(page.getByText('Estimated Sitting')).toBeVisible();
+  await expect(page.getByText('72 cm')).toBeVisible();
+  await expect(page.locator('.one-bar__balance-label')).toHaveText('Sitting balance');
+  for (const id of ['standing_pct', 'position_rate', 'hourly_breaks', 'longest_session']) {
+    await expect(page.getByTestId(`kpi-badge-${id}`)).toBeVisible();
+  }
+  await expect(page.getByTestId('break-credit-details')).toContainText('Break credit details');
+  await expect(page.locator('.state-indicator')).not.toContainText('Recent input');
+  await expect(page.locator('.one-bar__observation-body')).toContainText('Input activity: Recent input');
+  const actionBox = await actions.boundingBox();
+  const stateBox = await state.boundingBox();
+  expect(actionBox).not.toBeNull();
+  expect(stateBox).not.toBeNull();
+  expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(stateBox!.y + 1);
+  const ordinaryFit = await page.locator('.one-bar').evaluate(root => {
+    const timeline = root.querySelector<HTMLElement>('.one-bar__timeline')!;
+    const timelineBox = timeline.getBoundingClientRect();
+    const rootBox = root.getBoundingClientRect();
+    const labels = [...timeline.querySelectorAll<HTMLElement>('.one-bar__timeline-hour-label')];
+    return {
+      scrollHeight: root.scrollHeight,
+      clientHeight: root.clientHeight,
+      scrollTop: root.scrollTop,
+      timeline: { top: timelineBox.top, bottom: timelineBox.bottom, rootTop: rootBox.top, rootBottom: rootBox.bottom },
+      labels: labels.map(label => {
+        const box = label.getBoundingClientRect();
+        const range = document.createRange(); range.selectNodeContents(label);
+        return { text: label.textContent?.trim(), left: box.left, top: box.top, right: box.right, bottom: box.bottom,
+          fragments: [...range.getClientRects()].map(rect => ({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom })) };
+      }),
+    };
+  });
+  expect(ordinaryFit.scrollHeight).toBeLessThanOrEqual(ordinaryFit.clientHeight + 1);
+  expect(ordinaryFit.scrollTop).toBe(0);
+  expect(ordinaryFit.timeline.top).toBeGreaterThanOrEqual(ordinaryFit.timeline.rootTop - 1);
+  expect(ordinaryFit.timeline.bottom).toBeLessThanOrEqual(ordinaryFit.timeline.rootBottom + 1);
+  expect(ordinaryFit.labels.length).toBeGreaterThan(0);
+  for (const label of ordinaryFit.labels) {
+    expect(label.text).toBeTruthy();
+    expect(label.fragments.length).toBeGreaterThan(0);
+    for (const fragment of label.fragments) {
+      expect(fragment.left).toBeGreaterThanOrEqual(0);
+      expect(fragment.top).toBeGreaterThanOrEqual(0);
+      expect(fragment.right).toBeLessThanOrEqual(420);
+      expect(fragment.bottom).toBeLessThanOrEqual(240);
+    }
+  }
+  await page.screenshot({ path: testInfo.outputPath('main-actions-full-kpi-credit-timeline-420x240.png') });
+
+  await page.getByRole('button', { name: 'Close popup to tray' }).click();
+  await expect.poll(() => page.evaluate(() => window.uxSettingsTest.calls.some(call => call.command === 'hide_main_window'))).toBe(true);
+  expect(await page.evaluate(() => window.uxSettingsTest.blocked)).toEqual([]);
+});
+
+test('main popup reports a failed X hide and lets the user retry', async ({ page }) => {
+  await openApp(page, 'hide-main-fail');
+  await page.getByRole('button', { name: 'Close popup to tray' }).click();
+  const failure = page.getByRole('alert').filter({ hasText: 'Could not close the popup.' });
+  await expect(failure).toBeVisible();
+  await expect(page.getByTestId('one-bar-widget')).toBeVisible();
+  await failure.getByRole('button', { name: 'Retry close' }).click();
+  await expect.poll(() => page.evaluate(() => window.uxSettingsTest.calls.filter(call => call.command === 'hide_main_window').length)).toBe(2);
   expect(await page.evaluate(() => window.uxSettingsTest.blocked)).toEqual([]);
 });
 

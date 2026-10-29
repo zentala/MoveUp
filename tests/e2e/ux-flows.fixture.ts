@@ -1,7 +1,7 @@
 /** Browser-only public IPC fixture around the real App; no native writes. */
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
-import type { AppReminderSnapshot, LastBreakCreditFacts, SessionStateDto } from '../../src/types';
+import type { AppReminderSnapshot, LastBreakCreditFacts, MetricSnapshot, SessionStateDto } from '../../src/types';
 
 const scenario = new URLSearchParams(location.search).get('settings-fixture') ?? 'normal';
 const welcomeEntry = location.pathname.endsWith('/welcome.html');
@@ -50,12 +50,13 @@ const noReadingSession: SessionStateDto = {
     reason: 'no_observation',
   },
 };
+const knownObservationThroughMs = Date.now() - 2 * 60_000;
 const knownSittingSession: SessionStateDto = {
   ...session,
   live_observation: {
-    span: { state: 'Sitting', started_at: '2026-10-29T09:50:00Z', observed_through: '2026-10-29T10:00:00Z' },
-    last_observation_at: '2026-10-29T10:00:00Z',
-    snapshot_at: '2026-10-29T10:00:01Z',
+    span: { state: 'Sitting', started_at: new Date(knownObservationThroughMs - 10 * 60_000).toISOString(), observed_through: new Date(knownObservationThroughMs).toISOString() },
+    last_observation_at: new Date(knownObservationThroughMs).toISOString(),
+    snapshot_at: new Date(knownObservationThroughMs + 1000).toISOString(),
     quality: 'known',
     reason: null,
   },
@@ -102,6 +103,16 @@ const breakCreditFacts: LastBreakCreditFacts[] = [
 const breakCreditSession: SessionStateDto = {
   ...session, limit_used_secs: 3120, last_break_credit_facts: breakCreditFacts,
 };
+const popupFullSession: SessionStateDto = {
+  ...knownSittingSession,
+  last_break_credit_facts: breakCreditFacts.slice(1, 2),
+};
+const popupFullMetrics: MetricSnapshot[] = [
+  { id: 'standing_pct', label: 'Standing', result: { value: .42, display: '42%', level: 'green', is_personal_best: false } },
+  { id: 'position_rate', label: 'Posture changes', result: { value: 1.2, display: '1.2/h', level: 'green', is_personal_best: false } },
+  { id: 'hourly_breaks', label: 'Hourly breaks', result: { value: 3, display: '3/4', level: 'yellow', is_personal_best: false } },
+  { id: 'longest_session', label: 'Longest screen session', result: { value: 1800, display: '30m', level: 'green', is_personal_best: false } },
+];
 let loadAttempts = 0;
 let failNextLoad = false;
 let saveAttempts = 0;
@@ -151,9 +162,10 @@ mockIPC(async (command, raw) => {
         : scenario === 'activity' || scenario === 'activity-save-fail' ? knownSittingSession
         : scenario === 'known-sitting' ? knownSittingSession
         : scenario === 'view-refresh-error' ? knownSittingSession
+        : scenario === 'popup-full' ? popupFullSession
         : scenario === 'break-credit' ? breakCreditSession
         : session;
-      return { session: dashboardSession, metrics: [] };
+      return { session: dashboardSession, metrics: scenario === 'popup-full' ? popupFullMetrics : [] };
     }
     case 'get_today_summary': return { sitting_secs: 3600, standing_secs: 1200, yesterday_sitting_secs: 0,
       yesterday_standing_secs: 0, position_changes: 7, sessions: [] };
@@ -218,6 +230,10 @@ mockIPC(async (command, raw) => {
     case 'get_active_profiles': return structuredClone(activeProfiles);
     case 'get_connected_port': return scenario === 'no-reading' ? null : 'SYNTHETIC';
     case 'open_analyst_window': return null;
+    case 'hide_main_window':
+      if (!welcomeEntry && scenario !== 'hide-main-fail') return null;
+      if (scenario === 'hide-main-fail') throw new Error('Synthetic main hide failure');
+      blocked.push(command); throw new Error('Only main window may be hidden through this command');
     case 'get_health_today': case 'refresh_health_now': return { configured: false, sources: [], error: null };
     case 'get_overlay_state': case 'start_auto_connect': case 'plugin:log|log': return null;
     case 'plugin:autostart|is_enabled': return false;

@@ -18,6 +18,30 @@ use crate::{alert_popup::AlertPopup, communication_policy::CommunicationPolicy,
 /// Rate limiter for test notification (epoch seconds of last send).
 static LAST_TEST_NOTIFICATION: AtomicI64 = AtomicI64::new(0);
 
+/// Hides the ordinary main popup without closing the application.
+#[tauri::command]
+pub fn hide_main_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    validate_main_window_label(window.label())?;
+    window.hide().map_err(|error| format!("Could not hide main window: {error}"))
+}
+
+fn validate_main_window_label(label: &str) -> Result<(), String> {
+    if label == "main" { Ok(()) }
+    else { Err("Only the main window can be hidden by this command".to_string()) }
+}
+
+#[cfg(test)]
+mod main_window_hide_tests {
+    use super::validate_main_window_label;
+
+    #[test]
+    fn hide_command_is_limited_to_the_main_window() {
+        assert!(validate_main_window_label("main").is_ok());
+        assert!(validate_main_window_label("analyst").is_err());
+        assert!(validate_main_window_label("welcome").is_err());
+    }
+}
+
 // ─── Shared state ────────────────────────────────────────────────────────────
 
 /// Application-level state managed by Tauri.

@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
 import { ShareStats } from "./ShareStats";
 import type { MetricSnapshot } from "@/types";
 
@@ -52,7 +53,7 @@ afterAll(() => {
 
 beforeEach(() => {
   BASE_PROPS.onClose.mockClear();
-  vi.stubGlobal("open", vi.fn());
+  vi.mocked(invoke).mockReset().mockResolvedValue(undefined);
   Object.assign(navigator, {
     clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
   });
@@ -90,23 +91,46 @@ describe("ShareStats", () => {
     expect(await screen.findByText(/Copied!/)).toBeInTheDocument();
   });
 
-  it("opens a Twitter intent URL with the share text", () => {
+  it("opens X through the registered native command without browser fallback", async () => {
     render(<ShareStats {...BASE_PROPS} />);
-    fireEvent.click(screen.getByText(/Post on X/));
+    fireEvent.click(screen.getByRole("button", { name: "Share on X" }));
 
-    expect(window.open).toHaveBeenCalledWith(
-      expect.stringContaining("https://twitter.com/intent/tweet?text="),
-      "_blank",
-    );
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith("open_share_destination", {
+      destination: "x", text: expect.stringContaining("With MoveUp, I am building a habit of changing position."),
+    }));
+    expect(document.querySelector(".share-modal [role='status']")).toHaveTextContent("Continue in your browser to review and post on X. Nothing was posted.");
   });
 
-  it("opens a Reddit submit URL referencing MoveUp", () => {
+  it("opens Reddit through the registered native command", async () => {
     render(<ShareStats {...BASE_PROPS} />);
     fireEvent.click(screen.getByRole("button", { name: "Reddit" }));
 
-    const url = decodeURIComponent(vi.mocked(window.open).mock.calls[0][0] as string);
-    expect(url).toContain("https://reddit.com/submit?title=");
-    expect(url).toContain("tracked by MoveUp");
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith("open_share_destination", {
+      destination: "reddit", text: expect.stringContaining("desk.labs.zentala.agency"),
+    }));
+  });
+
+  it("copies the personal text before opening Facebook and reports that nothing was posted", async () => {
+    render(<ShareStats {...BASE_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Facebook" }));
+
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("With MoveUp, I am building a habit of changing position."),
+    ));
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith("open_share_destination", {
+      destination: "facebook", text: expect.stringContaining("desk.labs.zentala.agency"),
+    }));
+    expect(document.querySelector(".share-modal [role='status']")).toHaveTextContent("Continue in your browser to review and post on Facebook. Nothing was posted.");
+  });
+
+  it("shows a retryable truthful error when the native opener rejects", async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error("ShellExecuteW failed"));
+    render(<ShareStats {...BASE_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share on X" }));
+
+    expect(await screen.findByTestId("share-open-error")).toHaveTextContent("Could not open X.");
+    fireEvent.click(screen.getByRole("button", { name: "Retry X" }));
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledTimes(2));
   });
 
   it("closes when clicking the overlay but not the modal body", () => {

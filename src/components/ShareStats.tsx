@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useRef, useId, type FC } from "react";
 import { Check, Copy, ExternalLink, X } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { UiIcon } from "./UiIcon";
 import type { MetricSnapshot } from "@/types";
 import { formatDurationShort } from "@/utils/format";
@@ -54,28 +55,17 @@ function buildShareText(
   const sign = todayScore >= 0 ? "+" : "";
 
   return [
-    "My desk stats today:",
+    "With MoveUp, I am building a habit of changing position. Here are my desk stats for today:",
     `\u{1f9cd} Standing: ${standing}`,
     `\u{1f504} Position changes: ${todayChanges}`,
     `\u{23f1}\u{fe0f} Longest session: ${longest}`,
     `\u{1f3c6} Score: ${sign}${Math.round(todayScore)} points`,
     "",
-    "Tracked by MoveUp \u{2014} desk.zentala.io",
+    "Tracked by MoveUp \u{2014} desk.labs.zentala.agency",
   ].join("\n");
 }
 
-const DESK_URL = "https://desk.zentala.io";
-
-/** Builds a Twitter/X intent URL with pre-filled text. */
-function twitterShareUrl(text: string): string {
-  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(DESK_URL)}`;
-}
-
-/** Builds a Reddit submit URL with pre-filled title. */
-function redditShareUrl(text: string): string {
-  const title = "My desk ergonomics stats today \u{2014} tracked by MoveUp";
-  return `https://reddit.com/submit?title=${encodeURIComponent(title)}&url=${encodeURIComponent(DESK_URL)}&selftext=true&text=${encodeURIComponent(text)}`;
-}
+type ShareDestination = "x" | "reddit" | "facebook";
 
 /** Level-to-CSS-variable mapping for colored stat values. */
 const LEVEL_COLORS: Record<string, string> = {
@@ -114,6 +104,10 @@ export const ShareStats: FC<ShareStatsProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
+  const [openMessage, setOpenMessage] = useState<string | null>(null);
+  const [openingDestination, setOpeningDestination] = useState<ShareDestination | null>(null);
+  const [failedDestination, setFailedDestination] = useState<ShareDestination | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -131,12 +125,13 @@ export const ShareStats: FC<ShareStatsProps> = ({
   const scoreSign = todayScore >= 0 ? "+" : "";
 
   /** Copies share text to clipboard using the Clipboard API. */
-  async function handleCopy() {
+  async function handleCopy(): Promise<boolean> {
     setCopied(false);
     setCopyError(false);
     try {
       await navigator.clipboard.writeText(shareText);
       setCopied(true);
+      return true;
     } catch {
       // Fallback: select a textarea and attempt execCommand
       try {
@@ -147,19 +142,34 @@ export const ShareStats: FC<ShareStatsProps> = ({
         let ok = false;
         try { ta.select(); ok = document.execCommand("copy"); }
         finally { ta.remove(); previousFocus?.focus(); }
-        if (ok) setCopied(true);
-        else setCopyError(true);
+        if (ok) { setCopied(true); return true; }
+        setCopyError(true);
+        return false;
       } catch {
         setCopyError(true);
+        return false;
       }
     }
   }
 
-  /** Opens a share URL in the default browser via Tauri shell. */
-  function openUrl(url: string) {
-    // In Tauri, open() from @tauri-apps/plugin-shell isn't always available.
-    // Use window.open as fallback — Tauri intercepts external URLs.
-    window.open(url, "_blank");
+  async function openDestination(destination: ShareDestination) {
+    if (openingDestination) return;
+    setOpeningDestination(destination);
+    setOpenError(null);
+    setOpenMessage(null);
+    setFailedDestination(null);
+    if (destination === "facebook") await handleCopy();
+    try {
+      await invoke("open_share_destination", { destination, text: shareText });
+      const name = destination === "x" ? "X" : destination === "reddit" ? "Reddit" : "Facebook";
+      setOpenMessage(`Continue in your browser to review and post on ${name}. Nothing was posted.`);
+    } catch {
+      const name = destination === "x" ? "X" : destination === "reddit" ? "Reddit" : "Facebook";
+      setFailedDestination(destination);
+      setOpenError(`Could not open ${name}. Please retry or copy the text manually.`);
+    } finally {
+      setOpeningDestination(null);
+    }
   }
 
   // Reset "Copied!" after 2 seconds
@@ -213,6 +223,13 @@ export const ShareStats: FC<ShareStatsProps> = ({
             Copy failed.
           </p>
         )}
+        {openError && (
+          <div className="share-modal__open-error" role="alert" data-testid="share-open-error">
+            <span>{openError}</span>
+            {failedDestination && <button type="button" className="share-actions__btn" onClick={() => void openDestination(failedDestination)}>Retry {failedDestination === "x" ? "X" : failedDestination === "reddit" ? "Reddit" : "Facebook"}</button>}
+          </div>
+        )}
+        {openMessage && <p className="share-modal__open-message" role="status">{openMessage}</p>}
 
         {/* Preview card */}
         <section className="share-card" aria-label="Today's share statistics" tabIndex={0}>
@@ -224,7 +241,7 @@ export const ShareStats: FC<ShareStatsProps> = ({
             <StatRow label="Score" value={`${scoreSign}${Math.round(todayScore)} pts`} />
           </div>
           <div className="share-card__watermark">
-            Tracked by MoveUp {"\u2014"} desk.zentala.io
+            Tracked by MoveUp {"\u2014"} desk.labs.zentala.agency
           </div>
           {copyError && (
             <div className="share-card__copy-error">
@@ -257,16 +274,26 @@ export const ShareStats: FC<ShareStatsProps> = ({
           <button
             className="share-actions__btn share-actions__btn--twitter"
             type="button"
-            onClick={() => openUrl(twitterShareUrl(shareText))}
+            onClick={() => void openDestination("x")}
+            disabled={openingDestination !== null}
           >
-            <UiIcon icon={ExternalLink} /><span>Post on X</span>
+            <UiIcon icon={ExternalLink} /><span>Share on X</span>
           </button>
           <button
             className="share-actions__btn share-actions__btn--reddit"
             type="button"
-            onClick={() => openUrl(redditShareUrl(shareText))}
+            onClick={() => void openDestination("reddit")}
+            disabled={openingDestination !== null}
           >
             <UiIcon icon={ExternalLink} /><span>Reddit</span>
+          </button>
+          <button
+            className="share-actions__btn share-actions__btn--facebook"
+            type="button"
+            onClick={() => void openDestination("facebook")}
+            disabled={openingDestination !== null}
+          >
+            <UiIcon icon={ExternalLink} /><span>Facebook</span>
           </button>
         </div>
       </dialog>
