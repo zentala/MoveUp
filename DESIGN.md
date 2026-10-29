@@ -313,6 +313,8 @@ Analyst retains the selected-day timeline and details. Add an explicit Today rou
 
 Keep configured Health readings. Move the unconfigured Health solicitation out of the focal daily strip into descriptive optional integration help in Settings; do not leave a fake clickable connect label. Share retains its accepted bounded dialog and destinations, adding a readable failure/retry/manual-copy route when necessary. Remote exposes loading/error/known status, Retry and a real supported display address; distinguish LAN, cloud relay and telemetry in plain language, without changing defaults or inventing reachability.
 
+Inline Settings help links use the existing readable ink, an underline and the established visible focus outline in both visited and unvisited states. Native Windows review showed the new Privacy/Remote Display links falling back to dark browser-blue on charcoal; replace that fallback within the existing helper text styles, preserving link destinations, keyboard operation and text geometry. This is a readability correction, not a new accent palette or navigation mechanism (2026-10-29).
+
 Before delivery, independent image review must inspect actual containing Windows surfaces for ordinary and stressed sizes, focus/hover, loaded/empty/error/stale data, and protected Settings/Share contexts. Existing functional fixtures and archived before-images support this work but do not establish a newly rendered outcome.
 
 ### Settings text-enlargement fit correction — 2026-10-28
