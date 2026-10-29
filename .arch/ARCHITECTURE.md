@@ -489,3 +489,8 @@ composes them — see
 - **Serial**: `serialport` crate, background thread
 - **Activity**: Windows `GetLastInputInfo` API
 - **Overlay/Popups**: `windows` crate (raw WinAPI, GDI rendering)
+
+
+## Ongoing observation display correction — 2026-10-25
+
+Accepted implementation: E02829p Direct Herdr. Engine known-projection boundary -> additive nullable generated DTO -> existing native/remote read adapters with distinct sample/receipt freshness -> one shared chronology -> popup and Analyst. Read [ADR015](ADR/015-pure-ergo-engine.md), [ADR014](ADR/014-persistence-precedence.md) and [ADR017](ADR/017-ts-rs-for-rust-ts-codegen.md). No database/persistence/ergonomic rule change, new service/framework or inferred missing history. Owning plan is `.plan/epics/E028-2026-10-25-live-observation-timeline/PLAN.md`.

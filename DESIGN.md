@@ -193,6 +193,13 @@ containing OneBarWidget, not an isolated full-width component fixture.
 
 [Carbon colors](https://www.carbondesignsystem.com/building-blocks/foundations/color/overview) and [layering](https://www.carbondesignsystem.com/building-blocks/foundations/color/guidelines) inform neutral layers/semantic roles; [Carbon tabs](https://www.carbondesignsystem.com/building-blocks/core/components/tabs/guidelines) informs selected-tab/panel matching and horizontal scrolling. Below-panel donut tabs are MoveUp's adaptation. [Lucide React](https://lucide.dev/guide/react/) supports named imports. [WAI tabs](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/) and [WCAG 2.2](https://www.w3.org/TR/WCAG22/) inform keyboard/contrast targets. Checked 2026-10-09; exact tokens are operator-accepted MoveUp choices, not a Carbon compliance claim.
 
+
+## Accepted ongoing observation and freshness decision — 2026-10-25
+
+Operator approved E028 implementation. Replace the ambiguity where an open confirmed posture appears as Unknown solely because no completed row exists. Retain the shared opaque chronology and existing popup420x240 geometry; render recorded history plus independently producer-qualified live coverage, ending at the actual last confirmed instant. Distinguish ongoing recording with a short readable label/detail, not a new posture color, pulse or inferred duration. Browser Now/status aging must never grow coverage without observations. Unknown hatching remains for actual unobserved elapsed intervals; Future remains separate.
+
+Show compact, readable connection/sample freshness/view-update status within the current surface; reveal exact last-observation/update time, interval and source-supported cause through existing focus/hover/details patterns. A connected sensor with stale samples and a failed view refresh are distinct states. Say undetermined when historical cause is not known, never sensor failure by inference. Loading/error/stale retain geometry and last known data truthfully; no zero/empty success before data. Announce meaningful health/error changes politely, not every elapsed second. Preserve10px minimum labels, keyboard access, no clipped popup/footer/neighbor controls, and wide/narrow Analyst context. Use existing tokens/icons/controls; no redesign or global theme change. Producer/wire semantics are owned by ADR015, no frontend counter/calendar guessing. Independent actual-host BEFORE/AFTER image review is required for this changed surface; no source/UI implementation has been performed by PO.
+
 ## Native overlay exposure recovery — 2026-10-28
 
 The existing 4px opaque native bar must recover exposure when policy requests it
@@ -285,3 +292,33 @@ window or the top-of-screen native bar. Extend existing browser geometry and
 native lifecycle regressions. Independently inspect actual Windows popup images
 for the warning/urgent states, normal return, narrow/text stress and protected
 Settings/Share context before claiming visual acceptance.
+
+## Accepted whole-product UX refinement — 2026-10-28
+
+The owner accepts all ten audit outcomes. Preserve the existing420x240 precision-instrument popup, separate Analyst, opaque charcoal/monospace tokens, posture versus urgency meanings, Lucide actions, equal control heights and minimum24px targets. This is a refinement of the existing product, not a new visual system. Use the existing compact type/spacing scale and visible focus; no decorative artwork or animation is needed.
+
+Daily hierarchy: the named **Sitting balance** remains the focal value, with its configured limit; actual **Over limit** is separately named and never represented by prefixing the full balance with plus. During a break, label break duration explicitly. Actual last-break credit is a secondary keyboard-accessible disclosure that explains captured duration/rule/applied reduction/balances without erasing chronology. Missing explanation remains unavailable. Essential facts use readable ink; long explanations scroll in a labelled body while heading, Close and actions remain reachable.
+
+Use a compact source/freshness explanation to distinguish inferred desk state, recent input and actual observation/view availability. Reuse the existing live-observation presentation; do not add a second legend or posture palette. Give today's history an explicit discoverable entry alongside the existing timeline interaction; preserve segment details and the same-day Analyst request.
+
+The status explanation is a disclosure, not plain caption text. Keep a visible native disclosure marker or existing Lucide line icon and a minimum24px pointer target, with the full status text and focus outline still readable in the compact header. This replaces an unmarked12px summary hit area; it uses the existing chrome rather than another help control (2026-10-29).
+
+Adding Today must preserve the full visible current-state and optional input labels. At420x240 the captured combined header truncated **Estimated Sitting** and **Recent input** when the new action consumed the same row. Allocate rows or wrap within the existing compact hierarchy so those essential labels, grouped height and all actions remain readable; do not remove Today, conceal the saved input preference, or treat an ellipsis/title-only value as full visible text. Verify the actual containing header and keyboard controls, retaining the named balance as the focal value and the existing bounded content scrolling (2026-10-29).
+
+Settings keeps the existing toolbar/tabs. Loading error and Retry replace editable success until actual load. Corrected validation recovers in place. Label immediate profile/theme changes **Applied immediately** and Save-based changes as drafts; show effective basic rules through readable details rather than making JSON the ordinary explanation. Full tab/panel semantics and focus-visible must fit the existing chrome. Controls in a row share dimensions.
+
+Reminder categories and protected-flow lifecycle remain as accepted above. Add source-supported action duration/consequence text to distinguish Snooze from the escalating Dismiss; X retains Dismiss semantics. Test messages remain explicit previews, with no real session/policy effect. Welcome must lead its test into that same supported main flow. Preserve its own window identity while reconciling its typography, surfaces and copy with this contract. Intro proceeds through device, actual measurement, calibration and first understandable status; no-sensor states must not look successful.
+
+Analyst retains the selected-day timeline and details. Add an explicit Today route, honest recent-range presets and separately named start/end dates. Reduce long technical orientation text through existing accessible disclosure without concealing observation gaps or source limitations. Preserve expert retained range and manual selection.
+
+Keep configured Health readings. Move the unconfigured Health solicitation out of the focal daily strip into descriptive optional integration help in Settings; do not leave a fake clickable connect label. Share retains its accepted bounded dialog and destinations, adding a readable failure/retry/manual-copy route when necessary. Remote exposes loading/error/known status, Retry and a real supported display address; distinguish LAN, cloud relay and telemetry in plain language, without changing defaults or inventing reachability.
+
+Before delivery, independent image review must inspect actual containing Windows surfaces for ordinary and stressed sizes, focus/hover, loaded/empty/error/stale data, and protected Settings/Share contexts. Existing functional fixtures and archived before-images support this work but do not establish a newly rendered outcome.
+
+### Settings text-enlargement fit correction — 2026-10-28
+
+An enlarged calibration field must show its visible label and complete input together at one reachable scroll position in the labelled settings body. Separate captures of a clipped input and an unlabelled input do not establish fit. Keep Back, the Settings identity and Save in a compact logical control group; place wrapping tabs so they do not waste a separate row on Save and crowd the body out of the420x240 window. Preserve the existing typography, surfaces, control scale and keyboard order consistent with the visual groups. Normal text remains readable; only the settings body scrolls. This replaces accidental toolbar wrapping that consumed roughly150px under doubled text, as observed in the preserved synthetic calibration images. Verify real computed text growth, joint field geometry and the final rendered result; native Windows acceptance remains separate.
+
+### Welcome primary action — 2026-10-29
+
+Use the action label **Open MoveUp**, with the new first-day copy in the same English as the surrounding application and preview feedback. This user-initiated action shows the existing main window and completes the existing Welcome dismissal/preference flow; it does not assert that hardware or calibration is ready. Preserve the current main view and any protected Settings draft or Share dialog, with no navigation reset or new window. Explicit focus is appropriate for this click; automatic reminders retain their separate non-activating behavior. If the main window cannot be opened, report the failure in Welcome with a retryable action instead of silently closing the only visible guide. Reuse existing window/persistence owners and keep the distinct Welcome identity and dimensions.

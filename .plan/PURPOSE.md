@@ -1,6 +1,6 @@
 # MoveUp product purpose
 
-Part of the product document set: [Vision](VISION.md) · [User experience](UX.md) · [Design contract](../DESIGN.md). Updated 2026-10-27.
+Part of the product document set: [Vision](VISION.md) · [User experience](UX.md) · [Design contract](../DESIGN.md). Updated 2026-10-28.
 
 ## Why it exists
 
@@ -17,6 +17,33 @@ Three quantities must remain distinct: recorded chronological desk states, the c
 | People doing AI-assisted work, reading, thinking, listening or working intermittently away from the keyboard | Owner-reported current context; overlaps both audiences rather than forming a new commercial segment | Input inactivity must not be described as measured physical absence; work away from the computer should not require unnecessary interaction with the app |
 
 The application currently serves one desk and one person. Employee monitoring, attendance measurement, productivity scoring and workplace fleet management are outside its current purpose. The recorded signals do not establish a person's physical posture, exercise, screen attention or health outcome.
+
+## Working personas and their evidence — 2026-10-28
+
+These are behavioral working personas, not research-validated market segments. They consolidate the existing owner reports and dev-kit direction; no interviews, demographic research or measured demand are implied. Technical fluency does not imply knowledge of MoveUp's accounting rules.
+
+| Working persona | Evidence and status | Goal and underlying need | Typical flow and success signal |
+|---|---|---|---|
+| Focused desk worker | Primary current user: the owner using one Windows computer and adjustable desk | Notice a useful opportunity to move while keeping attention on work; trust the current estimate without managing a timer | Work → glance or receive a reminder → stand or leave → return. Can explain the displayed balance, overtime and next action without reading documentation |
+| Motivation experimenter | Secondary mode of the same current user, established in the repository contract; not an independently validated second audience | Adjust reminder behavior and limits, see which rule is effective, and recover from an unsuccessful experiment | Inspect effective configuration → change one setting/profile → preview → work → inspect observations. Knows what changed, when it applied and how to revert |
+| First-time DIY desk user | Proposed early adopter, supported by the owner's beginner setup request; usability and demand outside the owner remain unvalidated | Turn compatible parts into a useful desk aid without needing source-code knowledge; know when recording has actually started | Connect/assemble hardware → identify device → calibrate sitting/standing → confirm a real observation → understand first reminder. Can distinguish device detection, sensor measurement and inferred desk state |
+
+AI-assisted work, reading, listening and voice interaction are contexts across these personas. A person may still be working while away from the computer, or present without input. Automation keeping a computer awake does not establish the person's presence. Do not create a separate AI market persona from this one owner's report.
+
+## Needs, product goals and validation
+
+The product goal is to make an understandable opportunity to change position available. The user's goal is to continue their work with fewer unwanted prolonged desk sessions and less interruption. Standing percentage, points, popup opens and reminder count are supporting signals, not proof of that outcome.
+
+| Need | Product response to evaluate | Proposed acceptance observation; baseline not yet measured |
+|---|---|---|
+| Understand now, quickly | One named balance, separately named overtime, estimated state and recording quality | After a brief glance, the owner identifies what the number measures and whether the displayed information is current |
+| Benefit from a break without app administration | Automatic observed-break accounting with an accessible explanation | On return, the owner can find the last observed break, qualifying rule and actual credit without asking an agent |
+| Keep attention on work | Quiet background cues, configurable persistent reminders and explicit dismissal | A reminder remains readable without stealing typing focus; the person understands the consequence of its actions |
+| Trust incomplete evidence | Separate inactivity, desk height, missing observations and supported pause reasons | The person can distinguish inferred Away from an unexplained gap; no unknown interval becomes confirmed posture |
+| Control configuration | Visible effective settings, clear apply/save boundaries and recovery | Before leaving Settings, the person predicts what is already saved and what will be discarded |
+| Start successfully | Hardware/setup guidance and a verifiable first observation | A new user reaches and recognizes actual recording, or gets a concrete explanation of the missing prerequisite |
+
+Validate first with the current owner using task-based observation, then with real first-time dev-kit users when available. Record actual task completion and mistaken interpretations. No conversion, retention, behavior-change or medical-effectiveness measurements have been collected by this documentation update.
 
 ## AI-assisted work changes the interaction assumption
 
