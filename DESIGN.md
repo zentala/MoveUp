@@ -263,8 +263,11 @@ Automatic reminders use this same main popup without activating it or stealing
 keyboard focus. An active reminder does not expire on a short timer or hide on
 ordinary focus loss. It remains until an explicit close/dismiss/snooze action or
 the authoritative policy makes that reminder obsolete. Escape is handled only
-when MoveUp has focus. Dismissal returns to the normal status surface and uses
-existing policy acknowledgement/snooze rules; do not fabricate a new interval.
+when MoveUp has focus. The Dismiss button and focused Escape return to the normal
+status surface using existing policy acknowledgement rules; do not fabricate a
+new interval. Reminder X uses that same acknowledgement, then hides the main
+popup after success as specified in **Reminder X hides the popup after successful
+dismissal — 2026-10-29** below.
 Manual tray activation exposes the current message with usable keyboard focus.
 Do not destroy settings edits or an open Share dialog when a reminder arrives:
 retain the pending message and present it when that foreground flow returns.
@@ -307,7 +310,7 @@ Historical refinement, superseded by **Compact popup hierarchy and window visibi
 
 Settings keeps the existing toolbar/tabs. Loading error and Retry replace editable success until actual load. Corrected validation recovers in place. Label immediate profile/theme changes **Applied immediately** and Save-based changes as drafts; show effective basic rules through readable details rather than making JSON the ordinary explanation. Full tab/panel semantics and focus-visible must fit the existing chrome. Controls in a row share dimensions.
 
-Reminder categories and protected-flow lifecycle remain as accepted above. Add source-supported action duration/consequence text to distinguish Snooze from the escalating Dismiss; X retains Dismiss semantics. Test messages remain explicit previews, with no real session/policy effect. Welcome must lead its test into that same supported main flow. Preserve its own window identity while reconciling its typography, surfaces and copy with this contract. Intro proceeds through device, actual measurement, calibration and first understandable status; no-sensor states must not look successful.
+Reminder categories and protected-flow lifecycle remain as accepted above. Add source-supported action duration/consequence text to distinguish Snooze from the escalating Dismiss; X retains Dismiss acknowledgement semantics and then hides the popup after success under the later explicit X contract. Test messages remain explicit previews, with no real session/policy effect. Welcome must lead its test into that same supported main flow. Preserve its own window identity while reconciling its typography, surfaces and copy with this contract. Intro proceeds through device, actual measurement, calibration and first understandable status; no-sensor states must not look successful.
 
 Analyst retains the selected-day timeline and details. Add an explicit Today route, honest recent-range presets and separately named start/end dates. Reduce long technical orientation text through existing accessible disclosure without concealing observation gaps or source limitations. Preserve expert retained range and manual selection.
 
@@ -385,3 +388,55 @@ sharing. Nothing publishes automatically. Preserve fit if destination actions wr
 Record ordinary/stressed actual Windows images and independently review full
 captions, timeline, action reachability and neighboring windows before delivery.
 Existing GUI geometry/keyboard checks supplement, but do not replace, that review.
+
+### Overdue popup counterexample and explicit dismissal — 2026-10-29
+
+The owner supplied a later actual native counterexample at42:38/40:00: the
+additional Over limit row forced the default420x240 view to scroll and clipped
+the timeline. The prior under-limit acceptance does not cover this state.
+Keep Over limit and its actual value visibly associated with Sitting balance,
+using the existing timer/header space rather than an extra permanent vertical
+row. Preserve the full counter, previous-break information, credit disclosure,
+four standard daily badges and complete timeline/axis within the ordinary
+420x240 client area and the observed420x234 native client area at96 DPI. The
+regression sample includes visible previous-session text and a full-day axis,
+not only an Away segment in the timeline. Do not solve this by hiding the scrollbar, clipping the
+axis, shrinking readable text or omitting the overtime meaning. Existing tokens,
+control sizes and posture/urgency semantics remain authoritative. In the observed
+short client, reclaim vertical whitespace using the existing8px spacing scale
+before reducing text or controls; preserve the ordinary taller layout and allow
+scrolling for genuinely expanded details or larger text.
+
+The same report says X does not dismiss the persistent window. An explicit X
+must remain usable after repeated hide/tray-reopen cycles, including the overdue
+state; it cannot silently ignore later clicks because an earlier hide request
+has not settled. Preserve source-qualified error/retry behavior and the owner's
+sticky-on-blur choice. Physical pointer clicks, actual native visibility over
+time and repeated reopen/dismiss behavior must be distinguished from semantic
+UIAutomation invocation. Establish the concrete fault before attributing it to
+mouse hit testing, native IPC or a subsequent re-show. New legitimate reminders
+retain their existing separate policy; do not suppress them indiscriminately.
+
+### Reminder X hides the popup after successful dismissal — 2026-10-29
+
+The owner's explicit X dismissal applies to the window showing a reminder too.
+Previously that X only acknowledged Dismiss and exposed the still-visible status
+panel. Replace that return-to-status behavior for X: complete the existing
+Dismiss acknowledgement and persistence, then hide the main popup through the
+existing checked main-window hide path. Tracking continues. This preserves
+Dismiss timing, revisions and policy; it is not a policy-neutral status close.
+Do not use native close or WM_CLOSE, which belongs to PM3 shutdown.
+
+If acknowledgement or persistence fails, keep the reminder and its existing
+recovery visible. If only hiding fails after successful acknowledgement, expose
+Retry close for that hide alone; do not repeat Dismiss or advance its delay.
+An older completion must not hide a newer reminder or a protected Settings/Share
+flow. Ordinary Dismiss/Snooze actions retain their current separate behavior.
+Keep these cases in the existing component/GUI tests and distinguish actual
+native pointer/visibility evidence from synthetic fixtures and UIA tree presence.
+
+After acknowledgement succeeds, keep the truthful ordinary status and its usable
+X available until native hiding completes. An unresolved hide acknowledgement
+must not leave an empty popup or remove every available close control. Reuse the
+existing status and explicit hide action; do not add a blank transition merely
+to avoid briefly showing status before the native window disappears.
