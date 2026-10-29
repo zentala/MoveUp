@@ -795,6 +795,36 @@ test('Settings tabs use manual keyboard activation and More exposes the Health g
   await expect(page.getByRole('link', { name: 'Remote Display guide' })).toHaveAttribute(
     'href', 'https://github.com/zentala/MoveUp/blob/main/docs/REMOTE_DISPLAY.md',
   );
+  const privacy = page.getByRole('link', { name: 'Privacy guide' });
+  const remoteDisplay = page.getByRole('link', { name: 'Remote Display guide' });
+  const privacyStyle = await privacy.evaluate(link => ({
+    color: getComputedStyle(link).color,
+    helperColor: getComputedStyle(link.parentElement!).color,
+    background: getComputedStyle(link.closest('.settings-panel__section')!).backgroundColor,
+    decoration: getComputedStyle(link).textDecorationLine,
+  }));
+  expect(privacyStyle.color).toBe(privacyStyle.helperColor);
+  const luminance = (color: string) => {
+    const [r, g, b] = color.match(/[\d.]+/g)!.slice(0, 3).map(channel => {
+      const value = Number(channel) / 255;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [lighter, darker] = [luminance(privacyStyle.color), luminance(privacyStyle.background)].sort((a, b) => b - a);
+  expect((lighter + 0.05) / (darker + 0.05)).toBeGreaterThanOrEqual(4.5);
+  expect(privacyStyle.decoration).toContain('underline');
+  await privacy.focus();
+  await page.keyboard.press('Tab');
+  await expect(remoteDisplay).toBeFocused();
+  const focusStyle = await remoteDisplay.evaluate(link => ({
+    visible: link.matches(':focus-visible'),
+    outlineStyle: getComputedStyle(link).outlineStyle,
+    outlineWidth: getComputedStyle(link).outlineWidth,
+  }));
+  expect(focusStyle.visible).toBe(true);
+  expect(focusStyle.outlineStyle).toBe('solid');
+  expect(parseFloat(focusStyle.outlineWidth)).toBeGreaterThanOrEqual(2);
 });
 
 test('the existing Welcome entry queues its test in the main reminder flow and preserves dismissal choice', async ({ page }, info) => {

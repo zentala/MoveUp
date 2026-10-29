@@ -3,12 +3,22 @@
 use tauri::{Manager, WebviewWindowBuilder, WebviewUrl};
 use crate::config::AppConfig;
 
-/// Creates and shows the welcome popup window.
-pub fn show_welcome_window(app: &tauri::AppHandle) -> Result<(), String> {
-    // Don't create a duplicate if already open
-    if app.get_webview_window("welcome").is_some() {
-        return Ok(());
-    }
+fn with_welcome_window<T>(
+    existing: Option<T>,
+    create: impl FnOnce() -> Result<T, String>,
+    show: impl FnOnce(&T) -> Result<(), String>,
+    after_show: impl FnOnce(&T) -> Result<(), String>,
+) -> Result<T, String> {
+    let window = match existing {
+        Some(window) => window,
+        None => create()?,
+    };
+    show(&window)?;
+    after_show(&window)?;
+    Ok(window)
+}
+
+fn create_welcome_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
     WebviewWindowBuilder::new(app, "welcome", WebviewUrl::App("welcome.html".into()))
         .title("MoveUp \u{2014} First run")
         .inner_size(480.0, 420.0)
@@ -17,8 +27,21 @@ pub fn show_welcome_window(app: &tauri::AppHandle) -> Result<(), String> {
         .center()
         .decorations(true)
         .build()
-        .map_err(|e| format!("Failed to create welcome window: {}", e))?;
-    Ok(())
+        .map_err(|e| format!("Failed to create welcome window: {}", e))
+}
+
+fn show_window(window: &tauri::WebviewWindow) -> Result<(), String> {
+    window.show().map_err(|e| format!("Failed to show welcome window: {}", e))
+}
+
+/// Creates and shows the welcome popup without explicitly taking focus (startup path).
+pub fn show_welcome_window(app: &tauri::AppHandle) -> Result<(), String> {
+    with_welcome_window(
+        app.get_webview_window("welcome"),
+        || create_welcome_window(app),
+        show_window,
+        |_| Ok(()),
+    ).map(|_| ())
 }
 
 fn activation_failure(show_succeeded: bool, focus_succeeded: bool) -> Option<&'static str> {
@@ -80,12 +103,17 @@ pub fn dismiss_welcome(dont_show_again: bool, app: tauri::AppHandle) -> Result<(
 /// Re-opens the welcome popup (callable from settings).
 #[tauri::command]
 pub fn show_welcome(app: tauri::AppHandle) -> Result<(), String> {
-    show_welcome_window(&app)
+    with_welcome_window(
+        app.get_webview_window("welcome"),
+        || create_welcome_window(&app),
+        show_window,
+        |window| window.set_focus().map_err(|e| format!("Failed to focus welcome window: {}", e)),
+    ).map(|_| ())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{activation_failure, complete_welcome_open, require_preference_store};
+    use super::{activation_failure, complete_welcome_open, require_preference_store, with_welcome_window};
     use std::cell::RefCell;
 
     #[test]
@@ -143,5 +171,49 @@ mod tests {
         );
         assert_eq!(result, Ok(()));
         assert_eq!(*calls.borrow(), ["activate", "close"]);
+    }
+
+    #[test]
+    fn startup_shows_an_existing_hidden_welcome_without_explicit_focus() {
+        let calls = RefCell::new(Vec::new());
+        let created = RefCell::new(false);
+        let result = with_welcome_window(
+            Some("existing welcome"),
+            || { *created.borrow_mut() = true; Ok("new welcome") },
+            |_| { calls.borrow_mut().push("show"); Ok(()) },
+            |_| Ok(()),
+        );
+        assert_eq!(result, Ok("existing welcome"));
+        assert!(!*created.borrow());
+        assert_eq!(*calls.borrow(), ["show"]);
+    }
+
+    #[test]
+    fn manual_reopen_shows_then_focuses_and_propagates_activation_errors() {
+        let calls = RefCell::new(Vec::new());
+        let result = with_welcome_window(
+            Some("existing welcome"),
+            || panic!("must reuse the configured window"),
+            |_| { calls.borrow_mut().push("show"); Ok(()) },
+            |_| { calls.borrow_mut().push("focus"); Ok(()) },
+        );
+        assert_eq!(result, Ok("existing welcome"));
+        assert_eq!(*calls.borrow(), ["show", "focus"]);
+
+        let result = with_welcome_window(
+            Some("existing welcome"),
+            || panic!("must reuse the configured window"),
+            |_| Err("Failed to show welcome window: synthetic show failure".to_owned()),
+            |_| panic!("focus must not run after show failure"),
+        );
+        assert_eq!(result, Err("Failed to show welcome window: synthetic show failure".to_owned()));
+
+        let result = with_welcome_window(
+            Some("existing welcome"),
+            || panic!("must reuse the configured window"),
+            |_| Ok(()),
+            |_| Err("Failed to focus welcome window: synthetic focus failure".to_owned()),
+        );
+        assert_eq!(result, Err("Failed to focus welcome window: synthetic focus failure".to_owned()));
     }
 }
