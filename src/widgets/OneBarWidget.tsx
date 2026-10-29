@@ -236,17 +236,12 @@ export const OneBarWidget: FC<WidgetProps> = (props) => {
   const [todayError, setTodayError] = useState<string | null>(null);
   const [closeMainError, setCloseMainError] = useState<string | null>(null);
   const todayChanging = useRef(false);
-  const closeMainChanging = useRef(false);
   async function closeMain() {
-    if (closeMainChanging.current) return;
-    closeMainChanging.current = true;
     setCloseMainError(null);
     try {
       await invoke("hide_main_window");
     } catch {
       setCloseMainError("Could not close the popup. Please retry.");
-    } finally {
-      closeMainChanging.current = false;
     }
   }
   async function openToday() {

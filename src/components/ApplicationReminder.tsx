@@ -12,9 +12,12 @@ const categories = {
   urgent: { label: "Action needed", icon: CircleAlert }, success: { label: "Progress", icon: CheckCircle2 },
 };
 
-export function ApplicationReminder({ message, busy, error, retrySave, onAction, onReconnect }: {
+export function ApplicationReminder({ message, busy, error, retrySave, closeAckRetry, onAction, onClose, onCloseRetry, onReconnect }: {
   message: Message; busy: boolean; error: string | null; retrySave: boolean;
+  closeAckRetry?: boolean;
   onAction: (action: "dismiss" | "snooze" | "retry") => void;
+  onClose?: () => void;
+  onCloseRetry?: () => void;
   onReconnect?: () => void;
 }) {
   const headingId = useId(), bodyId = useId();
@@ -53,7 +56,7 @@ export function ApplicationReminder({ message, busy, error, retrySave, onAction,
       <div className="application-reminder__category"><UiIcon icon={category.icon} />
         <span>{message.is_test ? `Test · ${category.label}` : category.label}</span></div>
       <button type="button" className="btn application-reminder__close" aria-label="Close reminder"
-        disabled={busy || retrySave} onClick={() => onAction("dismiss")}><UiIcon icon={X} /></button>
+        disabled={busy || retrySave} onClick={() => onClose ? onClose() : onAction("dismiss")}><UiIcon icon={X} /></button>
       <h1 id={headingId}>{message.title}</h1>
     </header>
     <div className="application-reminder__body" role="region" aria-label="Reminder details" tabIndex={0}
@@ -94,7 +97,8 @@ export function ApplicationReminder({ message, busy, error, retrySave, onAction,
     <footer className={`application-reminder__actions${onReconnect && !retrySave ? " application-reminder__actions--reconnect" : ""}`}>
       {onReconnect && !retrySave && <button type="button" className="btn application-reminder__reconnect"
         disabled={busy} onClick={onReconnect}>Retry connection</button>}
-      {retrySave ? <button type="button" className="btn" disabled={busy} onClick={() => onAction("retry")}>Retry saving</button> : <>
+      {retrySave ? <button type="button" className="btn" disabled={busy} onClick={() => onAction("retry")}>Retry saving</button>
+        : closeAckRetry && onCloseRetry ? <button type="button" className="btn" disabled={busy} onClick={onCloseRetry}>Retry dismissal</button> : <>
         <button type="button" className="btn" disabled={busy} onClick={() => onAction("snooze")}>Snooze</button>
         <button type="button" className="btn" disabled={busy} onClick={() => onAction("dismiss")}>Dismiss</button>
       </>}

@@ -43,6 +43,20 @@ describe("ApplicationReminder", () => {
     render(<ApplicationReminder message={{ ...message, is_test: true }} busy={false} error={null} retrySave={false} onAction={vi.fn()} />);
     expect(screen.getByText(/Snooze or Dismiss closes this preview only; it does not change reminder policy or your session/i)).toBeInTheDocument();
   });
+  it("routes the header X to its dedicated close path while footer Dismiss stays an ordinary acknowledgement", () => {
+    const action = vi.fn(), close = vi.fn();
+    const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    render(<ApplicationReminder message={message} busy={false} error={null} retrySave={false} onAction={action} onClose={close} />);
+    fireEvent.click(screen.getByRole("button", { name: "Close reminder" }));
+    expect(close).toHaveBeenCalledOnce();
+    expect(action).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(action).toHaveBeenCalledWith("dismiss");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(action).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalledOnce();
+    hasFocus.mockRestore();
+  });
   it.each(["info", "warning", "urgent", "success"] as const)("labels %s and uses only authoritative values", (category) => {
     const action = vi.fn();
     render(<ApplicationReminder message={{ ...message, category, is_test: true }} busy={false} error={null} retrySave={false} onAction={action} />);

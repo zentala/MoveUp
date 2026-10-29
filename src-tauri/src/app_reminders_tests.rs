@@ -19,6 +19,56 @@ fn state_with_message() -> AppReminderState {
     state
 }
 
+fn acknowledged_close_guard(state: &AppReminderState, client: &str) -> crate::commands::ReminderCloseGuard {
+    let active = state.0.lock().unwrap().snapshot();
+    let id = active.active.as_ref().unwrap().id.clone();
+    crate::commands_reminders::acknowledge_with(state, client, &id, active.revision, ReminderAction::Dismiss,
+        |_| Ok(()), || Ok(())).unwrap();
+    let acknowledged = state.0.lock().unwrap().snapshot();
+    crate::commands::ReminderCloseGuard {
+        session_id: acknowledged.session_id,
+        client_id: acknowledged.client_id.unwrap(),
+        reminder_id: id,
+        revision: acknowledged.revision,
+    }
+}
+
+#[test]
+fn reminder_x_hide_rechecks_delayed_state_without_holding_business_lock_during_effect() {
+    use std::cell::Cell;
+
+    let state = state_with_message();
+    let expected = acknowledged_close_guard(&state, "first");
+    let invoked = Cell::new(false);
+    crate::commands::hide_main_window_if_current_reminder(&state, &expected, || {
+        assert!(state.0.try_lock().is_ok(), "native hide runs after the reminder-state lock is released");
+        invoked.set(true);
+        Ok(())
+    }).unwrap();
+    assert!(invoked.get());
+
+    let newer_state = state_with_message();
+    let stale = acknowledged_close_guard(&newer_state, "first");
+    let newer_effect = Cell::new(false);
+    // Model a hide callback delayed in the existing main-thread queue until after
+    // reminder publication. It must read current state only when the callback runs.
+    let delayed_hide = || crate::commands::hide_main_window_if_current_reminder(&newer_state, &stale, || {
+        newer_effect.set(true); Ok(())
+    });
+    newer_state.0.lock().unwrap().publish(draft(ReminderReason::ScreenBreak), ReminderSource::Policy, day());
+    assert_eq!(delayed_hide().unwrap_err(), "reminder_changed_before_hide");
+    assert!(!newer_effect.get(), "a newer reminder cannot be hidden by the earlier X");
+
+    let protected_state = state_with_message();
+    let stale = acknowledged_close_guard(&protected_state, "first");
+    protected_state.0.lock().unwrap().set_flow("first", 1, Some(ProtectedFlow::Settings)).unwrap();
+    let protected_effect = Cell::new(false);
+    assert_eq!(crate::commands::hide_main_window_if_current_reminder(&protected_state, &stale, || {
+        protected_effect.set(true); Ok(())
+    }).unwrap_err(), "reminder_changed_before_hide");
+    assert!(!protected_effect.get(), "a protected view cannot be hidden by the earlier X");
+}
+
 #[test]
 fn focus_loss_only_retains_a_presented_active_reminder_outside_protected_flows() {
     let state = AppReminderState::default();
@@ -375,7 +425,7 @@ fn round3_generic_retry_keeps_no_reservation_busy_client_revision_and_id_guards(
 
 #[cfg(windows)]
 #[test]
-fn native_adapter_validates_own_disposable_hwnd_and_shows_without_focus() { unsafe {
+fn native_adapter_rehides_same_owned_hwnd_after_repeated_no_activate_reminder_shows() { unsafe {
     use windows::core::PCSTR;
     use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::*};
     struct Owned(HWND);
@@ -388,5 +438,11 @@ fn native_adapter_validates_own_disposable_hwnd_and_shows_without_focus() { unsa
     assert!(!IsWindowVisible(owned.0).as_bool());
     crate::commands_reminders::show_owned_main_hwnd(owned.0).unwrap();
     assert!(IsWindowVisible(owned.0).as_bool());
+    crate::commands::hide_owned_main_hwnd_handle(owned.0).unwrap();
+    assert!(!IsWindowVisible(owned.0).as_bool());
+    crate::commands_reminders::show_owned_main_hwnd(owned.0).unwrap();
+    assert!(IsWindowVisible(owned.0).as_bool());
+    crate::commands::hide_owned_main_hwnd_handle(owned.0).unwrap();
+    assert!(!IsWindowVisible(owned.0).as_bool());
     assert_eq!(GetForegroundWindow(), before);
 } }

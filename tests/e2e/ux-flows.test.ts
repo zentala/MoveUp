@@ -24,7 +24,8 @@ async function openApp(page: Page, scenario = 'normal') {
     return route.continue();
   });
   await page.goto(`/?settings-fixture=${scenario}`);
-  await expect(page.getByTestId('one-bar-widget')).toBeVisible();
+  if (scenario.startsWith('reminder-x')) await expect(page.getByRole('heading', { name: 'Time to stand up' })).toBeVisible();
+  else await expect(page.getByTestId('one-bar-widget')).toBeVisible();
   if (scenario === 'load-retry') await page.evaluate(() => window.uxSettingsTest.rejectNextSettingsLoad());
 }
 
@@ -802,6 +803,170 @@ test('main popup actions occupy their own top row and X requests a main-only hid
   await page.getByRole('button', { name: 'Close popup to tray' }).click();
   await expect.poll(() => page.evaluate(() => window.uxSettingsTest.calls.some(call => call.command === 'hide_main_window'))).toBe(true);
   expect(await page.evaluate(() => window.uxSettingsTest.blocked)).toEqual([]);
+});
+
+test('Reminder X acknowledges before hiding and exposes a hide-only retry', async ({ page }, testInfo) => {
+  await openApp(page, 'reminder-x-hide-fail');
+  await page.getByRole('button', { name: 'Close reminder' }).click();
+  await expect(page.getByRole('alert')).toContainText('dismissed, but the popup could not be hidden');
+  await expect(page.getByTestId('application-reminder')).toHaveCount(0);
+  const ackCount = await page.evaluate(() => window.uxSettingsTest.calls.filter(call => call.command === 'acknowledge_app_reminder').length);
+  expect(ackCount).toBe(1);
+  await page.screenshot({ path: testInfo.outputPath('reminder-x-acknowledged-hide-error-retry-420x240.png') });
+  await page.getByRole('button', { name: 'Retry close' }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByTestId('one-bar-widget')).toBeVisible();
+  expect(await page.evaluate(() => window.uxSettingsTest.calls.filter(call => call.command === 'acknowledge_app_reminder').length)).toBe(ackCount);
+  expect(await page.evaluate(() => window.uxSettingsTest.calls.filter(call => call.command === 'hide_main_window').length)).toBe(2);
+  expect(await page.evaluate(() => window.uxSettingsTest.blocked)).toEqual([]);
+});
+
+test('ordinary status and its X remain available while the Reminder X hide reply is pending', async ({ page }, testInfo) => {
+  await openApp(page, 'reminder-x-hide-pending');
+  await page.getByRole('button', { name: 'Close reminder' }).click();
+  await expect.poll(() => page.evaluate(() => window.uxSettingsTest.calls.filter(call => call.command === 'hide_main_window').length)).toBe(1);
+
+  await expect(page.getByTestId('application-reminder')).toHaveCount(0);
+  await expect(page.getByTestId('one-bar-widget')).toBeVisible();
+  const ordinaryClose = page.getByRole('button', { name: 'Close popup to tray' });
+  await expect(ordinaryClose).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('reminder-x-hide-pending-ordinary-status-x-420x240.png') });
+  await ordinaryClose.click();
+  await expect.poll(() => page.evaluate(() => window.uxSettingsTest.calls.filter(call => call.command === 'hide_main_window').length)).toBe(2);
+
+  await page.evaluate(() => window.uxSettingsTest.finishPendingReminderHide());
+  expect(await page.evaluate(() => window.uxSettingsTest.calls.filter(call => call.command === 'acknowledge_app_reminder')
+    .map(call => (call.args as { action: string }).action))).toEqual(['dismiss']);
+  expect(await page.evaluate(() => window.uxSettingsTest.blocked)).toEqual([]);
+});
+
+test('Reminder X keeps the failed acknowledgement active and retries persistence before hiding', async ({ page }) => {
+  await openApp(page, 'reminder-x-ack-fail');
+  await page.getByRole('button', { name: 'Close reminder' }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not save your response');
+  await expect(page.getByTestId('application-reminder')).toBeVisible();
+  expect(await page.evaluate(() => window.uxSettingsTest.calls.filter(call => call.command === 'hide_main_window'))).toEqual([]);
+  await page.getByRole('button', { name: 'Retry saving' }).click();
+  await expect(page.getByTestId('application-reminder')).toHaveCount(0);
+  await expect(page.getByTestId('one-bar-widget')).toBeVisible();
+  const actions = await page.evaluate(() => window.uxSettingsTest.calls
+    .filter(call => call.command === 'acknowledge_app_reminder').map(call => (call.args as { action: string }).action));
+  expect(actions).toEqual(['dismiss', 'retry']);
+  expect(await page.evaluate(() => window.uxSettingsTest.calls.filter(call => call.command === 'hide_main_window').length)).toBe(1);
+  expect(await page.evaluate(() => window.uxSettingsTest.blocked)).toEqual([]);
+});
+
+test('420x240 and 420x234 overdue status keeps prior session and full-day timeline visible', async ({ page }, testInfo) => {
+  await openApp(page, 'popup-overdue');
+  const localMidnightLabel = '0:00';
+
+  for (const height of [240, 234]) {
+    await page.setViewportSize({ width: 420, height });
+
+    await expect(page.locator('.one-bar__balance-label')).toHaveText('Sitting balance');
+    await expect(page.getByTestId('one-bar-big-number')).toHaveText('42:38 / 40:00');
+    await expect(page.getByTestId('one-bar-overtime')).toHaveText('Over limit 2m');
+    await expect(page.getByText('Estimated Sitting', { exact: true })).toBeVisible();
+    await expect(page.getByText('72 cm', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('break-credit-details')).toContainText('Break credit details');
+    for (const id of ['standing_pct', 'position_rate', 'hourly_breaks', 'longest_session']) {
+      await expect(page.getByTestId(`kpi-badge-${id}`)).toBeVisible();
+    }
+    await expect(page.locator('.one-bar__prev-label')).toHaveText('previously:');
+    await expect(page.locator('.one-bar__prev-detail')).toHaveText('away 3m');
+
+    const fit = await page.locator('.one-bar').evaluate(root => {
+      const timeline = root.querySelector<HTMLElement>('.one-bar__timeline')!;
+      const previous = root.querySelector<HTMLElement>('.one-bar__timer-right')!;
+      const previousDetail = previous.querySelector<HTMLElement>('.one-bar__prev-detail')!;
+      const rootBox = root.getBoundingClientRect();
+      const timelineBox = timeline.getBoundingClientRect();
+      const previousBox = previous.getBoundingClientRect();
+      const previousDetailBox = previousDetail.getBoundingClientRect();
+      const previousLabel = previous.querySelector<HTMLElement>('.one-bar__prev-label')!;
+      const previousLabelText = previousLabel.textContent?.trim();
+      const documentScrollHeight = document.documentElement.scrollHeight;
+      const bodyScrollHeight = document.body.scrollHeight;
+      const startLabel = timeline.querySelector<HTMLElement>('.one-bar__timeline-hour-label--start');
+      const endLabel = timeline.querySelector<HTMLElement>('.one-bar__timeline-hour-label--end');
+      const markerPosition = (label: HTMLElement | null) => label?.parentElement?.style.left ?? null;
+      const range = document.createRange();
+      range.selectNodeContents(previousDetail);
+      return {
+        scrollHeight: root.scrollHeight,
+        clientHeight: root.clientHeight,
+        scrollTop: root.scrollTop,
+        documentScrollHeight,
+        bodyScrollHeight,
+        viewportHeight: window.innerHeight,
+        root: { top: rootBox.top, bottom: rootBox.bottom },
+        timeline: { left: timelineBox.left, right: timelineBox.right, top: timelineBox.top, bottom: timelineBox.bottom },
+        previous: {
+          text: previous.textContent?.replace(/\s+/g, ' ').trim(),
+          label: previousLabelText,
+          top: previousBox.top, bottom: previousBox.bottom,
+          detail: previousDetail.textContent?.replace(/\s+/g, ' ').trim(),
+          detailLeft: previousDetailBox.left, detailRight: previousDetailBox.right,
+          detailTop: previousDetailBox.top, detailBottom: previousDetailBox.bottom,
+          scrollWidth: previousDetail.scrollWidth, clientWidth: previousDetail.clientWidth,
+          fragments: [...range.getClientRects()].map(rect => ({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom })),
+        },
+        axis: {
+          start: startLabel ? { text: startLabel.textContent?.trim(), markerPosition: markerPosition(startLabel), ...(() => { const box = startLabel.getBoundingClientRect(); return { left: box.left, right: box.right, top: box.top, bottom: box.bottom }; })() } : null,
+          end: endLabel ? { text: endLabel.textContent?.trim(), markerPosition: markerPosition(endLabel), ...(() => { const box = endLabel.getBoundingClientRect(); return { left: box.left, right: box.right, top: box.top, bottom: box.bottom }; })() } : null,
+          labels: [...timeline.querySelectorAll<HTMLElement>('.one-bar__timeline-hour-label')].map(label => {
+            const box = label.getBoundingClientRect();
+            const labelRange = document.createRange();
+            labelRange.selectNodeContents(label);
+            return { text: label.textContent?.trim(), fragments: [...labelRange.getClientRects()].map(rect => ({
+              left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+            })), box: { left: box.left, right: box.right, top: box.top, bottom: box.bottom } };
+          }),
+        },
+      };
+    });
+    expect(fit.scrollHeight).toBeLessThanOrEqual(fit.clientHeight + 1);
+    expect(fit.scrollTop).toBe(0);
+    expect(fit.documentScrollHeight).toBeLessThanOrEqual(fit.viewportHeight + 1);
+    expect(fit.bodyScrollHeight).toBeLessThanOrEqual(fit.viewportHeight + 1);
+    expect(fit.timeline.top).toBeGreaterThanOrEqual(fit.root.top - 1);
+    expect(fit.timeline.bottom).toBeLessThanOrEqual(fit.root.bottom + 1);
+    expect(fit.previous.label).toBe('previously:');
+    expect(fit.previous.detail).toBe('away 3m');
+    expect(fit.previous.scrollWidth).toBeLessThanOrEqual(fit.previous.clientWidth);
+    expect(fit.previous.fragments.length).toBeGreaterThan(0);
+    expect(fit.previous.top).toBeGreaterThanOrEqual(fit.root.top - 1);
+    expect(fit.previous.bottom).toBeLessThanOrEqual(fit.root.bottom + 1);
+    expect(fit.previous.detailLeft).toBeGreaterThanOrEqual(0);
+    expect(fit.previous.detailRight).toBeLessThanOrEqual(420);
+    expect(fit.previous.detailTop).toBeGreaterThanOrEqual(0);
+    expect(fit.previous.detailBottom).toBeLessThanOrEqual(height);
+    expect(fit.axis.start?.text).toBe(localMidnightLabel);
+    expect(fit.axis.start?.markerPosition).toBe('0%');
+    expect(fit.axis.end?.text).toMatch(/^\d{1,2}:\d{2}$/);
+    expect(fit.axis.end?.markerPosition).toBe('97%');
+    expect(fit.axis.labels.length).toBeGreaterThan(1);
+    for (const endpoint of [fit.axis.start, fit.axis.end]) {
+      expect(endpoint).not.toBeNull();
+      expect(endpoint!.left).toBeGreaterThanOrEqual(fit.timeline.left - 1);
+      expect(endpoint!.right).toBeLessThanOrEqual(fit.timeline.right + 1);
+      expect(endpoint!.top).toBeGreaterThanOrEqual(0);
+      expect(endpoint!.bottom).toBeLessThanOrEqual(height);
+    }
+    for (const label of fit.axis.labels) {
+      expect(label.text).toBeTruthy();
+      expect(label.fragments.length).toBeGreaterThan(0);
+      expect(label.box.left).toBeGreaterThanOrEqual(0);
+      expect(label.box.right).toBeLessThanOrEqual(420);
+      for (const fragment of label.fragments) {
+        expect(fragment.left).toBeGreaterThanOrEqual(0);
+        expect(fragment.right).toBeLessThanOrEqual(420);
+        expect(fragment.top).toBeGreaterThanOrEqual(0);
+        expect(fragment.bottom).toBeLessThanOrEqual(height);
+      }
+    }
+    await page.screenshot({ path: testInfo.outputPath(`main-overdue-credit-four-metrics-full-day-420x${height}.png`) });
+  }
 });
 
 test('main popup reports a failed X hide and lets the user retry', async ({ page }) => {

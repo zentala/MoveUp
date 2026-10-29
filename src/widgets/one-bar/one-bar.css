@@ -26,6 +26,10 @@
   transition: background-color 0.4s, box-shadow 0.6s;
 }
 
+@media (max-height: 236px) {
+  .one-bar { padding-block: 8px; }
+}
+
 /* Header — state dot + label + height + gear */
 .one-bar__header {
   display: grid;
@@ -431,6 +435,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+  gap: 8px;
   margin-bottom: 4px;
 }
 
@@ -467,6 +472,7 @@
 }
 
 .one-bar__overtime { color: var(--signal-alert); }
+.one-bar__timer-row .one-bar__overtime { flex: 0 0 auto; align-self: center; }
 
 .one-bar__credit-details,
 .one-bar__credit-unavailable {

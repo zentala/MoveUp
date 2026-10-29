@@ -1,7 +1,7 @@
 /** Browser-only public IPC fixture around the real App; no native writes. */
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
-import type { AppReminderSnapshot, LastBreakCreditFacts, MetricSnapshot, SessionStateDto } from '../../src/types';
+import type { AppReminderSnapshot, LastBreakCreditFacts, MetricSnapshot, SessionRow, SessionStateDto } from '../../src/types';
 
 const scenario = new URLSearchParams(location.search).get('settings-fixture') ?? 'normal';
 const welcomeEntry = location.pathname.endsWith('/welcome.html');
@@ -107,6 +107,45 @@ const popupFullSession: SessionStateDto = {
   ...knownSittingSession,
   last_break_credit_facts: breakCreditFacts.slice(1, 2),
 };
+const popupOverdueSession: SessionStateDto = {
+  ...popupFullSession,
+  sitting_seconds: 2558,
+  limit_used_secs: 2558,
+};
+const popupOverdueDayStart = new Date(knownObservationThroughMs);
+popupOverdueDayStart.setHours(0, 0, 0, 0);
+const popupOverdueOvernightSitting: SessionRow = {
+  start: new Date(popupOverdueDayStart.getTime() - 3 * 60_000).toISOString(),
+  end: new Date(popupOverdueDayStart.getTime() + 48 * 60_000).toISOString(),
+  state: 'Sitting',
+  duration_secs: 51 * 60,
+  break_credit: null,
+  history_kind: 'individual',
+};
+const popupOverduePreviousStanding: SessionRow = {
+  start: new Date(knownObservationThroughMs - 40 * 60_000).toISOString(),
+  end: new Date(knownObservationThroughMs - 20 * 60_000).toISOString(),
+  state: 'Standing',
+  duration_secs: 20 * 60,
+  break_credit: null,
+  history_kind: 'individual',
+};
+const popupOverduePreviousAway: SessionRow = {
+  start: new Date(knownObservationThroughMs - 17 * 60_000).toISOString(),
+  end: new Date(knownObservationThroughMs - 14 * 60_000).toISOString(),
+  state: 'Away',
+  duration_secs: 180,
+  break_credit: null,
+  history_kind: 'individual',
+};
+const popupOverduePreviousSitting: SessionRow = {
+  start: new Date(knownObservationThroughMs - 14 * 60_000).toISOString(),
+  end: new Date(knownObservationThroughMs - 10 * 60_000).toISOString(),
+  state: 'Sitting',
+  duration_secs: 240,
+  break_credit: null,
+  history_kind: 'individual',
+};
 const popupFullMetrics: MetricSnapshot[] = [
   { id: 'standing_pct', label: 'Standing', result: { value: .42, display: '42%', level: 'green', is_personal_best: false } },
   { id: 'position_rate', label: 'Posture changes', result: { value: 1.2, display: '1.2/h', level: 'green', is_personal_best: false } },
@@ -125,9 +164,18 @@ const pendingRelayStatusRejects: (() => void)[] = [];
 let clientId: string | null = null;
 let flow: string | null = null;
 let failShareRelease = scenario === 'share-close-error';
+let failReminderAck = scenario === 'reminder-x-ack-fail';
+let failReminderHide = scenario === 'reminder-x-hide-fail';
+let reminderHideAttempts = 0;
+let resolvePendingReminderHide: (() => void) | null = null;
 let revision = 0;
+const reminderMessage: NonNullable<AppReminderSnapshot['active']> = {
+  id: 'ux-reminder-x:1', source: 'policy', reason: 'sitting_limit', category: 'urgent',
+  title: 'Time to stand up', body: 'Your configured reminder is ready.', is_test: false,
+  elapsed_secs: 600, limit_secs: 1200,
+};
 const reminder: AppReminderSnapshot = {
-  session_id: 'ux-settings-fixture', revision, active: null, pending: null,
+  session_id: 'ux-settings-fixture', revision, active: scenario.startsWith('reminder-x') ? reminderMessage : null, pending: null,
   protected_flow: null, last_retirement: null, presentation_error: null, client_id: null,
 };
 const copyReminder = (): AppReminderSnapshot => ({ ...reminder, revision, client_id: clientId, protected_flow: flow });
@@ -150,6 +198,16 @@ mockIPC(async (command, raw) => {
       flow = args.flow as string | null; revision++; reminder.protected_flow = flow as AppReminderSnapshot['protected_flow'];
       if (!flow && !reminder.active && reminder.pending) { reminder.active = reminder.pending; reminder.pending = null; }
       return copyReminder();
+    case 'acknowledge_app_reminder':
+      if (args.clientId !== clientId || args.id !== reminder.active?.id) throw new Error('stale_reminder_action');
+      if (args.action === 'dismiss' && failReminderAck) {
+        failReminderAck = false;
+        reminder.presentation_error = 'reminder_persistence_failed';
+        throw new Error('reminder_persistence_failed');
+      }
+      if (args.action !== 'dismiss' && args.action !== 'retry' && args.action !== 'snooze') throw new Error('invalid_reminder_action');
+      reminder.active = null; reminder.presentation_error = null; revision++;
+      return copyReminder();
     case 'get_dashboard_state': {
       if (scenario === 'view-refresh-error' && dashboardRefreshShouldFail) {
         return new Promise((_, reject) => {
@@ -163,12 +221,20 @@ mockIPC(async (command, raw) => {
         : scenario === 'known-sitting' ? knownSittingSession
         : scenario === 'view-refresh-error' ? knownSittingSession
         : scenario === 'popup-full' ? popupFullSession
+        : scenario === 'popup-overdue' ? popupOverdueSession
         : scenario === 'break-credit' ? breakCreditSession
         : session;
-      return { session: dashboardSession, metrics: scenario === 'popup-full' ? popupFullMetrics : [] };
+      return { session: dashboardSession, metrics: scenario === 'popup-full' || scenario === 'popup-overdue' ? popupFullMetrics : [] };
     }
-    case 'get_today_summary': return { sitting_secs: 3600, standing_secs: 1200, yesterday_sitting_secs: 0,
-      yesterday_standing_secs: 0, position_changes: 7, sessions: [] };
+    case 'get_today_summary': return {
+      sitting_secs: scenario === 'popup-overdue' ? 62 * 60 : 3600,
+      standing_secs: 20 * 60,
+      yesterday_sitting_secs: scenario === 'popup-overdue' ? 3 * 60 : 0,
+      yesterday_standing_secs: 0,
+      position_changes: 7,
+      sessions: scenario === 'popup-overdue'
+        ? [popupOverdueOvernightSitting, popupOverduePreviousStanding, popupOverduePreviousAway, popupOverduePreviousSitting]
+        : [] };
     case 'get_settings':
       loadAttempts++;
       if (failNextLoad) { failNextLoad = false; throw new Error('settings store unavailable'); }
@@ -231,6 +297,13 @@ mockIPC(async (command, raw) => {
     case 'get_connected_port': return scenario === 'no-reading' ? null : 'SYNTHETIC';
     case 'open_analyst_window': return null;
     case 'hide_main_window':
+      if (scenario === 'reminder-x-hide-pending' && reminderHideAttempts++ === 0) {
+        return new Promise(resolve => { resolvePendingReminderHide = () => resolve(null); });
+      }
+      if (scenario === 'reminder-x-hide-fail' && failReminderHide) {
+        failReminderHide = false;
+        throw new Error('Synthetic main hide failure');
+      }
       if (!welcomeEntry && scenario !== 'hide-main-fail') return null;
       if (scenario === 'hide-main-fail') throw new Error('Synthetic main hide failure');
       blocked.push(command); throw new Error('Only main window may be hidden through this command');
@@ -269,6 +342,12 @@ Object.assign(window, {
       if (flow) reminder.pending = message; else reminder.active = message;
       revision++; await emit('desk:app-reminder', copyReminder());
     },
+    finishPendingReminderHide: () => {
+      if (!resolvePendingReminderHide) throw new Error('no pending synthetic Reminder X hide');
+      const resolve = resolvePendingReminderHide;
+      resolvePendingReminderHide = null;
+      resolve();
+    },
   },
 });
 Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => {} } });
@@ -289,6 +368,7 @@ declare global {
       rejectPendingSave: () => void;
       rejectRelayStatus: () => void;
       publishReminder: () => Promise<void>;
+      finishPendingReminderHide: () => void;
     };
   }
 }
