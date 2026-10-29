@@ -40,6 +40,11 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
             <span className="one-bar__limit-total"> / {totalStr}</span>
           </div>
         </div>
+        {isOvertime && (
+          <span className="one-bar__overtime" data-testid="one-bar-overtime">
+            Over limit {formatDurationShort(Math.abs(props.limitRemaining))}
+          </span>
+        )}
         {props.previousSession && (
           <div className="one-bar__timer-right">
             <span className="one-bar__prev-label">previously:</span>
@@ -62,14 +67,7 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
         }
       />
       {isSitting && (
-        <>
-          {isOvertime && (
-            <span className="one-bar__overtime" data-testid="one-bar-overtime">
-              Over limit {formatDurationShort(Math.abs(props.limitRemaining))}
-            </span>
-          )}
-          <BreakCreditDetails facts={props.lastBreakCreditFacts} />
-        </>
+        <BreakCreditDetails facts={props.lastBreakCreditFacts} />
       )}
     </div>
   );

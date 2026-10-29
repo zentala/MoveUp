@@ -146,6 +146,28 @@ describe("OneBarWidget", () => {
     expect(screen.getByTestId("one-bar-widget")).toBeInTheDocument();
   });
 
+  it("accepts another explicit X request while an earlier hide acknowledgement is unresolved", async () => {
+    let hideRequests = 0;
+    vi.mocked(invoke).mockReset().mockImplementation((command: string) => {
+      if (command === "hide_main_window") {
+        hideRequests += 1;
+        // The native window can be hidden/re-shown while this WebView stays mounted.
+        // Model a successful first hide whose JavaScript acknowledgement never settles.
+        if (hideRequests === 1) return new Promise<null>(() => {});
+      }
+      return Promise.resolve(null);
+    });
+    render(<OneBarWidget {...props({ onShareChange: vi.fn() })} />);
+    const close = screen.getByRole("button", { name: "Close popup to tray" });
+
+    fireEvent.click(close);
+    await waitFor(() => expect(hideRequests).toBe(1));
+
+    // A later explicit close must reach the idempotent native hide again.
+    fireEvent.click(close);
+    await waitFor(() => expect(hideRequests).toBe(2));
+  });
+
   it("renders without crashing", () => {
     render(<OneBarWidget {...props()} />);
     expect(screen.getByTestId("one-bar-widget")).toBeInTheDocument();

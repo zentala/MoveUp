@@ -21,7 +21,10 @@ beforeEach(() => {
     if (command === "get_app_reminder_snapshot") return structuredClone(backend);
     if (command === "claim_app_reminder_client") backend = { ...backend, revision: backend.revision + 1, client_id: args.clientId as string };
     else if (command === "set_app_reminder_flow") backend = { ...backend, revision: backend.revision + 1, protected_flow: args.flow as AppReminderSnapshot["protected_flow"] };
-    else if (command === "acknowledge_app_reminder") backend = { ...backend, revision: backend.revision + 1, active: null, presentation_error: null };
+    else if (command === "acknowledge_app_reminder") backend = { ...backend, revision: backend.revision + 1,
+      active: backend.pending, pending: null, presentation_error: null,
+      last_retirement: { id: args.id as string, reason: "acknowledged" } };
+    else if (command === "hide_main_window") return null;
     else throw new Error(`Unexpected IPC ${command}`);
     return structuredClone(backend);
   });
@@ -82,6 +85,209 @@ describe("main reminder transport", () => {
     expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "acknowledge_app_reminder")).toHaveLength(1);
     expect(result.current.error).toContain("Could not save"); expect(result.current.retrySave).toBe(true);
     expect(result.current.snapshot?.active?.id).toBe(message.id);
+  });
+
+  it("persists the active reminder before hiding for its dedicated close action", async () => {
+    backend = { ...empty(), active: message };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+
+    await act(async () => result.current.closeReminder());
+
+    const calls = vi.mocked(invoke).mock.calls.map(([command, args]) => [command, args]);
+    const ack = calls.findIndex(([command, args]) => command === "acknowledge_app_reminder" && (args as { action?: string }).action === "dismiss");
+    const hide = calls.findIndex(([command]) => command === "hide_main_window");
+    expect(ack).toBeGreaterThan(-1);
+    expect(hide).toBeGreaterThan(ack);
+    expect(vi.mocked(invoke).mock.calls[hide]).toEqual(["hide_main_window", { reminderClose: {
+      sessionId: "session", clientId: expect.any(String), reminderId: message.id, revision: expect.any(Number),
+    } }]);
+    expect(result.current.snapshot?.active).toBeNull();
+    expect(result.current.closeError).toBeNull();
+  });
+
+  it("accepts a fresh X for a later reminder after an earlier close completed", async () => {
+    backend = { ...empty(), active: message };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    await act(async () => result.current.closeReminder());
+
+    const next = { ...message, id: "session:later", title: "Later reminder" };
+    backend = { ...backend, revision: backend.revision + 1, active: next, last_retirement: null };
+    emit(backend);
+    expect(result.current.snapshot?.active?.id).toBe(next.id);
+    await act(async () => result.current.closeReminder());
+
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "acknowledge_app_reminder")).toHaveLength(2);
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "hide_main_window")).toHaveLength(2);
+  });
+
+  it("retains close intent through a failed acknowledgement, then retries save before hiding", async () => {
+    backend = { ...empty(), active: message };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    vi.mocked(invoke).mockRejectedValueOnce("reminder_persistence_failed");
+
+    await act(async () => result.current.closeReminder());
+    expect(result.current.retrySave).toBe(true);
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "hide_main_window")).toBe(false);
+
+    await act(async () => result.current.acknowledge("retry"));
+    expect(result.current.snapshot?.active).toBeNull();
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "acknowledge_app_reminder").map(([, args]) => (args as { action: string }).action))
+      .toEqual(["dismiss", "retry"]);
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "hide_main_window")).toHaveLength(1);
+  });
+
+  it("retries a rejected close request as Dismiss, not as reserved persistence recovery", async () => {
+    backend = { ...empty(), active: message };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    vi.mocked(invoke).mockRejectedValueOnce(new Error("temporary transport failure"));
+
+    await act(async () => result.current.closeReminder());
+    expect(result.current.closeAckRetry).toBe(true);
+    expect(result.current.retrySave).toBe(false);
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "hide_main_window")).toBe(false);
+
+    await act(async () => result.current.retryCloseAcknowledgement());
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "acknowledge_app_reminder").map(([, args]) => (args as { action: string }).action))
+      .toEqual(["dismiss", "dismiss"]);
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "hide_main_window")).toHaveLength(1);
+  });
+
+  it("retries a failed post-acknowledgement hide without acknowledging again", async () => {
+    backend = { ...empty(), active: message };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    vi.mocked(invoke).mockImplementation(async (command, raw) => {
+      if (command === "hide_main_window") throw new Error("native hide failed");
+      const args = raw as Record<string, unknown>;
+      if (command === "acknowledge_app_reminder") backend = { ...backend, revision: backend.revision + 1, active: null };
+      else if (command === "get_app_reminder_snapshot") return structuredClone(backend);
+      else if (command === "claim_app_reminder_client") backend = { ...backend, revision: backend.revision + 1, client_id: args.clientId as string };
+      else if (command === "set_app_reminder_flow") backend = { ...backend, revision: backend.revision + 1, protected_flow: args.flow as AppReminderSnapshot["protected_flow"] };
+      else throw new Error(`Unexpected IPC ${command}`);
+      return structuredClone(backend);
+    });
+
+    await act(async () => result.current.closeReminder());
+    expect(result.current.closeError).toContain("could not be hidden");
+    expect(result.current.snapshot?.active).toBeNull();
+    await act(async () => result.current.retryClose());
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "acknowledge_app_reminder")).toHaveLength(1);
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "hide_main_window")).toHaveLength(2);
+  });
+
+  it("cancels a pending close when a newer reminder arrives before the old acknowledgement completes", async () => {
+    backend = { ...empty(), active: message };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    let resolveAck!: (snapshot: AppReminderSnapshot) => void;
+    vi.mocked(invoke).mockImplementation((command) => command === "acknowledge_app_reminder"
+      ? new Promise(resolve => { resolveAck = resolve; })
+      : Promise.resolve(command === "get_app_reminder_snapshot" ? structuredClone(backend) : null));
+
+    let closing!: Promise<void>;
+    act(() => { closing = result.current.closeReminder(); });
+    await waitFor(() => expect(resolveAck).toBeDefined());
+    const newer = { ...message, id: "session:2", title: "Newer reminder" };
+    backend = { ...backend, revision: 10, active: newer };
+    emit(backend);
+    await act(async () => { resolveAck({ ...empty(), revision: 9 }); await closing; });
+    expect(result.current.snapshot?.active?.id).toBe(newer.id);
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "hide_main_window")).toBe(false);
+  });
+
+  it.each(["dismiss", "snooze"] as const)("keeps ordinary %s separate from hiding", async (action) => {
+    backend = { ...empty(), active: message };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    await act(async () => result.current.acknowledge(action));
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "hide_main_window")).toBe(false);
+  });
+
+  it("acknowledges the visible reminder but never hides a promoted queued reminder", async () => {
+    const newer = { ...message, id: "session:queued", title: "Queued reminder" };
+    backend = { ...empty(), active: message, pending: newer };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+
+    await act(async () => result.current.closeReminder());
+
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "acknowledge_app_reminder")).toBe(true);
+    expect(result.current.snapshot?.active?.id).toBe(newer.id);
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "hide_main_window")).toBe(false);
+  });
+
+  it("does not hide when Settings protection starts while the close acknowledgement is pending", async () => {
+    backend = { ...empty(), active: message };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    let resolveAck!: (snapshot: AppReminderSnapshot) => void;
+    vi.mocked(invoke).mockImplementation((command, raw) => {
+      if (command === "acknowledge_app_reminder") return new Promise(resolve => { resolveAck = resolve; });
+      if (command === "set_app_reminder_flow") {
+        backend = { ...backend, revision: backend.revision + 1, protected_flow: (raw as { flow: "settings" | null }).flow };
+        return Promise.resolve(structuredClone(backend));
+      }
+      if (command === "get_app_reminder_snapshot") return Promise.resolve(structuredClone(backend));
+      if (command === "claim_app_reminder_client") return Promise.resolve(structuredClone(backend));
+      return Promise.resolve(null);
+    });
+    let closing!: Promise<void>;
+    act(() => { closing = result.current.closeReminder(); });
+    await waitFor(() => expect(resolveAck).toBeDefined());
+    await act(async () => result.current.protect("settings"));
+    await act(async () => { resolveAck({ ...backend, revision: backend.revision + 1, active: null }); await closing; });
+    expect(result.current.protectedFlow).toBe("settings");
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "hide_main_window")).toBe(false);
+  });
+
+  it("does not restore a canceled close after a delayed recovery read completes", async () => {
+    backend = { ...empty(), active: message };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    let rejectAck!: (reason: Error) => void;
+    let resolveRecovery!: (snapshot: AppReminderSnapshot) => void;
+    vi.mocked(invoke).mockImplementation((command, raw) => {
+      if (command === "acknowledge_app_reminder") return new Promise((_, reject) => { rejectAck = reject; });
+      if (command === "get_app_reminder_snapshot") return new Promise(resolve => { resolveRecovery = resolve; });
+      if (command === "set_app_reminder_flow") {
+        backend = { ...backend, revision: backend.revision + 1, protected_flow: (raw as { flow: "settings" | null }).flow };
+        return Promise.resolve(structuredClone(backend));
+      }
+      return Promise.resolve(null);
+    });
+
+    let closing!: Promise<void>;
+    act(() => { closing = result.current.closeReminder(); });
+    await waitFor(() => expect(rejectAck).toBeDefined());
+    await act(async () => rejectAck(new Error("temporary transport failure")));
+    await waitFor(() => expect(resolveRecovery).toBeDefined());
+    await act(async () => result.current.protect("settings"));
+    const staleAcknowledged = { ...backend, revision: backend.revision - 1, active: null,
+      protected_flow: null, last_retirement: { id: message.id, reason: "acknowledged" as const } };
+    await act(async () => { resolveRecovery(staleAcknowledged); await closing; });
+
+    expect(result.current.protectedFlow).toBe("settings");
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "hide_main_window")).toBe(false);
+  });
+
+  it("does not dispatch late hide work when the owning client generation unmounts", async () => {
+    backend = { ...empty(), active: message };
+    const { result, unmount } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    let resolveAck!: (snapshot: AppReminderSnapshot) => void;
+    vi.mocked(invoke).mockImplementation((command) => command === "acknowledge_app_reminder"
+      ? new Promise(resolve => { resolveAck = resolve; })
+      : Promise.resolve(command === "get_app_reminder_snapshot" ? structuredClone(backend) : null));
+    let closing!: Promise<void>;
+    act(() => { closing = result.current.closeReminder(); });
+    await waitFor(() => expect(resolveAck).toBeDefined());
+    unmount();
+    await act(async () => { resolveAck({ ...empty(), revision: 10, last_retirement: { id: message.id, reason: "acknowledged" } }); await closing; });
+    expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "hide_main_window")).toBe(false);
   });
 
   it("enters protection before an asynchronous handshake and retains it on late events", async () => {

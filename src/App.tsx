@@ -161,6 +161,9 @@ function MainApp() {
       {isMain && reminders.error && (!reminders.ready || !reminders.snapshot?.active) && <p role="alert" className="app__reminder-error">
         {reminders.error} <button className="btn" onClick={reminders.retryConnection}>Retry connection</button>
       </p>}
+      {isMain && reminders.closeError && <p role="alert" className="app__reminder-error">
+        {reminders.closeError} <button className="btn" onClick={reminders.retryClose}>Retry close</button>
+      </p>}
       {isRemote && wsConnected !== undefined && (
         <ConnectionOverlay wsConnected={wsConnected} sensorConnected={sensorConnected} />
       )}
@@ -171,7 +174,9 @@ function MainApp() {
       </div>
       {isMain && reminders.ready && reminders.snapshot?.active && !reminders.protectedFlow && !reminders.snapshot.protected_flow
         && <ApplicationReminder message={reminders.snapshot.active} busy={reminders.busy} error={reminders.error}
-          retrySave={reminders.retrySave} onAction={reminders.acknowledge}
+          retrySave={reminders.retrySave} closeAckRetry={reminders.closeAckRetry} onAction={reminders.acknowledge}
+          onClose={reminders.closeReminder}
+          onCloseRetry={reminders.retryCloseAcknowledgement}
           onReconnect={reminders.snapshot.presentation_error && !reminders.retrySave ? reminders.retryConnection : undefined} />}
 
       {isRemote && canControl && (

@@ -4,11 +4,12 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, oneshot};
 
 use rusqlite::Connection;
 use tauri::{Emitter, Manager, State};
-use crate::{alert_popup::AlertPopup, communication_policy::CommunicationPolicy,
+use serde::Deserialize;
+use crate::{alert_popup::AlertPopup, app_reminders::{AppReminderSnapshot, AppReminderState}, communication_policy::CommunicationPolicy,
     config::AppConfig,
     db::TodaySummary, metrics::{DashboardState, MetricEngine},
     overlay_renderer::OverlayRenderer,
@@ -20,9 +21,100 @@ static LAST_TEST_NOTIFICATION: AtomicI64 = AtomicI64::new(0);
 
 /// Hides the ordinary main popup without closing the application.
 #[tauri::command]
-pub fn hide_main_window(window: tauri::WebviewWindow) -> Result<(), String> {
+pub async fn hide_main_window(window: tauri::WebviewWindow, reminder_close: Option<ReminderCloseGuard>) -> Result<(), String> {
     validate_main_window_label(window.label())?;
-    window.hide().map_err(|error| format!("Could not hide main window: {error}"))
+    let main_window = window.clone();
+    let (send_result, receive_result) = oneshot::channel();
+    window.app_handle().run_on_main_thread(move || {
+        let result = match reminder_close {
+            Some(expected) => {
+                let reminders = main_window.state::<AppReminderState>();
+                hide_main_window_if_current_reminder(&reminders, &expected,
+                    || hide_main_window_checked(&main_window))
+            }
+            None => hide_main_window_checked(&main_window),
+        };
+        let _ = send_result.send(result);
+    }).map_err(|error| format!("Could not schedule main-window hide: {error}"))?;
+    receive_result.await.map_err(|_| "Main-window hide callback did not return".to_string())?
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReminderCloseGuard {
+    pub session_id: String,
+    pub client_id: String,
+    pub reminder_id: String,
+    pub revision: u32,
+}
+
+/// Rechecks Reminder X state in the queued main-thread callback before the native hide.
+pub(crate) fn hide_main_window_if_current_reminder(
+    state: &AppReminderState,
+    expected: &ReminderCloseGuard,
+    hide: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let snapshot: AppReminderSnapshot = {
+        let current = state.0.lock().unwrap_or_else(|error| error.into_inner());
+        current.snapshot()
+    };
+    let acknowledged = snapshot.last_retirement.as_ref().is_some_and(|retirement| {
+        retirement.id == expected.reminder_id
+            && retirement.reason == crate::communication_types::RetirementReason::Acknowledged
+    });
+    if snapshot.session_id != expected.session_id || snapshot.client_id.as_deref() != Some(expected.client_id.as_str())
+        || snapshot.revision != expected.revision
+        || snapshot.active.is_some() || snapshot.pending.is_some() || snapshot.protected_flow.is_some()
+        || !acknowledged {
+        return Err("reminder_changed_before_hide".into());
+    }
+    hide()
+}
+
+/// Applies Tao's visibility transition, then verifies the owned HWND is hidden.
+/// Reminder presentation uses raw SW_SHOWNOACTIVATE and cannot update Tao's cache.
+pub(crate) fn hide_main_window_checked(window: &tauri::WebviewWindow) -> Result<(), String> {
+    validate_main_window_label(window.label())?;
+    window.hide().map_err(|error| format!("Could not hide main window: {error}"))?;
+
+    #[cfg(windows)]
+    unsafe {
+        hide_owned_main_hwnd(window)?;
+    }
+
+    Ok(())
+}
+
+#[cfg(windows)]
+unsafe fn hide_owned_main_hwnd(window: &tauri::WebviewWindow) -> Result<(), String> {
+    use windows::Win32::Foundation::HWND;
+    let raw_hwnd = window.hwnd().map_err(|_| "main_handle_unavailable")?;
+    hide_owned_main_hwnd_handle(HWND(raw_hwnd.0 as _))
+}
+
+#[cfg(windows)]
+pub(crate) unsafe fn hide_owned_main_hwnd_handle(hwnd: windows::Win32::Foundation::HWND) -> Result<(), String> {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowThreadProcessId, IsWindow, IsWindowVisible, ShowWindow, SW_HIDE,
+    };
+
+    let mut owner = 0;
+    if !IsWindow(Some(hwnd)).as_bool() {
+        return Err("main_handle_invalid".into());
+    }
+    GetWindowThreadProcessId(hwnd, Some(&mut owner));
+    if owner != std::process::id() {
+        return Err("main_handle_not_owned".into());
+    }
+
+    if IsWindowVisible(hwnd).as_bool() {
+        // The return value is previous visibility, not success.
+        let _ = ShowWindow(hwnd, SW_HIDE);
+    }
+    if IsWindowVisible(hwnd).as_bool() {
+        return Err("main_hide_not_hidden".into());
+    }
+    Ok(())
 }
 
 fn validate_main_window_label(label: &str) -> Result<(), String> {
