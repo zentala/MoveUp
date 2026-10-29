@@ -9,6 +9,7 @@ import type { FC } from "react";
 import type { WidgetProps } from "@/types";
 import { formatDuration, formatDurationShort, colorSchemeFor } from "@/utils/format";
 import { ProgressBar } from "@/components/ProgressBar";
+import { BreakCreditDetails } from "@/components/BreakCreditDetails";
 import { useTimerAnimations } from "@/hooks/useTimerAnimations";
 
 /** State labels used in tooltip text. */
@@ -39,8 +40,8 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
     <div className="one-bar__timer" data-testid="one-bar-timer">
       <div className="one-bar__timer-row">
         <div className="one-bar__timer-left" title={tooltipText}>
+          {isSitting && <span className="one-bar__balance-label">Sitting balance</span>}
           <div className="one-bar__big-number" data-testid="one-bar-big-number">
-            {isOvertime && <span className="one-bar__overtime-sign">+</span>}
             {elapsedStr}
             <span className="one-bar__limit-total"> / {totalStr}</span>
           </div>
@@ -66,6 +67,16 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
           total > 0 ? Math.floor(props.breakSecs / props.standLimitSecs) : 0
         }
       />
+      {isSitting && (
+        <>
+          {isOvertime && (
+            <span className="one-bar__overtime" data-testid="one-bar-overtime">
+              Over limit {formatDurationShort(Math.abs(props.limitRemaining))}
+            </span>
+          )}
+          <BreakCreditDetails facts={props.lastBreakCreditFacts} />
+        </>
+      )}
     </div>
   );
 };

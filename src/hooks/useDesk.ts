@@ -19,6 +19,7 @@ import type {
 import type { TransportCapabilities } from "@/remote/transports";
 import type { UseDeskConnection } from "./useDeskTypes";
 import { deskReducer, initialDeskState, selectDeskView } from "./deskReducer";
+import { reportQueryResult } from "../uiDiagnostics";
 
 export type { TransitionInfo, UseDeskResult, UseDeskConnection } from "./useDeskTypes";
 
@@ -103,6 +104,7 @@ export function useDesk(): UseDeskConnection {
       try {
         const dashboard = await invoke<DashboardState>("get_dashboard_state");
         if (!active || request !== stateRequest) return;
+        reportQueryResult("dashboard", "succeeded");
         const dto = dashboard.session;
         dispatch({ type: "snapshot", session: dto, metrics: dashboard.metrics });
         dispatch({ type: "query-succeeded", query: "dashboard", receivedAt: new Date().toISOString() });
@@ -114,6 +116,7 @@ export function useDesk(): UseDeskConnection {
         }
       } catch (err) {
         if (!active || request !== stateRequest) return;
+        reportQueryResult("dashboard", "failed");
         dispatch({
           type: "query-failed",
           query: "dashboard",
@@ -139,10 +142,12 @@ export function useDesk(): UseDeskConnection {
       try {
         const today = await invoke<TodaySummaryDto>("get_today_summary");
         if (!active || request !== summaryRequest) return;
+        reportQueryResult("today_summary", "succeeded");
         dispatch({ type: "today-summary", today });
         dispatch({ type: "query-succeeded", query: "history", receivedAt: new Date().toISOString() });
       } catch (err) {
         if (!active || request !== summaryRequest) return;
+        reportQueryResult("today_summary", "failed");
         dispatch({
           type: "query-failed",
           query: "history",

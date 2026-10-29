@@ -88,6 +88,7 @@ fn production_checkpoint_attempt_reports_failure_then_retry_recovery_once() {
         crate::communication_profile::CommunicationProfile::default(),
         crate::ergonomic_profile::ErgonomicProfile::default(),
     );
+    let notification_capture = crate::notify::capture();
     let now = chrono::Utc::now();
     let failed = crate::session_persistence::run_checkpoint_attempt(app.handle(), now, || {
         crate::session_persistence::PersistedEngineState::from_session_with_policy(
@@ -118,6 +119,13 @@ fn production_checkpoint_attempt_reports_failure_then_retry_recovery_once() {
     let events = fs::read_to_string(temp.path().join("logs").join(day).join("events.log")).unwrap();
     assert_eq!(events.matches("stage=persistence_checkpoint_failed").count(), 1);
     assert_eq!(events.matches("stage=persistence_checkpoint_recovered").count(), 1);
+    let intents = notification_capture.intents();
+    assert_eq!(intents.len(), 2, "failure and successful recovery each request one notification");
+    assert_eq!(intents[0].title, "MoveUp could not save session state");
+    assert!(intents[0].body.contains("MoveUp could not save session state"));
+    assert!(intents[0].body.contains("replace settings file"));
+    assert_eq!(intents[1].title, "MoveUp session saving recovered");
+    assert_eq!(intents[1].body, "Session saving has recovered.");
 
     let fresh_app = mock_app();
     let fresh_store = crate::app_store::initialize_at(fresh_app.handle(), &settings).unwrap();

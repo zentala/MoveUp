@@ -114,6 +114,35 @@ mod break_credit_tests {
             result.break_credit.is_none(),
             "Break < 1 min should NOT set break_credit"
         );
+        let fact = m.state.last_break_credit_facts.as_ref().unwrap().last().unwrap();
+        assert_eq!(fact.break_started_at, t.to_rfc3339());
+        assert_eq!(fact.observed_break_secs, 30);
+        assert_eq!(fact.minimum_break_secs, 60);
+        assert_eq!(fact.applied_at, (t + Duration::seconds(30)).to_rfc3339());
+        assert_eq!(fact.applied_credit_secs, 0);
+        assert_eq!(fact.no_credit_reason.as_deref(), Some("break_below_minimum"));
+    }
+
+    #[test]
+    fn unqualified_credit_application_does_not_leave_stale_source_facts() {
+        let mut m = SessionManager::new();
+        m.state.last_break_credit_facts = Some(vec![LastBreakCreditFacts {
+            break_started_at: "2026-06-01T08:00:00+00:00".to_string(),
+            observed_break_secs: 300,
+            minimum_break_secs: 60,
+            multiplier: 2.0,
+            requested_credit_secs: 600,
+            prior_applied_credit_secs: 0,
+            sitting_before_secs: 600,
+            applied_credit_secs: 600,
+            sitting_after_secs: 0,
+            applied_at: "2026-06-01T08:05:00+00:00".to_string(),
+            no_credit_reason: None,
+        }]);
+
+        m.apply_break_credit(300);
+
+        assert!(m.state.last_break_credit_facts.is_none());
     }
 
     #[test]
@@ -136,6 +165,40 @@ mod break_credit_tests {
         assert_eq!(dur, 300, "break must be exactly 5 minutes");
         // 2400 - (300 * 2.0) = 2400 - 600 = 1800
         assert_eq!(m.state.sitting_seconds, 1800, "sitting should be 1800s (30 min)");
+    }
+
+    #[test]
+    fn completed_break_snapshot_contains_actual_capped_credit_facts() {
+        let mut m = SessionManager::new();
+        let t = transition_to_sitting(&mut m, base());
+        let t = transition_to_standing(&mut m, t);
+        m.state.sitting_seconds = 480;
+        m.state.break_started = Some(t);
+
+        let observed_break_secs = 300;
+        let applied_at = t + Duration::seconds(observed_break_secs);
+        let result = sit_back_after(&mut m, t, observed_break_secs);
+        assert_eq!(result.break_credit, Some((BreakCredit::Full, observed_break_secs)));
+        assert_eq!(m.state.sitting_seconds, 0);
+
+        let snapshot = serde_json::to_value(m.snapshot_at(applied_at)).unwrap();
+        assert_eq!(
+            snapshot["last_break_credit_facts"],
+            serde_json::json!([{
+                "break_started_at": t.to_rfc3339(),
+                "observed_break_secs": 300,
+                "minimum_break_secs": 60,
+                "multiplier": 2.0,
+                "requested_credit_secs": 600,
+                "prior_applied_credit_secs": 0,
+                "sitting_before_secs": 480,
+                "applied_credit_secs": 480,
+                "sitting_after_secs": 0,
+                "applied_at": applied_at.to_rfc3339(),
+                "no_credit_reason": null
+            }]),
+            "snapshot must expose facts from the engine's actual capped application"
+        );
     }
 
     #[test]

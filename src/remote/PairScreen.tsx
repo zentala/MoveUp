@@ -34,7 +34,7 @@ function messageFor(error: PairFailed): string {
         ? `Too many wrong codes. Try again in ${Math.ceil(error.retryAfterSecs / 60)} min.`
         : error.message;
     case "viewer_limit":
-      return "This desk has no free phone slots. Remove one in Settings → Remote.";
+      return "This desk has no free phone slots. Remove one in Settings → More → Remote access.";
     default:
       return error.message;
   }
@@ -118,7 +118,8 @@ export function PairScreen({ hash, onPaired, onForget }: PairScreenProps = {}) {
     <main className="pair" data-testid="pair-screen">
       <h1 className="pair__title">Pair with your desk</h1>
       <p className="pair__hint">
-        On the PC: Settings → Remote → <strong>Pair a phone</strong>.
+        This uses the cloud relay, separately from the same-network LAN display.
+        On the PC: Settings → More → Remote access → <strong>Pair a phone</strong>.
       </p>
 
       <form

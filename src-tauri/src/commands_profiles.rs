@@ -33,17 +33,50 @@ pub struct ProfileInfo {
 /// Active profile IDs for both profile categories.
 #[derive(Debug, Serialize)]
 pub struct ActiveProfiles {
-    /// File stem of the active communication profile.
+    /// ID of the communication profile currently loaded in the live policy.
     pub communication_id: String,
-    /// File stem of the active ergonomic profile.
+    /// ID of the ergonomic profile currently loaded in the live policy.
     pub ergonomic_id: String,
+    /// Live ergonomic parameters used by the session engine.
+    pub effective_limits: crate::ergonomic_profile::Limits,
+    /// Runtime session-limit overrides, which may differ from profile values.
+    pub session_limit_secs: i64,
+    pub stand_limit_secs: i64,
+    /// Actual communication settings loaded by the live policy.
+    pub notifications_enabled: bool,
+    pub dismiss_durations_mins: Vec<u32>,
+    pub current_dismiss_minutes: u32,
+    /// Value accepted by the actual Snooze command, or None if unsupported.
+    pub snooze_minutes: Option<u16>,
+    pub tone_shift_after_dismisses: u8,
+    pub notify_cooldowns_secs: Vec<u64>,
+}
+
+pub(crate) fn active_profiles_snapshot(
+    session: &SessionManager,
+    policy: &CommunicationPolicy,
+) -> ActiveProfiles {
+    let comm = policy.comm_profile();
+    let ergo = policy.ergo_profile();
+    ActiveProfiles {
+        communication_id: comm.id.clone(),
+        ergonomic_id: ergo.id.clone(),
+        effective_limits: session.limits.clone(),
+        session_limit_secs: session.state.session_limit_secs,
+        stand_limit_secs: session.state.stand_limit_secs,
+        notifications_enabled: comm.notifications_enabled,
+        dismiss_durations_mins: comm.snooze.durations_mins.clone(),
+        current_dismiss_minutes: policy.current_dismiss_minutes(),
+        snooze_minutes: policy.reminder_snooze_minutes().ok(),
+        tone_shift_after_dismisses: comm.snooze.tone_shift_after_dismisses,
+        notify_cooldowns_secs: comm.snooze.notify_cooldowns_secs.clone(),
+    }
 }
 
 // ── Store keys ───────────────────────────────────────────────────────────────
 
 pub(crate) const KEY_ACTIVE_COMM: &str = "active_communication_profile";
 pub(crate) const KEY_ACTIVE_ERGO: &str = "active_ergonomic_profile";
-const DEFAULT_PROFILE_ID: &str = "default";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,14 +90,6 @@ pub(crate) fn validate_profile_id(id: &str) -> Result<(), String> {
         ));
     }
     Ok(())
-}
-
-fn get_active_id(app: &AppHandle, key: &str) -> String {
-    app.try_state::<crate::app_store::AppStore<tauri::Wry>>()
-        .and_then(|store| {
-            store.get(key).and_then(|v| v.as_str().map(String::from))
-        })
-        .unwrap_or_else(|| DEFAULT_PROFILE_ID.to_string())
 }
 
 /// Persists a profile selection while retaining the old Store cache on failure.
@@ -264,17 +289,17 @@ pub fn list_ergonomic_profiles(app: AppHandle) -> Result<Vec<ProfileInfo>, Strin
     Ok(infos)
 }
 
-/// Returns the currently active profile IDs from the store.
+/// Returns the currently loaded profiles and effective runtime parameters.
 #[tauri::command]
 pub fn get_active_profiles(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ActiveProfiles, String> {
     ensure_initialized(&app, &state)?;
-    Ok(ActiveProfiles {
-        communication_id: get_active_id(&app, KEY_ACTIVE_COMM),
-        ergonomic_id: get_active_id(&app, KEY_ACTIVE_ERGO),
-    })
+    // Match checkpoint and profile-switch lock order: session before policy.
+    let session = state.session.lock().unwrap_or_else(|e| e.into_inner());
+    let policy = state.comm_policy.lock().unwrap_or_else(|e| e.into_inner());
+    Ok(active_profiles_snapshot(&session, &policy))
 }
 
 /// Switches the active communication profile by ID.

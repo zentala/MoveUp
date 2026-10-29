@@ -43,6 +43,12 @@ impl EventLogger {
     /// On write failure, retries once after 100 ms. Errors are logged at
     /// `error!` level with the full path and error kind for debuggability.
     pub fn log(&self, event: &str) {
+        let _ = self.log_result(event);
+    }
+
+    /// Same daily append and retry semantics, with the actual result available
+    /// to background diagnostic writers. Never call this from a UI callback.
+    pub fn log_result(&self, event: &str) -> std::io::Result<()> {
         let now = Local::now();
         let date_str = now.format("%Y-%m-%d").to_string();
         let time_str = now.format("%H:%M:%S").to_string();
@@ -57,7 +63,7 @@ impl EventLogger {
                     e,
                     e.kind()
                 );
-                return;
+                return Err(e);
             }
         };
 
@@ -73,8 +79,10 @@ impl EventLogger {
                     e,
                     e.kind()
                 );
+                return Err(e);
             }
         }
+        Ok(())
     }
 
     /// Opens `path` in append+create mode and writes `line`.
@@ -172,5 +180,26 @@ mod tests {
         assert!(!nested.exists(), "dir should not exist yet");
         let _logger = EventLogger::new(nested.clone());
         assert!(nested.exists(), "EventLogger::new must create base_dir");
+    }
+
+    #[test]
+    fn result_api_reports_day_directory_failure_and_recovers() {
+        let tmp = TempDir::new().unwrap();
+        let day = tmp.path().join(Local::now().format("%Y-%m-%d").to_string());
+        std::fs::write(&day, b"blocker").unwrap();
+        let logger = EventLogger::new(tmp.path().to_path_buf());
+        assert!(logger.log_result("UI_DIAGNOSTICS failed").is_err());
+        std::fs::remove_file(&day).unwrap();
+        logger.log_result("UI_DIAGNOSTICS recovered").unwrap();
+        assert!(std::fs::read_to_string(day.join("events.log")).unwrap().contains("recovered"));
+    }
+
+    #[test]
+    fn result_api_reports_append_failure_after_existing_retry() {
+        let tmp = TempDir::new().unwrap();
+        let day = tmp.path().join(Local::now().format("%Y-%m-%d").to_string());
+        std::fs::create_dir_all(day.join("events.log")).unwrap();
+        let logger = EventLogger::new(tmp.path().to_path_buf());
+        assert!(logger.log_result("UI_DIAGNOSTICS failed").is_err());
     }
 }

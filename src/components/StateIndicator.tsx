@@ -12,6 +12,10 @@ interface StateIndicatorProps {
   idleSecs?: number;
   /** Whether to show activity status. */
   showActivity?: boolean;
+  /** Source-qualified label for the state shown in the daily header. */
+  stateLabel?: string | null;
+  /** Whether this render has a current observed height to display. */
+  showHeight?: boolean;
 }
 
 const STATE_DOT_CLASS: Record<DeskState, string> = {
@@ -26,23 +30,26 @@ const StateIndicator: FC<StateIndicatorProps> = ({
   deskHeightCm,
   idleSecs = 0,
   showActivity = false,
+  stateLabel,
+  showHeight = true,
 }) => {
   const dotClass = state ? STATE_DOT_CLASS[state] : "";
   const isAway = state === "Away";
   const isIdle = idleSecs >= 30;
+  const label = stateLabel === undefined ? state ?? "Unknown" : stateLabel ?? "Unknown";
 
   return (
     <div className="state-indicator">
       <div className="state-indicator__left">
         <span className={`state-indicator__dot ${dotClass}`} />
-        <span className="state-indicator__label">{state ?? "Unknown"}</span>
+        <span className="state-indicator__label">{label}</span>
         {showActivity && (
           <span className={`state-indicator__activity ${isIdle ? "state-indicator__activity--idle" : ""}`}>
-            {isIdle ? `Idle ${formatIdleTime(idleSecs)}` : "Active"}
+            {isIdle ? `No recent input · ${formatIdleTime(idleSecs)}` : "Recent input"}
           </span>
         )}
       </div>
-      {!isAway && (
+      {!isAway && showHeight && (
         <span className="state-indicator__height">
           {deskHeightCm > 0 ? `${deskHeightCm.toFixed(0)} cm` : "— cm"}
         </span>

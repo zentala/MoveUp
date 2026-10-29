@@ -84,6 +84,7 @@ pub(crate) fn inactive_signals(inactive: &ChannelConfig) -> Signals {
 pub(crate) fn baseline_signals(
     state: &DeskState,
     baseline: &BaselineConfig,
+    sitting_progress: f32,
     lap_progress: f32,
     lap: u32,
     lap_flash: bool,
@@ -93,7 +94,7 @@ pub(crate) fn baseline_signals(
             let bl = &baseline.sitting;
             Signals {
                 tray: parse_tray_signal(&bl.tray),
-                overlay: parse_overlay_signal(&bl.overlay, 0.0),
+                overlay: parse_overlay_signal(&bl.overlay, sitting_progress),
                 popup: parse_popup_signal(&bl.popup),
                 notify: None,
                 accepted_events: Vec::new(),

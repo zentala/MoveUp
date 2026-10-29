@@ -305,6 +305,70 @@ fn round_trip_sit_stand_restart_sit() {
     assert!(live >= 1258 && live <= 1262, "expected ~1260, got {}", live);
 }
 
+#[test]
+fn captured_break_facts_survive_restart_while_credit_prefix_resets_as_before() {
+    use chrono::{Duration, Utc};
+    use crate::session_types::DeskState;
+
+    let break_started_at = Utc::now() - Duration::minutes(10);
+    let mut before_restart = SessionManager::new();
+    before_restart.state.state = DeskState::Standing;
+    before_restart.state.break_started = Some(break_started_at);
+    before_restart.state.break_seconds = 240;
+    before_restart.state.sitting_seconds = 1200;
+    before_restart.state.sitting_seconds_total = 1200;
+    before_restart.apply_current_break_credit(
+        240,
+        break_started_at,
+        break_started_at + Duration::seconds(240),
+    );
+    assert_eq!(before_restart.sleep_break_credit, 480);
+    assert_eq!(before_restart.state.sitting_seconds, 720);
+
+    let mut changed_limits = before_restart.limits.clone();
+    changed_limits.break_credit_multiplier = 1.0;
+    before_restart.set_limits(&changed_limits);
+    before_restart.apply_current_break_credit(
+        600,
+        break_started_at,
+        break_started_at + Duration::seconds(600),
+    );
+
+    assert_eq!(before_restart.state.sitting_seconds, 600);
+    assert_eq!(before_restart.state.sitting_seconds_total, 1200);
+    assert_eq!(before_restart.sleep_break_credit, 600);
+    let applications = before_restart.state.last_break_credit_facts.as_ref().unwrap();
+    assert_eq!(applications.len(), 2);
+    assert_eq!(applications[0].multiplier, 2.0);
+    assert_eq!(applications[0].requested_credit_secs, 480);
+    assert_eq!(applications[0].prior_applied_credit_secs, 0);
+    assert_eq!(applications[0].applied_credit_secs, 480);
+    assert_eq!(applications[0].sitting_before_secs, 1200);
+    assert_eq!(applications[0].sitting_after_secs, 720);
+    assert_eq!(applications[1].multiplier, 1.0);
+    assert_eq!(applications[1].requested_credit_secs, 120);
+    assert_eq!(applications[1].prior_applied_credit_secs, 480);
+    assert_eq!(applications[1].applied_credit_secs, 120);
+    assert_eq!(applications[1].sitting_before_secs, 720);
+    assert_eq!(applications[1].sitting_after_secs, 600);
+
+    let persisted = PersistedEngineState::from_session(&before_restart, None);
+    let expected_facts = applications.clone();
+    let mut after_restart = SessionManager::new();
+    after_restart.load_today_totals(&TodayTotals {
+        sitting_secs: 1200,
+        standing_secs: 240,
+        position_changes: 2,
+    });
+    after_restart.load_persisted_state(&persisted);
+
+    assert_eq!(after_restart.state.sitting_seconds, 600);
+    assert_eq!(after_restart.state.sitting_seconds_total, 1200);
+    assert_eq!(after_restart.state.break_started, Some(break_started_at));
+    assert_eq!(after_restart.sleep_break_credit, 0, "restart credit eligibility remains unchanged from baseline");
+    assert_eq!(after_restart.state.last_break_credit_facts.as_ref(), Some(&expected_facts));
+}
+
 /// Daily reset + stale persistence → flags stay cleared.
 #[test]
 fn daily_reset_clears_flags_even_with_stale_persistence() {
@@ -335,6 +399,32 @@ fn daily_reset_clears_flags_even_with_stale_persistence() {
     assert!(!m.alert_fired);
     assert!(!m.notify_inactivity_fired);
     assert_eq!(m.state.sitting_seconds, 0);
+}
+
+#[test]
+fn daily_reset_clears_break_credit_explanation() {
+    use chrono::{Duration, TimeZone, Utc};
+    let at = Utc.with_ymd_and_hms(2026, 6, 2, 9, 0, 0).unwrap();
+    let today = crate::session_daily::local_date_of(at);
+    let mut manager = SessionManager::new();
+    manager.last_reset_date = today - Duration::days(1);
+    manager.last_reset_check = at - Duration::seconds(120);
+    manager.state.last_break_credit_facts = Some(vec![crate::session_types::LastBreakCreditFacts {
+        break_started_at: (at - Duration::minutes(5)).to_rfc3339(),
+        observed_break_secs: 300,
+        minimum_break_secs: 60,
+        multiplier: 2.0,
+        requested_credit_secs: 600,
+        prior_applied_credit_secs: 0,
+        sitting_before_secs: 600,
+        applied_credit_secs: 600,
+        sitting_after_secs: 0,
+        applied_at: at.to_rfc3339(),
+        no_credit_reason: None,
+    }]);
+
+    assert!(manager.check_daily_reset_at(at, today));
+    assert!(manager.state.last_break_credit_facts.is_none());
 }
 
 /// Serde round-trip through JSON: engine, tracker and flags all survive.

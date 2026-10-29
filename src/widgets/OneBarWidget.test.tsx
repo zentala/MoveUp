@@ -2,14 +2,30 @@
  * OneBarWidget.test.tsx — verifies the One Bar widget renders correctly
  * across all states and temperature levels.
  */
-import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OneBarWidget } from "./OneBarWidget";
 import type { WidgetProps } from "@/types";
 import type { LiveObservation } from "@/types";
+import { invoke } from "@tauri-apps/api/core";
+import { OPEN_ANALYST_DAY_KEY } from "@/analyst/open-day";
+
+// Native modal behavior is covered in the real App browser tests, not jsdom.
+beforeAll(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+    configurable: true, value(this: HTMLDialogElement) { this.setAttribute("open", ""); },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, "close", {
+    configurable: true, value(this: HTMLDialogElement) { this.removeAttribute("open"); },
+  });
+});
+afterAll(() => {
+  Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
+  Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
+});
 
 function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
-  return {
+  const merged: WidgetProps = {
     connected: true,
     port: "COM3",
     state: "Sitting",
@@ -35,7 +51,65 @@ function props(overrides: Partial<WidgetProps> = {}): WidgetProps {
     onOpenSettings: vi.fn(),
     ...overrides,
   };
+  if (overrides.liveObservation === undefined) {
+    merged.liveObservation = {
+      span: {
+        state: merged.state ?? "Sitting",
+        started_at: "2026-10-29T10:00:00Z",
+        observed_through: "2026-10-29T10:10:00Z",
+      },
+      last_observation_at: "2026-10-29T10:10:00Z",
+      snapshot_at: "2026-10-29T10:10:00Z",
+      quality: "known",
+      reason: null,
+    };
+  }
+  return merged;
 }
+
+it("keeps a protected Share dialog open and retryable when closing it fails", async () => {
+  const protect = vi.fn()
+    .mockResolvedValueOnce(undefined)
+    .mockRejectedValueOnce(new Error("stale_client_update"))
+    .mockResolvedValueOnce(undefined);
+  render(<OneBarWidget {...props({ onShareChange: protect })} />);
+  fireEvent.click(screen.getByRole("button", { name: "Share my stats" }));
+  const dialog = await screen.findByRole("dialog", { name: "share my stats" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(dialog).toBeInTheDocument());
+  expect(dialog).toContainElement(screen.getByRole("alert"));
+  expect(screen.getByRole("alert")).toHaveTextContent("Could not change the Share view");
+  expect(screen.getByRole("button", { name: "Retry close" })).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Retry close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(protect).toHaveBeenCalledTimes(3);
+});
+
+it("does not open Analyst with a missing day when saving the request fails and can retry", async () => {
+  localStorage.removeItem(OPEN_ANALYST_DAY_KEY);
+  vi.mocked(invoke).mockClear();
+  const storageWrite = vi.spyOn(Storage.prototype, "setItem").mockImplementationOnce(() => {
+    throw new Error("storage unavailable");
+  });
+  const { container } = render(<OneBarWidget {...props()} />);
+  const todayButton = container.querySelector<HTMLButtonElement>(".one-bar__today-btn");
+  expect(todayButton).not.toBeNull();
+
+  fireEvent.click(todayButton!);
+  await screen.findByRole("alert");
+  expect(screen.getByRole("alert")).toHaveTextContent("Could not open Analyst for today");
+  expect(localStorage.getItem(OPEN_ANALYST_DAY_KEY)).toBeNull();
+  expect(invoke).not.toHaveBeenCalledWith("open_analyst_window");
+
+  storageWrite.mockRestore();
+  fireEvent.click(screen.getByRole("button", { name: "Retry opening Analyst" }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("open_analyst_window"));
+  expect(JSON.parse(localStorage.getItem(OPEN_ANALYST_DAY_KEY) ?? "null")).toMatchObject({
+    day: expect.any(String), requestId: expect.any(String),
+  });
+});
 
 describe("OneBarWidget", () => {
   it("renders without crashing", () => {
@@ -100,18 +174,56 @@ describe("OneBarWidget", () => {
 
   it("shows state label in header via StateIndicator", () => {
     const { rerender } = render(<OneBarWidget {...props({ state: "Sitting" })} />);
-    expect(screen.getByText("Sitting")).toBeInTheDocument();
+    expect(screen.getByText("Estimated Sitting")).toBeInTheDocument();
 
     rerender(<OneBarWidget {...props({ state: "Standing" })} />);
-    expect(screen.getByText("Standing")).toBeInTheDocument();
+    expect(screen.getByText("Estimated Standing")).toBeInTheDocument();
 
     rerender(<OneBarWidget {...props({ state: "Away" })} />);
-    expect(screen.getByText("Away")).toBeInTheDocument();
+    expect(screen.getByText("Estimated Away")).toBeInTheDocument();
   });
 
   it("shows activity status in header via StateIndicator", () => {
     render(<OneBarWidget {...props({ idleSecs: 0 })} />);
-    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("Recent input")).toBeInTheDocument();
+  });
+
+  it("opens today's local Analyst day from the compact header entry", () => {
+    localStorage.removeItem(OPEN_ANALYST_DAY_KEY);
+    vi.mocked(invoke).mockClear();
+    const ordering: string[] = [];
+    const originalSetItem = Storage.prototype.setItem;
+    const storageWrite = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key: string, value: string) {
+      if (key === OPEN_ANALYST_DAY_KEY) ordering.push("request");
+      originalSetItem.call(this, key, value);
+    });
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === "open_analyst_window") ordering.push("open");
+      return null;
+    });
+    const before = Date.now();
+    const { container } = render(<OneBarWidget {...props()} />);
+
+    const todayButton = container.querySelector<HTMLButtonElement>(".one-bar__today-btn");
+    expect(todayButton).not.toBeNull();
+    fireEvent.click(todayButton!);
+
+    const request = JSON.parse(localStorage.getItem(OPEN_ANALYST_DAY_KEY) ?? "null") as { day: string; requestedAtMs: number; requestId: string };
+    const now = new Date(request.requestedAtMs);
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    expect(request.day).toBe(today);
+    expect(request.requestedAtMs).toBeGreaterThanOrEqual(before);
+    expect(request.requestId).toBeTruthy();
+    expect(invoke).toHaveBeenCalledWith("open_analyst_window");
+    expect(ordering).toEqual(["request", "open"]);
+    storageWrite.mockRestore();
+  });
+
+  it("hides recent-input status when the saved activity preference is off", () => {
+    render(<OneBarWidget {...props({ idleSecs: 150, showActivityStatus: false })} />);
+    expect(screen.queryByText("No recent input · 2m 30s")).not.toBeInTheDocument();
+    expect(screen.queryByText("Recent input")).not.toBeInTheDocument();
+    expect(screen.getByText("Estimated Sitting")).toBeInTheDocument();
   });
 
   it("shows observation and view-response status without changing compact strip geometry", () => {
@@ -134,8 +246,84 @@ describe("OneBarWidget", () => {
     const status = screen.getByTestId("timeline-observation-status");
     expect(status).toHaveTextContent("Sitting observed through");
     expect(status).toHaveTextContent("sensor observation stale");
-    expect(status).toHaveTextContent("View update failed: temporary read failure");
+    expect(screen.getByTestId("view-response-details")).toHaveTextContent("View update failed: temporary read failure");
     expect(screen.getByTestId("timeline-strip")).toHaveStyle({ height: "24px", minHeight: "24px" });
+  });
+
+  it("separates an unavailable observation from recent input and keeps the credited balance", () => {
+    const liveObservation: LiveObservation = {
+      span: null,
+      last_observation_at: null,
+      snapshot_at: "2026-10-29T00:00:00.000Z",
+      quality: null,
+      reason: "no_observation",
+    };
+    render(<OneBarWidget {...props({
+      state: "Sitting",
+      deskHeightCm: 72,
+      idleSecs: 0,
+      limitUsedSecs: 600,
+      liveObservation,
+      dashboardRefresh: { loading: false, lastSuccessAt: "2026-10-29T00:00:01Z", error: null },
+    })} />);
+
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    expect(screen.queryByText("Sitting")).not.toBeInTheDocument();
+    expect(screen.getByText("Recent input")).toBeInTheDocument();
+    expect(screen.queryByText("72 cm")).not.toBeInTheDocument();
+    expect(screen.getByTestId("one-bar-big-number")).toHaveTextContent("10:00 / 40:00");
+
+    const disclosure = screen.getByTestId("observation-details");
+    const summary = screen.getByTestId("timeline-observation-status");
+    expect(disclosure).not.toHaveAttribute("aria-live");
+    fireEvent.click(summary);
+    const explanation = screen.getByRole("region", { name: "How to read this status" });
+    expect(explanation).toHaveTextContent("desk-height observations and recent Windows keyboard/mouse input");
+    expect(explanation).toHaveTextContent("No recent input can also mean reading, listening, thinking, or AI work");
+    expect(explanation).toHaveTextContent("Timeline colors identify recorded desk state and time");
+    expect(explanation).toHaveTextContent("Break credit reduces the current Sitting balance, but never removes recorded intervals");
+    expect(explanation).toHaveTextContent("A sitting-colored interval alone does not mean the limit is exceeded");
+    expect(explanation).toHaveTextContent("View response received");
+    expect(explanation.querySelectorAll('[aria-live="polite"]')).toHaveLength(0);
+    expect(screen.getByTestId("view-response-details")).toHaveAttribute("aria-live", "off");
+  });
+
+  it("qualifies a stale state as the last estimate and does not show its height as current", () => {
+    const liveObservation: LiveObservation = {
+      span: { state: "Sitting", started_at: "2026-10-24T10:00:00Z", observed_through: "2026-10-24T10:20:00Z" },
+      last_observation_at: "2026-10-24T10:20:00Z",
+      snapshot_at: "2026-10-24T11:00:00Z",
+      quality: null,
+      reason: "stale",
+    };
+    render(<OneBarWidget {...props({ state: "Sitting", deskHeightCm: 72, liveObservation })} />);
+    expect(screen.getByText("Last estimate Sitting")).toBeInTheDocument();
+    expect(screen.queryByText("72 cm")).not.toBeInTheDocument();
+    expect(screen.getByTestId("observation-details")).toHaveTextContent("sensor observation stale");
+  });
+
+  it("qualifies retained known observations after a view refresh fails without calling the sensor stale", () => {
+    const liveObservation: LiveObservation = {
+      span: { state: "Sitting", started_at: "2026-10-24T10:00:00Z", observed_through: "2026-10-24T10:20:00Z" },
+      last_observation_at: "2026-10-24T10:20:00Z",
+      snapshot_at: "2026-10-24T10:20:00Z",
+      quality: "known",
+      reason: null,
+    };
+    render(<OneBarWidget {...props({
+      state: "Sitting",
+      deskHeightCm: 72,
+      liveObservation,
+      dashboardRefresh: { loading: false, lastSuccessAt: "2026-10-24T10:20:01Z", error: "snapshot unavailable" },
+    })} />);
+
+    expect(screen.getByText("Last estimate Sitting")).toBeInTheDocument();
+    expect(screen.getByText("72 cm")).toBeInTheDocument();
+    expect(screen.getByTestId("timeline-observation-status")).toHaveTextContent("View refresh failed");
+    expect(screen.getByTestId("timeline-observation-status")).toHaveTextContent("Sitting observed through");
+    expect(screen.getByTestId("timeline-observation-status")).not.toHaveTextContent("sensor observation stale");
+    expect(screen.getByTestId("view-response-details")).toHaveTextContent("View update failed: snapshot unavailable");
+    expect(screen.getByTestId("view-response-details")).toHaveTextContent("last response received");
   });
 
   it("does not announce routine request-start and response changes in the live status", () => {
@@ -215,6 +403,8 @@ describe("OneBarWidget", () => {
     expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("title", "Settings");
     fireEvent.click(share);
     expect(screen.getByText("share my stats")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(share).toHaveFocus();
   });
 
   it("big number shows break elapsed/standing target for standing", () => {

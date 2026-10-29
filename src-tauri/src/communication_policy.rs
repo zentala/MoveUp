@@ -5,7 +5,7 @@ use std::cell::Cell;
 use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::communication_types::{NotifySignal, Signals};
+use crate::communication_types::{NotifySignal, Signals, ReminderDraft, ReminderReason, ReminderCategory, RetirementReason};
 use crate::session_types::{DeskState, NotificationEvent};
 use crate::communication_profile::{CommunicationProfile, EscalationStep};
 use crate::communication_policy_helpers as helpers;
@@ -70,6 +70,8 @@ pub struct CommunicationPolicy {
     last_notify_time: Cell<Option<Instant>>,
     notify_count: Cell<u32>,
     screen_break_nudge_fired: bool,
+    last_reminder: Option<ReminderDraft>,
+    reminder_occurrence: Cell<u64>,
 }
 
 impl CommunicationPolicy {
@@ -84,6 +86,8 @@ impl CommunicationPolicy {
             last_notify_time: Cell::new(None),
             notify_count: Cell::new(0),
             screen_break_nudge_fired: false,
+            last_reminder: None,
+            reminder_occurrence: Cell::new(0),
         }
     }
 
@@ -125,9 +129,18 @@ impl CommunicationPolicy {
         stand_limit_fired: bool,
         now: Instant,
     ) -> Signals {
+        self.last_reminder = None;
         if !input.sensor_connected {
             let (sigs, fired) = helpers::disconnected_signals(&self.comm_profile, self.disconnect_notified);
-            if fired { self.disconnect_notified = true; }
+            if fired {
+                self.disconnect_notified = true;
+                let body = match &sigs.notify { Some(NotifySignal::Toast(body) | NotifySignal::Popup(body)) => body.clone(), _ => unreachable!("fired disconnect includes a notification") };
+                self.last_reminder = Some(ReminderDraft {
+                    occurrence: self.next_reminder_occurrence(), reason: ReminderReason::DeviceDisconnected,
+                    category: ReminderCategory::Warning, title: "Sensor disconnected".into(), body,
+                    elapsed_secs: None, limit_secs: None, position_anchor: None, observation_day: None,
+                });
+            }
             return sigs;
         }
 
@@ -142,7 +155,7 @@ impl CommunicationPolicy {
         // Check snooze — if still active, return baseline only
         if let Some(until) = self.snoozed_until {
             if now < until {
-                return self.make_baseline(input);
+                return self.make_baseline(input, sitting_limit_secs);
             } else {
                 self.snoozed_until = None;
             }
@@ -154,7 +167,7 @@ impl CommunicationPolicy {
                 self.ergo_profile.limits.standing_max_secs as i64,
                 self.comm_profile.escalation.standing.clone(),
             ),
-            _ => return self.make_baseline(input),
+            _ => return self.make_baseline(input, sitting_limit_secs),
         };
 
         let elapsed_secs = if input.state == DeskState::Standing {
@@ -163,11 +176,7 @@ impl CommunicationPolicy {
             input.elapsed_secs
         };
         let offset = elapsed_secs - limit_secs;
-        let active_step = steps
-            .iter()
-            .enumerate()
-            .filter(|(_, step)| offset >= step.at)
-            .last();
+        let active_step = Self::active_step_index(&steps, offset).map(|idx| (idx, &steps[idx]));
 
         let notification_elapsed_secs = if input.state == DeskState::Standing {
             standing_max_elapsed_secs
@@ -186,7 +195,7 @@ impl CommunicationPolicy {
                 notification_elapsed_secs,
                 now,
             ),
-            None => self.make_baseline(input),
+            None => self.make_baseline(input, sitting_limit_secs),
         };
 
         self.maybe_apply_screen_nudge(input, &mut signals);
@@ -222,35 +231,15 @@ impl CommunicationPolicy {
             && self.notify_count.get() as usize
                 >= crate::communication_profile::MAX_NOTIFY_REMINDERS;
         let mut events = Vec::new();
-        let config = &self.comm_profile.periodic_notifications;
-        if periodic {
-            if !sitting_reminders_exhausted
-                && config.inactivity_enabled && !facts.inactivity_fired
-                && facts.last_position_change_at.is_some_and(|at| {
-                    (facts.now - at).num_seconds()
-                        >= i64::from(config.inactivity_after_mins) * 60
-                })
-            {
-                events.push(NotificationEvent::Inactivity);
-            }
-            if !sitting_reminders_exhausted
-                && config.posture_balance_enabled && !facts.posture_balance_fired
-                && facts.sitting_seconds_total >= self.ergo_profile.limits.posture_balance_min_sitting_secs as i64
-                && facts.sitting_seconds_total > facts.standing_seconds * 2
-            {
-                events.push(NotificationEvent::PostureBalance);
-            }
-            if !facts.standing_target_fired && facts.standing_target_secs > 0
-                && facts.standing_seconds >= facts.standing_target_secs
-            {
-                events.push(NotificationEvent::StandingTargetReached);
-            }
+        let candidates = if periodic {
+            vec![(NotificationEvent::Inactivity, facts.inactivity_fired || sitting_reminders_exhausted),
+                (NotificationEvent::PostureBalance, facts.posture_balance_fired || sitting_reminders_exhausted),
+                (NotificationEvent::StandingTargetReached, facts.standing_target_fired)]
         } else if facts.state == DeskState::Standing {
-            if config.praise_halfway_enabled && !facts.praise_fired && facts.standing_target_secs > 0
-                && facts.standing_seconds >= facts.standing_target_secs / 2
-            {
-                events.push(NotificationEvent::Praise);
-            }
+            vec![(NotificationEvent::Praise, facts.praise_fired)]
+        } else { Vec::new() };
+        for (event, fired) in candidates {
+            if !fired && self.session_reason_current(&event, facts) { events.push(event); }
         }
         events
     }
@@ -314,6 +303,29 @@ impl CommunicationPolicy {
         crate::notification_service::NotificationService::resolve_channels(
             &mut intents, &self.comm_profile.notification_backend,
         );
+        for intent in &mut intents {
+            let (reason, category, elapsed, limit) = match intent.event {
+                NotificationEvent::Inactivity => (ReminderReason::Inactivity, ReminderCategory::Warning,
+                    facts.last_position_change_at.map(|at| (facts.now - at).num_seconds()),
+                    Some(i64::from(self.comm_profile.periodic_notifications.inactivity_after_mins) * 60)),
+                NotificationEvent::PostureBalance => (ReminderReason::PostureBalance, ReminderCategory::Warning, None, None),
+                NotificationEvent::Praise => (ReminderReason::Praise, ReminderCategory::Success,
+                    Some(facts.standing_seconds), Some(facts.standing_target_secs)),
+                NotificationEvent::StandingTargetReached => (ReminderReason::StandingTarget, ReminderCategory::Success,
+                    Some(facts.standing_seconds), Some(facts.standing_target_secs)),
+                NotificationEvent::StandLimitReached => (ReminderReason::StandingLimit, ReminderCategory::Urgent, None, None),
+            };
+            if reason == ReminderReason::Inactivity {
+                intent.title = format!("No position change in {} minutes", self.comm_profile.periodic_notifications.inactivity_after_mins);
+            }
+            intent.reminder = Some(ReminderDraft { occurrence: self.next_reminder_occurrence(), reason, category, title: intent.title.clone(), body: intent.body.clone(),
+                elapsed_secs: elapsed, limit_secs: limit,
+                observation_day: Some(facts.now.with_timezone(&chrono::Local).date_naive()),
+                position_anchor: if reason == ReminderReason::Inactivity {
+                    facts.last_position_change_at.map(|at| at.to_rfc3339())
+                } else { None },
+            });
+        }
         intents
     }
 
@@ -486,7 +498,101 @@ impl CommunicationPolicy {
         &self.ergo_profile
     }
 
+    /// Returns the snooze duration selected by the live policy cursor without
+    /// advancing or otherwise mutating that cursor.
+    pub fn current_dismiss_minutes(&self) -> u32 {
+        let durations = &self.comm_profile.snooze.durations_mins;
+        let index = self.snooze_index.min(durations.len().saturating_sub(1));
+        durations.get(index).copied().unwrap_or(5)
+    }
+
+    pub(crate) fn take_reminder(&mut self) -> Option<ReminderDraft> { self.last_reminder.take() }
+
+    fn next_reminder_occurrence(&self) -> u64 {
+        let next = self.reminder_occurrence.get().checked_add(1).expect("reminder occurrence exhausted");
+        self.reminder_occurrence.set(next);
+        next
+    }
+
+    pub(crate) fn reminder_snooze_minutes(&self) -> Result<u16, String> {
+        let durations = &self.comm_profile.snooze.durations_mins;
+        let index = self.snooze_index.min(durations.len().saturating_sub(1));
+        let minutes = durations.get(index).copied().unwrap_or(5);
+        u16::try_from(minutes).ok().filter(|minutes| *minutes > 0)
+            .ok_or_else(|| "unsupported_snooze_duration".into())
+    }
+
+    fn active_step_index(steps: &[EscalationStep], offset: i64) -> Option<usize> {
+        steps.iter().rposition(|step| offset >= step.at)
+    }
+
+    /// Shared predicates for acceptance and retirement; one definition per reason.
+    fn session_reason_current(&self, event: &NotificationEvent, facts: &SessionNotificationFacts) -> bool {
+        let config = &self.comm_profile.periodic_notifications;
+        match event {
+            NotificationEvent::Inactivity => config.inactivity_enabled && facts.last_position_change_at.is_some_and(|at|
+                (facts.now - at).num_seconds() >= i64::from(config.inactivity_after_mins) * 60),
+            NotificationEvent::PostureBalance => config.posture_balance_enabled
+                && facts.sitting_seconds_total >= self.ergo_profile.limits.posture_balance_min_sitting_secs as i64
+                && facts.sitting_seconds_total > facts.standing_seconds * 2,
+            NotificationEvent::StandingTargetReached => facts.standing_target_secs > 0 && facts.standing_seconds >= facts.standing_target_secs,
+            NotificationEvent::Praise => config.praise_halfway_enabled && facts.standing_target_secs > 0
+                && facts.standing_seconds >= facts.standing_target_secs / 2,
+            NotificationEvent::StandLimitReached => false,
+        }
+    }
+
+    pub(crate) fn reminder_obsolete_reason(&self, draft: &ReminderDraft, day: chrono::NaiveDate,
+        input: &PolicyInput, facts: &SessionNotificationFacts, sitting_limit: i64, standing_elapsed: i64,
+        now: Instant,
+    ) -> Option<RetirementReason> {
+        if draft.reason == ReminderReason::DeviceDisconnected {
+            if !self.comm_profile.notifications_enabled
+                || !matches!(self.comm_profile.disconnected.notify_once.as_deref(), Some("toast" | "popup")) {
+                return Some(RetirementReason::ProfileDisabled);
+            }
+            return input.sensor_connected.then_some(RetirementReason::ContextChanged);
+        }
+        if !self.comm_profile.notifications_enabled || crate::notification_service::channels_for_backend(&self.comm_profile.notification_backend).is_empty() {
+            return Some(RetirementReason::ProfileDisabled);
+        }
+        if !input.sensor_connected || !input.observation_fresh { return Some(RetirementReason::ObservationUnavailable); }
+        if day != facts.now.with_timezone(&chrono::Local).date_naive() { return Some(RetirementReason::ContextChanged); }
+        if self.is_snoozed_at(now) && (matches!(draft.reason, ReminderReason::SittingLimit | ReminderReason::StandingLimit | ReminderReason::ScreenBreak)
+            || (input.state == DeskState::Sitting && matches!(draft.reason, ReminderReason::Inactivity | ReminderReason::PostureBalance))) {
+            return Some(RetirementReason::ContextChanged);
+        }
+        let valid = match draft.reason {
+            ReminderReason::SittingLimit | ReminderReason::StandingLimit => {
+                let sitting = draft.reason == ReminderReason::SittingLimit;
+                let (state, steps, elapsed, limit) = if sitting {
+                    (DeskState::Sitting, &self.comm_profile.escalation.sitting, input.elapsed_secs, sitting_limit)
+                } else { (DeskState::Standing, &self.comm_profile.escalation.standing, standing_elapsed,
+                    self.ergo_profile.limits.standing_max_secs as i64) };
+                input.state == state && Self::active_step_index(steps, elapsed.saturating_sub(limit)).is_some_and(|idx|
+                    steps[..=idx].iter().any(|step| matches!(step.notify.as_deref(), Some("toast" | "popup" | "both"))))
+            }
+            ReminderReason::ScreenBreak => self.screen_break_current(input),
+            ReminderReason::Inactivity => !matches!(input.state, DeskState::Away | DeskState::Walking)
+                && draft.position_anchor == facts.last_position_change_at.map(|at| at.to_rfc3339())
+                && self.session_reason_current(&NotificationEvent::Inactivity, facts),
+            ReminderReason::PostureBalance => self.session_reason_current(&NotificationEvent::PostureBalance, facts),
+            ReminderReason::Praise => self.session_reason_current(&NotificationEvent::Praise, facts),
+            ReminderReason::StandingTarget => self.session_reason_current(&NotificationEvent::StandingTargetReached, facts),
+            ReminderReason::Preview => true,
+            ReminderReason::DeviceDisconnected => unreachable!("device reason handled before coverage guards"),
+        };
+        (!valid).then_some(RetirementReason::ContextChanged)
+    }
+
     // ── private helpers ───────────────────────────────────────────────────────
+
+    fn screen_break_current(&self, input: &PolicyInput) -> bool {
+        input.state == DeskState::Standing && self.comm_profile.screen_break_nudge.enabled
+            && !self.comm_profile.screen_break_nudge.messages.is_empty()
+            && self.ergo_profile.limits.max_continuous_computer_secs > 0
+            && input.continuous_computer_secs >= self.ergo_profile.limits.max_continuous_computer_secs as i64
+    }
 
     /// Check if a screen break nudge should fire and apply it to signals.
     fn maybe_apply_screen_nudge(&mut self, input: &PolicyInput, signals: &mut Signals) {
@@ -494,28 +600,34 @@ impl CommunicationPolicy {
             self.screen_break_nudge_fired = false;
         }
 
-        if input.state == DeskState::Standing
+        if self.screen_break_current(input)
             && signals.notify.is_none()
             && !self.screen_break_nudge_fired
-            && self.ergo_profile.limits.max_continuous_computer_secs > 0
             && self.comm_profile.notifications_enabled
-            && input.continuous_computer_secs >= self.ergo_profile.limits.max_continuous_computer_secs as i64
-            && self.comm_profile.screen_break_nudge.enabled
-            && !self.comm_profile.screen_break_nudge.messages.is_empty()
+            && !crate::notification_service::channels_for_backend(&self.comm_profile.notification_backend).is_empty()
         {
             if let Some(msg) = crate::screen_break_nudge::pick_nudge_message(
                 &self.comm_profile.screen_break_nudge.messages,
             ) {
                 signals.notify = Some(NotifySignal::Toast(msg));
+                self.last_reminder = Some(ReminderDraft { occurrence: self.next_reminder_occurrence(), reason: ReminderReason::ScreenBreak, category: ReminderCategory::Warning,
+                    title: "Take a screen break".into(), body: match &signals.notify { Some(NotifySignal::Toast(body)) => body.clone(), _ => unreachable!() },
+                    elapsed_secs: Some(input.continuous_computer_secs), limit_secs: Some(self.ergo_profile.limits.max_continuous_computer_secs as i64), position_anchor: None, observation_day: None });
                 self.screen_break_nudge_fired = true;
             }
         }
     }
 
-    fn make_baseline(&self, input: &PolicyInput) -> Signals {
+    fn make_baseline(&self, input: &PolicyInput, sitting_limit_secs: i64) -> Signals {
+        let sitting_progress = if sitting_limit_secs > 0 {
+            (input.elapsed_secs as f32 / sitting_limit_secs as f32).min(1.5)
+        } else {
+            0.0
+        };
         helpers::baseline_signals(
             &input.state,
             &self.comm_profile.baseline,
+            sitting_progress,
             input.standing_lap_progress,
             input.standing_lap,
             input.standing_lap_flash,
@@ -542,6 +654,19 @@ impl CommunicationPolicy {
         let overlay = helpers::parse_overlay_signal(&step.overlay, progress);
         let popup = helpers::parse_popup_signal(&step.popup_header);
         let notify = self.build_step_notify(notify_type, input, notification_elapsed_secs, now);
+        if let Some(NotifySignal::Toast(body) | NotifySignal::Popup(body)) = &notify {
+            let sitting = input.state == DeskState::Sitting;
+            self.last_reminder = Some(ReminderDraft {
+                occurrence: self.next_reminder_occurrence(),
+                reason: if sitting { ReminderReason::SittingLimit } else { ReminderReason::StandingLimit },
+                category: if step.at < 0 { ReminderCategory::Warning } else { ReminderCategory::Urgent },
+                title: if sitting { "Time to stand up" } else { "Time to change position" }.into(),
+                body: body.clone(), elapsed_secs: Some(notification_elapsed_secs),
+                limit_secs: Some(if sitting { sitting_limit_secs } else { self.ergo_profile.limits.standing_max_secs as i64 }),
+                position_anchor: None,
+                observation_day: None,
+            });
+        }
 
         Signals { tray, overlay, popup, notify, accepted_events: Vec::new() }
     }
@@ -567,6 +692,10 @@ impl CommunicationPolicy {
             return None;
         }
         let notify_type = notify_type?;
+        if !matches!(notify_type, "toast" | "popup" | "both")
+            || crate::notification_service::channels_for_backend(&self.comm_profile.notification_backend).is_empty() {
+            return None;
+        }
 
         // The profile's first enabled step starts its reminder cadence. Later
         // visual-only steps retain that channel while the configured cooldown

@@ -12,6 +12,7 @@
  *   have no Rust counterpart and stay hand-written.
  */
 import type { DeskState } from "./generated/DeskState";
+import type { LastBreakCreditFacts } from "./generated/LastBreakCreditFacts";
 import type { LiveObservation } from "./generated/LiveObservation";
 import type { MetricSnapshot } from "./generated/MetricSnapshot";
 import type { SessionRow } from "./generated/SessionRow";
@@ -39,6 +40,8 @@ export type { StateChangedPayload } from "./generated/StateChangedPayload";
 export type { SessionStateDto } from "./generated/SessionStateDto";
 /** Producer-qualified current observation and its own freshness facts. */
 export type { LiveObservation } from "./generated/LiveObservation";
+/** Producer-captured accounting for each application of break credit. */
+export type { LastBreakCreditFacts };
 /** Severity level for a KPI metric. */
 export type { MetricLevel } from "./generated/MetricLevel";
 /** Result of computing a single metric. */
@@ -49,6 +52,7 @@ export type { MetricSnapshot };
 export type { DashboardState } from "./generated/DashboardState";
 /** Serial port info returned by the `list_ports` command. */
 export type { PortInfo } from "./generated/PortInfo";
+export type { AppReminderSnapshot } from "./generated/AppReminderSnapshot";
 /**
  * A single tracked session within a day.
  *
@@ -148,8 +152,12 @@ export interface WidgetProps {
   connected: boolean;
   /** Producer-qualified live posture span and its freshness reason. */
   liveObservation?: LiveObservation | null;
+  /** Engine-captured break accounting; null/omitted means unavailable. */
+  lastBreakCreditFacts?: LastBreakCreditFacts[] | null;
   /** Frontend response receipt/error state; it is not producer freshness. */
   dashboardRefresh?: { loading: boolean; lastSuccessAt: string | null; error: string | null };
+  /** Saved preference for showing keyboard/mouse input activity. */
+  showActivityStatus?: boolean;
   port: string | null;
   state: DeskState;
   deskHeightCm: number;
@@ -182,6 +190,8 @@ export interface WidgetProps {
   metrics: MetricSnapshot[];
   error: string | null;
   onOpenSettings: () => void;
+  /** Main owns the native protected-flow handshake; widgets retain their dialog state. */
+  onShareChange?: (open: boolean) => Promise<void>;
 }
 
 /** A widget is a pure presentation component receiving WidgetProps. */

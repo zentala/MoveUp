@@ -7,6 +7,8 @@
  * Uses useDeskAuto() which auto-selects Tauri IPC (desktop) or
  * WebSocket (remote display) based on runtime environment.
  */
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useDeskAuto } from "@/hooks/useDeskAuto";
 import type { LiveObservation, WidgetProps } from "@/types";
 import type { QueryStatus } from "./useDeskTypes";
@@ -37,12 +39,47 @@ export interface WidgetDataResult {
  */
 export function useWidgetData(onOpenSettings: () => void): WidgetDataResult {
   const desk = useDeskAuto();
+  const [showActivityStatus, setShowActivityStatus] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    let saveRevision = 0;
+    const refresh = () => {
+      const revisionAtStart = saveRevision;
+      void invoke<{ show_activity_status: boolean }>("get_settings")
+        .then((settings) => {
+          if (!disposed && revisionAtStart === saveRevision) {
+            setShowActivityStatus(settings.show_activity_status);
+          }
+        })
+        .catch(() => {
+          if (!disposed && revisionAtStart === saveRevision) setShowActivityStatus(null);
+        });
+    };
+    const saved = (event: Event) => {
+      const detail = (event as CustomEvent<{ show_activity_status: boolean }>).detail;
+      if (typeof detail?.show_activity_status === "boolean") {
+        saveRevision += 1;
+        setShowActivityStatus(detail.show_activity_status);
+      } else {
+        refresh();
+      }
+    };
+    refresh();
+    window.addEventListener("moveup:settings-saved", saved);
+    return () => {
+      disposed = true;
+      window.removeEventListener("moveup:settings-saved", saved);
+    };
+  }, []);
 
   return {
     widgetProps: {
       connected: desk.connected,
       liveObservation: desk.liveObservation,
+      lastBreakCreditFacts: desk.lastBreakCreditFacts,
       dashboardRefresh: desk.dashboardRefresh,
+      showActivityStatus: showActivityStatus ?? false,
       port: desk.port,
       state: desk.state,
       deskHeightCm: desk.deskHeightCm,

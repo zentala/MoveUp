@@ -194,6 +194,7 @@ impl SessionManager {
             state: self.state.state.clone(),
             observation_quality: self.observation_is_fresh_at(now).then(|| "known".to_string()),
             live_observation: Some(self.live_observation_at(now)),
+            last_break_credit_facts: self.state.last_break_credit_facts.clone(),
             sitting_seconds: live_sitting,
             standing_seconds: live_standing,
             standing_session_secs: self.get_live_standing_session_secs(now),

@@ -105,6 +105,7 @@ mod serde_contract_tests {
             state: DeskState::Standing,
             observation_quality: Some("known".to_string()),
             live_observation: None,
+            last_break_credit_facts: None,
             sitting_seconds: 0,
             standing_seconds: 300,
             break_seconds: 300,
@@ -128,6 +129,8 @@ mod serde_contract_tests {
         assert_eq!(json["observation_quality"], "known");
         assert_eq!(json["live_observation"], serde_json::Value::Null,
             "serde emits Option::None as null for the additive projection");
+        assert_eq!(json["last_break_credit_facts"], serde_json::Value::Null,
+            "serde emits unavailable last-break facts as null");
 
         let unknown = SessionStateDto {
             observation_quality: None,
@@ -141,6 +144,8 @@ mod serde_contract_tests {
             "the generated DTO must describe both emitted null and legacy omission: {declaration}");
         assert!(declaration.contains("live_observation?: LiveObservation | null"),
             "the generated DTO must preserve nullable and legacy-omitted projection data: {declaration}");
+        assert!(declaration.contains("last_break_credit_facts?: Array<LastBreakCreditFacts> | null"),
+            "the generated DTO must preserve nullable and legacy-omitted accounting: {declaration}");
     }
 
     #[test]

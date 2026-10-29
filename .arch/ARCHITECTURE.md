@@ -8,6 +8,36 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 
 ## Component Map
 
+Application-owned ergonomic and device notices reuse the policy-to-executor boundary and
+the existing main window. A bounded local active-message adapter supplies a
+snapshot plus targeted change events, with revision-qualified acknowledgement
+and no-focus presentation. Settings/Share retain priority; Analyst and remote
+display remain separate. Existing profile channel inputs resolve to one main
+reminder, while policy schedules and silence remain authoritative. Failed-save
+retry after remount uses the same acknowledgement command without applying the
+policy twice. The existing product Test previews validated categories with one
+shared rate limit and no ergonomic effects. See
+[ADR 026](ADR/026-application-owned-reminders.md).
+
+Window runtime diagnostics belong to the application adapter:
+`ui_diagnostics_types` defines bounded observations and unavailable states;
+`ui_diagnostics` owns a queue of 128 entries and 64 recent event groups;
+`ui_diagnostics_store` caps JSON at 256 KiB and publishes reports exclusively
+under the existing daily log directory. A single background writer calls the
+existing result-returning EventLogger API. Checkpoint access is read-only and
+nonblocking. Production setup activates existing-window native callbacks and power evidence;
+the native tray action collects main and only an already-existing Analyst.
+The fixed probe reads the window-local version1 publisher without content or
+raw errors. Logical timeout/navigation/power settle capture observations while
+physical ExecuteScript remains occupied until its callback. Late capture failures
+retain their originating generation/probe and cannot clear newer state. All
+bounded failures use the existing background sink and loss/write accounting.
+A partial publication retains its actual path with an incomplete warning.
+The standalone isolated example uses a distinct identity/private profiles and no
+product setup/plugins; its evidence does not certify the installed application.
+Adapters preserve separate Analyst identity, engine/history semantics and backend readiness. See
+[ADR 025](ADR/025-window-runtime-diagnostics.md).
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    HARDWARE LAYER                            │
@@ -45,8 +75,9 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 │    │    └── ergonomic_profile.rs (limits/scoring/KPI)        │
 │    ├── profile_loader.rs        (JSON load/validate/watch)   │
 │    ├── profile_reload.rs        (hot-reload active profile)  │
-│    ├── alert_popup*.rs          (WinAPI popup window)        │
-│    └── notification_service.rs  (desktop notifications)      │
+│    ├── alert_popup*.rs          (legacy WinAPI popup)       │
+│    ├── notification_service.rs  (policy reminder routing)   │
+│    └── app_reminders.rs / commands_reminders.rs (main view) │
 │                                                              │
 │  activity.rs  (Windows idle detection via GetLastInputInfo)  │
 │  config.rs    (AppConfig — hardware/UI/telemetry only)       │
@@ -129,7 +160,9 @@ VL53L1X sensor
         → tray_signal_exec.rs (executes returned Signals)
             → overlay_renderer.rs (WinAPI 4px bar, top of screen)
             → tray.rs + tray_blink.rs (icon + blinking)
-            → notification_service.rs (toast/popup)
+            → notification_service.rs (typed policy reminder)
+                → commands_reminders.rs / app_reminders.rs
+                → main snapshot + targeted desk:app-reminder event
         → IPC emit (desk:state-changed → frontend)
     → useDesk hook (frontend polls via get_session_state)
     → Widget renders (OneBar, TimelineZen, etc.)

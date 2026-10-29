@@ -3,16 +3,20 @@
 Turn a phone or tablet into a desk dashboard. There are two ways to reach the
 desk, and they show the same screen:
 
-| | **Pair a phone** (Pro) | **Your own Wi-Fi** (free) |
+| | **Cloud relay** (Pro) | **LAN display** (free) |
 |---|---|---|
 | Works from | anywhere, mobile data included | the same network as the PC |
-| Setup | a code on the phone, once | the PC's IP address and a firewall rule |
-| Sign-in | pairing code, revocable per device | none — anyone on the network can look |
+| Setup | a code on the phone, once | the PC's current LAN address; firewall access may need attention |
+| Sign-in | pairing code, revocable per device | none when the LAN display is configured and reachable |
 | Controls | dismiss an alert, change limits, switch profile | view only |
 | PC turned off | last known state, with the time it was last seen | nothing |
 
-Pairing is the shorter road and the private one. Start there; the LAN section
-below is still the whole story if you never want the desk to talk to a server.
+These are independent paths. The cloud relay is opt-in and the desk connects
+out. The LAN display requires no sign-in when it is configured and reachable
+on the local network; its current binding and reachability are not confirmed by
+this guide. Neither path changes the separate telemetry preference. In this
+build, opting into telemetry does not upload data: the backend only prepares
+and logs a daily aggregate locally.
 
 ## Pair a phone — works from anywhere
 
@@ -26,9 +30,10 @@ see [what the relay holds](#what-the-relay-holds) below.
 
 ### 1. Turn on remote access on the PC
 
-Open **Settings → Remote access**, type your licence key into **Licence key**
-and press **Enable remote access**. The line above the field is the status; it
-should settle on *"Online — your phone can reach this desk"*.
+Open **Settings → More → Remote access**, type your licence key into **Licence
+key** and press **Enable remote access**. The line above the field reports the
+desk's connection to the relay. *Connected to the cloud relay* means the desk
+connection is online; it does not report whether a phone is currently connected.
 
 ### 2. Show a pairing code
 
@@ -63,9 +68,9 @@ is refused and logged as `REMOTE DENIED`.
 
 ### 5. Removing a phone
 
-**Settings → Remote access → Paired phones** lists every paired device. Remove
-one and its connection drops within a second and cannot come back — that is the
-answer to a lost phone.
+**Settings → More → Remote access → Paired phones** lists every paired device.
+Remove one and its connection drops within a second and cannot come back — that
+is the answer to a lost phone.
 
 **Turn off and forget this desk** unregisters the desk entirely. It clears the
 local credential even when the relay cannot be reached: turning sharing off must
@@ -89,10 +94,12 @@ Details: [`PRIVACY.md`](PRIVACY.md) and
 
 ## On your own Wi-Fi — the LAN dashboard
 
-The app also runs an embedded HTTP + WebSocket server that streams live session
-data to any browser on your local network. No account, no relay, nothing leaves
-the machine — and no password either, so treat it as "anyone on this network may
-look".
+When enabled and successfully bound, the app runs an embedded HTTP + WebSocket
+server that streams live session data to browsers on your local network. It
+needs no account or relay, but it has no sign-in: anyone on that network may
+view the display. Settings does not report whether the server is listening or
+provide the PC's current network-adapter address, and MoveUp does not verify
+firewall rules or whether a phone can reach it.
 
 ### Requirements
 
@@ -100,7 +107,7 @@ look".
 - Same WiFi network as the PC running MoveUp
 - A kiosk browser app (recommended: Fully Kiosk Browser)
 
-### 1. Find your PC's local IP
+### 1. Find your PC's local address
 
 On the PC running MoveUp, open a terminal:
 
@@ -108,7 +115,9 @@ On the PC running MoveUp, open a terminal:
 ipconfig
 ```
 
-Look for your WiFi adapter's **IPv4 Address** (e.g. `192.168.0.105`).
+Find the **IPv4 Address** of the adapter connected to the same network as the
+phone. The address may change when the PC changes networks or reconnects; do
+not use an address from an unrelated adapter.
 
 ### 2. Install Fully Kiosk Browser
 
@@ -116,19 +125,22 @@ Download **Fully Kiosk Browser** from Google Play Store (free version works).
 
 ### 3. Configure the URL
 
-In Fully Kiosk Browser, set the start URL to:
+In Fully Kiosk Browser, set the start URL to the PC's current local address and
+the configured remote-display port (3390 by default; `DESK_REMOTE_PORT` can
+override it):
 
 ```
-http://<PC-IP>:3390/display
+http://<PC-local-IP>:<configured-port>/display
 ```
 
-Example: `http://192.168.0.105:3390/display`
+Example with the default port: `http://192.168.0.105:3390/display`. This
+example is illustrative, not the address of your PC.
 
 ### 4. Recommended Fully Kiosk settings
 
 | Setting | Value |
 |---------|-------|
-| Start URL | `http://<PC-IP>:3390/display` |
+| Start URL | `http://<PC-local-IP>:<configured-port>/display` |
 | Orientation | Landscape |
 | Screen always on | Yes |
 | Fullscreen mode | Yes |
@@ -143,11 +155,14 @@ is easier there.
 
 ### 5. Allow through Windows Firewall
 
-The remote display server listens on port **3390**. You may need to allow inbound connections:
+The remote display server uses the configured port (3390 by default). Windows
+Firewall or network isolation may prevent a phone from reaching it; MoveUp does
+not test or certify that route. If needed, an administrator can allow inbound
+TCP connections for that port:
 
 1. Open **Windows Defender Firewall** > **Advanced Settings**
 2. Click **Inbound Rules** > **New Rule...**
-3. Select **Port** > **TCP** > Specific port: `3390`
+3. Select **Port** > **TCP** > Specific port: the configured port
 4. **Allow the connection**
 5. Name it: `MoveUp Remote Display`
 
@@ -163,10 +178,11 @@ The remote display server listens on port **3390**. You may need to allow inboun
 ## Turning the LAN display off
 
 The LAN display is on by default and has no login: anyone already on your
-network can open it. If that is not what you want, switch it off — the toggle
-is `remote_lan_enabled` in the app config (Settings → Remote), default `true`.
+network may view it. If that is not what you want, switch it off — the toggle
+is `remote_lan_enabled` in the app config (Settings → More → Remote access),
+default `true`.
 
-Set to `false`, the app does not open port 3390 at all: no dashboard, no
+Set to `false`, the app does not open the configured remote-display port: no dashboard, no
 WebSocket, no health or voice inlet. Nothing else changes — the desk keeps
 tracking, and a paired phone reached through the relay keeps working, because
 that path does not go through this server.
@@ -213,7 +229,7 @@ variable is unset the inlet is **closed**, not open: every push gets `503`.
 ### 2. Push a reading
 
 ```bash
-curl -X POST http://<PC-IP>:3390/display/health \
+curl -X POST http://<PC-local-IP>:<configured-port>/display/health \
   -H "Content-Type: application/json" \
   -H "X-Desk-Token: $DESK_REMOTE_TOKEN" \
   -d '{"steps_today":1234,"heart_rate_bpm":61,"source_id":"curl","measured_at_ms":'"$(date +%s000)"'}'
@@ -276,7 +292,7 @@ it works in any browser, in Fully Kiosk, and over plain `http://`.
 
 A second mic button — the browser's own speech recognition — appears **only**
 when your browser supports it and the microphone permission is not blocked.
-On most phones opening `http://<PC-IP>:3390` it will not appear, because
+On most phones opening `http://<PC-local-IP>:<configured-port>` it will not appear, because
 Chrome reserves that API for secure (HTTPS) pages. Nothing is broken when the
 button is missing; use the keyboard mic.
 
@@ -355,7 +371,7 @@ Bodies are capped at **4 KiB**.
 Test it without a phone:
 
 ```bash
-curl -X POST http://<PC-IP>:3390/display/voice \
+curl -X POST http://<PC-local-IP>:<configured-port>/display/voice \
   -H "Content-Type: application/json" \
   -H "X-Desk-Token: $DESK_REMOTE_TOKEN" \
   -d '{"transcript":"drzemka 5","captured_at_ms":'"$(date +%s000)"'}'
@@ -379,20 +395,28 @@ is not running. The data on screen is the last snapshot, with the time it was
 taken. This is different from "Reconnecting…", which means the **phone** lost
 the relay.
 
-### Settings shows something other than "Online"
+### Settings shows a relay status other than connected
 
 | Line | Means |
 |---|---|
-| *Licence expired or not valid for this desk* | the licence ended or was revoked; the app stops retrying on purpose |
-| *This desk was removed from the licence* | the desk registration was deleted — register again |
-| *Another desk took over this registration* | the same registration is in use elsewhere; only one desk may hold it |
-| *Cannot reach the relay* | network or relay outage; the app keeps retrying with a growing delay |
+| *Relay is off* | the cloud relay is not active on this desk; the LAN toggle is separate |
+| *Connecting to the cloud relay…* | the desk is opening its outbound relay connection |
+| *Relay licence expired or is not valid for this desk* | the licence ended or was revoked; the app stops retrying on purpose |
+| *This desk's relay registration was removed* | the desk registration was deleted — register again |
+| *Another desk took over this relay registration* | the same registration is in use elsewhere; only one desk may hold it |
+| *Cloud relay unavailable; retrying in the background* | network or relay outage; the desk retries with a growing delay |
+| *Could not load relay status. The relay state is unknown.* | Settings could not read the status; use **Retry relay status**. This is not evidence that the relay is off. |
+
+*Connected to the cloud relay* reports the desk's connection only; it does not
+mean a phone is connected. The LAN address and server-listening state are not
+reported in Settings, and the app does not test firewall or phone reachability.
 
 ### "Cannot connect" / page won't load
 
-- Verify phone and PC are on the **same WiFi network**
-- Check the PC's IP hasn't changed (use `ipconfig` again)
-- Ensure Windows Firewall allows port 3390 (see step 5 above)
+- Verify phone and PC are on the **same local network**
+- Check the address for the PC's connected adapter and the configured port
+  (use `ipconfig` again if the PC changed networks)
+- Check that Windows Firewall allows the configured remote-display port (see step 5 above)
 - Try opening the URL in the phone's regular browser first
 
 ### "Reconnecting..." shown on phone

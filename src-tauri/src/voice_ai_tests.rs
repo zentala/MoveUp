@@ -21,6 +21,7 @@ fn session() -> SessionStateDto {
         state: DeskState::Sitting,
         observation_quality: Some("known".to_string()),
         live_observation: None,
+        last_break_credit_facts: None,
         sitting_seconds: 1800,
         standing_seconds: 600,
         break_seconds: 600,

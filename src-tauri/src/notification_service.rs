@@ -6,7 +6,7 @@
 use log::info;
 
 use crate::alert_popup::AlertPopup;
-use crate::communication_types::NotifySignal;
+use crate::communication_types::{NotifySignal, ReminderDraft};
 use crate::event_logger::EventLogger;
 use crate::session_types::NotificationEvent;
 
@@ -17,6 +17,7 @@ pub struct NotificationIntent {
     pub title: String,
     pub body: String,
     pub(crate) channels: Vec<NotificationChannel>,
+    pub(crate) reminder: Option<ReminderDraft>,
 }
 
 /// Routes notifications through the configured backend.
@@ -29,17 +30,14 @@ pub struct NotificationService;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NotificationChannel {
-    Toast,
-    Popup,
+    Main,
 }
 
 /// Resolves a configured backend to the channels the executor will call.
 /// The caller that owns policy supplies the backend; this function only routes it.
 pub(crate) fn channels_for_backend(backend: &str) -> Vec<NotificationChannel> {
     match backend {
-        "toast" => vec![NotificationChannel::Toast],
-        "popup" => vec![NotificationChannel::Popup],
-        "both" => vec![NotificationChannel::Toast, NotificationChannel::Popup],
+        "toast" | "popup" | "both" => vec![NotificationChannel::Main],
         _ => Vec::new(),
     }
 }
@@ -98,6 +96,7 @@ impl NotificationService {
                 title,
                 body,
                 channels: Vec::new(),
+                reminder: None,
             });
         }
         intents
@@ -110,6 +109,7 @@ impl NotificationService {
             title: "Time to stand up!".to_string(),
             body: "You've been sitting for 40 minutes. Take a break.".to_string(),
             channels: Vec::new(),
+            reminder: None,
         }
     }
 
@@ -120,6 +120,7 @@ impl NotificationService {
             title: "You've been standing a while".to_string(),
             body: "Ready to sit down for a bit?".to_string(),
             channels: Vec::new(),
+            reminder: None,
         }
     }
 
@@ -130,6 +131,7 @@ impl NotificationService {
             title: "Halfway through your standing goal!".to_string(),
             body: "Keep it up.".to_string(),
             channels: Vec::new(),
+            reminder: None,
         }
     }
 
@@ -140,14 +142,19 @@ impl NotificationService {
     /// - `"popup"` — WinAPI popup only
     /// - `"both"` — both toast and popup
     pub fn dispatch(
+        app: &tauri::AppHandle,
         intents: &[NotificationIntent],
         event_logger: &EventLogger,
-        alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,
+        _alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,
     ) {
-        Self::dispatch_with(
+        Self::dispatch_reminders_with(
             intents,
             |line| event_logger.log(line),
-            |channels, title, body| Self::execute_channels(channels, title, body, alert_popup),
+            |channels, _, _, draft| {
+                if channels.contains(&NotificationChannel::Main) {
+                    if let Some(draft) = draft { crate::commands_reminders::publish(app, draft.clone(), crate::app_reminders::ReminderSource::Session); }
+                }
+            },
         );
     }
 
@@ -155,8 +162,16 @@ impl NotificationService {
     /// Policy still supplies the resolved intents and channels.
     pub(crate) fn dispatch_with(
         intents: &[NotificationIntent],
-        mut log: impl FnMut(&str),
+        log: impl FnMut(&str),
         mut execute: impl FnMut(&[NotificationChannel], &str, &str),
+    ) {
+        Self::dispatch_reminders_with(intents, log, |channels, title, body, _| execute(channels, title, body));
+    }
+
+    pub(crate) fn dispatch_reminders_with(
+        intents: &[NotificationIntent],
+        mut log: impl FnMut(&str),
+        mut execute: impl FnMut(&[NotificationChannel], &str, &str, Option<&ReminderDraft>),
     ) {
         for intent in intents {
             let log_tag = notification_log_tag(&intent.event);
@@ -165,6 +180,7 @@ impl NotificationService {
                 &intent.channels,
                 &intent.title,
                 &intent.body,
+                intent.reminder.as_ref(),
             );
         }
     }
@@ -180,18 +196,24 @@ impl NotificationService {
     /// Executes a channel already selected by `CommunicationPolicy`.
     /// This is the common side-effect path for per-tick policy signals.
     pub(crate) fn dispatch_policy_signal(
+        app: &tauri::AppHandle,
         signal: &NotifySignal,
+        draft: Option<&ReminderDraft>,
         event_logger: Option<&EventLogger>,
-        alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,
+        _alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,
     ) {
         Self::dispatch_policy_signal_with(
             signal,
+            draft,
             || {
                 if let Some(event_logger) = event_logger {
                     event_logger.log("NOTIF policy");
                 }
             },
-            |channel, title, body| Self::execute_channels(&[channel], title, body, alert_popup),
+            |NotificationChannel::Main, _, _, draft| {
+                let draft = draft.expect("final effect selection requires typed policy metadata");
+                crate::commands_reminders::publish(app, draft.clone(), crate::app_reminders::ReminderSource::Policy);
+            },
         );
     }
 
@@ -199,31 +221,22 @@ impl NotificationService {
     /// the event logger and platform executor; tests count the same effects.
     pub(crate) fn dispatch_policy_signal_with(
         signal: &NotifySignal,
+        draft: Option<&ReminderDraft>,
         mut log: impl FnMut(),
-        mut execute_channel: impl FnMut(NotificationChannel, &str, &str),
+        mut execute_channel: impl FnMut(NotificationChannel, &str, &str, Option<&ReminderDraft>),
     ) {
-        let (channel, body) = match signal {
-            NotifySignal::Toast(body) => (NotificationChannel::Toast, body.as_str()),
-            NotifySignal::Popup(body) => (NotificationChannel::Popup, body.as_str()),
+        let Some(draft) = draft else {
+            log::error!("Policy notice has no typed reminder metadata; no presentation effect executed");
+            return;
+        };
+        let body = match signal {
+            NotifySignal::Toast(body) | NotifySignal::Popup(body) => body.as_str(),
         };
         log();
-        execute_channel(channel, "Smart Desk", body);
+        execute_channel(NotificationChannel::Main, "MoveUp", body, Some(draft));
     }
 
-    fn execute_channels(
-        channels: &[NotificationChannel],
-        title: &str,
-        body: &str,
-        alert_popup: &std::sync::Arc<std::sync::Mutex<AlertPopup>>,
-    ) {
-        Self::execute_channels_with(channels, title, body, |channel, title, body| match channel {
-            NotificationChannel::Toast => crate::notify::show(title, body),
-            NotificationChannel::Popup => {
-                alert_popup.lock().unwrap().show(format!("{}\n\n{}", title, body));
-            }
-        });
-    }
-
+    #[cfg(test)]
     fn execute_channels_with(
         channels: &[NotificationChannel],
         title: &str,
@@ -315,11 +328,11 @@ mod tests {
 
     #[test]
     fn dispatch_seam_executes_only_policy_selected_channels() {
-        let selected = vec![NotificationChannel::Popup];
+        let selected = vec![NotificationChannel::Main];
         let mut calls = Vec::new();
         NotificationService::execute_channels_with(&selected, "title", "body", |channel, title, body| {
             calls.push((*channel, title.to_string(), body.to_string()));
         });
-        assert_eq!(calls, vec![(NotificationChannel::Popup, "title".into(), "body".into())]);
+        assert_eq!(calls, vec![(NotificationChannel::Main, "title".into(), "body".into())]);
     }
 }

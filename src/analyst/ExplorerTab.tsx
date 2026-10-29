@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import type { DailyKpi, SessionRow, SnapshotRow } from "@/test/analyst-fixtures";
 import type { DateRange } from "./DateRangePicker";
 import { AnalystHeader } from "./AnalystHeader";
@@ -13,10 +13,10 @@ import { useSessionsRange } from "./hooks/useSessionsRange";
 import { useSnapshotsRange } from "./hooks/useSnapshotsRange";
 import { useTimelineNav } from "./hooks/useTimelineNav";
 import { formatRangeLabel, formatRefreshedAt } from "@/utils/format";
-import { localCalendarDay } from "./open-day";
+import { localCalendarDay, rangeForOpenDay } from "./open-day";
 import type { LiveObservation } from "@/generated/LiveObservation";
 import type { QueryStatus } from "@/hooks/useDeskTypes";
-import { mergeTimelineIntervals, retainLiveObservationIntervals, sessionIntervals } from "@/timeline/intervals";
+import { mergeTimelineIntervals, retainLiveObservationIntervals, sessionIntervals, TimelineDataError } from "@/timeline/intervals";
 
 function readableTime(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -102,11 +102,16 @@ export function ExplorerTab({ range, onRangeChange, snapshots: propSnapshots, se
     : propSessions ?? [], [isLive, sessionsQuery.status, sessionsQuery.data, lastSuccessful, rangeKey, propSessions]);
   const [retainedObservations, rememberObservation] = useReducer(
     (retained: LiveObservation[], action: { observation: LiveObservation | null; sessions: typeof sessions }) => {
-      const next = retainLiveObservationIntervals(retained, action.observation, action.sessions.map((row) => ({
-        start: row.startedAt, end: row.endedAt, state: row.state ?? "", history_kind: row.historyKind,
-      })));
-      return next.length === retained.length && next.every((observation, index) => observation === retained[index])
-        ? retained : next;
+      try {
+        const next = retainLiveObservationIntervals(retained, action.observation, action.sessions.map((row) => ({
+          start: row.startedAt, end: row.endedAt, state: row.state ?? "", history_kind: row.historyKind,
+        })));
+        return next.length === retained.length && next.every((observation, index) => observation === retained[index])
+          ? retained : next;
+      } catch (cause) {
+        if (cause instanceof TimelineDataError) return retained;
+        throw cause;
+      }
     },
     [],
   );
@@ -120,20 +125,31 @@ export function ExplorerTab({ range, onRangeChange, snapshots: propSnapshots, se
     rememberObservation({ observation: liveObservation, sessions });
   }, [liveObservation, sessions]);
   const [currentNowMs, setNowMs] = useReducer((_: number, now: number) => now, undefined, () => Date.now());
-  const retained = retainLiveObservationIntervals(retainedObservations, liveObservation, sessionEntries);
+  const history = useMemo(() => {
+    try {
+      return { intervals: sessionIntervals(sessionEntries), error: null };
+    } catch (cause) {
+      if (!(cause instanceof TimelineDataError)) throw cause;
+      return { intervals: [], error: `History unavailable: ${cause.message}` };
+    }
+  }, [sessionEntries]);
+  const retained = history.error ? retainedObservations
+    : retainLiveObservationIntervals(retainedObservations, liveObservation, sessionEntries);
   const timelineData = useMemo(() => {
+    if (history.error) return { intervals: [], error: null };
     try {
       return { intervals: mergeTimelineIntervals(sessionEntries, liveObservation, undefined, currentNowMs, retained), error: null };
     } catch (error) {
       return {
-        intervals: sessionIntervals(sessionEntries),
+        intervals: history.intervals,
         error: error instanceof Error ? error.message : "Invalid live observation",
       };
     }
-  }, [sessionEntries, liveObservation, currentNowMs, retained]);
+  }, [sessionEntries, liveObservation, currentNowMs, retained, history]);
   const intervals = timelineData.intervals;
   const readCurrentNow = useCallback(() => currentNowMs, [currentNowMs]);
   const nav = useTimelineNav({ rangeFrom: range.from, rangeTo: range.to, nowMs: readCurrentNow });
+  const [todayRequest, setTodayRequest] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 60_000);
@@ -144,20 +160,29 @@ export function ExplorerTab({ range, onRangeChange, snapshots: propSnapshots, se
   }, [dashboardRefresh?.loading, dashboardRefresh?.lastSuccessAt, dashboardRefresh?.error, liveObservation?.snapshot_at]);
 
   useEffect(() => {
-    if (!openDayRequest || openDayRequest.day < range.from || openDayRequest.day > range.to) return;
+    if (!openDayRequest) return;
+    setTodayRequest(null);
+    if (openDayRequest.day < range.from || openDayRequest.day > range.to) return;
     nav.goTo(openDayRequest.day);
   }, [openDayRequest?.requestId, openDayRequest?.day, range.from, range.to, nav.goTo]);
+
+  useEffect(() => {
+    if (!todayRequest || openDayRequest || todayRequest < range.from || todayRequest > range.to) return;
+    nav.goTo(todayRequest);
+    setTodayRequest(null);
+  }, [todayRequest, openDayRequest?.requestId, range.from, range.to, nav.goTo]);
 
   useEffect(() => {
     if (openDayRequest?.day === nav.selectedDay) onOpenDayHandled?.(openDayRequest.requestId);
   }, [openDayRequest?.requestId, openDayRequest?.day, nav.selectedDay, onOpenDayHandled]);
 
   const loading = isLive && (snapsQuery.status === "loading" || sessionsQuery.status === "loading");
-  const error = isLive
+  const queryError = isLive
     ? snapsQuery.status === "error" ? snapsQuery.error
       : sessionsQuery.status === "error" ? sessionsQuery.error
         : null
     : null;
+  const error = queryError ?? history.error;
   const eventsLoading = isLive && eventsQuery.status === "loading";
   const eventsError = isLive && eventsQuery.status === "error" ? eventsQuery.error : null;
   const rangeLabel = formatRangeLabel(range.from, range.to);
@@ -172,10 +197,22 @@ export function ExplorerTab({ range, onRangeChange, snapshots: propSnapshots, se
     sessionsQuery.refetch();
     eventsQuery.refetch();
   };
+  const handleToday = () => {
+    const now = Date.now();
+    setNowMs(now);
+    const today = localCalendarDay(new Date(now));
+    if (today < range.from || today > range.to) {
+      setTodayRequest(today);
+      onRangeChange(rangeForOpenDay(range, today));
+      return;
+    }
+    nav.goTo(today);
+  };
 
   return <div className="analyst-local-theme" data-testid="explorer-tab">
     <AnalystHeader selectedDay={nav.selectedDay} onPrev={nav.prev} onNext={nav.next} />
-    <DateNavigatorHeader range={range} onRangeChange={onRangeChange} today={localCalendarDay(new Date(currentNowMs))} />
+    <DateNavigatorHeader range={range} onRangeChange={onRangeChange} onToday={handleToday}
+      today={localCalendarDay(new Date(currentNowMs))} />
     <div className="analyst-range-status">
       <p className="analyst-range-status__text" aria-live="polite">
         {error ? `Failed: ${error}${snapshots.length || sessions.length ? ` · showing last successful history${refreshedAt ? ` from ${refreshedAt}` : ""}` : ""}`
@@ -200,16 +237,19 @@ export function ExplorerTab({ range, onRangeChange, snapshots: propSnapshots, se
     </div>
     <section className="day-composition__panel" aria-label={`Selected day ${nav.selectedDay}`}>
       <div role="tabpanel" id="analyst-selected-day-panel" aria-labelledby={`analyst-day-${nav.selectedDay}`} aria-busy={loading} tabIndex={0}>
-        <TimelineDetail range={{ from: nav.selectedDay, to: nav.selectedDay }} selectedDay={nav.selectedDay}
-          snapshots={snapshots} intervals={intervals} onPrev={nav.prev} onNext={nav.next} nowMs={currentNowMs} showHeader={false} />
+        {history.error || loading || (queryError && !snapshots.length && !sessions.length)
+          ? <p className="day-composition__status" role={error ? "alert" : "status"}>
+          {error ?? "Loading observations…"}
+        </p> : <TimelineDetail range={{ from: nav.selectedDay, to: nav.selectedDay }} selectedDay={nav.selectedDay}
+          snapshots={snapshots} intervals={intervals} onPrev={nav.prev} onNext={nav.next} nowMs={currentNowMs} showHeader={false} />}
       </div>
       <DateNavigator range={range} selectedDay={nav.selectedDay} intervals={intervals}
         panelId="analyst-selected-day-panel" busy={loading} error={error} nowMs={currentNowMs} onSelectDay={nav.goTo} />
     </section>
-    <details className="analyst-day-details">
+    {!error && !loading ? <details className="analyst-day-details">
       <summary>Score and break-credit details for {nav.selectedDay}</summary>
       <DailyScoreTrajectory data={selectedSnapshots} />
       <BreakCreditHistogram data={selectedSessions} />
-    </details>
+    </details> : null}
   </div>;
 }

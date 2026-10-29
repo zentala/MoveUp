@@ -50,6 +50,20 @@ describe("AnalystWindow selected-day receiver", () => {
     expect(catalog).toHaveAttribute("aria-selected", "true");
   });
 
+  it("retains the expert range when switching Analyst views", () => {
+    const expertRange = { from: "2026-05-03", to: "2026-05-24" };
+    localStorage.setItem("desk:analyst:range", JSON.stringify(expertRange));
+    renderWindow();
+    expect(screen.getByLabelText("From")).toHaveValue(expertRange.from);
+    expect(screen.getByLabelText("To")).toHaveValue(expertRange.to);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Catalog" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Explorer" }));
+    expect(screen.getByLabelText("From")).toHaveValue(expertRange.from);
+    expect(screen.getByLabelText("To")).toHaveValue(expertRange.to);
+    expect(localStorage.getItem("desk:analyst:range")).toBe(JSON.stringify(expertRange));
+  });
+
   it("shows both app tabs and opens Explorer from Catalog on a valid request", async () => {
     renderWindow();
     expect(screen.getByRole("tab", { name: "Catalog" })).toBeInTheDocument();

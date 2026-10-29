@@ -32,6 +32,7 @@ const TimelineSkinSection: FC = () => {
           ))}
         </select>
       </div>
+      <p className="settings-panel__helper">Theme changes apply immediately. Back does not undo this choice.</p>
     </div>
   );
 };

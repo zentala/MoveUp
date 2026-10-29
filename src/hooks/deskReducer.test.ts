@@ -83,6 +83,31 @@ describe("deskReducer — happy path", () => {
     expect(s.connected).toBe(true);
   });
 
+  it("passes captured break-credit facts through without deriving them from current limits", () => {
+    const facts = [{
+      break_started_at: "2026-10-29T10:00:00Z",
+      observed_break_secs: 300,
+      minimum_break_secs: 60,
+      multiplier: 2,
+      requested_credit_secs: 600,
+      prior_applied_credit_secs: 0,
+      sitting_before_secs: 480,
+      applied_credit_secs: 480,
+      sitting_after_secs: 0,
+      applied_at: "2026-10-29T10:05:00Z",
+      no_credit_reason: null,
+    }];
+    const withFacts = deskReducer(initialDeskState, {
+      type: "snapshot",
+      session: makeSession({ last_break_credit_facts: facts }),
+      metrics: [],
+    });
+
+    expect(withFacts.lastBreakCreditFacts).toEqual(facts);
+    const legacy = deskReducer(initialDeskState, { type: "snapshot", session: makeSession(), metrics: [] });
+    expect(legacy.lastBreakCreditFacts).toBeNull();
+  });
+
   it("snapshot preserves the producer's stale observation metadata", () => {
     const liveObservation = {
       span: {
@@ -452,7 +477,19 @@ describe("deskReducer — happy path", () => {
   it("daily-reset zeroes the daily counters and empties today's summary", () => {
     const withData = deskReducer(initialDeskState, {
       type: "snapshot",
-      session: makeSession(),
+      session: makeSession({ last_break_credit_facts: [{
+        break_started_at: "2026-10-29T10:00:00Z",
+        observed_break_secs: 300,
+        minimum_break_secs: 60,
+        multiplier: 2,
+        requested_credit_secs: 600,
+        prior_applied_credit_secs: 0,
+        sitting_before_secs: 480,
+        applied_credit_secs: 480,
+        sitting_after_secs: 0,
+        applied_at: "2026-10-29T10:05:00Z",
+        no_credit_reason: null,
+      }] }),
       metrics: [],
       today: summary,
     });
@@ -461,6 +498,7 @@ describe("deskReducer — happy path", () => {
     expect(reset.secsSinceLastBreak).toBe(0);
     expect(reset.standingSeconds).toBe(0);
     expect(reset.limitUsedSecs).toBe(0);
+    expect(reset.lastBreakCreditFacts).toBeNull();
     expect(reset.dailyScore).toBe(0);
     expect(reset.todaySummary).toEqual({
       sitting_secs: 0,

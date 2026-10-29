@@ -1,8 +1,8 @@
 /**
  * TelemetrySection.tsx — Telemetry opt-in toggle and data transparency.
  *
- * Shows what data is collected and lets the user toggle telemetry on/off.
- * Default: OFF (privacy-first, opt-in only).
+ * Shows the opt-in preference and what the local telemetry payload contains.
+ * This build does not upload telemetry.
  */
 import { useState } from "react";
 import type { FC } from "react";
@@ -13,7 +13,7 @@ interface TelemetrySectionProps {
   onChange: (settings: DeskSettings) => void;
 }
 
-/** Telemetry opt-in toggle with expandable "What data?" section. */
+/** Telemetry preference with expandable local-payload details. */
 const TelemetrySection: FC<TelemetrySectionProps> = ({ settings, onChange }) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -31,16 +31,17 @@ const TelemetrySection: FC<TelemetrySectionProps> = ({ settings, onChange }) => 
             }
           />
           <span className="settings-panel__label">
-            Share anonymized usage data
+            Enable telemetry preference
           </span>
         </label>
       </div>
 
       <p className="settings-panel__hint">
-        Default: OFF. Your data stays local unless you choose to share.
+        Off by default. Telemetry is separate from LAN display and cloud relay.
       </p>
       <p className="settings-panel__hint">
-        This helps us understand what features actually change behavior.
+        This build does not upload usage data; enabling this preference only
+        prepares and logs a daily aggregate locally.
       </p>
 
       <button
@@ -48,7 +49,7 @@ const TelemetrySection: FC<TelemetrySectionProps> = ({ settings, onChange }) => 
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
       >
-        {expanded ? "Hide details" : "What data?"}
+        {expanded ? "Hide details" : "What data is prepared?"}
       </button>
 
       {expanded && (

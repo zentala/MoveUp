@@ -167,6 +167,11 @@ Diagnosis order when the app reports no sensor: check for a COM port at all
 then check `events.log` for connect/lost churn. Prefer a short (<=1 m) A-to-C
 cable straight into the motherboard, bypassing USB hubs.
 
+A COM port confirms that the USB controller enumerated; it does not prove that
+the assembled sensor is working or sending readings. Before calibrating, move
+the desk and confirm that the height reading changes in MoveUp. A missing
+reading is unknown data, not evidence that the person is away.
+
 If a COM port does appear and the sensor is still not found, see
 [Support — Sensor not detected](./USER_SUPPORT.md#issue-sensor-not-detected).
 
@@ -179,6 +184,7 @@ If a COM port does appear and the sensor is still not found, see
 
 ## Next Steps
 
+- **[First sensor reading and calibration help](./USER_SUPPORT.md#issue-sensor-not-detected)** — safe cable checks and what a real reading confirms
 - **[Settings](./USER_SUPPORT.md#settings)** — desk calibration, break interval
 - **[Updates](./USER_UPDATES.md)** — how to install a new version
 - **[Privacy](./PRIVACY.md)** — what MoveUp stores and what leaves your machine

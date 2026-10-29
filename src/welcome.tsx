@@ -6,6 +6,7 @@
  */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import "./styles/globals.css";
 import { WelcomePopup } from "./components/WelcomePopup";
 
 const rootElement = document.getElementById("root");

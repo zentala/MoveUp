@@ -3,6 +3,80 @@
 use crate::notification_service::{notification_log_tag, NotificationService};
 use crate::session_types::NotificationEvent;
 
+#[test]
+fn round2_disconnected_actual_final_effect_is_one_main_without_os_or_popup() {
+    use crate::communication_policy::{CommunicationPolicy, PolicyInput};
+    use crate::communication_profile::CommunicationProfile;
+    use crate::ergonomic_profile::ErgonomicProfile;
+    use crate::session_types::DeskState;
+    for notify_once in ["toast", "popup"] {
+        let mut profile = CommunicationProfile::default();
+        profile.disconnected.notify_once = Some(notify_once.into());
+        let mut policy = CommunicationPolicy::new(profile, ErgonomicProfile::default());
+        let signal = policy.evaluate(&PolicyInput { state: DeskState::Sitting, elapsed_secs: 0,
+            sensor_connected: false, observation_fresh: false, standing_lap: 0,
+            standing_lap_progress: 0.0, standing_lap_flash: false, continuous_computer_secs: 0 }).notify.unwrap();
+        let metadata = policy.take_reminder();
+        let mut effects = Vec::new();
+        NotificationService::dispatch_policy_signal_with(&signal, metadata.as_ref(), || {}, |channel, _, _, _|
+            effects.push(format!("{channel:?}")));
+        assert_eq!(effects, vec!["Main"], "actual final effect for disconnect={notify_once}");
+        assert!(metadata.is_some(), "disconnected policy decision supplies typed metadata");
+        let metadata = metadata.unwrap();
+        assert_eq!(metadata.reason, crate::communication_types::ReminderReason::DeviceDisconnected);
+        assert_eq!(metadata.category, crate::communication_types::ReminderCategory::Warning);
+        assert_eq!(metadata.body, policy.comm_profile().messages.sensor_disconnected);
+        assert_eq!(metadata.elapsed_secs, None); assert_eq!(metadata.limit_secs, None);
+        let mut input = PolicyInput { state: DeskState::Sitting, elapsed_secs: 0,
+            sensor_connected: false, observation_fresh: false, standing_lap: 0,
+            standing_lap_progress: 0.0, standing_lap_flash: false, continuous_computer_secs: 0 };
+        assert!(policy.evaluate(&input).notify.is_none(), "notify_once remains one shot");
+        let facts = crate::session_manager::SessionManager::new().notification_facts(chrono::Utc::now());
+        let day = facts.now.with_timezone(&chrono::Local).date_naive();
+        let state = crate::app_reminders::AppReminderState::default();
+        let first_id = { let mut guard = state.0.lock().unwrap();
+            guard.publish(metadata.clone(), crate::app_reminders::ReminderSource::Policy, day);
+            guard.reconcile(|entry| policy.reminder_obsolete_reason(&entry.draft, entry.day, &input, &facts, 2400, 0, std::time::Instant::now()));
+            guard.snapshot().active.unwrap().id };
+        input.sensor_connected = true;
+        { let mut guard = state.0.lock().unwrap();
+            guard.reconcile(|entry| policy.reminder_obsolete_reason(&entry.draft, entry.day, &input, &facts, 2400, 0, std::time::Instant::now()));
+            assert!(guard.snapshot().active.is_none(), "reconnect retires notice even before fresh posture coverage"); }
+        policy.on_sensor_connected(); input.sensor_connected = false;
+        let next_signal = policy.evaluate(&input).notify.unwrap();
+        let next_metadata = policy.take_reminder().unwrap();
+        assert!(next_metadata.occurrence > metadata.occurrence);
+        effects.clear();
+        NotificationService::dispatch_policy_signal_with(&next_signal, Some(&next_metadata), || {}, |channel, _, _, draft| {
+            effects.push(format!("{channel:?}"));
+            state.0.lock().unwrap().publish(draft.unwrap().clone(), crate::app_reminders::ReminderSource::Policy, day);
+        });
+        assert_eq!(effects, vec!["Main"]);
+        assert_ne!(state.0.lock().unwrap().snapshot().active.unwrap().id, first_id);
+    }
+}
+
+#[test]
+fn round2_disconnected_none_silent_and_missing_metadata_have_zero_final_effects() {
+    use crate::{communication_policy::{CommunicationPolicy, PolicyInput}, communication_profile::CommunicationProfile,
+        ergonomic_profile::ErgonomicProfile, session_types::DeskState, communication_types::NotifySignal};
+    let mut none = CommunicationProfile::default(); none.disconnected.notify_once = None;
+    let silent: CommunicationProfile = serde_json::from_str(include_str!("../profiles/communication/silent.json")).unwrap();
+    let mut disabled_popup = CommunicationProfile::default(); disabled_popup.notifications_enabled = false;
+    disabled_popup.disconnected.notify_once = Some("popup".into());
+    for profile in [none, silent, disabled_popup] {
+        let mut policy = CommunicationPolicy::new(profile, ErgonomicProfile::default());
+        let signals = policy.evaluate(&PolicyInput { state: DeskState::Sitting, elapsed_secs: 0,
+            sensor_connected: false, observation_fresh: false, standing_lap: 0,
+            standing_lap_progress: 0.0, standing_lap_flash: false, continuous_computer_secs: 0 });
+        assert!(signals.notify.is_none()); assert!(policy.take_reminder().is_none());
+    }
+    let mut effects = Vec::new();
+    NotificationService::dispatch_policy_signal_with(&NotifySignal::Toast("missing metadata".into()), None, || {},
+        |channel, _, _, _| effects.push(channel));
+    assert!(effects.is_empty(), "missing metadata cannot silently select an OS/popup fallback");
+}
+
 // ─── build_intents: individual event types ──────────────────────────────────
 
 #[test]

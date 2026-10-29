@@ -25,12 +25,14 @@ use crate::tray_icon::{generate_tray_icon, generate_tray_icon_no_dot, IconUpdate
 pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let analyst_item = MenuItem::with_id(app, "open-analyst", "Open Analyst", true, None::<&str>)?;
+    let diagnostics_item = MenuItem::with_id(app, "save-ui-diagnostics", "Save UI diagnostics", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     let menu = MenuBuilder::new(app)
         .item(&settings_item)
         .item(&analyst_item)
+        .item(&diagnostics_item)
         .item(&separator)
         .item(&quit_item)
         .build()?;
@@ -53,6 +55,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| match event.id().as_ref() {
             "settings" => show_main_window_settings(app),
             "open-analyst" => show_analyst_window(app),
+            "save-ui-diagnostics" => crate::ui_diagnostics::save_from_tray(app),
             "quit" => {
                 crate::supervision_quit::request(app);
             }
@@ -182,22 +185,33 @@ fn icon_path_for_state(
 /// Toggles the main window between visible/hidden.
 fn toggle_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
-        } else {
-            let _ = app.emit(DESK_SHOW_WIDGET, ());
-            let _ = window.show();
-            let _ = window.set_focus();
+        match main_window_action(window.is_visible().unwrap_or(false), crate::commands_reminders::retain_on_focus_loss(app)) {
+            MainWindowAction::Hide => { let _ = window.hide(); }
+            MainWindowAction::ShowStatus => {
+                let _ = app.emit(DESK_SHOW_WIDGET, ());
+                crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Main);
+            }
+            MainWindowAction::FocusReminder => {
+                crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Main);
+            }
         }
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum MainWindowAction { Hide, ShowStatus, FocusReminder }
+
+/// The same final host-action selection used by the actual left-click callback.
+pub(crate) fn main_window_action(visible: bool, presented_reminder: bool) -> MainWindowAction {
+    if presented_reminder { MainWindowAction::FocusReminder }
+    else if visible { MainWindowAction::Hide } else { MainWindowAction::ShowStatus }
 }
 
 /// Opens the main window directly to the Settings view.
 fn show_main_window_settings(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = app.emit(DESK_SHOW_SETTINGS, ());
-        let _ = window.show();
-        let _ = window.set_focus();
+        crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Main);
     }
 }
 
@@ -213,8 +227,7 @@ pub fn open_analyst_window(app: AppHandle) {
 /// closed it earlier — Tauri destroys webview windows on close by default.
 fn show_analyst_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("analyst") {
-        let _ = window.show();
-        let _ = window.set_focus();
+        crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Analyst);
         return;
     }
     match tauri::WebviewWindowBuilder::new(
@@ -231,8 +244,7 @@ fn show_analyst_window(app: &AppHandle) {
     .build()
     {
         Ok(window) => {
-            let _ = window.show();
-            let _ = window.set_focus();
+            crate::ui_diagnostics::show_and_focus(app, &window, crate::ui_diagnostics_types::WindowLabel::Analyst);
         }
         Err(e) => log::error!("tray: failed to (re)build analyst window: {}", e),
     }
@@ -240,5 +252,5 @@ fn show_analyst_window(app: &AppHandle) {
 
 /// Ordered list of menu item ids on the tray menu (test introspection).
 pub fn tray_menu_item_ids() -> &'static [&'static str] {
-    &["settings", "open-analyst", "quit"]
+    &["settings", "open-analyst", "save-ui-diagnostics", "quit"]
 }

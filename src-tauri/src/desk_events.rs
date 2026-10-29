@@ -44,6 +44,9 @@ pub const DESK_POPUP_THEME: &str = "desk:popup-theme";
 /// A dictated voice note was accepted and acknowledged (E021-T06).
 pub const DESK_VOICE_ACK: &str = "desk:voice-ack";
 
+/// Main-window-only reminder snapshot, ordered by session and revision.
+pub const DESK_APP_REMINDER: &str = "desk:app-reminder";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -62,6 +65,7 @@ mod tests {
         assert_eq!(DESK_SHOW_SETTINGS, "desk:show-settings");
         assert_eq!(DESK_POPUP_THEME, "desk:popup-theme");
         assert_eq!(DESK_VOICE_ACK, "desk:voice-ack");
+        assert_eq!(DESK_APP_REMINDER, "desk:app-reminder");
     }
 
     #[test]
@@ -78,6 +82,7 @@ mod tests {
             DESK_SHOW_SETTINGS,
             DESK_POPUP_THEME,
             DESK_VOICE_ACK,
+            DESK_APP_REMINDER,
         ];
         for name in all {
             assert!(name.starts_with("desk:"), "{name} is not namespaced");

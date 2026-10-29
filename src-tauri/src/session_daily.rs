@@ -144,6 +144,7 @@ impl SessionManager {
             self.state.last_break_secs = 0;
             self.state.last_sitting_secs = 0;
             self.state.last_break_credit = BreakCredit::None;
+            self.state.last_break_credit_facts = None;
             self.alert_fired = false;
             self.stand_alert_fired = false;
             self.notify_inactivity_fired = false;

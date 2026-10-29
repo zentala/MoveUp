@@ -81,18 +81,99 @@ function emit(event: string, payload: unknown) {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
-  return { promise, resolve };
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
+  delete window.__MOVEUP_UI_DIAGNOSTICS__;
   listeners.clear();
   invokeMock.mockReset();
   stubBackend();
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
+});
+
+describe("useDesk — window diagnostic receipts", () => {
+  it("publishes named completions at receipt time, retaining success across failure and clock rollback", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(2_000);
+    let resolveDashboard!: (value: DashboardState) => void;
+    let rejectSummary!: (error: Error) => void;
+    const pendingDashboard = new Promise<DashboardState>((resolve) => { resolveDashboard = resolve; });
+    const pendingSummary = new Promise<TodaySummaryDto>((_resolve, reject) => { rejectSummary = reject; });
+    const { startUiDiagnostics } = await import("../uiDiagnostics");
+    const stop = startUiDiagnostics();
+    const first = await renderDesk();
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__?.queries).toEqual({
+      dashboard: { outcome: "succeeded", last_result_ms: 2_000, last_success_ms: 2_000 },
+      today_summary: { outcome: "succeeded", last_result_ms: 2_000, last_success_ms: 2_000 },
+    });
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "get_dashboard_state") return pendingDashboard;
+      if (command === "get_today_summary") return pendingSummary;
+      return Promise.resolve(null);
+    });
+    await act(async () => { emit("desk:device-connected", { port: "COM3" }); });
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__?.queries.dashboard.outcome).toBe("succeeded");
+    vi.setSystemTime(1_000);
+    await act(async () => {
+      rejectSummary(new Error("PRIVATE query contents"));
+      resolveDashboard({ session: makeSession(), metrics: [] });
+    });
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__?.queries).toEqual({
+      dashboard: { outcome: "succeeded", last_result_ms: 1_000, last_success_ms: 1_000 },
+      today_summary: { outcome: "failed", last_result_ms: 1_000, last_success_ms: 2_000 },
+    });
+    expect(Object.keys(window.__MOVEUP_UI_DIAGNOSTICS__!.queries)).toEqual(["dashboard", "today_summary"]);
+    expect(JSON.stringify(window.__MOVEUP_UI_DIAGNOSTICS__)).not.toContain("PRIVATE");
+    expect(invokeMock.mock.calls.filter(([command]) => command === "start_auto_connect")).toHaveLength(1);
+    first.unmount();
+    stop();
+  });
+
+  it.each([
+    ["unmount", "success"], ["unmount", "failure"],
+    ["superseded", "success"], ["superseded", "failure"],
+  ])("does not publish %s dashboard/history %s callbacks", async (cancel, outcome) => {
+    const pendingDashboard = deferred<DashboardState>();
+    const pendingSummary = deferred<TodaySummaryDto>();
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "get_dashboard_state") return pendingDashboard.promise;
+      if (command === "get_today_summary") return pendingSummary.promise;
+      return Promise.resolve(null);
+    });
+    const { startUiDiagnostics } = await import("../uiDiagnostics");
+    const stop = startUiDiagnostics();
+    const rendered = await renderDesk();
+    const before = structuredClone(window.__MOVEUP_UI_DIAGNOSTICS__);
+    expect(before?.queries.dashboard.outcome).toBe("not_observed");
+    expect(before?.queries.today_summary.outcome).toBe("not_observed");
+    if (cancel === "unmount") rendered.unmount();
+    else await act(async () => {
+      emit("desk:state-changed", { state: "Standing", standing_seconds: 10, break_seconds: 0,
+        desk_height_cm: 110, position_changes: 1, last_break_secs: 0,
+        last_sitting_secs: 600, break_credit: "full", limit_used_secs: 600 } satisfies StateChangedPayload);
+    });
+    // Keep any queued replacement in flight, so only the invalidated reads finish.
+    invokeMock.mockImplementation(() => new Promise(() => {}));
+    await act(async () => {
+      if (outcome === "success") {
+        pendingDashboard.resolve({ session: makeSession(), metrics: [] });
+        pendingSummary.resolve(emptySummary);
+      } else {
+        pendingDashboard.reject(new Error("PRIVATE invalidated dashboard"));
+        pendingSummary.reject(new Error("PRIVATE invalidated summary"));
+      }
+    });
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__).toEqual(before);
+    rendered.unmount();
+    stop();
+  });
 });
 
 describe("useDesk — happy path", () => {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
 import type { LiveObservation } from "@/types";
 import { initialDeskState, selectDeskView } from "./deskReducer";
 import type { UseDeskConnection } from "./useDeskTypes";
@@ -29,6 +30,19 @@ describe("useWidgetData", () => {
       ...initialDeskState,
       connected: true,
       liveObservation,
+      lastBreakCreditFacts: [{
+        break_started_at: "2026-10-25T08:00:00Z",
+        observed_break_secs: 300,
+        minimum_break_secs: 60,
+        multiplier: 2,
+        requested_credit_secs: 600,
+        prior_applied_credit_secs: 0,
+        sitting_before_secs: 480,
+        applied_credit_secs: 480,
+        sitting_after_secs: 0,
+        applied_at: "2026-10-25T08:05:00Z",
+        no_credit_reason: null,
+      }],
       dashboardRefresh: {
         loading: false,
         lastSuccessAt: "2026-10-25T08:09:02Z",
@@ -58,6 +72,9 @@ describe("useWidgetData", () => {
     expect(result.current.observationQuality).toBeNull();
     expect(result.current.liveObservation?.reason).toBe("stale");
     expect(result.current.widgetProps.liveObservation).toEqual(result.current.liveObservation);
+    expect(result.current.widgetProps.lastBreakCreditFacts).toEqual(
+      (mockDesk.current as UseDeskConnection).lastBreakCreditFacts,
+    );
     expect(result.current.widgetProps.dashboardRefresh).toEqual(result.current.dashboardRefresh);
     expect(result.current.dashboardRefresh).toEqual({
       loading: false,
@@ -91,5 +108,45 @@ describe("useWidgetData", () => {
       lastSuccessAt: "2026-10-25T08:09:02Z",
       error: null,
     });
+  });
+
+  it("uses the saved activity preference and applies a successful settings-save update", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ show_activity_status: false } as never);
+    const { result } = renderHook(() => useWidgetData(() => undefined));
+
+    await waitFor(() => expect(result.current.widgetProps.showActivityStatus).toBe(false));
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("moveup:settings-saved", {
+        detail: { show_activity_status: true },
+      }));
+    });
+    expect(result.current.widgetProps.showActivityStatus).toBe(true);
+  });
+
+  it.each(["stale success", "stale failure"] as const)("keeps a newer saved preference over a %s initial settings read", async (outcome) => {
+    let resolveRead!: (value: { show_activity_status: boolean }) => void;
+    let rejectRead!: (reason: Error) => void;
+    const initialRead = new Promise<{ show_activity_status: boolean }>((resolve, reject) => {
+      resolveRead = resolve;
+      rejectRead = reject;
+    });
+    vi.mocked(invoke).mockReturnValueOnce(initialRead as never);
+    const { result, unmount } = renderHook(() => useWidgetData(() => undefined));
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("moveup:settings-saved", {
+        detail: { show_activity_status: true },
+      }));
+    });
+    expect(result.current.widgetProps.showActivityStatus).toBe(true);
+
+    await act(async () => {
+      if (outcome === "stale success") resolveRead({ show_activity_status: false });
+      else rejectRead(new Error("stale read failed"));
+      await initialRead.catch(() => undefined);
+    });
+    expect(result.current.widgetProps.showActivityStatus).toBe(true);
+    unmount();
   });
 });

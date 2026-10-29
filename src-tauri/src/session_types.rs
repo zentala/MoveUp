@@ -64,6 +64,43 @@ pub enum NotificationEvent {
     StandingTargetReached,
 }
 
+/// Captured accounting from one break-credit application.
+///
+/// `no_credit_reason` can be `break_below_minimum`, `balance_already_zero`,
+/// `zero_multiplier`, or `requested_credit_rounded_to_zero` when no credit was
+/// applied, or `already_credited_prefix` when an earlier application already
+/// met the current rule. Each record keeps one applied rule separate; a prior
+/// profile's credit is never attributed to the rule captured by a later
+/// application. `None` on the enclosing option means the producer has no
+/// captured explanation, for example in legacy state.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(export_to = "../../src/generated/"))]
+pub struct LastBreakCreditFacts {
+    /// Instant at which this uninterrupted break began.
+    pub break_started_at: String,
+    /// Break duration actually observed by the engine at this application.
+    pub observed_break_secs: i64,
+    /// Minimum break duration in effect for this application.
+    pub minimum_break_secs: i64,
+    /// Credit multiplier in effect for this application.
+    pub multiplier: f32,
+    /// Additional target credit requested under this rule after the prior prefix.
+    pub requested_credit_secs: i64,
+    /// Credit already applied to this same still-open break by earlier applications.
+    pub prior_applied_credit_secs: i64,
+    /// Credited sitting balance immediately before this application.
+    pub sitting_before_secs: i64,
+    /// Actual credit applied now, capped by the balance that was available.
+    pub applied_credit_secs: i64,
+    /// Credited sitting balance immediately after this application.
+    pub sitting_after_secs: i64,
+    /// Instant when the engine applied this credit, from the observed clock.
+    pub applied_at: String,
+    /// Producer reason when the application applied no credit.
+    pub no_credit_reason: Option<String>,
+}
+
 // ─── Structs ─────────────────────────────────────────────────────────────────
 
 /// Full session state, managed by `SessionManager`.
@@ -109,6 +146,9 @@ pub struct SessionState {
     pub last_sitting_secs: i64,
     /// Break credit applied on the most recent Standing->Sitting transition.
     pub last_break_credit: BreakCredit,
+    /// Source-captured facts for the latest completed break-credit application.
+    /// `None` means the explanation is unavailable, including in older snapshots.
+    pub last_break_credit_facts: Option<Vec<LastBreakCreditFacts>>,
     /// Daily posture score (in-memory, resets at midnight).
     pub daily_score: f32,
     /// Standing seconds in current continuous standing session (resets on sit/away).
@@ -183,6 +223,9 @@ pub struct SessionStateDto {
     /// Additive live history facts. Older producers may omit this field.
     #[cfg_attr(test, ts(optional = nullable))]
     pub live_observation: Option<LiveObservation>,
+    /// Captured break accounting; absence means unknown, not zero credit.
+    #[cfg_attr(test, ts(optional = nullable))]
+    pub last_break_credit_facts: Option<Vec<LastBreakCreditFacts>>,
     pub sitting_seconds: i64,
     pub standing_seconds: i64,
     pub break_seconds: i64,

@@ -12,7 +12,7 @@
  *
  * Render states:
  *   - remote display     → same data as desktop, minus the refresh button
- *   - not configured     → muted "connect health source" hint
+ *   - not configured     → omitted from the daily focal strip
  *   - configured, no snapshot yet → "—"
  *   - snapshot fresh (<1h) → step count (+ HR badge) + refresh button
  *   - snapshot stale (>1h) → value dimmed, "(stale)" in the tooltip
@@ -59,25 +59,14 @@ export const HealthWidget: FC = () => {
 
   // ─── Render branches ────────────────────────────────────────────────
 
-  if (view && !view.configured) {
-    return (
-      <span
-        className="health-widget kpi-strip__badge health-widget--unconfigured"
-        data-testid="health-widget"
-        title="No health source set up. Set GOOGLE_REFRESH_TOKEN in apps/desk/.env, or push readings to POST /display/health."
-      >
-        <span className="kpi-strip__label">Health</span>
-        <span className="kpi-strip__value">connect health source</span>
-      </span>
-    );
-  }
+  if (view && !view.configured) return null;
 
   if (view && view.error_kind === "auth_revoked") {
     return (
       <span
         className="health-widget kpi-strip__badge health-widget--reconnect"
         data-testid="health-widget"
-        title="Google Fit refresh token revoked. Run: node apps/desk/scripts/google-fit-auth.cjs — then paste new GOOGLE_REFRESH_TOKEN to .env and restart."
+        title="Google Fit authorization expired. See the Privacy guide for optional setup information."
       >
         <span className="kpi-strip__label">Health</span>
         <span className="kpi-strip__value" data-testid="health-reconnect">

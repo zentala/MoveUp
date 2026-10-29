@@ -83,9 +83,10 @@ impl SessionManager {
                         // Finalize break: apply credit based on total break duration.
                         if self.state.break_started.is_some() {
                             let break_dur = self.get_live_break_seconds(now);
+                            let break_started = self.state.break_started.expect("checked above");
                             self.state.break_started = None;
                             self.state.last_break_secs = break_dur;
-                            self.apply_current_break_credit(break_dur);
+                            self.apply_current_break_credit(break_dur, break_started, now);
                             self.sleep_break_credit = 0;
                             self.observed_break_secs = 0;
                             self.state.break_seconds = 0;
@@ -102,9 +103,10 @@ impl SessionManager {
                     // Only apply break credit based on total break duration.
                     if self.state.break_started.is_some() {
                         let break_dur = self.get_live_break_seconds(now);
+                        let break_started = self.state.break_started.expect("checked above");
                         self.state.break_started = None;
                         self.state.last_break_secs = break_dur;
-                        self.apply_current_break_credit(break_dur);
+                        self.apply_current_break_credit(break_dur, break_started, now);
                         self.sleep_break_credit = 0;
                         self.observed_break_secs = 0;
                         self.state.break_seconds = 0;
@@ -154,42 +156,119 @@ impl SessionManager {
     /// far higher day threshold anyway. See this module's header for how both
     /// relate to [`crate::hourly_break_tracker::HourlyBreakTracker`].
     pub fn apply_break_credit(&mut self, break_secs: i64) {
-        self.apply_break_credit_after(break_secs, 0);
+        self.apply_break_credit_after(break_secs, 0, None);
     }
 
-    /// Cumulative credit for one ongoing break, including already credited sleep.
-    pub(crate) fn apply_current_break_credit(&mut self, break_secs: i64) {
+    /// Applies only the additional credit beyond the already-applied prefix.
+    /// Captures this application with its own rule and source timestamps.
+    pub(crate) fn apply_current_break_credit(
+        &mut self,
+        break_secs: i64,
+        break_started_at: DateTime<Utc>,
+        applied_at: DateTime<Utc>,
+    ) {
         let before = self.state.sitting_seconds;
-        self.apply_break_credit_after(break_secs, self.sleep_break_credit);
+        self.apply_break_credit_after(
+            break_secs,
+            self.sleep_break_credit,
+            Some((break_started_at, applied_at)),
+        );
         self.sleep_break_credit += before - self.state.sitting_seconds;
     }
 
-    fn apply_break_credit_after(&mut self, break_secs: i64, already_applied: i64) {
+    fn apply_break_credit_after(
+        &mut self,
+        break_secs: i64,
+        already_applied: i64,
+        source_times: Option<(DateTime<Utc>, DateTime<Utc>)>,
+    ) {
+        if source_times.is_none() {
+            // A newer application without producer timestamps supersedes older
+            // explanation data; never leave a stale, plausible-looking record.
+            self.state.last_break_credit_facts = None;
+        }
         let min_secs = self.limits.break_min_secs as i64;
         let multiplier = self.limits.break_credit_multiplier.clamp(0.0, 10.0);
+        let observed_break_secs = break_secs.max(0);
+        let already_applied = already_applied.max(0);
+        let current_before = self.state.sitting_seconds;
         if break_secs < min_secs {
             self.state.last_break_credit = BreakCredit::None;
+            if let Some((break_started_at, applied_at)) = source_times {
+                self.record_break_credit_application(crate::session_types::LastBreakCreditFacts {
+                    break_started_at: break_started_at.to_rfc3339(),
+                    observed_break_secs,
+                    minimum_break_secs: min_secs,
+                    multiplier,
+                    requested_credit_secs: 0,
+                    prior_applied_credit_secs: already_applied,
+                    sitting_before_secs: current_before,
+                    applied_credit_secs: 0,
+                    sitting_after_secs: current_before,
+                    applied_at: applied_at.to_rfc3339(),
+                    no_credit_reason: Some("break_below_minimum".to_string()),
+                });
+            }
             log::debug!(
                 "[break:credit] {}s break < {}s minimum — no credit",
                 break_secs, min_secs
             );
             return;
         }
-        let credit = (break_secs as f64 * multiplier as f64) as i64;
-        let before = self.state.sitting_seconds;
-        self.state.sitting_seconds = (before - (credit - already_applied).max(0)).max(0);
+        let credit = (observed_break_secs as f64 * multiplier as f64) as i64;
+        let requested_now = (credit - already_applied).max(0);
+        self.state.sitting_seconds = (current_before - requested_now).max(0);
+        let applied_credit = current_before.saturating_sub(self.state.sitting_seconds);
+        let no_credit_reason = if applied_credit > 0 {
+            None
+        } else if current_before == 0 && requested_now > 0 {
+            Some("balance_already_zero".to_string())
+        } else if already_applied > 0 && requested_now == 0 {
+            Some("already_credited_prefix".to_string())
+        } else if multiplier == 0.0 {
+            Some("zero_multiplier".to_string())
+        } else if credit == 0 {
+            Some("requested_credit_rounded_to_zero".to_string())
+        } else {
+            None
+        };
+        if let Some((break_started_at, applied_at)) = source_times {
+            self.record_break_credit_application(crate::session_types::LastBreakCreditFacts {
+                break_started_at: break_started_at.to_rfc3339(),
+                observed_break_secs,
+                minimum_break_secs: min_secs,
+                multiplier,
+                requested_credit_secs: requested_now,
+                prior_applied_credit_secs: already_applied,
+                sitting_before_secs: current_before,
+                applied_credit_secs: applied_credit,
+                sitting_after_secs: self.state.sitting_seconds,
+                applied_at: applied_at.to_rfc3339(),
+                no_credit_reason,
+            });
+        }
         if self.state.sitting_seconds == 0 {
             self.state.last_break_credit = BreakCredit::Full;
         } else {
             self.state.last_break_credit = BreakCredit::Partial;
         }
         log::info!(
-            "[break:credit] {}s break x{} = {}s credit — sitting {}s -> {}s ({:?})",
-            break_secs, multiplier, credit, before, self.state.sitting_seconds,
+            "[break:credit] {}s observed break x{} = {}s target; {}s already applied; applied {}s now — sitting {}s -> {}s ({:?})",
+            break_secs, multiplier, credit, already_applied, applied_credit, current_before, self.state.sitting_seconds,
             self.state.last_break_credit
         );
 
         self.apply_day_break_reset(break_secs);
+    }
+
+    fn record_break_credit_application(&mut self, fact: crate::session_types::LastBreakCreditFacts) {
+        let applications = self.state.last_break_credit_facts.get_or_insert_with(Vec::new);
+        if applications.last().map(|previous| previous.break_started_at.as_str())
+            == Some(fact.break_started_at.as_str()) {
+            applications.push(fact);
+        } else {
+            *applications = vec![fact];
+        }
     }
 
     /// Applies Day Break Credit: a sleep-length break clears the motivational

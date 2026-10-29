@@ -239,18 +239,41 @@ pub fn inject_reading(
 /// Rate-limited: max once per 60 seconds to prevent spam.
 /// Available in all builds (not debug-only) so users can test from settings.
 #[tauri::command]
-pub fn trigger_test_notification(_app: tauri::AppHandle) -> Result<(), String> {
+pub fn trigger_test_notification(app: tauri::AppHandle, window: tauri::WebviewWindow, category: Option<crate::communication_types::ReminderCategory>) -> Result<crate::app_reminders::AppReminderSnapshot, String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-    let last = LAST_TEST_NOTIFICATION.load(Ordering::Relaxed);
-    if now - last < 60 {
-        return Err(format!("Rate limited: wait {}s", 60 - (now - last)));
+    dispatch_test_notification(&window.label(), category, &LAST_TEST_NOTIFICATION, now,
+        |category| crate::commands_reminders::preview(&app, category))?;
+    Ok(crate::commands_reminders::snapshot(&app))
+}
+
+/// Apply the same test-preview window and rate-limit policy before dispatching
+/// a preview from either the main popup or its separate Welcome entry.
+pub(crate) fn dispatch_test_notification(
+    window_label: &str,
+    category: Option<crate::communication_types::ReminderCategory>,
+    last_sent: &AtomicI64,
+    now: i64,
+    publish: impl FnOnce(crate::communication_types::ReminderCategory),
+) -> Result<(), String> {
+    if !matches!(window_label, "main" | "welcome") {
+        return Err("test_notification_window_not_allowed".into());
     }
-    LAST_TEST_NOTIFICATION.store(now, Ordering::Relaxed);
-    crate::notify::show("Test notification", "Notifications are working!");
+    reserve_test_notification(last_sent, now)?;
+    publish(category.unwrap_or(crate::communication_types::ReminderCategory::Info));
     Ok(())
+}
+
+pub(crate) fn reserve_test_notification(last_sent: &AtomicI64, now: i64) -> Result<(), String> {
+    let mut previous = last_sent.load(Ordering::Relaxed);
+    loop {
+        if now.saturating_sub(previous) < 60 { return Err("Rate limited: wait before testing again".into()); }
+        match last_sent.compare_exchange_weak(previous, now, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => return Ok(()), Err(actual) => previous = actual,
+        }
+    }
 }
 
 // DB backup commands moved to commands_backup.rs

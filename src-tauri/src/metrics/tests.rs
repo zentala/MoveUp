@@ -23,6 +23,7 @@ mod tests {
             last_break_secs: 0,
             last_sitting_secs: 0,
             last_break_credit: BreakCredit::None,
+            last_break_credit_facts: None,
             daily_score: 0.0,
             standing_session_secs: 0,
             standing_session_started: None,

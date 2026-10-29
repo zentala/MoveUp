@@ -12,6 +12,9 @@ mod ergonomic_profile;
 mod profile_loader;
 mod profile_reload;
 mod commands;
+mod app_reminders;
+#[cfg(test)] mod app_reminders_tests;
+mod commands_reminders;
 #[cfg(test)] mod commands_tests;
 mod commands_analyst;
 #[cfg(test)] mod commands_analyst_tests;
@@ -44,6 +47,14 @@ mod db_voice_notes;
 mod today_totals;
 mod desk_events;
 pub mod event_logger;
+pub mod ui_diagnostics;
+pub mod ui_diagnostics_types;
+pub mod ui_diagnostics_store;
+#[cfg(test)] mod ui_diagnostics_tests;
+#[cfg(test)] mod ui_diagnostics_windows_tests;
+pub mod ui_diagnostics_probe;
+pub mod ui_diagnostics_power;
+#[cfg(windows)] pub mod ui_diagnostics_windows;
 pub mod app_lifecycle;
 pub mod app_lifecycle_store;
 mod app_lifecycle_runtime;
@@ -224,7 +235,7 @@ pub fn run() {
             if let Some(lifecycle) = app.try_state::<Arc<app_lifecycle::AppLifecycle>>() {
                 lifecycle.event("secondary_activation");
             }
-            if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.set_focus(); }
+            if let Some(w) = app.get_webview_window("main") { ui_diagnostics::show_and_focus(app, &w, ui_diagnostics_types::WindowLabel::Main); }
         }))
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -247,6 +258,7 @@ pub fn run() {
             relay_handle: Arc::new(Mutex::new(None)),
         })
         .manage(BlinkState::new())
+        .manage(app_reminders::AppReminderState::default())
         .manage::<HealthState>(std::sync::Arc::new(HealthAggregator::new(vec![
             std::sync::Arc::new(GoogleFitService::from_env()),
         ])))
@@ -263,6 +275,10 @@ pub fn run() {
                     commands::get_today_summary,
                     commands::inject_reading,
                     commands::trigger_test_notification,
+                    commands_reminders::get_app_reminder_snapshot,
+                    commands_reminders::claim_app_reminder_client,
+                    commands_reminders::set_app_reminder_flow,
+                    commands_reminders::acknowledge_app_reminder,
                     commands_welcome::dismiss_welcome,
                     commands_welcome::show_welcome,
                     commands_config::set_session_limit,
@@ -309,6 +325,10 @@ pub fn run() {
                     commands::get_connected_port,
                     commands::get_today_summary,
                     commands::trigger_test_notification,
+                    commands_reminders::get_app_reminder_snapshot,
+                    commands_reminders::claim_app_reminder_client,
+                    commands_reminders::set_app_reminder_flow,
+                    commands_reminders::acknowledge_app_reminder,
                     commands_welcome::dismiss_welcome,
                     commands_welcome::show_welcome,
                     commands_config::set_session_limit,
@@ -369,7 +389,9 @@ pub fn run() {
                     }
                 }
                 if let tauri::WindowEvent::Focused(false) = event {
-                    let _ = window.hide();
+                    if !commands_reminders::retain_on_focus_loss(window.app_handle()) {
+                        let _ = window.hide();
+                    }
                 }
             }
         })
@@ -383,6 +405,7 @@ pub fn run() {
                 tray_icon::schedule_system_theme_check(app);
             }
             if let tauri::RunEvent::Exit = event {
+                ui_diagnostics::shutdown(app);
                 app_lifecycle_runtime::shutdown(app);
             }
         });
@@ -470,6 +493,11 @@ mod ts_export {
     /// `i64` reaches TypeScript through `JSON.parse`, i.e. as `number`.
     fn config() -> Config {
         Config::new().with_large_int("number")
+    }
+
+    #[test]
+    fn export_app_reminder_snapshot() {
+        crate::app_reminders::AppReminderSnapshot::export_all(&config()).expect("AppReminderSnapshot exports");
     }
 
     /// Writes every DTO TypeScript consumes, plus everything they reference.

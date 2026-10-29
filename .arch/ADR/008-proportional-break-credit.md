@@ -35,7 +35,12 @@ Replace with proportional break credit:
 
 Formula: `new_sitting = max(0, old_sitting - break_secs × multiplier)`
 
-Sleep gaps (machine suspend/resume) now apply break credit using the gap duration.
+An unexplained observation gap does not earn break credit. Preserve the known
+observed prefix; the unobserved interval remains Unknown. As clarified by
+[ADR 015](015-pure-ergo-engine.md), a trustworthy, qualified suspend/resume
+signal could support separate credit, but the current engine has no such input.
+The native UI diagnostics power adapter records diagnostic events only; it does
+not authorize physiological credit or turn missing observations into a break.
 
 ## Alternatives
 
@@ -47,12 +52,13 @@ Sleep gaps (machine suspend/resume) now apply break credit using the gap duratio
 
 - Smoother credit curve: short breaks are worth something, long breaks are worth proportionally more
 - Configurable per profile: users can set multiplier 1.0 (slow reset) to 3.0 (fast reset)
-- Sleep gap now properly resets sitting timer (2h sleep × 2.0 = 4h credit → full reset)
+- A known qualifying break reduces credited load; an unknown outage neither adds sitting time nor automatically subtracts load.
 - Break credit is no longer "all or nothing" — users see gradual improvement
 
 ## Revision 2026-09-06 (E015)
 
-Two changes. The decision above stands; what follows makes it enforceable.
+Two changes. The proportional-credit decision stands; the historical sleep-gap
+claim is superseded by the observed-time clarification below.
 
 ### One credited counter — no second "session" timer
 
@@ -89,3 +95,21 @@ rule and could not fire for anyone who took breaks (E015-T03).
 The struct fallback for a profile that omits the key stays 2.0
 (`ergonomic_profile.rs`). Decision D1, Paweł, 2026-09-06 — recorded in
 [`.plan/decisions.jsonl`](../../.plan/decisions.jsonl).
+
+## Documentation reconciliation — 2026-10-27
+
+The earlier decision and consequence claimed that every detected sleep gap
+earned credit from its entire duration (for example, two hours at multiplier
+2.0 clearing four hours of load). That claim is retained here as superseded
+history, not current runtime behavior. A long reading gap alone cannot establish
+machine sleep or human absence.
+
+Current `session_reading.rs` preserves the observed prefix across gaps over
+300 seconds without crediting the gap; `session_tests_sleep.rs` explicitly
+covers unknown-gap exclusion and credit for the known break prefix only.
+`session_live.rs` bounds projections to actual observations, and restart
+restoration clears live coverage anchors. The conditional trusted-suspend
+contract in ADR 015 remains unchanged. `ui_diagnostics_power.rs` forwards real
+OS power notifications to UI diagnostics, not to the ergonomic engine.
+This reconciles documentation with existing behavior; it changes no policy,
+formula, profile, or runtime implementation.

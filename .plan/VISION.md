@@ -2,6 +2,26 @@
 
 MoveUp helps its owner understand time spent sitting, standing and away from the desk, and experiment with configurable ways to take breaks.
 
+Product entrypoints: [Purpose, current user and proposed audience](PURPOSE.md) and [User flows, current limitations and proposed experience](UX.md). The canonical visual contract remains [DESIGN.md](../DESIGN.md).
+
+## Application-owned reminders and recurring bar visibility — 2026-10-28
+
+The owner observed a Windows test banner but found its brief presentation unsuitable. Requested direction: show reminders as a MoveUp-owned message view in the existing compact tray popup, replacing its ordinary status content while a reminder is active, with distinct meaningful backgrounds. Preserve readable controls and an explicit way back to status; automatic presentation must not steal typing focus or disappear merely because another application has focus. Keep existing communication policy, Silent and snooze semantics authoritative. The owner also reports that the top bar disappeared again after the verified update: capture the current native/policy state before repair, distinguish intentionally hidden or visually neutral output from occlusion, and correct only established causes with regression coverage. This direction does not change presence inference, history or break credit.
+
+## Replaceable presence inputs and preserved motivation — 2026-10-28
+
+The owner proposes treating Away/presence as an output independent of the input adapter: Windows input activity today, possible USB ultrasonic or other physical presence sensors later, initially attached to the computer and potentially to a controller. Record this as an architectural direction to assess, not an implemented integration, selected device or approved replacement of current credit/presence rules. Keep physical desk presence distinct from keyboard activity, desk height and room occupancy; unavailable observations must remain unknown. The owner also reports missing top-of-screen status and stand-up reminders and requests investigation of their actual behavior and regression coverage. Preserve configurable motivation signals and distinguish policy decisions, native execution and observed delivery before claiming reliability.
+
+## Known computer sleep versus missing observations — 2026-10-28
+
+The owner requests analysis and a proposal that distinguish confirmed computer sleep from unexplained missing observations, input inactivity and sensor/application unavailability. Sleep describes the computer, not measured human posture. Preserve existing observed prefixes and Unknown gaps; record a known pause reason only when supported by qualified evidence. Showing that reason and granting break credit are separate product choices. The proposed direction is to evaluate confirmed sleep as a qualifying break from computer use using the existing credit rules, while unexplained missing time remains neutral. This is a proposal, not an implemented policy, retrospective history rewrite or claim of physical absence. The owner also reports notifications accumulated in Windows notification center without visible banners; app intent, system receipt and on-screen presentation must remain distinct evidence.
+
+## Understandable accounting during AI-assisted work — 2026-10-27
+
+The owner reports less continuous computer use during AI-assisted work, unexpected Away while still present, and a red history/large sitting balance that appears inconsistent with time spent away. The owner requests an evidence-based investigation, an explanation of the actual algorithm, and a whole-application UX review focused on the popup. Document who the application serves and its user flows; keep raw chronology, credit-adjusted balance, overtime and signed motivational score distinguishable.
+
+Input inactivity and desk height do not establish physical presence or human posture. Preserve the existing truthful-observation direction: investigate actual data, retain Unknown gaps and do not rewrite history from recollection. New presence modes, thresholds, recovery-credit rules and UX changes remain proposals until accepted; the investigation itself changes no algorithm or live data. Existing dev-kit/open-core direction is retained rather than replaced by an invented AI market strategy.
+
 ## Direction recorded 2026-10-09
 
 The compact popup and detailed Analyst should tell the same story using a reusable timeline, consistent state colors and a compact monospace charcoal design. A larger timeline should sit above connected smaller day tabs containing proportional daily donuts. Actual history, remaining sitting load after break credit, and daily score must be distinguishable. Data should appear on opening Analyst, and exact interval details should be inspectable.

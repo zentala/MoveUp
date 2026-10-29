@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DashboardState, SessionStateDto } from "@/types";
 
 const invokeMock = vi.hoisted(() => vi.fn());
@@ -32,11 +32,57 @@ function deferred<T>() {
 }
 
 beforeEach(() => {
+  delete window.__MOVEUP_UI_DIAGNOSTICS__;
   invokeMock.mockReset();
   vi.useRealTimers();
 });
 
+afterEach(() => { vi.useRealTimers(); });
+
 describe("useLiveObservation", () => {
+  it("publishes only accepted dashboard completions and retains success while a later read fails", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    const pending = deferred<DashboardState>();
+    invokeMock.mockReturnValueOnce(pending.promise).mockRejectedValueOnce(new Error("PRIVATE query"));
+    const { startUiDiagnostics } = await import("../uiDiagnostics");
+    const stop = startUiDiagnostics();
+    const { unmount } = renderHook(() => useLiveObservation());
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__?.queries.dashboard).toEqual({
+      outcome: "not_observed", last_result_ms: null, last_success_ms: null,
+    });
+    vi.setSystemTime(2_000);
+    await act(async () => { pending.resolve(dashboard()); });
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__?.queries.dashboard).toEqual({
+      outcome: "succeeded", last_result_ms: 2_000, last_success_ms: 2_000,
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__?.queries).toEqual({
+      dashboard: { outcome: "failed", last_result_ms: 3_000, last_success_ms: 2_000 },
+      today_summary: { outcome: "not_observed", last_result_ms: null, last_success_ms: null },
+    });
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual(["get_dashboard_state", "get_dashboard_state"]);
+    expect(JSON.stringify(window.__MOVEUP_UI_DIAGNOSTICS__)).not.toContain("PRIVATE");
+    unmount();
+    stop();
+  });
+
+  it.each(["success", "failure"])("ignores a %s received after unmount", async (outcome) => {
+    let resolve!: (value: DashboardState) => void;
+    let reject!: (error: Error) => void;
+    invokeMock.mockReturnValue(new Promise<DashboardState>((done, fail) => { resolve = done; reject = fail; }));
+    const { startUiDiagnostics } = await import("../uiDiagnostics");
+    const stop = startUiDiagnostics();
+    const { unmount } = renderHook(() => useLiveObservation());
+    const before = structuredClone(window.__MOVEUP_UI_DIAGNOSTICS__);
+    unmount();
+    await act(async () => {
+      if (outcome === "success") resolve(dashboard());
+      else reject(new Error("PRIVATE late result"));
+    });
+    expect(window.__MOVEUP_UI_DIAGNOSTICS__).toEqual(before);
+    stop();
+  });
   it("reads only the existing dashboard snapshot and reports its producer and receipt facts", async () => {
     invokeMock.mockResolvedValue(dashboard({
       observation_quality: null,

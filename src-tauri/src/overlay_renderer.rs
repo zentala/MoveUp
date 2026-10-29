@@ -23,6 +23,8 @@ pub struct OverlayState {
     pub progress: f32,           // 0.0 – 1.0
     pub color_rgb: (u8, u8, u8), // RGB
     pub visible: bool,
+    /// Coalesced explicit show request, independent of animation/pixel dirtiness.
+    pub presentation_requested: bool,
     pub needs_redraw: bool,      // dirty flag — redraw only when changed
     pub frame_count: u32,        // For animation (demo/mock cycling)
     pub data_source: DataSource, // OVERLAY_DATA=demo|live|mock
@@ -79,6 +81,7 @@ impl Default for OverlayState {
             progress: 0.0,
             color_rgb: crate::colors::NEUTRAL, // neutral default
             visible: false,
+            presentation_requested: false,
             needs_redraw: false,
             frame_count: 0,
             data_source,
@@ -126,6 +129,7 @@ impl OverlayRenderer {
         if let Ok(mut s) = self.state.lock() {
             if s.data_source != DataSource::Live { return; }
             s.visible = true;
+            s.presentation_requested = true;
             s.needs_redraw = true;
         }
     }
@@ -134,6 +138,7 @@ impl OverlayRenderer {
         if let Ok(mut s) = self.state.lock() {
             if s.data_source != DataSource::Live { return; }
             s.visible = false;
+            s.presentation_requested = false;
             s.needs_redraw = true;
         }
     }

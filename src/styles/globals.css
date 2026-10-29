@@ -110,6 +110,13 @@ body {
   backdrop-filter: blur(12px);
 }
 
+.app__status:not([hidden]) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* ── Header ─────────────────────────────────────────────────────── */
 .app__header {
   display: flex;
@@ -469,13 +476,18 @@ body {
   overflow: hidden;
 }
 
-/* ── Settings toolbar (single row: ← SETTINGS [tabs] SAVE) ────── */
+/* ── Settings toolbar (identity and Save above wrapping tabs) ─── */
 .settings-toolbar {
   display: flex;
   align-items: center;
-  gap: 0;
-  padding-bottom: 7px;
-  border-bottom: 1px solid var(--rail-default);
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-toolbar__identity {
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .settings-toolbar__back {
@@ -495,7 +507,7 @@ body {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-secondary);
-  margin-right: 8px;
+  margin-right: 0;
   white-space: nowrap;
 }
 
@@ -512,7 +524,7 @@ body {
   padding: 3px 10px;
   cursor: pointer;
   white-space: nowrap;
-  margin-left: auto;
+  margin-left: 0;
   transition: background 0.12s, color 0.12s;
 }
 .settings-toolbar__save:hover {
@@ -524,10 +536,13 @@ body {
   cursor: not-allowed;
 }
 
-/* ── Settings tabs (inline within toolbar) ────────────────────── */
+/* ── Settings tabs (wrapping row below the toolbar) ──────────── */
 .settings-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--rail-default);
 }
 
 .settings-tab {
@@ -556,6 +571,11 @@ body {
   color: var(--ink-primary);
 }
 
+.settings-tab:focus-visible {
+  outline: 2px solid var(--rail-active);
+  outline-offset: 2px;
+}
+
 .settings-panel__body {
   flex: 1;
   display: flex;
@@ -570,6 +590,13 @@ body {
   color: var(--ink-tertiary);
   font-size: 11px;
   padding: 20px;
+}
+
+.settings-panel__load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .settings-panel__section {
@@ -722,7 +749,7 @@ body {
   border-radius: var(--r-sm);
   padding: 5px 8px;
   font-size: 10px;
-  color: var(--signal-alert);
+  color: var(--ink-primary);
   letter-spacing: 0.02em;
 }
 
@@ -875,4 +902,201 @@ body {
     font-family: var(--font-mono);
     letter-spacing: 0.04em;
   }
+}
+
+/* ── First-run welcome window ─────────────────────────────────── */
+.welcome-screen {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  color: var(--ink-primary);
+  background: var(--panel-base);
+  font-family: var(--font-mono);
+}
+
+.welcome-screen__header {
+  flex: 0 0 auto;
+}
+
+.welcome-screen__eyebrow {
+  margin: 0 0 4px;
+  color: var(--ink-tertiary);
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+}
+
+.welcome-screen__header h1 {
+  margin: 0 0 4px;
+  color: var(--ink-primary);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.welcome-screen__lead,
+.welcome-screen__steps p,
+.welcome-screen__help-note {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.welcome-screen__content {
+  padding-right: 4px;
+  scrollbar-color: var(--rail-default) var(--panel-base);
+}
+
+.welcome-screen__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.welcome-screen__steps li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.welcome-screen__step-number {
+  padding-top: 1px;
+  color: var(--ink-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.welcome-screen__steps h2 {
+  margin: 0 0 2px;
+  color: var(--ink-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.welcome-screen__help-note {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--rail-subtle);
+}
+
+.welcome-screen__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 7px;
+  border-top: 1px solid var(--rail-default);
+}
+
+.welcome-screen__feedback {
+  margin: 0;
+  color: var(--ink-tertiary);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.welcome-screen__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  color: var(--ink-secondary);
+  font-size: 10px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.welcome-screen__checkbox input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--rail-active);
+}
+
+.welcome-screen__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.welcome-screen__actions button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid var(--rail-emphasis);
+  border-radius: var(--r-sm);
+  color: var(--ink-secondary);
+  background: var(--panel-base);
+  font: 500 10px/1.3 var(--font-mono);
+  cursor: pointer;
+}
+
+.welcome-screen__actions button:hover:not(:disabled) {
+  color: var(--ink-primary);
+  background: var(--panel-overlay);
+}
+
+.welcome-screen__actions .welcome-screen__primary {
+  color: var(--ink-primary);
+  background: var(--panel-raised);
+}
+
+.welcome-screen__actions button:disabled {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.welcome-screen__actions button:focus-visible {
+  outline: 2px solid var(--rail-active);
+  outline-offset: 2px;
+}
+
+.setup-help {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 7px;
+  border-top: 1px solid var(--rail-subtle);
+}
+
+.setup-help__summary {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  color: var(--ink-primary);
+  font-size: 11px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.setup-help__summary:focus-visible {
+  outline: 2px solid var(--rail-active);
+  outline-offset: 2px;
+}
+
+.setup-help__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--ink-secondary);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.setup-help__body p,
+.setup-help__body ol {
+  margin: 0;
+}
+
+.setup-help__body ol {
+  padding-left: 20px;
 }

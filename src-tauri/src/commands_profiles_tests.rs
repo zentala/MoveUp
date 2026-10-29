@@ -5,7 +5,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use crate::commands_profiles::{
-        duplicate_profile, switch_communication_profile_by_name, switch_ergonomic_profile_by_name,
+        active_profiles_snapshot, duplicate_profile, switch_communication_profile_by_name, switch_ergonomic_profile_by_name,
         validate_profile_id,
     };
     use crate::communication_policy::CommunicationPolicy;
@@ -134,6 +134,58 @@ mod tests {
         selected.id = "selected".into();
         selected.name = "Keep this policy".into();
         Mutex::new(CommunicationPolicy::new(selected, ErgonomicProfile::default()))
+    }
+
+    #[test]
+    fn runtime_snapshot_reports_session_override_and_current_live_policy_step() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut session = SessionManager::new();
+        session.limits.sitting_secs = 40 * 60;
+        session.state.session_limit_secs = 55 * 60;
+        session.state.stand_limit_secs = 12 * 60;
+
+        let mut comm = CommunicationProfile::default();
+        comm.id = "live-remote-choice".into();
+        comm.snooze.durations_mins = vec![4, 11, 23];
+        comm.snooze.tone_shift_after_dismisses = 2;
+        let policy = selected_policy();
+        write_communication_profile(
+            tmp.path(),
+            "live-remote-choice",
+            &serde_json::to_string(&comm).unwrap(),
+        );
+        switch_communication_profile_by_name(tmp.path(), &policy, "live-remote-choice").unwrap();
+        let mut policy = policy.lock().unwrap();
+        policy.dismiss_at(std::time::Instant::now());
+
+        let snapshot = active_profiles_snapshot(&session, &policy);
+        assert_eq!(snapshot.communication_id, "live-remote-choice");
+        assert_eq!(snapshot.session_limit_secs, 55 * 60);
+        assert_eq!(snapshot.effective_limits.sitting_secs, 40 * 60);
+        assert_eq!(snapshot.stand_limit_secs, 12 * 60);
+        assert_eq!(snapshot.dismiss_durations_mins, vec![4, 11, 23]);
+        assert_eq!(snapshot.current_dismiss_minutes, 11);
+        assert_eq!(snapshot.snooze_minutes, Some(11));
+        assert_eq!(snapshot.tone_shift_after_dismisses, 2);
+        assert_eq!(active_profiles_snapshot(&session, &policy).current_dismiss_minutes, 11,
+            "reading the runtime summary must not advance the policy cursor");
+    }
+
+    #[test]
+    fn runtime_snapshot_matches_snooze_command_validation_without_changing_dismiss_value() {
+        let session = SessionManager::new();
+        for (configured, expected_dismiss, expected_snooze) in [
+            (0, 0, None),
+            (u16::MAX as u32 + 1, u16::MAX as u32 + 1, None),
+            (17, 17, Some(17)),
+        ] {
+            let mut comm = CommunicationProfile::default();
+            comm.snooze.durations_mins = vec![configured];
+            let policy = CommunicationPolicy::new(comm, ErgonomicProfile::default());
+            let snapshot = active_profiles_snapshot(&session, &policy);
+            assert_eq!(snapshot.current_dismiss_minutes, expected_dismiss);
+            assert_eq!(snapshot.snooze_minutes, expected_snooze);
+        }
     }
 
     #[test]

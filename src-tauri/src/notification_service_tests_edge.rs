@@ -3,23 +3,36 @@
 use crate::notification_service::{channels_for_backend, NotificationChannel, NotificationService};
 use crate::session_types::NotificationEvent;
 
+#[test]
+fn application_reminder_production_dispatch_resolves_legacy_backends_once() {
+    for backend in ["toast", "popup", "both"] {
+        let mut intents = NotificationService::build_intents(&[NotificationEvent::Praise], 0, 450);
+        NotificationService::resolve_channels(&mut intents, backend);
+        let mut destinations = Vec::new();
+        NotificationService::dispatch_with(&intents, |_| {}, |channels, _, _| {
+            destinations.extend(channels.iter().map(|channel| format!("{channel:?}")));
+        });
+        assert_eq!(destinations, vec!["Main"], "backend={backend}: exactly one app reminder");
+    }
+}
+
 // ─── Backend selection logic ────────────────────────────────────────────────
 
 #[test]
 fn backend_toast_only() {
-    assert_eq!(channels_for_backend("toast"), vec![NotificationChannel::Toast]);
+    assert_eq!(channels_for_backend("toast"), vec![NotificationChannel::Main]);
 }
 
 #[test]
 fn backend_popup_only() {
-    assert_eq!(channels_for_backend("popup"), vec![NotificationChannel::Popup]);
+    assert_eq!(channels_for_backend("popup"), vec![NotificationChannel::Main]);
 }
 
 #[test]
 fn backend_both() {
     assert_eq!(
         channels_for_backend("both"),
-        vec![NotificationChannel::Toast, NotificationChannel::Popup]
+        vec![NotificationChannel::Main]
     );
 }
 

@@ -60,6 +60,10 @@ describe("PairScreen", () => {
   it("shows the manual form and sends nothing without link parameters", () => {
     render(<PairScreen hash="#/pair" />);
 
+    expect(screen.getByTestId("pair-screen")).toHaveTextContent(
+      "Settings → More → Remote access → Pair a phone",
+    );
+    expect(screen.getByTestId("pair-screen")).toHaveTextContent(/cloud relay, separately from the same-network LAN display/i);
     expect(screen.getByTestId("pair-desk")).toHaveValue("");
     expect(screen.getByTestId("pair-code")).toHaveValue("");
     expect(fetch).not.toHaveBeenCalled();
@@ -106,6 +110,20 @@ describe("PairScreen", () => {
 
     await waitFor(() =>
       expect(screen.getByTestId("pair-error")).toHaveTextContent("Try again in 15 min"),
+    );
+  });
+
+  it("routes a full phone list to the actual More tab in Settings", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      errResponse(409, { code: "viewer_limit", message: "full" }),
+    );
+    render(<PairScreen hash="#/pair" onPaired={vi.fn()} />);
+    fireEvent.change(screen.getByTestId("pair-desk"), { target: { value: "desk-42" } });
+    fireEvent.change(screen.getByTestId("pair-code"), { target: { value: "ABCD2345" } });
+    fireEvent.submit(screen.getByTestId("pair-form"));
+
+    expect(await screen.findByTestId("pair-error")).toHaveTextContent(
+      "Settings → More → Remote access",
     );
   });
 

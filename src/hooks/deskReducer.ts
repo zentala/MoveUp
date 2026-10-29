@@ -7,6 +7,7 @@
  */
 import type {
   DeskState,
+  LastBreakCreditFacts,
   LiveObservation,
   SessionStateDto,
   MetricSnapshot,
@@ -102,6 +103,7 @@ export interface DeskReducerState {
   deviceLost: boolean;
   observationQuality: "known" | null;
   liveObservation: LiveObservation | null;
+  lastBreakCreditFacts: LastBreakCreditFacts[] | null;
   dashboardRefresh: QueryStatus;
   historyRefresh: QueryStatus;
   port: string | null;
@@ -137,6 +139,7 @@ export const initialDeskState: DeskReducerState = {
   deviceLost: false,
   observationQuality: null,
   liveObservation: null,
+  lastBreakCreditFacts: null,
   dashboardRefresh: emptyQueryStatus(),
   historyRefresh: emptyQueryStatus(),
   port: null,
@@ -215,6 +218,7 @@ export function deskReducer(state: DeskReducerState, action: DeskAction): DeskRe
         ...state,
         observationQuality,
         liveObservation,
+        lastBreakCreditFacts: dto.last_break_credit_facts ?? null,
         state: dto.state,
         deskHeightCm: dto.desk_height_cm,
         secsSinceLastBreak: dto.secs_since_last_break,
@@ -293,6 +297,7 @@ export function deskReducer(state: DeskReducerState, action: DeskAction): DeskRe
         breakSeconds: 0,
         positionChanges: 0,
         limitUsedSecs: 0,
+        lastBreakCreditFacts: null,
         dailyScore: 0,
         todaySummary: EMPTY_TODAY_SUMMARY,
       };
@@ -340,6 +345,7 @@ export function selectDeskView(state: DeskReducerState): DeskView {
     connected: state.connected,
     observationQuality: state.observationQuality,
     liveObservation: state.liveObservation,
+    lastBreakCreditFacts: state.lastBreakCreditFacts,
     dashboardRefresh: state.dashboardRefresh,
     historyRefresh: state.historyRefresh,
     port: state.port,

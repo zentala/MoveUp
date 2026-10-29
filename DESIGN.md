@@ -1,5 +1,21 @@
 # MoveUp design contract
 
+## Native UI diagnostics action - 2026-10-27
+
+Add **Save UI diagnostics** after **Open Analyst**, before the existing separator
+and Quit. Keep the native Windows menu typography, spacing, keyboard behavior and
+system theme. No new icon, window, dashboard, retry or reload control.
+
+The action collects main and only an already-existing Analyst without showing or
+focusing either window. Native confirmation states the actual saved report path;
+a published partial report retains its path with an explicit incomplete-collection warning.
+Write failures and unconfirmed publication remain distinct. Actual timeout and
+absent-window observations do not by themselves mean collection-system failure. A repeated request
+while capture is active reports that collection is already in progress.
+The report remains useful when React fails; it does not certify GPU painting or
+repair the installed application. Inspect this small menu in the isolated native
+test host before delivery; production installation is outside this change.
+
 Updated 2026-10-09. **Accepted target; implementation pending.** Canonical visual contract for popup and Analyst. The operator accepted the tokens below. Source baseline: `6e81da375fe4265325af2f33d2c1c1fac263640f` and working files read in this review. Browser/live QA: **NOT_CHECKED**. Independent coordinator review is required.
 
 ## Direction and scope
@@ -133,6 +149,7 @@ NOT_CHECKED until independently observed; this decision changes no popup/Analyst
 | 2026-10-09 | Full local day + Unknown/Future; shared compact/detail semantics | Operator direction, truthful observation coverage | Accepted; horizon/timezone evidence pending |
 | 2026-10-22 | Zero-duration snapshot ticks (2px by6px at strip top) replace guessed sample spans/full-height point stripes | A reading proves an instant, not observed duration; Unknown coverage and existing posture colors stay truthful | Accepted bounded representation; independent actual-host review pending |
 | 2026-10-22 | Move communication profile selection and editing to the Notifications tab; remove the three legacy notification toggles | The toggles are absent from `AppConfig` and do not affect policy; the existing profile selector, JSON editor, duplicate and reset actions preserve configuration through the active communication profile | Accepted for E027-T12; existing settings chrome and controls retained |
+| 2026-10-27 | Fixed render-failure fallback on opaque `--panel-base` using the existing monospace and ink tokens | A failed React tree must leave the popup readable without relying on that tree | Accepted for the blank-popup incident; no new palette, controls, retry or reload |
 | 2026-10-09 | Day heading then Range, timeline and one ring per day; remove main height/Day at a Glance | Operator correction supersedes extra panels; seven-day default within requested 5–7 | Accepted correction; stories/UX/plan precede revised implementation |
 | 2026-10-09 | Preserve semantic/amber/clinical preference and apply selected skin to popup and Analyst | Shared state identity without silently changing stored preference | Implementation interpretation; visual verification pending |
 | 2026-10-09 | Signed points and recorded event definitions replace score/100 and assumed goal semantics | Source evidence disproves fixed score scale and human-transition interpretation | Data truth accepted |
@@ -140,6 +157,131 @@ NOT_CHECKED until independently observed; this decision changes no popup/Analyst
 
 Implementer supplies source and tests; coordinator independently accepts. Required evidence: shared tokens/font, connected tabs, equal interval/ring totals, honest states, named icons, fixtures for DST/midnight/gaps/live/unknown enums. When authorized preview exists, verify popup 420×240, Analyst 1280×800 and narrow resizing; keyboard/focus/overflow/reduced motion and computed contrast. Until then live QA stays NOT_CHECKED. This author does not certify implementation. Instruction-file link to this contract is pending coordinator-owned work outside this write scope. [Private review](.plan/reports/2026-10-09-design-review.md).
 
+### Render-failure fallback — 2026-10-27
+
+If the popup's React tree throws during rendering, show a fixed, accessible
+message outside the failed subtree: “View unavailable.” This is the entire
+fallback copy. Use
+the opaque `--panel-base`, `--ink-primary` and `--ink-secondary` tokens, the
+existing monospace face and compact spacing. The fallback has no decorative
+art or controls and does not retry or reload. This covers React render errors;
+it does not detect a native WebView or GPU hang/crash.
+
+### Share popup fit — 2026-10-27
+
+Keep the native 420×240 popup and its charcoal, monospace instrument identity.
+Replace the narrow, tall centered Share card and stacked actions with a
+viewport-bounded dialog: compact labelled header with Close, four readable stats
+in a compact grid, tracked time and attribution, and an equal-height footer row
+for Copy Text, Post on X and Reddit. Use existing tokens, named line action icons,
+at least 10px labels and at least 24px hit targets. Preserve full values and the
+existing clipboard text and destination semantics; no scaling or ellipsis.
+
+At 420×240 with ordinary data all content fits without scrolling. At constrained
+sizes or enlarged text only the explicitly labelled inner stats region may
+scroll vertically; header, Close and actions stay visible, and long values wrap.
+At narrow widths put action icons above their complete labels, recover compact
+padding and wrap labels only between words. Enlarged text keeps its full size;
+Copy Text, Copied!, Post on X and Reddit must never split individual words.
+The native modal dialog contains keyboard focus, starts on Close, closes on
+Escape and restores focus to Share. Background controls remain inert. This
+replaces the previous unconstrained 280px modal; it introduces no palette,
+native-window, data or API change. Rendered regressions cover the actual App
+containing OneBarWidget, not an isolated full-width component fixture.
+
 ## Official references
 
 [Carbon colors](https://www.carbondesignsystem.com/building-blocks/foundations/color/overview) and [layering](https://www.carbondesignsystem.com/building-blocks/foundations/color/guidelines) inform neutral layers/semantic roles; [Carbon tabs](https://www.carbondesignsystem.com/building-blocks/core/components/tabs/guidelines) informs selected-tab/panel matching and horizontal scrolling. Below-panel donut tabs are MoveUp's adaptation. [Lucide React](https://lucide.dev/guide/react/) supports named imports. [WAI tabs](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/) and [WCAG 2.2](https://www.w3.org/TR/WCAG22/) inform keyboard/contrast targets. Checked 2026-10-09; exact tokens are operator-accepted MoveUp choices, not a Carbon compliance claim.
+
+## Native overlay exposure recovery — 2026-10-28
+
+The existing 4px opaque native bar must recover exposure when policy requests it
+visible and an ordinary non-topmost window obscures it despite its topmost style.
+Use the existing renderer loop with conditional checks at no more than once per
+second, and reassert only after observed loss of native presentation. Preserve
+the current geometry, colors, progress semantics and input focus. Native calls
+must run without holding the shared renderer mutex and must not activate the bar
+or modify another window. Yield to intentional topmost/modal windows and
+fullscreen surfaces. Hidden/Away/stale/disabled policy decisions must not cause
+a raise. No unconditional animation-frame raising, new watchdog, thread or
+presence policy is introduced.
+
+This replaces reliance on startup-only topmost placement, justified by paired
+native captures: the bar still rendered but was covered by an ordinary window;
+one non-activating topmost reassertion restored the screen pixels without a
+process restart or focus change. The original event causing that loss remains
+unknown. Disposable native regression evidence must distinguish a normal
+covering window from intentional topmost surfaces and preserve foreground.
+Source/test acceptance alone does not establish the installed version. Verify
+the current runtime separately before attributing a recurrent visibility symptom
+to this mechanism.
+
+## Application-owned reminder view — 2026-10-28
+
+### Sitting baseline progress correction
+
+A configured visible sitting baseline carries the authoritative credited sitting
+load divided by its configured limit, preserving the existing neutral-to-warning
+color semantics. It must not collapse nonzero load to a one-pixel zero-progress
+bar before the first escalation or while snoozed. For example,5min of40min fills
+one eighth of the existing 4px track. Explicit hidden/disabled/inactive choices
+remain respected; standing retains its own lap progress. This corrects lost
+numeric input, without changing colors, history, break credit or native raising.
+
+### Message surface and lifecycle
+
+The owner requests a persistent, readable MoveUp reminder in the existing
+420×240 frameless main popup, in place of its ordinary status view while a
+reminder is active. Use the existing charcoal instrument style, monospace,
+spacing, radii and named icons. Lead with a short action-oriented heading,
+the actual policy-supported reason and values, then equal-height actions in a
+stable footer. Do not hardcode a forty-minute limit or invent a completed break.
+
+Give reminder categories distinct opaque backgrounds derived from the existing
+semantic palette: neutral information, amber warning, red urgent reminder and
+green acknowledgement where that category actually exists. Define local
+semantic notice-surface tokens; keep readable ink text and measured contrast.
+Color supplements a text label/icon and never changes historical posture colors.
+No illustration, decorative gradient, new font or global theme replacement.
+
+Use `--notice-info-bg: var(--panel-raised)`; warning, urgent and success surfaces
+mix 75% `--panel-base` with 25% of `--signal-warn`, `--signal-alert` and
+`--signal-ok` respectively in sRGB. Notice copy uses ink-primary/ink-secondary;
+do not use ink-tertiary for essential small text on the tinted surfaces. Reuse
+the 20px/600 page heading and 13px body scale. Controls use the existing raised
+surface and an ink-tertiary boundary where necessary for 3:1 contrast; retain
+the existing focus outline and equal heights.
+
+Automatic reminders use this same main popup without activating it or stealing
+keyboard focus. An active reminder does not expire on a short timer or hide on
+ordinary focus loss. It remains until an explicit close/dismiss/snooze action or
+the authoritative policy makes that reminder obsolete. Escape is handled only
+when MoveUp has focus. Dismissal returns to the normal status surface and uses
+existing policy acknowledgement/snooze rules; do not fabricate a new interval.
+Manual tray activation exposes the current message with usable keyboard focus.
+Do not destroy settings edits or an open Share dialog when a reminder arrives:
+retain the pending message and present it when that foreground flow returns.
+
+At 420×240 ordinary content fits without scrolling. Under enlarged text or
+constrained size, only a labelled message body may scroll; heading, Close and
+footer actions remain reachable. Reuse existing controls and focus styles, with
+at least 24px hit targets and no clipped labels. Do not duplicate the reminder
+in a second application window or the Windows notification center. Silent and
+disabled policy channels remain silent, and duplicate transport events cannot
+reopen an acknowledged message. Loading/remount must recover an active message
+from the owning adapter rather than relying on a one-shot frontend event.
+
+In Settings, reuse the existing Test command for a clearly labelled reminder
+preview. One small appearance selector (information, warning, urgent, success)
+shares its control height with the adjacent Test button. Every preview says it
+is a test and leaves real session/policy/snooze unchanged; the shared 60s limit
+remains. If Settings/Share defers presentation, show a short readable queued
+confirmation and tell the person to return to status. Do not close/discard a
+settings draft to show the preview. This allows inspection of the requested
+backgrounds through the product's normal UI, without a debug control surface.
+
+This replaces the requested reminder presentation, not the separate Analyst
+window or the top-of-screen native bar. Extend existing browser geometry and
+native lifecycle regressions. Independently inspect actual Windows popup images
+for the warning/urgent states, normal return, narrow/text stress and protected
+Settings/Share context before claiming visual acceptance.

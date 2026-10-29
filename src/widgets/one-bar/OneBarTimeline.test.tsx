@@ -63,6 +63,20 @@ function makeSessions(count: number, hoursAgo = 2): SessionEntry[] {
   return sessions;
 }
 
+function withSystemClock(at: Date, run: () => void): void {
+  const fakeTimersWereActive = vi.isFakeTimers();
+  const previousClock = vi.getMockedSystemTime();
+  const previousNow = Date.now();
+  if (!fakeTimersWereActive) vi.useFakeTimers();
+  try {
+    vi.setSystemTime(at);
+    run();
+  } finally {
+    if (fakeTimersWereActive) vi.setSystemTime(previousClock ?? new Date(previousNow));
+    else vi.useRealTimers();
+  }
+}
+
 describe("OneBarTimeline", () => {
   beforeEach(() => {
     localStorage.removeItem(OPEN_ANALYST_DAY_KEY);
@@ -106,20 +120,22 @@ describe("OneBarTimeline", () => {
   });
 
   it("opens Analyst from nonempty timeline background without stealing interval selection", () => {
-    const sessions = makeSessions(2);
-    render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
-    const timeline = screen.getByTestId("one-bar-timeline");
-    const interval = screen.getAllByTestId("timeline-segment")[0];
-    fireEvent.click(interval);
-    expect(invoke).not.toHaveBeenCalled();
-    expect(interval).toHaveAttribute("aria-pressed", "true");
-    fireEvent.keyDown(interval, { key: "Enter" });
-    expect(invoke).not.toHaveBeenCalled();
+    withSystemClock(new Date(2026, 5, 15, 12, 0), () => {
+      const sessions = makeSessions(2);
+      render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
+      const timeline = screen.getByTestId("one-bar-timeline");
+      const interval = screen.getAllByTestId("timeline-segment")[0];
+      fireEvent.click(interval);
+      expect(invoke).not.toHaveBeenCalled();
+      expect(interval).toHaveAttribute("aria-pressed", "true");
+      fireEvent.keyDown(interval, { key: "Enter" });
+      expect(invoke).not.toHaveBeenCalled();
 
-    fireEvent.click(timeline);
-    expect(invoke).toHaveBeenCalledTimes(1);
-    expect(parseOpenDayRequest(localStorage.getItem(OPEN_ANALYST_DAY_KEY))?.day)
-      .toBe(localCalendarDay(new Date()));
+      fireEvent.click(timeline);
+      expect(invoke).toHaveBeenCalledTimes(1);
+      expect(parseOpenDayRequest(localStorage.getItem(OPEN_ANALYST_DAY_KEY))?.day)
+        .toBe(localCalendarDay(new Date()));
+    });
   });
 
   it("uses unique requests for repeated same-day activation", () => {
@@ -164,12 +180,14 @@ describe("OneBarTimeline", () => {
   });
 
   it("renders session blocks for each session", () => {
-    const sessions = makeSessions(3);
-    render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
-    const timeline = screen.getByTestId("one-bar-timeline");
-    const blocks = timeline.querySelectorAll(".one-bar__timeline-block");
-    expect(blocks).toHaveLength(3);
-    expect(screen.queryByTestId("timeline-live-block")).not.toBeInTheDocument();
+    withSystemClock(new Date(2026, 5, 15, 12, 0), () => {
+      const sessions = makeSessions(3);
+      render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
+      const timeline = screen.getByTestId("one-bar-timeline");
+      const blocks = timeline.querySelectorAll(".one-bar__timeline-block");
+      expect(blocks).toHaveLength(3);
+      expect(screen.queryByTestId("timeline-live-block")).not.toBeInTheDocument();
+    });
   });
 
   it("keeps legacy Sitting unknown while rendering qualified Sitting in compact chronology", () => {
@@ -499,19 +517,35 @@ describe("OneBarTimeline", () => {
     expect(longMarkers).toBeGreaterThanOrEqual(shortMarkers);
   });
 
-  it("generates hourly markers across midnight crossing", () => {
-    // Session started 10 hours ago — guaranteed to cross at least one midnight hour boundary
-    const sessions = makeSessions(4, 10);
-    render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
-    const timeline = screen.getByTestId("one-bar-timeline");
-    const markers = timeline.querySelectorAll(".one-bar__timeline-hour");
-    const hourLabels = timeline.querySelectorAll(".one-bar__timeline-hour-label");
-    // Start + multiple hour boundaries + now = at least 5 markers for 10h span
-    expect(markers.length).toBeGreaterThanOrEqual(5);
-    expect(hourLabels.length).toBeGreaterThanOrEqual(2);
-    // The measured-width layout keeps full-hour labels when they fit.
-    const texts = Array.from(hourLabels).map((element) => element.textContent ?? "");
-    expect(texts.some((text) => text.endsWith(":00"))).toBe(true);
+  it("clips a midnight-crossing history window to today's midnight", () => {
+    withSystemClock(new Date(2026, 5, 16, 0, 10), () => {
+      const midnight = new Date(2026, 5, 16, 0, 0).getTime();
+      // Yesterday's rows stay outside today's window; this real midnight-crossing row is clipped at 0:00.
+      const sessions = [
+        ...makeSessions(4, 10),
+        {
+          start: new Date(midnight - 5 * 60_000).toISOString(),
+          end: new Date(midnight + 5 * 60_000).toISOString(),
+          state: "Sitting" as const,
+          duration_secs: 600,
+          break_credit: null,
+          history_kind: "individual" as const,
+        },
+      ];
+      render(<OneBarTimeline {...baseProps({ todaySessions: sessions })} />);
+      const timeline = screen.getByTestId("one-bar-timeline");
+      const markers = [...timeline.querySelectorAll<HTMLElement>(".one-bar__timeline-hour")];
+      const hourLabels = [...timeline.querySelectorAll<HTMLElement>(".one-bar__timeline-hour-label")];
+      const segments = [...timeline.querySelectorAll<HTMLElement>("[data-testid='timeline-segment']")];
+
+      expect(markers).toHaveLength(2);
+      expect(hourLabels.map((element) => element.textContent)).toEqual(["0:00", "0:10"]);
+      expect(segments).toHaveLength(1);
+      expect(segments[0]).toHaveAttribute("data-start-ms", String(midnight));
+      expect(segments[0]).toHaveAttribute("data-end-ms", String(midnight + 5 * 60_000));
+      expect(markers[0]).toHaveStyle({ left: "0%" });
+      expect(markers[1]).toHaveStyle({ left: "97%" });
+    });
   });
 
   it("keeps both distinct repeated local-hour instants and labels their runtime offsets", () => {

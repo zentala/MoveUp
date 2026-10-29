@@ -27,3 +27,11 @@
   - Different profiles can have different patience levels (aggressive = shorter cooldowns).
   - The `notify: "popup"` option still works if a custom profile re-enables it,
     but built-in profiles no longer use it.
+
+## Current presentation — 2026-10-28
+
+[ADR 026](026-application-owned-reminders.md) supersedes only the delivery surface:
+enabled ergonomic and normal device-disconnection notices use the existing main
+window, including legacy toast/popup/both profile inputs. The cooldown schedule,
+visual escalation, configurable silence and engagement rules above remain accepted.
+Exceptional direct persistence/shutdown errors retain their separate paths.

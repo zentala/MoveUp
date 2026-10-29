@@ -1,21 +1,21 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionRow, SnapshotRow } from "@/test/analyst-fixtures";
 import type { LiveObservation } from "@/types";
 import { ExplorerTab } from "./ExplorerTab";
 import { localCalendarDay } from "./open-day";
 
 const eventQueryMock = vi.hoisted(() => ({ refetch: vi.fn() }));
-const rangeQueryMocks = vi.hoisted(() => ({
-  snapshots: { status: "ready" as string, data: [] as SnapshotRow[], error: null as string | null, lastRefreshed: null as string | null, refetch: vi.fn() },
-  sessions: { status: "ready" as string, data: [] as SessionRow[], error: null as string | null, lastRefreshed: null as string | null, refetch: vi.fn() },
+const coreQueryMock = vi.hoisted(() => ({
+  snapshots: { status: "ready" as string, data: [] as SnapshotRow[] | null, error: null as string | null, lastRefreshed: null as number | string | null, refetch: vi.fn() },
+  sessions: { status: "ready" as string, data: [] as SessionRow[] | null, error: null as string | null, lastRefreshed: null as number | string | null, refetch: vi.fn() },
 }));
 
 vi.mock("./hooks/useSnapshotsRange", () => ({
-  useSnapshotsRange: () => rangeQueryMocks.snapshots,
+  useSnapshotsRange: () => coreQueryMock.snapshots,
 }));
 vi.mock("./hooks/useSessionsRange", () => ({
-  useSessionsRange: () => rangeQueryMocks.sessions,
+  useSessionsRange: () => coreQueryMock.sessions,
 }));
 vi.mock("./hooks/useEventsRange", () => ({
   useEventsRange: () => ({
@@ -45,7 +45,161 @@ const range = { from: "2026-05-15", to: "2026-05-17" };
 const snapshots: SnapshotRow[] = [];
 const sessions: SessionRow[] = [];
 
+// Synthetic IDs/date/times: an individual Sitting interval contains an Away
+// interval, matching the observed conflict shape without copying live rows.
+const conflict: SessionRow[] = [
+  { id: 1, startedAt: "2026-05-16T08:00:00Z", endedAt: "2026-05-16T08:18:14Z", state: "Sitting",
+    durationSecs: 1094, sittingSecs: null, standingSecs: null, positionChanges: null,
+    breakCredit: null, historyKind: "individual", dateLocal: "2026-05-16" },
+  { id: 2, startedAt: "2026-05-16T08:02:01Z", endedAt: "2026-05-16T08:04:22Z", state: "Away",
+    durationSecs: 141, sittingSecs: null, standingSecs: null, positionChanges: null,
+    breakCredit: "partial", historyKind: "individual", dateLocal: "2026-05-16" },
+];
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  coreQueryMock.snapshots = { status: "ready", data: [], error: null, refetch: vi.fn(), lastRefreshed: null };
+  coreQueryMock.sessions = { status: "ready", data: [], error: null, refetch: vi.fn(), lastRefreshed: null };
+});
+
 describe("ExplorerTab day assembly", () => {
+  it("opens the actual local Today from a retained custom range and exposes orientation progressively", () => {
+    const originalTimeZone = process.env.TZ;
+    vi.stubEnv("TZ", "Europe/Warsaw");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-20T10:00:00Z"));
+    const onRangeChange = vi.fn();
+    const rangeBefore = { from: "2026-06-01", to: "2026-06-10" };
+    const rangeToday = { from: "2026-06-11", to: "2026-06-20" };
+    try {
+      const view = render(<ExplorerTab range={rangeBefore} onRangeChange={onRangeChange} snapshots={[]} sessions={[]} />);
+      const orientation = screen.getByText("Coverage and time basis").closest("details");
+      const orientationText = screen.getByText(/Calendar bounds use the current query-local timezone/);
+      expect(orientation).not.toHaveAttribute("open");
+      expect(orientationText).not.toBeVisible();
+      fireEvent.click(screen.getByText("Coverage and time basis"));
+      expect(orientationText).toBeVisible();
+      expect(orientation).toHaveTextContent("Unknown is uncovered elapsed time");
+      expect(orientation).toHaveTextContent("historical source timezone is unknown");
+
+      fireEvent.click(screen.getByRole("button", { name: "Today" }));
+      expect(onRangeChange).toHaveBeenCalledWith(rangeToday);
+      view.rerender(<ExplorerTab range={rangeToday} onRangeChange={onRangeChange} snapshots={[]} sessions={[]} />);
+      expect(screen.getByRole("tab", { name: /2026-06-20/ })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("region", { name: "Daily timeline for 2026-06-20" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+      if (originalTimeZone === undefined) vi.unstubAllEnvs();
+      else process.env.TZ = originalTimeZone;
+    }
+  });
+
+  it("honors a newer external selected-day request while Today is waiting for its expanded range", () => {
+    const originalTimeZone = process.env.TZ;
+    vi.stubEnv("TZ", "Europe/Warsaw");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-20T10:00:00Z"));
+    const onRangeChange = vi.fn();
+    const rangeBefore = { from: "2026-06-01", to: "2026-06-10" };
+    const rangeToday = { from: "2026-06-11", to: "2026-06-20" };
+    try {
+      const view = render(<ExplorerTab range={rangeBefore} onRangeChange={onRangeChange} snapshots={[]} sessions={[]} />);
+      fireEvent.click(screen.getByRole("button", { name: "Today" }));
+      view.rerender(<ExplorerTab range={rangeToday} onRangeChange={onRangeChange} snapshots={[]} sessions={[]}
+        openDayRequest={{ day: "2026-06-15", requestId: "main-window-history" }} />);
+      expect(screen.getByRole("tab", { name: /2026-06-15/ })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("tab", { name: /2026-06-20/ })).toHaveAttribute("aria-selected", "false");
+    } finally {
+      vi.useRealTimers();
+      if (originalTimeZone === undefined) vi.unstubAllEnvs();
+      else process.env.TZ = originalTimeZone;
+    }
+  });
+
+  it("reads the current local day immediately instead of waiting for the minute ticker", () => {
+    const originalTimeZone = process.env.TZ;
+    vi.stubEnv("TZ", "Europe/Warsaw");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-20T21:59:00Z")); // 23:59 in Warsaw.
+    const onRangeChange = vi.fn();
+    const rangeBefore = { from: "2026-06-01", to: "2026-06-10" };
+    const rangeAfter = { from: "2026-06-12", to: "2026-06-21" };
+    try {
+      const view = render(<ExplorerTab range={rangeBefore} onRangeChange={onRangeChange} snapshots={[]} sessions={[]} />);
+      vi.setSystemTime(new Date("2026-06-20T22:01:00Z")); // 00:01; no interval tick elapsed.
+      fireEvent.click(screen.getByRole("button", { name: "Today" }));
+      expect(onRangeChange).toHaveBeenCalledWith(rangeAfter);
+      view.rerender(<ExplorerTab range={rangeAfter} onRangeChange={onRangeChange} snapshots={[]} sessions={[]} />);
+
+      vi.setSystemTime(new Date("2026-06-20T21:59:00Z")); // Clock rollback before the next minute tick.
+      fireEvent.click(screen.getByRole("button", { name: "Today" }));
+      expect(screen.getByRole("tab", { name: /2026-06-20/ })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("tab", { name: /2026-06-21/ })).toHaveAttribute("aria-selected", "false");
+    } finally {
+      vi.useRealTimers();
+      if (originalTimeZone === undefined) vi.unstubAllEnvs();
+      else process.env.TZ = originalTimeZone;
+    }
+  });
+
+  it("contains real-shaped history conflicts, preserves navigation and Retry, and recovers on a clean range", async () => {
+    coreQueryMock.sessions = { ...coreQueryMock.sessions, status: "ready", data: conflict };
+    const onRangeChange = vi.fn();
+    const { rerender } = render(<ExplorerTab range={range} onRangeChange={onRangeChange} />);
+    expect(screen.getByRole("tabpanel")).toHaveTextContent(/History unavailable: Conflicting overlapping intervals/);
+    expect(screen.queryByTestId("timeline-detail")).toBeNull();
+    expect(screen.queryByText(/Score and break-credit details/)).toBeNull();
+    for (const ring of screen.getAllByTestId(/^day-ring-/)) {
+      expect(ring.tagName).toBe("SPAN");
+      expect(ring).toHaveAccessibleName(/composition unavailable/);
+      expect(ring).not.toHaveAccessibleName(/No observations recorded|100.00 percent|0.000 seconds/);
+    }
+    fireEvent.click(screen.getByRole("tab", { name: /2026-05-16/ }));
+    expect(screen.getByRole("tab", { name: /2026-05-16/ })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
+    expect(screen.getByRole("tab", { name: /2026-05-15/ })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Retry loading Analyst data" }));
+    expect(coreQueryMock.sessions.refetch).toHaveBeenCalledOnce();
+    expect(coreQueryMock.snapshots.refetch).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByTestId("preset-7d"));
+    expect(onRangeChange).toHaveBeenCalled();
+
+    coreQueryMock.sessions = { ...coreQueryMock.sessions, status: "ready", data: [conflict[0]] };
+    rerender(<ExplorerTab range={{ from: "2026-05-16", to: "2026-05-16" }} onRangeChange={onRangeChange} />);
+    await waitFor(() => expect(screen.getByTestId("timeline-detail")).toBeInTheDocument());
+    expect(screen.queryAllByText(/History unavailable/)).toHaveLength(0);
+    expect(screen.getByTestId("day-ring-2026-05-16").tagName.toLowerCase()).toBe("svg");
+    expect(screen.getAllByTestId("timeline-segment")).toHaveLength(1);
+  });
+
+  it("reports invalid interval endpoints without fabricating an empty timeline", () => {
+    render(<ExplorerTab range={range} onRangeChange={() => undefined} snapshots={[]}
+      sessions={[{ ...conflict[0], endedAt: "invalid" }]} />);
+    expect(screen.getByRole("tabpanel")).toHaveTextContent(/History unavailable: Invalid interval endpoints/);
+    expect(screen.queryByTestId("timeline-detail")).toBeNull();
+    expect(screen.getByTestId("day-ring-2026-05-17").tagName).toBe("SPAN");
+  });
+
+  it("withholds composition while required data loads and restores cached history after a failed refresh", () => {
+    coreQueryMock.sessions = { ...coreQueryMock.sessions, status: "ready", data: [conflict[0]] };
+    const { rerender } = render(<ExplorerTab range={range} onRangeChange={() => undefined} />);
+    expect(screen.getByTestId("timeline-detail")).toBeInTheDocument();
+    coreQueryMock.snapshots = { status: "loading", data: null, error: null, refetch: vi.fn(), lastRefreshed: 123 };
+    rerender(<ExplorerTab range={range} onRangeChange={() => undefined} />);
+    expect(screen.queryByTestId("timeline-detail")).toBeNull();
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("day-ring-2026-05-17")).toHaveAccessibleName(/composition loading/);
+    coreQueryMock.snapshots = { ...coreQueryMock.snapshots, status: "error", data: null, error: "snapshot query failed" };
+    rerender(<ExplorerTab range={range} onRangeChange={() => undefined} />);
+    expect(screen.getByTestId("timeline-detail")).toBeInTheDocument();
+    expect(screen.queryByText(/Score and break-credit details/)).toBeNull();
+    expect(screen.getByTestId("day-ring-2026-05-17")).toHaveAccessibleName(/composition unavailable/);
+    fireEvent.click(screen.getByRole("button", { name: "Retry loading Analyst data" }));
+    expect(coreQueryMock.snapshots.refetch).toHaveBeenCalledOnce();
+    coreQueryMock.snapshots = { ...coreQueryMock.snapshots, status: "ready", data: [] };
+    rerender(<ExplorerTab range={range} onRangeChange={() => undefined} />);
+    expect(screen.getByTestId("timeline-detail")).toBeInTheDocument();
+  });
   it("sends an in-range historical request to useTimelineNav and acknowledges after that day is selected", async () => {
     const acknowledge = vi.fn();
     render(<ExplorerTab range={range} onRangeChange={() => undefined} snapshots={snapshots} sessions={sessions}
@@ -278,32 +432,32 @@ describe("ExplorerTab day assembly", () => {
       state: "Sitting", durationSecs: 1200, sittingSecs: 1200, standingSecs: 0, positionChanges: 0,
       breakCredit: null, dateLocal: "2026-05-17", historyKind: "individual",
     };
-    rangeQueryMocks.snapshots.status = "ready";
-    rangeQueryMocks.snapshots.data = [];
-    rangeQueryMocks.snapshots.lastRefreshed = "2026-05-17T12:00:00Z";
-    rangeQueryMocks.sessions.status = "ready";
-    rangeQueryMocks.sessions.data = [row];
-    rangeQueryMocks.sessions.lastRefreshed = "2026-05-17T12:00:00Z";
+    coreQueryMock.snapshots.status = "ready";
+    coreQueryMock.snapshots.data = [];
+    coreQueryMock.snapshots.lastRefreshed = "2026-05-17T12:00:00Z";
+    coreQueryMock.sessions.status = "ready";
+    coreQueryMock.sessions.data = [row];
+    coreQueryMock.sessions.lastRefreshed = "2026-05-17T12:00:00Z";
     const props = { range, onRangeChange: () => undefined };
     const view = render(<ExplorerTab {...props} />);
     expect(screen.getAllByTestId("timeline-segment")[0]).toHaveAttribute("data-start-ms", String(Date.parse(row.startedAt)));
 
-    rangeQueryMocks.snapshots.status = "error";
-    rangeQueryMocks.snapshots.error = "snapshot refresh failed";
-    rangeQueryMocks.snapshots.data = [] as unknown as SnapshotRow[];
-    rangeQueryMocks.sessions.status = "error";
-    rangeQueryMocks.sessions.error = "history refresh failed";
-    rangeQueryMocks.sessions.data = [] as unknown as SessionRow[];
+    coreQueryMock.snapshots.status = "error";
+    coreQueryMock.snapshots.error = "snapshot refresh failed";
+    coreQueryMock.snapshots.data = [] as unknown as SnapshotRow[];
+    coreQueryMock.sessions.status = "error";
+    coreQueryMock.sessions.error = "history refresh failed";
+    coreQueryMock.sessions.data = [] as unknown as SessionRow[];
     view.rerender(<ExplorerTab {...props} />);
     expect(screen.getAllByTestId("timeline-segment")[0]).toHaveAttribute("data-start-ms", String(Date.parse(row.startedAt)));
     expect(screen.getByText(/Failed: snapshot refresh failed.*showing last successful history/)).toBeInTheDocument();
 
-    rangeQueryMocks.snapshots.status = "ready";
-    rangeQueryMocks.snapshots.error = null;
-    rangeQueryMocks.snapshots.data = [];
-    rangeQueryMocks.sessions.status = "ready";
-    rangeQueryMocks.sessions.error = null;
-    rangeQueryMocks.sessions.data = [];
+    coreQueryMock.snapshots.status = "ready";
+    coreQueryMock.snapshots.error = null;
+    coreQueryMock.snapshots.data = [];
+    coreQueryMock.sessions.status = "ready";
+    coreQueryMock.sessions.error = null;
+    coreQueryMock.sessions.data = [];
     view.unmount();
   });
 

@@ -9,7 +9,7 @@
  * log clean.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { HealthWidget } from "./HealthWidget";
 
@@ -33,15 +33,15 @@ describe("HealthWidget", () => {
     });
   });
 
-  it("shows the connect hint when no health source is configured", async () => {
+  it("keeps an unconfigured optional source out of the daily strip", async () => {
     vi.mocked(invoke).mockResolvedValueOnce({
       configured: false,
       snapshot: null,
     });
     render(<HealthWidget />);
-    await waitFor(() =>
-      expect(screen.getByText(/connect health source/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("get_health_today"));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    expect(screen.queryByTestId("health-widget")).toBeNull();
     expect(screen.queryByTestId("health-steps")).not.toBeInTheDocument();
   });
 
@@ -51,9 +51,10 @@ describe("HealthWidget", () => {
       snapshot: snapshot({ steps_today: 7421 }),
     });
     render(<HealthWidget />);
-    const count = await screen.findByTestId("health-steps");
     // Locale-aware: "7,421" en-US, "7 421" pl-PL — compare digits only.
-    expect(count.textContent?.replace(/\D/g, "")).toBe("7421");
+    await waitFor(() =>
+      expect(screen.getByTestId("health-steps").textContent?.replace(/\D/g, "")).toBe("7421"),
+    );
   });
 
   it("shows a placeholder while configured but with no snapshot yet", async () => {
@@ -159,6 +160,7 @@ describe("HealthWidget", () => {
     await waitFor(() =>
       expect(screen.getByTestId("health-reconnect")).toBeInTheDocument(),
     );
+    expect(screen.getByTestId("health-widget").getAttribute("title")).not.toMatch(/GOOGLE_REFRESH_TOKEN|node /);
     // Reconnect state must NOT show the refresh button (no point).
     expect(
       screen.queryByRole("button", { name: /refresh health/i }),

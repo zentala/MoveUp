@@ -1,5 +1,28 @@
 # Support and Troubleshooting
 
+## Save a UI diagnostics report
+
+When a window is blank or unresponsive, use the native tray menu **Save UI
+diagnostics** before restarting anything. Collection does not show or create
+Analyst, reload a page, change settings or restart MoveUp. The native confirmation
+shows the actual report path under the existing daily logs directory. An
+incomplete report still has a saved path and an explicit collection warning;
+unconfirmed publication and write failures are reported separately.
+
+The bounded JSON includes run identity, window/navigation generations, native
+process/navigation/power events, probe outcomes and safe boot/view/query/error
+categories. It excludes page text, HTML, inputs, raw errors/stacks/URLs, settings
+and sensor history. Review the report before sharing: run identity and timestamps
+remain local support information. Nearby `events.log` retains bounded diagnostic
+receipts and write/loss counters expose gaps.
+
+A timeout is an observed lack of response, not proof of a crash. An absent
+Analyst is expected when it was never opened. DOM or a mounted React stage cannot
+prove that pixels were painted. Unsupported registrations, interrupted probes,
+collection failures and dropped events remain separate. Backend readiness and
+checkpoint availability are independent observations; neither proves UI health.
+Real sleep/resume and behavior of an installed version require their own checks.
+
 ## Common Issues and Solutions
 
 ### Issue: App won't start
@@ -70,22 +93,27 @@ A break reduces it proportionally: in the default `standard` profile each
 second of standing or walking cancels 3 seconds of sitting, and breaks shorter
 than 60 seconds earn no credit at all.
 
-### Issue: Break notification won't appear
+### Issue: Break reminder won't appear
 
-**Problem:** no reminder after 40 minutes of sitting.
+**Problem:** no reminder is visible when expected.
 
 **Solutions:**
 
-1. Check Windows notification settings: **Settings** → **System** →
-   **Notifications** — MoveUp must be allowed to send notifications.
-2. Check your profile: **Settings** → **Profiles**. The `silent` communication
-   profile deliberately sends nothing, and every profile escalates visually
-   (yellow → red → blinking tray) before it sends a single toast.
-3. After each reminder the cooldown grows (0 → 5 min → 15 min → 30 min →
-   silence). Once the reminders are exhausted MoveUp stays quiet until your
-   position changes. That is by design, not a bug.
-4. Make sure MoveUp actually sees you sitting — check the state shown in the
-   floating window.
+1. MoveUp presents policy-approved reminders in its existing main window, not
+   Windows notification center. Automatic presentation does not take focus;
+   click the MoveUp tray icon to open or focus the current message.
+2. Check that the main window shows a current Sitting state. If readings are
+   missing, follow [Sensor not detected](#issue-sensor-not-detected); missing
+   readings do not mean Away.
+3. Check the communication profile in **Settings** → **Notifications**. The
+   `silent` profile deliberately stays silent. Reminder timing and channels are
+   controlled by the selected profile.
+4. To inspect the reminder surface, use **Test appearance** and **Test
+   reminder** in **Settings** → **Notifications**. A preview is labelled as a
+   test, shares the 60-second test limit, and does not change your session. If
+   it is queued while another view is open, return to the main status window.
+   See [Application reminders](#application-reminders) for presentation and
+   dismissal behavior.
 
 ### Issue: Memory usage is high
 
@@ -111,6 +139,22 @@ than 60 seconds earn no credit at all.
    app starts from a clean state. Keep the folder — it holds your history.
 3. [Report the crash](https://github.com/zentala/MoveUp/issues) with the logs
    attached.
+
+### Issue: View unavailable
+
+**Problem:** the floating window displays only `View unavailable.`
+
+This means a React view failed while rendering. The application may write a
+best-effort `UI_FAILURE` line to `%LOCALAPPDATA%\io.zntl.desk\logs\MoveUp.log`.
+It contains an allowlisted error kind and, when a recognized stack frame
+points under the existing `/src/` or `/assets/` route, a basename with line
+and column. These route-based locations are hints only; they do not prove
+module ownership or authenticity. The entry does not include the raw exception
+message, stack, full path, URL or query. It may be absent if logging fails.
+
+This fallback covers React render errors. A native WebView or GPU hang/crash is
+outside React and is not caught by this boundary. This diagnostic does not
+establish the cause of an earlier blank view.
 
 ## Accessing Logs
 
@@ -236,12 +280,13 @@ profile (how loudly MoveUp nudges you). Built-in ergonomic profiles: `standard`
 
 ### Sensor Calibration
 
-If the desk height readings look wrong:
+To record your calibration heights:
 
-1. Go to **Settings** → **Calibr.**
-2. Lower the desk to sitting position, then click **Calibrate Sitting Height**.
-3. Raise the desk to standing position, then click **Calibrate Standing Height**.
-4. Save.
+1. Confirm that the height in the main MoveUp window changes as the desk moves.
+2. Open **Settings** → **Calibr.**
+3. Enter the measured sitting height in **Sitting height (mm)**.
+4. Move the desk to standing position and enter the measured height in **Standing height (mm)**.
+5. Select **Save**.
 
 ### Notifications
 
@@ -250,7 +295,7 @@ escalation timing and channels come from the selected communication profile.
 
 ### More
 
-Screen-time tracking, the activity status readout ("Active" / "Idle Xm Ys"),
+Screen-time tracking, the activity status readout ("Recent input" / "No recent input"),
 the timeline colour theme and the telemetry opt-in live here. Telemetry is off
 unless you turn it on — see [Privacy](./PRIVACY.md).
 
@@ -284,3 +329,21 @@ and include:
 
 See the **[Optimization Guide](./OPTIMIZATION_GUIDE.md)** for memory baselines
 and the regression checklist.
+## Application reminders
+
+MoveUp shows policy-approved reminders in its existing main window. A reminder
+stays until you dismiss or snooze it, or its reason is no longer current. Automatic
+presentation does not request keyboard focus. Click the tray icon to focus the
+current reminder; the Analyst and phone display remain separate.
+
+Settings edits and an open Share dialog take priority. Messages wait until you
+return to status, without closing the current editor or dialog. In Notifications,
+choose a **Test appearance** and **Test reminder** to preview information, warning,
+urgent or success styling. A queued confirmation means you can return to status
+to view it. These are labelled tests, share one 60-second rate limit and leave
+your ergonomic session unchanged.
+
+If saving a response fails, keep the reminder open and choose **Retry saving**.
+This completes the pending save without applying your response twice, including
+after the view remounts. If the reminder connection fails, use **Retry connection**.
+Messages never supply missing observations or change your recorded posture history.

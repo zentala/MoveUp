@@ -13,6 +13,39 @@
   </meta>
 
   <functionality>
+    <feature name="application-owned-reminders">
+      <description>Bounded active/pending main-window reminders with policy-sourced reasons and values, occurrence deduplication, session/message identities, snapshot/event revisions, protected Settings/Share client handshake, persistence-safe acknowledgement retries and rate-limited test previews. Main Settings and the separate Welcome window may request previews; presentation, claims and acknowledgement remain owned by the main window. Automatic Windows presentation does not request focus; only a presented unprotected active reminder prevents hide-on-blur.</description>
+      <source path="src-tauri/src/app_reminders.rs" tests="src-tauri/src/app_reminders_tests.rs"/>
+      <source path="src-tauri/src/commands_reminders.rs" tests="src-tauri/src/app_reminders_tests.rs"/>
+      <source path="src-tauri/src/notification_service.rs" tests="src-tauri/src/notification_service_tests_edge.rs"/>
+      <source path="src-tauri/src/communication_types.rs"/>
+      <source path="src/generated/AppReminderSnapshot.ts"/>
+      <source path="src/hooks/useAppReminder.ts" tests="src/hooks/useAppReminder.test.ts"/>
+      <source path="src/components/ApplicationReminder.tsx" tests="src/components/ApplicationReminder.test.tsx"/>
+      <source path="src/components/application-reminder.css"/>
+      <source path="tests/e2e/application-reminders.test.ts"/>
+      <source path="tests/e2e/application-reminders.fixture.ts"/>
+    </feature>
+    <feature name="window-runtime-diagnostics-core">
+      <description>Application-local typed window generations and collection states, nonblocking queue of 128 observations, 64 recent event groups, truthful loss/write counters and exclusive daily JSON reports capped at 256 KiB. Opt-in Windows WebView2/power adapters and fixed version1 DOM/JS probe retain physical single-flight through timeout. Production setup activates existing-window collection through the native Save UI diagnostics tray action; partial reports retain their path with an incomplete warning.</description>
+      <source path="src-tauri/src/ui_diagnostics.rs" tests="src-tauri/src/ui_diagnostics_tests.rs"/>
+      <source path="src-tauri/src/ui_diagnostics_types.rs"/>
+      <source path="src-tauri/src/ui_diagnostics_store.rs"/>
+      <source path="src-tauri/src/event_logger.rs" tests="src-tauri/src/event_logger.rs"/>
+      <source path="src-tauri/src/ui_diagnostics_windows.rs" tests="src-tauri/src/ui_diagnostics_windows_tests.rs"/>
+      <source path="src-tauri/src/ui_diagnostics_probe.rs" tests="src-tauri/src/ui_diagnostics_windows_tests.rs"/>
+      <source path="src-tauri/src/ui_diagnostics_probe.js" tests="src-tauri/src/ui_diagnostics_windows_tests.rs"/>
+      <source path="src-tauri/src/ui_diagnostics_power.rs" tests="src-tauri/src/ui_diagnostics_windows_tests.rs"/>
+      <source path="src-tauri/src/tray.rs" tests="src-tauri/src/ui_diagnostics_tests.rs"/>
+      <source path="src-tauri/src/setup_helpers.rs"/>
+      <source path="src-tauri/src/lib.rs"/>
+      <source path="src/uiDiagnosticsProbe.test.ts"/>
+      <source path="src-tauri/examples/ui_diagnostics_smoke.rs"/>
+      <source path="src-tauri/build.rs">Reuses the existing Tauri resource for the Windows MSVC example's Common Controls v6 activation manifest; ordinary binary resource linkage is preserved.</source>
+      <fixture path="src-tauri/tests/ui_diagnostics_smoke.html" config="src-tauri/tauri.ui-diagnostics-test.conf.json">Distinct app identity and private temporary WebView profiles; actual navigation, absence/recreation and own-controller ProcessFailed evidence without product setup/plugins.</fixture>
+      <dependencies>Windows-only webview2-com 0.38.2 and windows-core 0.61; existing windows crate adds Power and COM features.</dependencies>
+      <decision-record>.arch/ADR/025-window-runtime-diagnostics.md</decision-record>
+    </feature>
     <feature name="desk-state-detection">
       <description>Detects SITTING / STANDING / WALKING / AWAY based on sensor distance + keyboard/mouse activity</description>
       <debounce>5 stable readings required before state change</debounce>
@@ -33,6 +66,19 @@
       <source path="src/hooks/useLiveObservation.ts" tests="src/hooks/useLiveObservation.test.ts"/>
       <source path="src/pages/AnalystLive.tsx" tests="src/pages/AnalystLive.test.tsx"/>
     </feature>
+    <feature name="break-credit-accounting">
+      <description>The session engine remains authoritative for credited sitting balance and captures each applied break-credit rule, observed duration, source times, and actual capped before/applied/after values. The widget labels the full balance, shows overtime separately, and discloses only captured facts; it does not reconstruct history from the active profile.</description>
+      <source path="src-tauri/src/session_types.rs" tests="src-tauri/src/session_tests_serde.rs"/>
+      <source path="src-tauri/src/session_breaks.rs" tests="src-tauri/src/session_tests_break_credit.rs"/>
+      <source path="src-tauri/src/session_manager.rs"/>
+      <source path="src-tauri/src/session_daily.rs" tests="src-tauri/src/session_tests_persistence.rs"/>
+      <source path="src-tauri/src/session_persistence.rs" tests="src-tauri/src/session_tests_persistence.rs"/>
+      <source path="src-tauri/src/metrics/tests.rs"/>
+      <source path="src-tauri/src/voice_ai_tests.rs"/>
+      <source path="src-tauri/src/ws_broadcaster.rs"/>
+      <source path="src/generated/SessionStateDto.ts"/>
+      <source path="src/generated/LastBreakCreditFacts.ts" generated="ts-rs exporter only"/>
+    </feature>
     <feature name="points-system">
       <description>+1/min standing, +5/lap bonus, -0.5/min sitting; daily_score in tooltip + floating window</description>
     </feature>
@@ -48,7 +94,7 @@
       <component name="floating-window">Widget-based: OneBar, TimelineZen, or Placeholder via registry</component>
       <component name="overlay-bar">4px top-of-screen WinAPI bar, neutral-to-red (sitting progress)</component>
       <component name="alert-popup">WinAPI popup at session limit, progressive escalation with snooze</component>
-      <component name="welcome-popup">First-launch onboarding, Tauri WebviewWindow, dismiss persisted</component>
+      <component name="welcome-popup">First-day setup in the separate Tauri WebviewWindow; distinguishes USB controller detection from actual sensor readings, guides calibration and balance/history understanding, routes test previews to the main reminder flow, and persists dismissal</component>
       <component name="transition-banner">30s banner after sit-to-stand or stand-to-sit</component>
     </feature>
     <feature name="widget-system">
@@ -66,6 +112,9 @@
     </feature>
     <feature name="settings">
       <description>Sit/stand limits, calibration, notification prefs, widget picker, profile selector — tauri-plugin-store</description>
+      <source path="src/components/SettingsPanel.tsx" tests="src/components/SettingsPanel.test.tsx"/>
+      <source path="src/components/settings/CalibrationSection.tsx" tests="tests/e2e/ux-flows.test.ts"/>
+      <source path="src/components/settings/SetupHelpSection.tsx" tests="src/components/settings/SetupHelpSection.test.tsx, tests/e2e/ux-flows.test.ts"/>
     </feature>
     <feature name="auto-connect">
       <description>Auto-detects zntl-desk-sensor v1 on serial ports via PING/PONG handshake</description>
@@ -74,7 +123,11 @@
       <description>Native desktop notifications with trigger_test_notification command, configurable backend</description>
     </feature>
     <feature name="health-badge">
-      <description>Source-agnostic health badge (HealthWidget, formerly StepsWidget) in OneBarWidget — today's steps, optional heart rate, and the producing source_id. Google Fit is one source (OAuth2 offline access, helper script apps/desk/scripts/google-fit-auth.cjs, GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN in apps/desk/.env, optional GOOGLE_FIT_STEPS_SOURCE); the LAN push inlet POST /display/health is another. A Google-Fit-only view carries a "Google Fit ends late 2026" tooltip. See ADR 012 and E021-T02/T03/T04.</description>
+      <description>Optional source-agnostic health badge (HealthWidget, formerly StepsWidget) in OneBarWidget — today's steps, optional heart rate, and the producing source_id. It is omitted when no source is configured and preserves truthful configured-source errors. Google Fit is one source (OAuth2 offline access, helper script apps/desk/scripts/google-fit-auth.cjs, GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN in apps/desk/.env, optional GOOGLE_FIT_STEPS_SOURCE); the LAN push inlet POST /display/health is another. A Google-Fit-only view carries a "Google Fit ends late 2026" tooltip. See ADR 012 and E021-T02/T03/T04.</description>
+      <source path="src/components/HealthWidget.tsx" tests="src/components/HealthWidget.test.tsx"/>
+      <source path="src/components/settings/HealthHelpSection.tsx" tests="src/components/settings/HealthHelpSection.test.tsx, src/components/SettingsPanel.test.tsx"/>
+      <source path="src/components/ShareStats.tsx" tests="src/components/ShareStats.test.tsx"/>
+      <source path="src/components/share-stats.css" tests="tests/e2e/share-popup.test.ts"/>
       <commands>get_health_today, refresh_health_now</commands>
       <transports>Desktop reads over Tauri IPC with a 5-min success interval and a 1/2/5/10/30-min backoff ladder; the remote display reads `health` out of the RemoteDisplayState WS snapshot and never polls (src/hooks/useHealth.ts owns both).</transports>
       <error-model>Backend classifies failures as auth_revoked (invalid_grant / 401 → re-run OAuth helper) or transient (network / 5xx / parse → exponential backoff)</error-model>
@@ -83,6 +136,14 @@
     <feature name="remote-write-gate">
       <description>The remote server's read routes stay open on the LAN; every route that WRITES app state passes remote_auth::require_token — a constant-time compare against DESK_REMOTE_TOKEN. An unset token answers 503 (closed), a wrong one 401, so "unconfigured" can never be mistaken for "working". Bodies are capped before parsing (1 KiB health, 4 KiB voice) and an unusable value answers 422, so a malformed push never looks like an empty one. See ADR 020 and E021-T03.</description>
       <routes>GET /display/ws and GET /display/api open; POST /display/health and POST /display/voice authenticated</routes>
+    </feature>
+    <feature name="remote-visibility">
+      <description>Settings → More keeps unresolved relay reads in loading/error-with-Retry states, reports only the desk-to-relay connection, and separates cloud relay, same-network LAN viewing and the local-only telemetry preference. No LAN adapter address or listening state is exported, so the UI and phone guide state that these are unavailable without claiming reachability or changing defaults.</description>
+      <source path="src/components/settings/RemoteSection.tsx" tests="src/components/settings/RemoteSection.test.tsx, tests/e2e/ux-flows.test.ts"/>
+      <source path="src/components/settings/useRelaySettings.ts" tests="src/components/settings/RemoteSection.test.tsx, tests/e2e/ux-flows.test.ts"/>
+      <source path="src/components/settings/TelemetrySection.tsx" tests="src/components/SettingsPanel.test.tsx"/>
+      <source path="src/remote/PairScreen.tsx" tests="src/remote/PairScreen.test.tsx"/>
+      <source path="docs/REMOTE_DISPLAY.md"/>
     </feature>
     <feature name="voice-dictation">
       <description>Phone-only dictation panel on /display posting to POST /display/voice. Keyboard-mic dictation into a textarea is the primary path; the browser's SpeechRecognition button is progressive enhancement, shown only when the API exists and the mic permission is not denied (E021-D5 — /display is plain HTTP, which Chrome will not give a secure context). voice_intent::parse maps the transcript offline to Intent (Snooze/Note/WalkStart/WalkEnd) over PL+EN regexes; unrecognised text is always a Note. The pipeline writes events, never engine state: EventLogger VOICE line → voice_notes row → side effect → optional BYOK AI reply → desk:voice-ack broadcast → webhook push. Snooze is the ONLY intent with a side effect and it sets CommunicationPolicy's existing snooze fields; nothing here touches session_*.rs (E021-D3 / ADR 015). Every leg is independently optional. See ADR 021 and E021-T05/T06/T08.</description>
@@ -127,7 +188,9 @@
       <file name="app_lifecycle_tests.rs">Run ownership, prior outcomes and correlated lifecycle event regression tests</file>
       <file name="app_lifecycle_runtime_tests.rs">Persistence flush and readiness under database contention, missing connection and poison</file>
       <file name="runtime_readiness_tests.rs">Typed readiness states and route contract tests</file>
-      <file name="commands.rs">IPC commands: list_ports, start_auto_connect, stop_reading, get_session_state, get_today_summary, inject_reading, trigger_test_notification, dismiss_welcome, show_welcome</file>
+      <file name="commands.rs">IPC commands: list_ports, start_auto_connect, stop_reading, get_session_state, get_today_summary, inject_reading; the rate-limited test-preview command accepts main and Welcome windows but publishes only to the main reminder flow</file>
+      <file name="commands_tests.rs">Command regressions including the main/Welcome test-preview window seam, shared limiter, and main reminder-state routing</file>
+      <file name="commands_welcome.rs">Creates, dismisses and reopens the separate Welcome window; persists the first-run dismissal choice</file>
       <file name="commands_config.rs">Config IPC: set_session_limit, set_stand_limit, calibrate, get_settings, save_settings, get_overlay_state. save_settings resyncs the relay client, but only when relay_settings_changed says relay_enabled or relay_url actually moved — every settings edit calls it, and reconnecting over an unrelated field would drop live viewers (E022-T06)</file>
       <file name="commands_profiles.rs">Profile IPC: list_communication_profiles, list_ergonomic_profiles, get_active_profiles, switch_communication_profile, switch_ergonomic_profile, open_profile_in_editor, duplicate_profile. The engine half of a switch is extracted as switch_communication_profile_by_name / switch_ergonomic_profile_by_name (app_data_dir + handles, no AppHandle) so the relay command path can call it; the IPC wrappers add store persistence of the active ID on top</file>
       <file name="commands_profiles_tests.rs">16 tests for profile commands</file>
@@ -228,22 +291,31 @@
     </layer>
 
     <layer name="react-frontend" path="src/">
-      <file name="main.tsx">React DOM root — mounts App</file>
-      <file name="App.tsx">Root — widget system, settings panel, state management</file>
+      <file name="main.tsx">React DOM root — initializes window-local diagnostics before dynamically importing App; captures import failure without claiming a React mount</file>
+      <file name="main.test.tsx">Exercises App module evaluation failure, early listeners, missing root and import success before React commits</file>
+      <file name="uiDiagnostics.ts">Version 1 window-local boot/view, named dashboard/today_summary completion receipts and sanitized last error; retains error evidence before best-effort existing plugin logging</file>
+      <file name="uiDiagnostics.test.ts">Checks initial not_observed results, sanitized fields and recognized frames, omitted private/foreign locations, retained evidence across logger failure and listener cleanup</file>
+      <file name="App.tsx">Root — widget system, settings panel, state management and committed mount/view diagnostic categories</file>
+      <file name="App.test.tsx">Checks browser/Tauri routing and actual widget/settings/Analyst view categories without retaining route or pairing contents</file>
       <file name="types.ts">Shared types: DeskState, SessionStateDto, TodaySummaryDto, WidgetProps</file>
+      <file name="generated/SessionStateDto.ts">Rust-owned dashboard DTO, including optional captured last-break accounting</file>
       <file name="welcome.tsx">Welcome popup entry point</file>
 
       <dir name="widgets/">
         <file name="registry.ts">Widget map + resolver (active_widget string to component)</file>
-        <file name="OneBarWidget.tsx">Horizontal progress bar, temperature escalation, coach sentence; named share/settings icon actions on shared charcoal surfaces</file>
+        <file name="OneBarWidget.tsx">Horizontal balance and recorded timeline with source-qualified state, observation and refresh details, plus Share, current-day Analyst and Settings actions</file>
+        <file name="OneBarWidget.test.tsx">Checks source-qualified observations, retained view-refresh errors, compact timeline geometry, and existing widget actions</file>
         <file name="TimelineZenWidget.tsx">Minimalist, big timeline, zero text, ultra compact</file>
         <file name="PlaceholderWidget.tsx">Dev verification widget</file>
         <file name="useActiveWidget.ts">Hook: resolves active widget from config</file>
         <file name="useWidgetData.ts">Hook: computes WidgetProps and carries source sample freshness and separate dashboard/history query receipts from useDesk</file>
         <file name="useDeskTypes.ts">Type definitions for desk hook data</file>
         <dir name="one-bar/">
+          <file name="OneBarTimer.tsx">Credited sitting balance with separately labeled overtime and captured break details</file>
+          <file name="OneBarTimer.test.tsx">Balance and 52/40 with 12-minute overtime display regression</file>
           <file name="OneBarTimeline.tsx">Compact source-qualified chronology; renders exact completed intervals and leaves unrecorded elapsed time Unknown</file>
           <file name="OneBarTimeline.test.tsx">Exact session endpoints, no credit-derived live duration, Unknown gaps and hour-marker regression; 420px label-density case fixes a mid-June non-DST clock</file>
+          <file name="one-bar.css">Compact one-bar header with a keyboard-accessible, scrollable observation and refresh explanation</file>
         </dir>
       </dir>
 
@@ -254,14 +326,26 @@
       </dir>
 
       <dir name="components/">
+        <file name="AppErrorBoundary.tsx">Render error boundary with a fixed accessible “View unavailable.” fallback and committed fallback diagnostic stage</file>
+        <file name="AppErrorBoundary.test.tsx">Checks fallback stage and copy, sanitized error retention despite logger failure and normal child rendering</file>
         <file name="UiIcon.tsx">Shared decorative Lucide icon wrapper with 16px default size and 1.5px stroke</file>
+        <file name="BreakCreditDetails.tsx">Keyboard-accessible native disclosure of captured break-credit applications, rules, source times and actual balance changes</file>
+        <file name="BreakCreditDetails.test.tsx">Capped credit, unknown legacy facts, no-credit reasons and independent application-rule display</file>
         <file name="HeightRail.tsx">Visual left-side accent bar</file>
         <file name="SessionProgress.tsx">Sitting session timer and progress</file>
-        <file name="SettingsPanel.tsx">Settings UI — limits, calibration, notifications, widget picker, profile selector</file>
-        <file name="StateIndicator.tsx">Badge showing current state</file>
+        <file name="SettingsPanel.tsx">Settings UI — limits, calibration, notifications, widget picker, profile selector, and optional Health/privacy guidance</file>
+        <file name="settings/SettingsTabBar.tsx">Manually activated Settings tabs with roving keyboard focus</file>
+        <file name="settings/SettingsTabBar.test.tsx">Roving focus, manual activation and tab-panel relationships</file>
+        <file name="settings/HealthHelpSection.tsx">Optional health orientation with reachable Privacy and Remote Display guides</file>
+        <file name="settings/HealthHelpSection.test.tsx">Accessible guide-link semantics without opening an external page</file>
+        <file name="ShareStats.tsx">Share values with visible manual-copy fallback and retry after clipboard failures</file>
+        <file name="ShareStats.test.tsx">Copy success and recoverable clipboard/fallback failure behavior</file>
+        <file name="StateIndicator.tsx">Header badge distinguishes observed estimates, retained estimates and unknown state from recent input</file>
+        <file name="StateIndicator.test.tsx">Checks source labels, unknown state and activity wording without asserting physical presence</file>
         <file name="TodayStats.tsx">Today totals: sitting, standing, changes, score</file>
         <file name="TransitionBanner.tsx">30s banner after state transition</file>
-        <file name="WelcomePopup.tsx">First-launch onboarding popup</file>
+        <file name="WelcomePopup.tsx">First-launch onboarding popup with queued, success and error feedback for the main-window test preview</file>
+        <file name="WelcomePopup.test.tsx">Welcome preview preparation/queue/error feedback and both first-run dismissal choices</file>
         <file name="AppProgressBar.tsx">14px in-app progress bar (debug)</file>
         <file name="ScreenProgressBar.tsx">4px top-of-screen CSS overlay bar</file>
         <file name="ConnectionOverlay.tsx">Four states for the remote display: all fine (nothing), sensor lost (banner), phone disconnected (Reconnecting…), and — E022 — relay up but desk asleep (last known state). deskOnline defaults to true so LAN and Tauri callers keep three</file>
@@ -281,11 +365,13 @@
       </dir>
 
       <dir name="hooks/">
-        <file name="useDesk.ts">Main data hook — desk:* events, IPC state, producer sample facts and separate dashboard/history request receipts. Reports deskOnline: true and control capability as constants</file>
+        <file name="useDesk.ts">Main data hook — desk:* events, IPC state, producer sample facts and separate dashboard/history request receipts. Publishes accepted get_dashboard_state/get_today_summary completion hints to window diagnostics; deskOnline and control remain constants</file>
+        <file name="useDesk.test.ts">Transport regressions plus named diagnostic receipts, retained success on failure/clock rollback and ignored unmounted or superseded callbacks</file>
         <file name="useRemoteDesk.ts">Browser transport adapter. Carries optional producer observation metadata and frontend snapshot/history receipts through the shared reducer; the socket remains owned by selectTransport()</file>
-        <file name="useDeskTypes.ts">UseDeskResult, producer observation data, per-query receipts, DeskTransportFacts and UseDeskConnection</file>
-        <file name="deskReducer.ts">Shared transport-independent reducer validates observation metadata and retains independent snapshot/history receipt state</file>
-        <file name="useLiveObservation.ts">Read-only Analyst snapshot hook using get_dashboard_state; it does not start auto-connect</file>
+        <file name="useDeskTypes.ts">UseDeskResult, producer observation and captured break-credit data, per-query receipts, DeskTransportFacts and UseDeskConnection</file>
+        <file name="deskReducer.ts">Shared transport-independent reducer validates observation metadata, carries captured break-credit facts and retains independent snapshot/history receipt state</file>
+        <file name="useLiveObservation.ts">Read-only Analyst snapshot hook using get_dashboard_state; publishes only accepted completion hints without extra polling or auto-connect</file>
+        <file name="useLiveObservation.test.ts">Snapshot regressions plus diagnostic not_observed/in-flight state, receipt-time success/failure and ignored post-unmount results</file>
         <file name="useTimer.ts">Tick hook — 1s interval counter</file>
       </dir>
 
@@ -310,6 +396,8 @@
         </dir>
         <dir name="charts/">
           <file name="DateNavigator.tsx">Range day tabs with per-day composition, keyboard navigation, and viewport visibility management</file>
+          <file name="DateNavigatorHeader.tsx">Current-day action and progressive disclosure of observation, range, and time-basis facts</file>
+          <file name="DateNavigatorHeader.test.tsx">Current-day range behavior and accessible source/time-basis disclosure</file>
           <file name="DateNavigatorColumn.tsx">Accessible day tab with a composition ring and coverage label</file>
           <file name="DailyCompositionRing.tsx">Proportional day composition ring with clipped Unknown hatch and distinct Future arc</file>
           <file name="DailyCompositionRing.test.tsx">Vitest coverage for proportional denominators, Unknown hatching, and Future arc geometry</file>
@@ -491,6 +579,18 @@
       <count>20 tests (8 build-report + 12 relay-e2e)</count>
     </layer>
 
+    <layer name="share-popup" path="tests/e2e/share-popup.test.ts" runner="pnpm test:share">
+      <note>Focused Playwright config starts strict dedicated Vite15431, never native Tauri. Real App/OneBarWidget uses public Tauri mocks before import; display and external navigation blocked. Tests cover420x240/320x240/420x200,200% text, full text reachability, configured Health omission and recovery from clipboard plus fallback failure. Included in just check.</note>
+      <files>playwright.share.config.ts, tests/e2e/share-popup.fixture.ts, tests/e2e/share-popup.test.ts</files>
+    </layer>
+    <layer name="analyst-containment" path="tests/e2e/analyst-containment.test.ts" runner="pnpm test:share">
+      <note>Real App Analyst route and asynchronous range hooks use pre-main public Tauri mocks with synthetic conflicting individual intervals. Existing dedicated Playwright server15431 only; native writes, external navigation and display transport blocked. Covers retained controls/Retry, unavailable composition, clean-range recovery without reload and1280/760 screenshots. Included in just check.</note>
+      <files>playwright.share.config.ts, tests/e2e/analyst-containment.fixture.ts, tests/e2e/analyst-containment.test.ts</files>
+    </layer>
+    <layer name="settings-welcome-recovery" path="tests/e2e/ux-flows.test.ts" runner="pnpm test:share">
+      <note>Real App Settings recovery and the existing separate welcome.html entry with pre-entry public Tauri mocks; preserves T02 load/retry, calibration/ARIA/draft and T05 main-window preview queue/error/dismissal cases. Also checks first-run Welcome at480x420 for honest no-reading copy, simultaneous footer/Test/checkbox containment and keyboard access, T04's observed/inferred/stale header, retained dashboard-error state and keyboard/pointer disclosure at420x240, and T01's 52/40 credited balance with separate 12-minute overtime and engine-captured break details. Browser-only synthetic IPC; external navigation, display and native effects blocked. Captures are retained; no native or hardware claim.</note>
+      <files>playwright.share.config.ts, playwright.config.ts, tests/e2e/ux-flows.fixture.ts, tests/e2e/ux-flows.test.ts, src/components/SettingsPanel.test.tsx, src/components/WelcomePopup.test.tsx, src/components/WelcomePopup.tsx, src/components/StateIndicator.tsx, src/components/StateIndicator.test.tsx, src/components/settings/CalibrationSection.tsx, src/components/settings/SettingsTabBar.tsx, src/components/settings/SettingsTabBar.test.tsx, src/components/settings/SetupHelpSection.tsx, src/components/settings/SetupHelpSection.test.tsx, src/components/settings/HealthHelpSection.tsx, src/components/settings/HealthHelpSection.test.tsx, src/widgets/OneBarWidget.tsx, src/widgets/OneBarWidget.test.tsx, src/widgets/one-bar/one-bar.css, docs/USER_INSTALL.md, docs/USER_SUPPORT.md, welcome.html, src/welcome.tsx</files>
+    </layer>
     <layer name="e2e" path="tests/e2e/" runner="pnpm test:e2e">
       <note>Requires: tauri-driver --compatibility-mode</note>
     </layer>
@@ -536,7 +636,7 @@
     <file path=".arch/ARCHITECTURE.md">Living architecture doc — component map, remote-server privilege table, health inlet and voice inlet sections</file>
     <file path=".arch/UX-FLOW.md">What the user sees per state; §2.9 health widget, §9 off-screen mirror, §12 voice dictation</file>
     <file path="CONTRIBUTING.md">Developer contract — how to add a health source, the write gate's three contractual behaviours, and why the voice path may not touch the engine</file>
-    <file path="docs/REMOTE_DISPLAY.md">User-facing phone setup: dashboard, health push inlet, voice dictation, phone/watch notifications</file>
+    <file path="docs/REMOTE_DISPLAY.md">User-facing phone setup: separate LAN/cloud routes, truthful status and address limits, health push inlet, voice dictation, phone/watch notifications</file>
     <file path=".plan/decisions.jsonl">Durable decisions, one JSON line each (E021-D1..D6 recorded by T09)</file>
     <file path="scripts/check-e021-t09-docs.mjs">Doc guard: asserts ADRs 020/021 exist, are linked from every index, and that each claim still matches a symbol in the code</file>
   </project-management>

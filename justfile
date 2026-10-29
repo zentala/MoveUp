@@ -50,7 +50,11 @@ test-startup:
 
 # Types, lint, both unit suites and the startup preparation regressions.
 # Actual Windows Quit/recovery/login verification remains a delivery check.
-check: test-startup typecheck lint test test-rust test-history-upgrade
+check: test-startup typecheck lint test test-rust test-history-upgrade test-share
+
+# Real App popup geometry, modal keyboard behavior and synthetic sharing.
+test-share:
+    pnpm test:share
 
 # relay Worker (E022) — a standalone pnpm project in relay/, its own lockfile.
 # `pnpm --dir` keeps every one of these runnable from the repo root.

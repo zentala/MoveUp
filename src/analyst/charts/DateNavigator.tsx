@@ -99,9 +99,13 @@ export function DateNavigator({ range, selectedDay, intervals, panelId, busy = f
         onClick={() => onSelectDay(date)} onFocus={() => setFocusedDay(date)}
         onKeyDown={(event) => onKeyDown(index, event)} />)}
     </div>
-    <p className="day-composition__basis" role="note">
-      Calendar bounds use the current query-local timezone; historical source timezone is unknown. Unknown is uncovered elapsed time. Future is after now. Snapshot markers are instants and do not add duration.
-    </p>
+    <details className="day-composition__basis">
+      <summary style={{ cursor: "pointer", minHeight: 24, lineHeight: "24px" }}>Coverage and time basis</summary>
+      <p style={{ margin: "0 0 0 12px" }}>
+        Calendar bounds use the current query-local timezone; historical source timezone is unknown. Unknown is uncovered elapsed time.
+        Future is after now. Snapshot markers are instants and do not add duration.
+      </p>
+    </details>
     {loading ? <p className="day-composition__status" role="status">Loading calendar bounds and observations…</p> : null}
     {visibleError ? <p className="day-composition__status" role="alert">Daily composition unavailable: {visibleError}</p> : null}
   </section>;

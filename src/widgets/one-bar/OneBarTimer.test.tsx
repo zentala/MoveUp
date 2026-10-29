@@ -5,7 +5,7 @@
  * Verifies that elapsed/total and color scheme switch correctly per state.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { OneBarTimer } from "./OneBarTimer";
 import type { WidgetProps } from "@/types";
 
@@ -166,7 +166,7 @@ describe("OneBarTimer — standing timer regression", () => {
     expect(screen.getByTitle(/Away for/)).toBeInTheDocument();
   });
 
-  it("sitting overtime shows + sign, standing does not", () => {
+  it("shows sitting overtime separately, without changing the full balance number", () => {
     const { rerender } = render(
       <OneBarTimer
         {...props({
@@ -178,7 +178,8 @@ describe("OneBarTimer — standing timer regression", () => {
       />,
     );
     const bigNum = screen.getByTestId("one-bar-big-number");
-    expect(bigNum.textContent).toContain("+");
+    expect(bigNum.textContent).not.toContain("+");
+    expect(screen.getByTestId("one-bar-overtime")).toHaveTextContent("Over limit 5m");
 
     rerender(
       <OneBarTimer
@@ -192,5 +193,45 @@ describe("OneBarTimer — standing timer regression", () => {
     );
     const bigNum2 = screen.getByTestId("one-bar-big-number");
     expect(bigNum2.textContent).not.toContain("+");
+    expect(screen.queryByTestId("one-bar-overtime")).not.toBeInTheDocument();
+  });
+
+  it("labels sitting balance and shows the 12 minute overtime separately for 52 over 40", () => {
+    render(<OneBarTimer {...props({ limitUsedSecs: 52 * 60, limitSecs: 40 * 60, limitRemaining: -12 * 60, limitRatio: 1.3 })} />);
+    expect(screen.getByText("Sitting balance")).toBeInTheDocument();
+    expect(screen.getByTestId("one-bar-big-number")).toHaveTextContent("52:00 / 40:00");
+    expect(screen.getByTestId("one-bar-overtime")).toHaveTextContent("Over limit 12m");
+  });
+
+  it("returns from the secondary credit panel to the sitting status disclosure", () => {
+    render(<OneBarTimer {...props({
+      limitUsedSecs: 52 * 60,
+      limitSecs: 40 * 60,
+      limitRemaining: -12 * 60,
+      limitRatio: 1.3,
+      lastBreakCreditFacts: [{
+        break_started_at: "2026-10-29T10:00:00Z",
+        observed_break_secs: 300,
+        minimum_break_secs: 60,
+        multiplier: 2,
+        requested_credit_secs: 600,
+        prior_applied_credit_secs: 0,
+        sitting_before_secs: 480,
+        applied_credit_secs: 480,
+        sitting_after_secs: 0,
+        applied_at: "2026-10-29T10:05:00Z",
+        no_credit_reason: null,
+      }],
+    })} />);
+    const disclosure = screen.getByText("Break credit details");
+
+    fireEvent.click(disclosure);
+    expect(screen.getByRole("heading", { name: "Captured break credit" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Break credit entries" })).toHaveAttribute("tabindex", "0");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close break credit details" }));
+    expect(disclosure).toHaveFocus();
+    expect(screen.getByTestId("one-bar-big-number")).toHaveTextContent("52:00 / 40:00");
+    expect(screen.getByTestId("one-bar-overtime")).toHaveTextContent("Over limit 12m");
   });
 });

@@ -68,7 +68,7 @@ pub fn check_periodic(
         sess.record_notification_events(&events);
         intents
     };
-    NotificationService::dispatch(&intents, event_logger, alert_popup);
+    NotificationService::dispatch(app, &intents, event_logger, alert_popup);
     // Notification events remain immediate writes. The independent lifecycle
     // checkpoint owns the quiet minute snapshot when there was no event.
     if !intents.is_empty() {
@@ -210,7 +210,7 @@ pub fn handle_reading(
         sess.record_notification_events(&events);
         intents
     };
-    NotificationService::dispatch(&intents, event_logger, alert_popup);
+    NotificationService::dispatch(app, &intents, event_logger, alert_popup);
     if !intents.is_empty() {
         save_session_state(app, session);
     }

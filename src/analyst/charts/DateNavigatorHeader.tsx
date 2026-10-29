@@ -15,6 +15,7 @@ export interface DateNavRange {
 export interface DateNavigatorHeaderProps {
   range: DateNavRange;
   onRangeChange: (r: DateNavRange) => void;
+  onToday: () => void;
   today: string;
 }
 
@@ -23,12 +24,6 @@ const PRESETS = [
   { id: "14d", label: "14d", days: 14 },
   { id: "30d", label: "30d", days: 30 },
 ] as const;
-
-function rangeDays(from: string, to: string): number {
-  const a = new Date(`${from}T00:00:00`).getTime();
-  const b = new Date(`${to}T00:00:00`).getTime();
-  return Math.round((b - a) / 86_400_000) + 1;
-}
 
 /** Ensure from ≤ to by swapping if necessary. */
 function normaliseRange(r: DateNavRange): DateNavRange {
@@ -49,9 +44,12 @@ const dateInputStyle: React.CSSProperties = {
 export function DateNavigatorHeader({
   range,
   onRangeChange,
+  onToday,
   today,
 }: DateNavigatorHeaderProps) {
-  const activePresetDays = rangeDays(range.from, range.to);
+  const activePreset = PRESETS.find((preset) =>
+    range.from === shiftDay(today, -(preset.days - 1)) && range.to === today,
+  )?.id;
   return (
     <div
       style={{
@@ -63,7 +61,7 @@ export function DateNavigatorHeader({
         flexWrap: "wrap",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span
           style={{
             fontSize: 10,
@@ -74,7 +72,9 @@ export function DateNavigatorHeader({
         >
           Range
         </span>
+        <label htmlFor="analyst-range-from" style={{ color: chartColors.subtext, fontSize: 11 }}>From</label>
         <input
+          id="analyst-range-from"
           type="date"
           value={range.from}
           data-testid="range-from"
@@ -82,7 +82,9 @@ export function DateNavigatorHeader({
           style={dateInputStyle}
         />
         <span style={{ color: chartColors.subtext }}>→</span>
+        <label htmlFor="analyst-range-to" style={{ color: chartColors.subtext, fontSize: 11 }}>To</label>
         <input
+          id="analyst-range-to"
           type="date"
           value={range.to}
           data-testid="range-to"
@@ -93,6 +95,7 @@ export function DateNavigatorHeader({
       <div
         style={{
           display: "inline-flex",
+          alignItems: "center",
           gap: 2,
           padding: 2,
           border: `1px solid ${chartColors.gridline}`,
@@ -100,13 +103,33 @@ export function DateNavigatorHeader({
           borderRadius: 6,
         }}
       >
+        <button
+          type="button"
+          data-testid="range-today"
+          onClick={onToday}
+          aria-label="Today"
+          style={{
+            background: "transparent",
+            color: chartColors.text,
+            border: "none",
+            padding: "4px 10px",
+            minHeight: 28,
+            fontSize: 11,
+            fontFamily: "inherit",
+            borderRadius: 4,
+            cursor: "pointer",
+          }}
+        >
+          Today
+        </button>
         {PRESETS.map((p) => {
-          const on = p.days === activePresetDays;
+          const on = p.id === activePreset;
           return (
             <button
               key={p.id}
               type="button"
               data-testid={`preset-${p.id}`}
+              aria-pressed={on}
               onClick={() =>
                 onRangeChange({
                   from: shiftDay(today, -(p.days - 1)),

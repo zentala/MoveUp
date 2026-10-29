@@ -1,12 +1,12 @@
 /**
- * RemoteSection.test.tsx — Settings → Remote, one case per scenario.
+ * RemoteSection.test.tsx — Settings → More → Remote access scenarios.
  *
  * The four scenarios in `src/test/scenarios.ts` are the fixtures: each one is
  * exactly the three IPC answers the section reads, so mocking `invoke` from a
  * scenario renders the state the mockup gallery shows.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import RemoteSection from "./RemoteSection";
 import { DEFAULT_SETTINGS } from "./SettingsTypes";
@@ -54,6 +54,66 @@ describe("RemoteSection — scenario coverage", () => {
     ]);
   });
 
+  it("keeps an unresolved relay read pending, then retries an IPC failure without claiming the relay is off", async () => {
+    let rejectStatus!: (reason: Error) => void;
+    const pendingStatus = new Promise<never>((_resolve, reject) => { rejectStatus = reject; });
+    vi.mocked(invoke)
+      .mockReturnValueOnce(pendingStatus)
+      .mockResolvedValueOnce(relayDisabled.status);
+
+    renderSection();
+
+    expect(screen.getByTestId("relay-state")).toHaveTextContent("Checking relay status");
+    expect(screen.queryByLabelText("Licence key")).not.toBeInTheDocument();
+    expect(screen.queryByText(/not registered/i)).not.toBeInTheDocument();
+
+    rejectStatus(new Error("status IPC unavailable"));
+    const retry = await screen.findByRole("button", { name: "Retry relay status" });
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load relay status");
+    expect(screen.queryByLabelText("Licence key")).not.toBeInTheDocument();
+    expect(screen.queryByText(/not registered/i)).not.toBeInTheDocument();
+
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.getByTestId("relay-state")).toHaveTextContent("Relay is off"));
+    expect(screen.getByLabelText("Licence key")).toBeInTheDocument();
+  });
+
+  it("withholds the prior off state and registration action when the post-registration refresh fails", async () => {
+    let statusReads = 0;
+    let registrationCalls = 0;
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "get_relay_status") {
+        statusReads += 1;
+        if (statusReads === 1) return relayDisabled.status;
+        if (statusReads === 2) throw new Error("status refresh unavailable");
+        return relayOnlineTwoViewers.status;
+      }
+      if (cmd === "relay_register") {
+        registrationCalls += 1;
+        return null;
+      }
+      if (cmd === "relay_list_viewers") return relayOnlineTwoViewers.viewers;
+      return null;
+    });
+    renderSection();
+
+    fireEvent.change(await screen.findByLabelText("Licence key"), { target: { value: "MU-TEST-KEY" } });
+    fireEvent.click(screen.getByRole("button", { name: "Enable remote access" }));
+
+    expect(await screen.findByTestId("relay-status-error")).toHaveTextContent("relay state is unknown");
+    expect(screen.getByTestId("relay-state")).toHaveTextContent("Relay status unavailable");
+    expect(screen.queryByText("Relay is off")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Licence key")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enable remote access" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pair a phone" })).not.toBeInTheDocument();
+    expect(registrationCalls).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry relay status" }));
+    await waitFor(() => expect(screen.getByTestId("relay-state")).toHaveTextContent("Connected to the cloud relay"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Pair a phone" })).toBeEnabled());
+    expect(registrationCalls).toBe(1);
+  });
+
   it("renders a distinct status line for every scenario", async () => {
     for (const scenario of RELAY_SETTINGS_SCENARIOS) {
       mockScenario(scenario);
@@ -64,6 +124,57 @@ describe("RemoteSection — scenario coverage", () => {
       view.unmount();
     }
   });
+
+  it("does not promise phone reachability or invent a LAN address", async () => {
+    mockScenario(relayOnlineTwoViewers);
+    renderSection();
+
+    await waitFor(() => expect(screen.getByTestId("relay-state")).toHaveTextContent("Connected to the cloud relay"));
+    expect(screen.getByText(/status reports the desk's relay connection, not whether a phone is connected/i)).toBeInTheDocument();
+    expect(screen.getByText(/MoveUp does not report .*which adapter address to use/i)).toBeInTheDocument();
+    expect(screen.queryByText(/your phone can reach this desk/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps prior phones withheld through a pending and failed refresh, then reports a successful empty list", async () => {
+    let rejectViewers!: (reason: Error) => void;
+    const pendingViewers = new Promise<never>((_resolve, reject) => { rejectViewers = reject; });
+    let viewerReads = 0;
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "get_relay_status") return relayOnlineTwoViewers.status;
+      if (cmd === "relay_list_viewers") {
+        viewerReads += 1;
+        if (viewerReads === 2) return pendingViewers;
+        return viewerReads === 1 ? relayOnlineTwoViewers.viewers : [];
+      }
+      if (cmd === "relay_revoke_viewer") return null;
+      return null;
+    });
+    renderSection();
+
+    expect(await screen.findByText("Pixel 8")).toBeInTheDocument();
+    expect(screen.getByText("Kitchen tablet")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Kitchen tablet" }));
+
+    expect(await screen.findByText("Loading paired phones…")).toBeInTheDocument();
+    expect(screen.getByTestId("relay-state")).toHaveTextContent("Connected to the cloud relay");
+    expect(screen.queryByText("Pixel 8")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kitchen tablet")).not.toBeInTheDocument();
+    expect(screen.queryByText("No phones paired yet.")).not.toBeInTheDocument();
+
+    await act(async () => { rejectViewers(new Error("viewer IPC unavailable")); });
+    expect(await screen.findByTestId("relay-status-error")).toHaveTextContent("Could not refresh paired phones");
+    expect(screen.getByTestId("relay-state")).toHaveTextContent("Connected to the cloud relay");
+    expect(screen.getByTestId("paired-devices-unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Pixel 8")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kitchen tablet")).not.toBeInTheDocument();
+    expect(screen.queryByText("No phones paired yet.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry relay status" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry relay status" }));
+    expect(await screen.findByText("No phones paired yet.")).toBeInTheDocument();
+    expect(screen.queryByTestId("relay-status-error")).not.toBeInTheDocument();
+    expect(screen.getByTestId("relay-state")).toHaveTextContent("Connected to the cloud relay");
+  });
 });
 
 describe("RemoteSection — relay-disabled", () => {
@@ -72,7 +183,7 @@ describe("RemoteSection — relay-disabled", () => {
     renderSection();
 
     await waitFor(() => {
-      expect(screen.getByTestId("relay-state")).toHaveTextContent("not registered");
+      expect(screen.getByTestId("relay-state")).toHaveTextContent("Relay is off");
     });
     expect(screen.getByLabelText("Licence key")).toBeInTheDocument();
     expect(screen.getByLabelText("Licence key")).toHaveAttribute("type", "password");
@@ -126,7 +237,7 @@ describe("RemoteSection — relay-online-2-viewers", () => {
       expect(screen.getByText("Pixel 8")).toBeInTheDocument();
     });
     expect(screen.getByText("Kitchen tablet")).toBeInTheDocument();
-    expect(screen.getByTestId("relay-state")).toHaveTextContent("Online");
+    expect(screen.getByTestId("relay-state")).toHaveTextContent("Connected to the cloud relay");
     expect(screen.getByRole("button", { name: "Pair a phone" })).toBeEnabled();
   });
 
@@ -159,7 +270,7 @@ describe("RemoteSection — relay-unentitled", () => {
     renderSection();
 
     await waitFor(() => {
-      expect(screen.getByTestId("relay-state")).toHaveTextContent("Licence expired");
+      expect(screen.getByTestId("relay-state")).toHaveTextContent("Relay licence expired");
     });
     expect(screen.getByTestId("relay-last-error")).toHaveTextContent("licence expired");
     expect(screen.getByRole("button", { name: "Pair a phone" })).toBeDisabled();
