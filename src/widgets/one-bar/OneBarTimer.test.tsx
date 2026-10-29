@@ -153,17 +153,23 @@ describe("OneBarTimer — standing timer regression", () => {
     expect(bigNum.textContent).toContain("15:00");
   });
 
-  it("displays correct state in tooltip for each state", () => {
+  it("labels the displayed balance or break duration and describes its matching target", () => {
     const { rerender } = render(
-      <OneBarTimer {...props({ state: "Standing", breakSecs: 0, standLimitSecs: 900 })} />,
+      <OneBarTimer {...props({ state: "Standing", breakSecs: 300, standLimitSecs: 900 })} />,
     );
-    expect(screen.getByTitle(/Standing for/)).toBeInTheDocument();
+    expect(screen.getByText("Break duration")).toBeInTheDocument();
+    expect(screen.getByTestId("one-bar-timer").querySelector(".one-bar__timer-left"))
+      .toHaveAttribute("title", "Break duration 05:00; standing target 15:00");
 
     rerender(<OneBarTimer {...props({ state: "Sitting" })} />);
-    expect(screen.getByTitle(/Sitting for/)).toBeInTheDocument();
+    expect(screen.getByText("Sitting balance")).toBeInTheDocument();
+    expect(screen.getByTestId("one-bar-timer").querySelector(".one-bar__timer-left"))
+      .toHaveAttribute("title", "Sitting balance 10:00 of 40:00 configured sitting limit, including any applied break credit");
 
     rerender(<OneBarTimer {...props({ state: "Away", breakSecs: 0, standLimitSecs: 900 })} />);
-    expect(screen.getByTitle(/Away for/)).toBeInTheDocument();
+    expect(screen.getByText("Break duration")).toBeInTheDocument();
+    expect(screen.getByTestId("one-bar-timer").querySelector(".one-bar__timer-left"))
+      .toHaveAttribute("title", "Break duration 00:00; standing target 15:00");
   });
 
   it("shows sitting overtime separately, without changing the full balance number", () => {

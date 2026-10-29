@@ -12,17 +12,8 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { BreakCreditDetails } from "@/components/BreakCreditDetails";
 import { useTimerAnimations } from "@/hooks/useTimerAnimations";
 
-/** State labels used in tooltip text. */
-const STATE_LABELS: Record<string, string> = {
-  Sitting: "Sitting",
-  Standing: "Standing",
-  Walking: "Walking",
-  Away: "Away",
-};
-
 /** Renders big timer, previous session info, and the progress bar. */
 export const OneBarTimer: FC<WidgetProps> = (props) => {
-  const stateLabel = STATE_LABELS[props.state] ?? props.state;
   const isSitting = props.state === "Sitting";
 
   // Standing/Walking/Away: show break duration & standing target
@@ -34,13 +25,16 @@ export const OneBarTimer: FC<WidgetProps> = (props) => {
   const isOvertime = props.limitRemaining < 0 && isSitting;
   const { shimmer } = useTimerAnimations(props.state, props.limitRatio);
 
-  const tooltipText = `${stateLabel} for ${elapsedStr} out of ${totalStr} limit`;
+  const timerLabel = isSitting ? "Sitting balance" : "Break duration";
+  const tooltipText = isSitting
+    ? `Sitting balance ${elapsedStr} of ${totalStr} configured sitting limit, including any applied break credit`
+    : `Break duration ${elapsedStr}; standing target ${totalStr}`;
 
   return (
     <div className="one-bar__timer" data-testid="one-bar-timer">
       <div className="one-bar__timer-row">
         <div className="one-bar__timer-left" title={tooltipText}>
-          {isSitting && <span className="one-bar__balance-label">Sitting balance</span>}
+          <span className="one-bar__balance-label">{timerLabel}</span>
           <div className="one-bar__big-number" data-testid="one-bar-big-number">
             {elapsedStr}
             <span className="one-bar__limit-total"> / {totalStr}</span>
