@@ -4,6 +4,23 @@ MoveUp helps its owner understand time spent sitting, standing and away from the
 
 Product entrypoints: [Purpose, current user and proposed audience](PURPOSE.md) and [User flows, current limitations and proposed experience](UX.md). The canonical visual contract remains [DESIGN.md](../DESIGN.md).
 
+## Compact glance view and working personal sharing — 2026-10-29
+
+After observing the delivered native popup, the owner requests a simpler main
+hierarchy: top Share/Today/Settings/X actions, full estimated state and height,
+no primary Recent input or permanent technical observation row, and a floating
+window that stays above ordinary applications. Preserve truthful visible
+stale/unknown/error states, accessible detail and focus-safe automatic reminders.
+Closing the ordinary popup hides it to the tray while tracking continues. The
+owner explicitly confirmed that clicking another application must leave the
+popup visible above it until X, without taking typing focus back. The
+owner also requests working social composer actions, personal habit-oriented
+sharing text with actual daily statistics, and the new public website
+`desk.labs.zentala.agency`. This corrects usability of the existing compact
+instrument; it changes no ergonomic/presence/credit rules, historical data or
+separate relay/telemetry service addresses. Owning follow-up:
+`po/popup-sharing-review-2026-10-29.md`.
+
 ## Deliver all ten whole-product UX outcomes — 2026-10-28
 
 The owner accepts implementation and delivery of all ten priority rows from the whole-product UX review. Improve understandable balance/overtime/actual break credit, settings recovery, observation freshness, low-input presence explanation, Welcome testing and first-day guidance, predictable settings/reminder actions, history/keyboard navigation, optional integration/sharing recovery and remote visibility. Preserve existing ergonomic/presence/credit rules, truthful historical gaps, network defaults and the compact instrument identity. Reuse the already accepted live-observation work rather than create another implementation. This is acceptance of the bounded UX recommendations, not sensor selection, retrospective history repair or validation of new market personas. Owning execution plan: epics/E031-2026-10-28-whole-product-ux/PLAN.md.

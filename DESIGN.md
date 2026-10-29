@@ -301,9 +301,9 @@ Daily hierarchy: the named **Sitting balance** remains the focal value, with its
 
 Use a compact source/freshness explanation to distinguish inferred desk state, recent input and actual observation/view availability. Reuse the existing live-observation presentation; do not add a second legend or posture palette. Give today's history an explicit discoverable entry alongside the existing timeline interaction; preserve segment details and the same-day Analyst request.
 
-The status explanation is a disclosure, not plain caption text. Keep a visible native disclosure marker or existing Lucide line icon and a minimum24px pointer target, with the full status text and focus outline still readable in the compact header. This replaces an unmarked12px summary hit area; it uses the existing chrome rather than another help control (2026-10-29).
+Historical refinement, superseded by **Compact popup hierarchy and window visibility — 2026-10-29** below: the status explanation used a full visible status-text disclosure with a minimum24px pointer target. Preserve its keyboard operation and readable details, while replacing its permanent full-width row with the compact status entry described below.
 
-Adding Today must preserve the full visible current-state and optional input labels. At420x240 the captured combined header truncated **Estimated Sitting** and **Recent input** when the new action consumed the same row. Allocate rows or wrap within the existing compact hierarchy so those essential labels, grouped height and all actions remain readable; do not remove Today, conceal the saved input preference, or treat an ellipsis/title-only value as full visible text. Verify the actual containing header and keyboard controls, retaining the named balance as the focal value and the existing bounded content scrolling (2026-10-29).
+Historical refinement, superseded by **Compact popup hierarchy and window visibility — 2026-10-29** below: adding Today initially required separate rows to retain both **Estimated Sitting** and optional **Recent input**. The owner subsequently rejected the resulting density in the actual Windows popup. Retain full state/height and Today, and move optional input detail out of the primary readout without changing its persisted preference or inference semantics.
 
 Settings keeps the existing toolbar/tabs. Loading error and Retry replace editable success until actual load. Corrected validation recovers in place. Label immediate profile/theme changes **Applied immediately** and Save-based changes as drafts; show effective basic rules through readable details rather than making JSON the ordinary explanation. Full tab/panel semantics and focus-visible must fit the existing chrome. Controls in a row share dimensions.
 
@@ -324,3 +324,64 @@ An enlarged calibration field must show its visible label and complete input tog
 ### Welcome primary action — 2026-10-29
 
 Use the action label **Open MoveUp**, with the new first-day copy in the same English as the surrounding application and preview feedback. This user-initiated action shows the existing main window and completes the existing Welcome dismissal/preference flow; it does not assert that hardware or calibration is ready. Preserve the current main view and any protected Settings draft or Share dialog, with no navigation reset or new window. Explicit focus is appropriate for this click; automatic reminders retain their separate non-activating behavior. If the main window cannot be opened, report the failure in Welcome with a retryable action instead of silently closing the only visible guide. Reuse existing window/persistence owners and keep the distinct Welcome identity and dimensions.
+
+### Compact popup hierarchy and window visibility — 2026-10-29
+
+The owner reviewed the actual native popup and rejected the stacked state/input,
+actions and full-width observation-disclosure rows. This decision supersedes the
+two historical header refinements above. Keep the existing charcoal/monospace
+tokens, readable scale, Lucide icons, frameless420x240 main and separate Analyst.
+
+Put **Share, Today, Settings, Close** in one top action row, right-aligned, with
+equal existing control heights, accessible names, visible hover/focus and at
+least24px targets. Close uses X and hides the ordinary main window to the tray;
+it does not terminate tracking. Preserve the existing distinct Dismiss semantics
+for a real reminder rather than treating its X as a policy-neutral status close.
+The next row is the full state and current height, e.g. **Estimated Sitting ·
+65 cm**, with no extra product title and no Recent input in the primary readout.
+Input details remain available through the existing status explanation and keep
+their saved setting; do not alter keyboard/presence inference or observations.
+
+Use the existing state surface as the compact, keyboard-operable entry to status
+details (a small existing disclosure/help icon may accompany it). Routine
+observed-through timestamps and How to read copy do not consume a permanent
+full-width row. A current qualified estimate needs no repeating timestamp caption.
+Unknown, disconnected, stale and failed-refresh states remain visibly distinct
+without opening details, with reachable exact times/reasons and existing Retry.
+Do not disguise unavailable data as a live estimate to make the layout shorter.
+
+Sitting balance/Break duration and conditional Over limit retain the focal number,
+with actual break-credit details, today's essential stats and the complete compact
+timeline below. Ordinary known-state420x240 status fits without whole-window
+scrolling; details, errors and enlarged text retain bounded accessible scrolling
+where necessary. Do not shrink below the readable scale, use ellipsis as proof
+of a full caption, clip meaningful content or remove the timeline to pass fit.
+
+The main floating window stays above ordinary application windows on creation,
+tray reopen and view changes. This is stacking, not forced activation; automatic
+reminders must still leave typing focus with the current application. Analyst
+remains an ordinary separate decorated window. Validate actual Windows stacking
+and focus, not just a configuration boolean or DOM fixture.
+
+The owner explicitly confirmed in the same review that clicking another
+application must leave main visible above it until the user hides it with X.
+Replace ordinary focus-loss hiding for main; changing focus must not activate
+MoveUp again or interrupt typing in the other application. Explicit tray toggling
+remains available. Preserve real reminder Dismiss/Snooze policy and protected
+Settings/Share state; do not turn losing focus into an acknowledgement or a quit.
+
+Share retains its bounded preview and readable footer/actions. The public website
+is **https://desk.labs.zentala.agency**; use it consistently in current public
+links, copied text and backend sharing. Separate relay/telemetry service endpoints
+are not automatically renamed. Use **My day with MoveUp** as a short preview
+heading and **With MoveUp, I am building a habit of changing position. Here are
+my desk stats for today:** in the full copied/shared text, followed by actual
+statistics and the updated attribution. Do not imply a measured health benefit.
+Destination actions use an observed supported native opener with visible failure
+and retry/manual recovery; browser-launch success does not claim a completed post.
+Keep any Facebook path honest about copying personal text versus platform URL
+sharing. Nothing publishes automatically. Preserve fit if destination actions wrap.
+
+Record ordinary/stressed actual Windows images and independently review full
+captions, timeline, action reachability and neighboring windows before delivery.
+Existing GUI geometry/keyboard checks supplement, but do not replace, that review.
