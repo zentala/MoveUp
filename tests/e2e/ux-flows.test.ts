@@ -1,5 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+function configuredWelcomeEntry() {
+  const config = JSON.parse(readFileSync(resolve('src-tauri/tauri.conf.json'), 'utf8')) as {
+    app?: { windows?: Array<{ label?: string; url?: string }> };
+  };
+  const welcome = config.app?.windows?.find(window => window.label === 'welcome');
+  return welcome?.url ?? 'index.html';
+}
 
 async function openApp(page: Page, scenario = 'normal') {
   page.on('pageerror', error => console.log('Settings fixture page error:', error.name, error.message, error.stack, JSON.stringify(error)));
@@ -133,7 +142,7 @@ async function openWelcome(page: Page, scenario: 'welcome-queued' | 'welcome-err
     if (!html.includes(welcomeEntry)) throw new Error('Welcome HTML entry changed unexpectedly');
     await route.fulfill({ response, body: html.replace(welcomeEntry, 'src="/tests/e2e/ux-flows.fixture.ts"') });
   });
-  await page.goto(`/welcome.html?settings-fixture=${scenario}`);
+  await page.goto(`/${configuredWelcomeEntry()}?settings-fixture=${scenario}`);
   await expect(page.getByTestId('welcome-shell')).toBeVisible();
 }
 

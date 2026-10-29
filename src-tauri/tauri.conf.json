@@ -24,6 +24,7 @@
       {
         "label": "welcome",
         "title": "MoveUp — First run",
+        "url": "welcome.html",
         "width": 480,
         "height": 420,
         "resizable": false,
