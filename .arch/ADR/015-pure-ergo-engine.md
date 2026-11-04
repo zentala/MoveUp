@@ -160,6 +160,14 @@ Additive fields default to unknown when absent. Keep legacy mixed rows visibly u
 
 Each slice starts with a regression that discriminates the observed defect, then required checks and independent review. UI acceptance additionally requires actual-host images under DESIGN.md. Ordinary forceful Windows supervisor stop remains outside a guarantee of cooperative flush; it is not fixed by changing metric/policy semantics. Existing access refusals and machine-setting holds remain binding.
 
+## Automatic crash-safe checkpoint continuation — 2026-10-24
+
+Retain the existing engine/history/policy precedence. The application persistence boundary owns one coherent versioned engine/policy snapshot and all writes to the shared settings file, including config/profile/registration callers. Selected plugin plain fs::write does not provide the required interrupted-write behavior; use application-owned same-directory temporary write, flush/sync and supported atomic replacement, serialized across production writers, preserving unknown keys and future-version/error semantics. No vendor edit, new database or parallel disk truth.
+
+The application adapter owns a sensor-independent60s checkpoint after restore/setup; the pure engine receives explicit time and gains no synthetic observation or stopped-time credit. Event/graceful saves remain. An abrupt exit can lose observations after the latest successful checkpoint; under functioning IO/scheduling the target bound is one cadence, not zero. IO failure/overdue save must be observable with last-success/error/recovery information and existing user-facing feedback. Exact scheduling/OS durability and failure/retry contracts are verified with disposable regressions and actual installed recovery, not inferred from an empty success result.
+
+SQLite backups use a consistent snapshot and verification before retention; protected release preparation remains separately required for live cutover. Windows forced termination still cannot promise a final handler, and supervisor task AccessDenied is not overridden by this persistence change. No live historical backfill or manual repair is authorized.
+
 ## Accepted ongoing observation display projection — 2026-10-25
 
 E028 extends the existing pure-engine/wire/UI boundary, not the history or credit model. The engine provides a coherent read-only projection of the currently confirmed observation span, actual last sample, snapshot instant and source-qualified quality/reason, using history_span_started and known_projection_end(now). A freshness threshold can classify an old reading but cannot create covered duration after it. Preserve confirmed prefixes while current input is stale; gap/restart confirmation never joins observations across an outage. Snapshotting mutates no history/counters/policy.

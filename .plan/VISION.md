@@ -43,6 +43,21 @@ The owner reports less continuous computer use during AI-assisted work, unexpect
 
 Input inactivity and desk height do not establish physical presence or human posture. Preserve the existing truthful-observation direction: investigate actual data, retain Unknown gaps and do not rewrite history from recollection. New presence modes, thresholds, recovery-credit rules and UX changes remain proposals until accepted; the investigation itself changes no algorithm or live data. Existing dev-kit/open-core direction is retained rather than replaced by an invented AI market strategy.
 
+## Beginner DIY setup direction — 2026-10-23
+
+The owner wants a beginning programmer to obtain an RP2040-Zero, a VL53L0X
+module and a 3 x 7 cm perfboard, then follow a photo-backed assembly article
+and ask an agent from a cloned repository to prepare the USB device. The
+repository should supply firmware, a discoverable setup skill, stepwise
+wiring/flashing guidance and separate checks for the controller and the sensor.
+Current work documents the module path and checks the already programmed board;
+physical assembly and measurements wait for the ordered parts. A fresh-session
+trial of the skill is planned. Firmware publication, whether it needs its own
+repository, and flashing through MoveUp are future decisions/work, not delivered
+capabilities. Hardware photos and the article belong to the companion
+`desk.zentala.io/hardware/module-sensor/` owner, without replacing its separate
+custom-PCB project.
+
 ## Direction recorded 2026-10-09
 
 The compact popup and detailed Analyst should tell the same story using a reusable timeline, consistent state colors and a compact monospace charcoal design. A larger timeline should sit above connected smaller day tabs containing proportional daily donuts. Actual history, remaining sitting load after break credit, and daily score must be distinguishable. Data should appear on opening Analyst, and exact interval details should be inspectable.
@@ -61,6 +76,14 @@ The owner accepted retaining both motivational score trajectory and break-credit
 
 The owner explicitly commissioned implementation of the complete core-logic review, including its recommended proportional refactoring and the accepted undelivered Analyst details. The application should preserve observed time across gaps, day boundaries and restart; distinguish raw history from credited load; use one configurable decision for each notification; and carry local dates, observation quality and counters unchanged into the interface. Resolve uncertain cases through source and synthetic regressions rather than claiming defects without evidence. Prefer understandable existing modules and reusable current candidates over an application rewrite or new framework. Continue the shared timeline/day composition and expandable signed-score/recorded-credit direction. This is a reliability and comprehensibility goal, not a promise of medical or behavioral effectiveness. The owning execution plan is epics/E027-2026-10-09-analyst-timeline/PLAN.md; confirmed implementation authority and refusal boundaries are recorded privately by PO.
 
+## Automatic restart safety — 2026-10-24
+
+The owner expects ongoing automatic persistence even without sensor traffic, small bounded loss after an abrupt process exit or computer reset, and understandable actionable save failures. Improve the existing shared settings/engine/policy checkpoint and automatic consistent database backups; preserve known observations and mark offline time Unknown. This extends reliability of the delivered application rather than introducing a new product or promising zero loss. Windows supervisor configuration remains a separate operational responsibility and actual prior access refusals remain binding.
+
 ## Ongoing observations and understandable gaps — 2026-10-25
 
 The owner explicitly approved planning and subagent implementation after seeing Unknown while currently sitting. Popup and Analyst must show the same ongoing confirmed observations through the last actual supported endpoint, distinguish real missing data from ongoing recording, and explain sensor connection, sample freshness and view update/error separately. No guessed past posture or filling across disconnect/sleep/restart. This extends the existing truthful-history direction without changing ergonomics/credit or rewriting history. Owning plan: epics/E028-2026-10-25-live-observation-timeline/PLAN.md.
+
+## Understandable UI failures — 2026-10-27
+
+The owner accepted implementing local per-window diagnostics after a blank main popup and Settings while Analyst remained usable. Collect native WebView2 failures, frontend liveness/mount/query hints and suspend/resume evidence, and save a report from the native tray without relying on the broken view. Reuse existing logs and preserve ergonomic observations, persistence and backend readiness. Observation must not silently become an automatic reload, restart policy or claim of proven cause. Owning execution plan: epics/E029-2026-10-27-ui-runtime-diagnostics/PLAN.md.
