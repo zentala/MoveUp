@@ -11,7 +11,7 @@ The operator reports a remaining popup and "The reminder was dismissed, but the 
 
 ## Decision
 
-Automatic reminder presentation may appear above a game, but must not activate MoveUp. The game remains foreground and continues receiving its normal input. Automatic show/update must not focus or activate a window, simulate engagement, or manipulate the game's windows. Reuse the existing application presentation adapter; preserve engine and policy ownership.
+Automatic reminder presentation must not take focus or input from ANY currently active application. A game is only an example: the foreground application must remain active and continue receiving its normal keyboard and pointer input before, during and after automatic popup presentation or update. Automatic show/update must not focus or activate MoveUp, simulate engagement, or manipulate another application's windows. Reuse the existing application presentation adapter; preserve engine and policy ownership.
 
 A deliberate click on MoveUp or a manual tray command is a separate engagement boundary and may activate the chosen MoveUp control. Automatic delivery cannot manufacture that consent. Do not forcibly restore another application's focus after deliberate interaction. Preserve Settings/Share protection and the separate Analyst window.
 
@@ -23,8 +23,12 @@ The normal successful path requires one X without a retry ritual or leftover err
 
 ## Alternatives and consequences
 
-Foreground activation would interrupt play and violates the requirement. Removing identity guards or merely hiding error text would conceal failures. This decision clarifies ADR026; scheduling, silence, test-preview isolation and protected flows remain unchanged. No history/credit rewrite, new supervisor or foreign-window control is authorized.
+Foreground activation would interrupt the active application and violates the requirement. Removing identity guards or merely hiding error text would conceal failures. This decision clarifies ADR026; scheduling, silence, test-preview isolation and protected flows remain unchanged. No history/credit rewrite, new supervisor or foreign-window control is authorized.
 
 ## Verification
 
-Obtain the actual failing hide result before declaring a cause. Reproduce the confirmed mechanism and add discriminating regressions, independent source review and the existing check. Build the final relevant artifact and use the existing protected backup/rollback and sole PM3 installation route. On Windows separately verify real-reminder X/ACK/persistence/visibility and automatic presentation while the game remains active and accepts input before any deliberate popup click. Capture only necessary owned-window evidence. Missing real-reminder/game/fullscreen access remains NOT_CHECKED with its exact prerequisite; synthetic tests and preview cannot replace it.
+Obtain the actual failing hide result before declaring a cause. Reproduce the confirmed mechanism and add discriminating regressions, independent source review and the existing check. Build the final relevant artifact and use the existing protected backup/rollback and sole PM3 installation route. On Windows separately verify real-reminder X/ACK/persistence/visibility and automatic presentation over representative ordinary applications. Record the foreground identity and actual keyboard receipt before, during and after automatic presentation, before any deliberate popup click. Use disposable non-sensitive targets and capture only necessary owned-window evidence. The contract is universal; representative checks do not prove every application was tested. A game or chosen fullscreen mode is not an acceptance prerequisite. Missing actual automatic presentation or input evidence remains NOT_CHECKED; synthetic tests and manually engaged preview cannot replace it. Exclusive-fullscreen visibility limitations never authorize focus stealing.
+
+## Operator clarification — 2026-11-05
+
+The operator explicitly clarified through T3 that this requirement covers every active program, not a particular game. The earlier PO question about a game and its mode, and the acceptance dependency created by that question, are withdrawn. Deliberate engagement remains a separate boundary; this clarification does not authorize forced focus, foreign-window manipulation or replay of refused operations.
