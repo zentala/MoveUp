@@ -27,6 +27,15 @@ Partial reports must show their actual path and incomplete-collection warning.
 The isolated diagnostics example has its own identity/private profiles and never
 calls product setup, starts plugins/services or controls production WebViews.
 
+## DIY device setup
+
+When someone has bought sensor parts and asks what to do next, or asks to check,
+prepare or flash the USB sensor, read
+[the device setup skill](.agents/skills/moveup-device-setup/SKILL.md) and
+[firmware instructions](firmware/AGENTS.md). A request to check whether an
+existing program runs does not require flashing. Keep board-only USB checks
+separate from measurements with an assembled sensor.
+
 ## Startup supervision
 
 Prefer installed PM3 on development machines where available. Once registered,

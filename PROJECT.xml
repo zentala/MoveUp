@@ -173,7 +173,12 @@
   <architecture>
 
     <layer name="firmware" path="firmware/tof_reader/">
-      <file name="tof_reader.ino">Arduino sketch — reads VL53L1X, PING/PONG handshake, emits distance at 115200 baud</file>
+      <file name="tof_reader.ino">Arduino sketch — reads VL53L0X on XIAO ESP32-C3 or RP2040-Zero, PING identity and STATUS diagnostics, emits valid distance at 115200 baud</file>
+    </layer>
+
+    <layer name="device-setup" path=".agents/skills/moveup-device-setup/">
+      <file name="SKILL.md">Repository-owned guided board identification, USB program checks, manual UF2 flashing and module wiring; firmware/AGENTS.md links the electrical and protocol contract</file>
+      <file name="AGENTS.md">Authoring scope and evidence requirements for the portable setup skill</file>
     </layer>
 
     <layer name="rust-backend" path="src-tauri/src/">

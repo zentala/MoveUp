@@ -1,4 +1,11 @@
 node_modules/
+
+# Include this portable project skill despite the global .agents/ ignore.
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/moveup-device-setup/
 .pnpm-store/
 dist/
 coverage/
