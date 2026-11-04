@@ -8,6 +8,12 @@ Read `.plan/VISION.md` before revising product plans. Preserve actual observatio
 
 ## Window runtime diagnostics
 
+Automatic reminder presentation and real-reminder close follow
+[ADR 026](.arch/ADR/026-application-owned-reminders.md) and
+[ADR 027](.arch/ADR/027-reminder-focus-and-close-outcomes.md).
+Automatic display preserves foreground game input; deliberate activation and
+exclusive fullscreen are separate cases.
+
 Follow [ADR 025](.arch/ADR/025-window-runtime-diagnostics.md), preserving
 [the separate Analyst window](.arch/ADR/012-analyst-dashboard-separate-window.md),
 [engine purity](.arch/ADR/015-pure-ergo-engine.md) and

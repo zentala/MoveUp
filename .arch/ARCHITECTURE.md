@@ -8,6 +8,11 @@ Tauri 2 desktop application for Windows. Rust backend handles hardware communica
 
 ## Component Map
 
+Automatic reminder display preserves foreground input. Real close results
+distinguish guard/scheduling/native failures without inferring their cause.
+Deliberate activation and exclusive fullscreen are separate boundaries under
+[ADR 027](ADR/027-reminder-focus-and-close-outcomes.md).
+
 Application-owned ergonomic and device notices reuse the policy-to-executor boundary and
 the existing main window. A bounded local active-message adapter supplies a
 snapshot plus targeted change events, with revision-qualified acknowledgement
