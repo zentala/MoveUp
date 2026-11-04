@@ -3,31 +3,31 @@
 /**
  * One row per minute snapshot, flattened for charting in the frontend.
  */
-export type SnapshotRow = {
+export type SnapshotRow = { 
 /**
  * ISO 8601 timestamp when the snapshot was written (UTC).
  */
-ts: string,
+ts: string, 
 /**
  * Desk state at snapshot time (lower-snake e.g. `"sitting"`).
  */
-state: string | null, sitting_seconds: number,
+state: string | null, sitting_seconds: number, 
 /**
  * Raw sitting seconds; absent in older snapshot files.
  */
-sitting_seconds_total: number | null, standing_seconds: number, break_seconds: number, desk_height_cm: number, idle_secs: number, continuous_computer_secs: number, position_changes: number, daily_score: number | null,
+sitting_seconds_total: number | null, standing_seconds: number, break_seconds: number, desk_height_cm: number, idle_secs: number, continuous_computer_secs: number, position_changes: number, daily_score: number | null, 
 /**
  * Physical serial-port state, independent of observation freshness.
  */
-connected: boolean | null,
+connected: boolean | null, 
 /**
  * Missing or null means the observed posture coverage is unknown.
  */
-observation_quality: string | null,
+observation_quality: string | null, 
 /**
  * Local calendar date at capture time; absent in legacy files.
  */
-local_date: string | null,
+local_date: string | null, 
 /**
  * Local UTC offset in seconds at capture time; absent in legacy files.
  */

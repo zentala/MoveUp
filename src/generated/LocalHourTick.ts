@@ -3,15 +3,15 @@
 /**
  * One authoritative local-hour tick mapped to its exact UTC instant and offset.
  */
-export type LocalHourTick = {
+export type LocalHourTick = { 
 /**
  * Exact UTC instant in RFC3339 form.
  */
-at_utc: string,
+at_utc: string, 
 /**
  * Local wall-clock label in `HH:00` form.
  */
-wall_time: string,
+wall_time: string, 
 /**
  * UTC offset in seconds at this instant.
  */

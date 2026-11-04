@@ -4,15 +4,15 @@ import type { LocalHourTick } from "./LocalHourTick";
 /**
  * Exact UTC bounds for one date in the timezone used by the current query.
  */
-export type LocalDayBounds = { date_local: string, start_utc: string,
+export type LocalDayBounds = { date_local: string, start_utc: string, 
 /**
  * Exclusive first instant of the following local calendar day.
  */
-end_utc: string, zone_basis: string,
+end_utc: string, zone_basis: string, 
 /**
  * Historical capture timezone is not recorded/reconstructed here.
  */
-historical_source_zone: string,
+historical_source_zone: string, 
 /**
  * Exact instants at which this query-local day reaches a local hour.
  */
