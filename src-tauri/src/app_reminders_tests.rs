@@ -129,6 +129,114 @@ fn facts() -> SessionNotificationFacts {
 }
 
 #[test]
+fn hide_result_diagnostic_uses_existing_sink_and_never_copies_raw_errors() {
+    use crate::commands::{main_window_hide_event, ReminderCloseGuard};
+    let context = ReminderCloseGuard { session_id: "run-1".into(), client_id: "client-1".into(),
+        reminder_id: "run-1:2".into(), revision: 17 };
+    let temp = tempfile::tempdir().unwrap();
+    let logger = crate::event_logger::EventLogger::new(temp.path().into());
+    let line = main_window_hide_event(Some(&context), None, "native", &Err("private/path SECRET\nforged event".into()));
+    assert!(!line.contains("SECRET") && !line.contains("private/path") && !line.contains('\n'));
+    assert!(line.contains("native_hide_failed") && line.contains("run-1:2") && line.contains("17"));
+    std::thread::spawn(move || logger.log_result(&line)).join().unwrap().unwrap();
+    let written = std::fs::read_to_string(temp.path().join(chrono::Local::now().format("%Y-%m-%d").to_string()).join("events.log")).unwrap();
+    assert!(written.contains("MAIN_WINDOW_HIDE") && written.contains("native_hide_failed"));
+    for (stage, error, reason) in [("guard", "reminder_changed_before_hide", "guard_rejected"),
+        ("schedule", "sensitive dispatch detail", "dispatch_failed"),
+        ("callback", "unavailable", "result_unavailable"), ("native", "main_hide_not_hidden", "still_visible")] {
+        assert!(main_window_hide_event(Some(&context), None, stage, &Err(error.into())).contains(reason));
+    }
+    assert!(main_window_hide_event(Some(&context), None, "native", &Ok(())).contains("hidden"));
+    let unsafe_context = ReminderCloseGuard { client_id: "SECRET\nforged event".into(), ..context };
+    let line = main_window_hide_event(Some(&unsafe_context), None, "native", &Ok(()));
+    assert!(line.contains("invalid_identifier") && !line.contains("SECRET"));
+}
+
+#[test]
+fn hide_guard_evidence_distinguishes_missing_ack_from_obsolete_context() {
+    use crate::commands::{hide_main_window_if_current_reminder_observed, main_window_hide_event, ReminderCloseGuard};
+    let state = AppReminderState::default();
+    state.0.lock().unwrap().claim(None, "first").unwrap();
+    let snapshot = state.0.lock().unwrap().snapshot();
+    let expected = ReminderCloseGuard { session_id: snapshot.session_id, client_id: "first".into(),
+        reminder_id: "not-acknowledged".into(), revision: snapshot.revision };
+    let mut evidence = None;
+    let result = hide_main_window_if_current_reminder_observed(&state, &expected, &mut evidence,
+        || panic!("missing ACK cannot hide"));
+    let line = main_window_hide_event(Some(&expected), evidence.as_ref(), "guard", &result);
+    let value: serde_json::Value = serde_json::from_str(line.strip_prefix("MAIN_WINDOW_HIDE ").unwrap()).unwrap();
+    assert_eq!(value["current"]["mismatches"], serde_json::json!(["acknowledgement_missing"]));
+    assert_eq!(value["current"]["acknowledged"], false);
+    assert!(!line.contains("obsolete_close"));
+
+    for field in ["session_changed", "client_changed", "revision_changed", "active_reminder", "pending_reminder", "protected_flow"] {
+        let state = state_with_message();
+        let mut expected = acknowledged_close_guard(&state, "first");
+        match field {
+            "session_changed" => expected.session_id = "older-run".into(),
+            "client_changed" => expected.client_id = "older-client".into(),
+            "revision_changed" => expected.revision -= 1,
+            "active_reminder" => state.0.lock().unwrap().publish(draft(ReminderReason::ScreenBreak), ReminderSource::Policy, day()),
+            "pending_reminder" => { let mut guard = state.0.lock().unwrap();
+                guard.set_flow("first", 1, Some(ProtectedFlow::Share)).unwrap();
+                guard.publish(draft(ReminderReason::ScreenBreak), ReminderSource::Policy, day()); },
+            _ => { state.0.lock().unwrap().set_flow("first", 1, Some(ProtectedFlow::Settings)).unwrap(); },
+        }
+        let mut evidence = None;
+        let result = hide_main_window_if_current_reminder_observed(&state, &expected, &mut evidence,
+            || panic!("a failed discriminator must prevent native hide"));
+        assert!(result.is_err());
+        let line = main_window_hide_event(Some(&expected), evidence.as_ref(), "guard", &result);
+        assert!(line.contains(field), "missing discriminator {field}");
+    }
+}
+
+#[test]
+fn ack_diagnostic_never_claims_persistence_before_its_actual_attempt() {
+    use crate::commands_reminders::{acknowledge_with_observed, acknowledgement_event, AckObservation};
+    for failure in ["guard", "apply", "persist"] {
+        let state = state_with_message();
+        let snapshot = state.0.lock().unwrap().snapshot();
+        let id = snapshot.active.unwrap().id;
+        let context = crate::commands::ReminderCloseGuard { session_id: snapshot.session_id,
+            client_id: "first".into(), reminder_id: id.clone(), revision: snapshot.revision };
+        let mut observation = AckObservation::default();
+        let result = acknowledge_with_observed(&state, if failure == "guard" { "old-client" } else { "first" },
+            &id, snapshot.revision, ReminderAction::Dismiss,
+            |_| if failure == "apply" { Err("SECRET arbitrary policy detail".into()) } else { Ok(()) },
+            || { assert_eq!(failure, "persist", "guard/apply failure must never save");
+                Err("SECRET arbitrary store detail".into()) }, &mut observation);
+        assert!(result.is_err());
+        let line = acknowledgement_event(&context, ReminderAction::Dismiss, &observation, &result);
+        assert!(!line.contains("SECRET"));
+        let event: serde_json::Value = serde_json::from_str(line.strip_prefix("APP_REMINDER_ACK ").unwrap()).unwrap();
+        assert_eq!(event["succeeded"], false);
+        assert_eq!(event["persistence"], if failure == "persist" { "failed" } else { "not_attempted" });
+        assert_eq!(event["policy_apply"], match failure { "guard" => "not_attempted", "apply" => "failed", _ => "applied" });
+        if failure == "persist" {
+            let retry = state.0.lock().unwrap().snapshot();
+            let result = acknowledge_with_observed(&state, "first", &id, retry.revision, ReminderAction::Retry,
+                |_| panic!("persistence Retry must not apply policy again"), || Ok(()), &mut observation);
+            let line = acknowledgement_event(&context, ReminderAction::Retry, &observation, &result);
+            assert!(line.contains("previously_applied") && line.contains("succeeded"));
+        }
+    }
+    let state = AppReminderState::default();
+    { let mut guard = state.0.lock().unwrap(); guard.claim(None, "preview").unwrap();
+        guard.publish(draft(ReminderReason::Preview), ReminderSource::Test, day()); }
+    let snapshot = state.0.lock().unwrap().snapshot();
+    let id = snapshot.active.unwrap().id;
+    let mut observation = AckObservation::default();
+    let result = acknowledge_with_observed(&state, "preview", &id, snapshot.revision, ReminderAction::Dismiss,
+        |_| panic!("preview is not policy proof"), || panic!("preview is not persistence proof"), &mut observation);
+    let context = crate::commands::ReminderCloseGuard { session_id: snapshot.session_id, client_id: "preview".into(),
+        reminder_id: id, revision: snapshot.revision };
+    let line = acknowledgement_event(&context, ReminderAction::Dismiss, &observation, &result);
+    let event: serde_json::Value = serde_json::from_str(line.strip_prefix("APP_REMINDER_ACK ").unwrap()).unwrap();
+    assert_eq!(event["is_test"], true); assert_eq!(event["persistence"], "skipped_test");
+}
+
+#[test]
 fn protected_flow_remount_rejects_old_client_and_preserves_pending_preview() {
     let state = AppReminderState::default();
     let mut guard = state.0.lock().unwrap();

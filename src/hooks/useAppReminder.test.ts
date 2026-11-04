@@ -179,6 +179,24 @@ describe("main reminder transport", () => {
     expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "hide_main_window")).toHaveLength(2);
   });
 
+  it("keeps recovery for an unexplained generic guard rejection after successful acknowledgement", async () => {
+    backend = { ...empty(), active: message };
+    const { result } = renderHook(() => useAppReminder(true));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    const normal = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "hide_main_window") {
+        throw "reminder_changed_before_hide";
+      }
+      return normal(command, args);
+    });
+    await act(async () => result.current.closeReminder());
+    expect(result.current.closeError).toContain("could not be hidden");
+    await act(async () => result.current.retryClose());
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "acknowledge_app_reminder")).toHaveLength(1);
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "hide_main_window")).toHaveLength(2);
+  });
+
   it("cancels a pending close when a newer reminder arrives before the old acknowledgement completes", async () => {
     backend = { ...empty(), active: message };
     const { result } = renderHook(() => useAppReminder(true));

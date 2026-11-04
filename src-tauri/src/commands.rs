@@ -23,20 +23,81 @@ static LAST_TEST_NOTIFICATION: AtomicI64 = AtomicI64::new(0);
 #[tauri::command]
 pub async fn hide_main_window(window: tauri::WebviewWindow, reminder_close: Option<ReminderCloseGuard>) -> Result<(), String> {
     validate_main_window_label(window.label())?;
+    let context = reminder_close.clone();
+    let logger = window.try_state::<crate::Loggers>().map(|loggers| loggers.event.clone());
     let main_window = window.clone();
     let (send_result, receive_result) = oneshot::channel();
-    window.app_handle().run_on_main_thread(move || {
+    let scheduled = window.app_handle().run_on_main_thread(move || {
+        let mut native_attempted = false;
+        let mut evidence = None;
         let result = match reminder_close {
             Some(expected) => {
                 let reminders = main_window.state::<AppReminderState>();
-                hide_main_window_if_current_reminder(&reminders, &expected,
-                    || hide_main_window_checked(&main_window))
+                hide_main_window_if_current_reminder_observed(&reminders, &expected, &mut evidence,
+                    || { native_attempted = true; hide_main_window_checked(&main_window) })
             }
-            None => hide_main_window_checked(&main_window),
+            None => { native_attempted = true; hide_main_window_checked(&main_window) },
         };
-        let _ = send_result.send(result);
-    }).map_err(|error| format!("Could not schedule main-window hide: {error}"))?;
-    receive_result.await.map_err(|_| "Main-window hide callback did not return".to_string())?
+        // No disk, formatting or logger wait in the main-thread callback.
+        let _ = send_result.send((result, native_attempted, evidence));
+    });
+    let (result, stage, evidence) = match scheduled {
+        Err(error) => (Err(format!("Could not schedule main-window hide: {error}")), "schedule", None),
+        Ok(()) => match receive_result.await {
+            Ok((result, native_attempted, evidence)) => (result, if native_attempted { "native" } else { "guard" }, evidence),
+            Err(_) => (Err("Main-window hide callback did not return".into()), "callback", None),
+        },
+    };
+    let line = main_window_hide_event(context.as_ref(), evidence.as_ref(), stage, &result);
+    // Reuse the existing daily sink, outside the UI thread. Logging never changes
+    // the hide result; missing/writing-failed diagnostics are separate evidence.
+    let _ = tauri::async_runtime::spawn_blocking(move || match logger {
+        Some(logger) => logger.log(&line),
+        None => log::warn!("Main-window hide diagnostic sink unavailable"),
+    }).await;
+    result
+}
+
+/// Allowlisted reasons and bounded identifiers only; never persist raw IPC/OS errors.
+pub(crate) fn main_window_hide_event(context: Option<&ReminderCloseGuard>, evidence: Option<&ReminderHideEvidence>, stage: &str, result: &Result<(), String>) -> String {
+    let stage = match stage { "guard" => "guard", "schedule" => "schedule", "callback" => "callback", _ => "native" };
+    let reason = match result {
+        Ok(()) => "hidden",
+        Err(_) if stage == "guard" => "guard_rejected",
+        Err(_) if stage == "schedule" => "dispatch_failed",
+        Err(_) if stage == "callback" => "result_unavailable",
+        Err(error) => match error.as_str() {
+            "main_handle_unavailable" => "handle_unavailable",
+            "main_handle_invalid" => "handle_invalid",
+            "main_handle_not_owned" => "handle_not_owned",
+            "main_hide_not_hidden" => "still_visible",
+            _ => "native_hide_failed",
+        },
+    };
+    let identifier = bounded_reminder_identifier;
+    let context = context.map(|guard| serde_json::json!({
+        "session": identifier(&guard.session_id), "client": identifier(&guard.client_id),
+        "reminder": identifier(&guard.reminder_id), "revision": guard.revision,
+    }));
+    let current = evidence.map(|evidence| {
+        let snapshot = &evidence.snapshot;
+        serde_json::json!({"session": identifier(&snapshot.session_id),
+            "client": snapshot.client_id.as_deref().map(identifier), "revision": snapshot.revision,
+            "active": snapshot.active.as_ref().map(|entry| identifier(&entry.id)),
+            "pending": snapshot.pending.as_ref().map(|entry| identifier(&entry.id)),
+            "protected_flow": snapshot.protected_flow, "acknowledged": evidence.acknowledged,
+            "last_retirement": snapshot.last_retirement.as_ref().map(|retirement| serde_json::json!({
+                "id": identifier(&retirement.id), "reason": retirement.reason })),
+            "mismatches": evidence.mismatches })
+    });
+    format!("MAIN_WINDOW_HIDE {}", serde_json::json!({"context": context, "current": current,
+        "stage": stage, "reason": reason, "succeeded": result.is_ok()}))
+}
+
+pub(crate) fn bounded_reminder_identifier(value: &str) -> String {
+    if !value.is_empty() && value.len() <= 128 && value.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"-_:".contains(&byte)) {
+        value.to_owned()
+    } else { "invalid_identifier".into() }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -49,23 +110,44 @@ pub struct ReminderCloseGuard {
 }
 
 /// Rechecks Reminder X state in the queued main-thread callback before the native hide.
+#[cfg(test)]
 pub(crate) fn hide_main_window_if_current_reminder(
     state: &AppReminderState,
     expected: &ReminderCloseGuard,
     hide: impl FnOnce() -> Result<(), String>,
 ) -> Result<(), String> {
-    let snapshot: AppReminderSnapshot = {
+    hide_main_window_if_current_reminder_observed(state, expected, &mut None, hide)
+}
+
+pub(crate) struct ReminderHideEvidence {
+    snapshot: AppReminderSnapshot,
+    acknowledged: bool,
+    mismatches: Vec<&'static str>,
+}
+
+pub(crate) fn hide_main_window_if_current_reminder_observed(
+    state: &AppReminderState, expected: &ReminderCloseGuard,
+    evidence: &mut Option<ReminderHideEvidence>, hide: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let (snapshot, acknowledged) = {
         let current = state.0.lock().unwrap_or_else(|error| error.into_inner());
-        current.snapshot()
+        let snapshot = current.snapshot();
+        let acknowledged = snapshot.last_retirement.as_ref().is_some_and(|retirement| {
+            retirement.id == expected.reminder_id
+                && retirement.reason == crate::communication_types::RetirementReason::Acknowledged
+        });
+        (snapshot, acknowledged)
     };
-    let acknowledged = snapshot.last_retirement.as_ref().is_some_and(|retirement| {
-        retirement.id == expected.reminder_id
-            && retirement.reason == crate::communication_types::RetirementReason::Acknowledged
-    });
-    if snapshot.session_id != expected.session_id || snapshot.client_id.as_deref() != Some(expected.client_id.as_str())
-        || snapshot.revision != expected.revision
-        || snapshot.active.is_some() || snapshot.pending.is_some() || snapshot.protected_flow.is_some()
-        || !acknowledged {
+    let mismatches: Vec<_> = [
+        (snapshot.session_id != expected.session_id, "session_changed"),
+        (snapshot.client_id.as_deref() != Some(expected.client_id.as_str()), "client_changed"),
+        (snapshot.revision != expected.revision, "revision_changed"),
+        (snapshot.active.is_some(), "active_reminder"), (snapshot.pending.is_some(), "pending_reminder"),
+        (snapshot.protected_flow.is_some(), "protected_flow"), (!acknowledged, "acknowledgement_missing"),
+    ].into_iter().filter_map(|(failed, reason)| failed.then_some(reason)).collect();
+    let rejected = !mismatches.is_empty();
+    *evidence = Some(ReminderHideEvidence { snapshot, acknowledged, mismatches });
+    if rejected {
         return Err("reminder_changed_before_hide".into());
     }
     hide()

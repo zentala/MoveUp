@@ -45,7 +45,10 @@ pub fn acknowledge_app_reminder(window: tauri::WebviewWindow, client_id: String,
 
 pub(crate) fn acknowledge(app: &tauri::AppHandle, client: &str, id: &str, revision: u32, action: ReminderAction) -> Result<(), String> {
     let reminders = app.state::<AppReminderState>();
-    let result = acknowledge_with(&reminders, client, id, revision, action, |action| {
+    let context = crate::commands::ReminderCloseGuard { session_id: snapshot(app).session_id,
+        client_id: client.into(), reminder_id: id.into(), revision };
+    let mut observation = AckObservation::default();
+    let result = acknowledge_with_observed(&reminders, client, id, revision, action, |action| {
         let state = app.state::<crate::commands::AppState>();
         let _session = state.session.lock().unwrap_or_else(|error| error.into_inner());
         let mut policy = state.comm_policy.lock().unwrap_or_else(|error| error.into_inner());
@@ -59,26 +62,81 @@ pub(crate) fn acknowledge(app: &tauri::AppHandle, client: &str, id: &str, revisi
         }
         Ok(())
     }, || crate::session_persistence::save_via_app_at(app, chrono::Utc::now(), std::time::Instant::now())
-        .map_err(|_| "reminder_persistence_failed".into()));
+        .map_err(|_| "reminder_persistence_failed".into()), &mut observation);
+    let line = acknowledgement_event(&context, action, &observation, &result);
+    let logger = app.try_state::<crate::Loggers>().map(|loggers| loggers.event.clone());
+    // All acknowledgement/policy/session locks have been released. Reuse the
+    // existing sink off the calling UI/command thread, without awaiting disk.
+    tauri::async_runtime::spawn_blocking(move || match logger {
+        Some(logger) => logger.log(&line),
+        None => log::warn!("Reminder acknowledgement diagnostic sink unavailable"),
+    });
     reconcile(app);
     announce(app);
     result
 }
 
 /// Actual command orchestration with disposable persistence/action seams for regression tests.
+#[cfg(test)]
 pub(crate) fn acknowledge_with(state: &AppReminderState, client: &str, id: &str, revision: u32,
     action: ReminderAction, apply: impl FnOnce(ReminderAction) -> Result<(), String>,
     persist: impl FnOnce() -> Result<(), String>,
 ) -> Result<(), String> {
+    acknowledge_with_observed(state, client, id, revision, action, apply, persist, &mut AckObservation::default())
+}
+
+#[derive(Default)]
+pub(crate) struct AckObservation {
+    is_test: Option<bool>,
+    apply: Option<&'static str>,
+    persistence: Option<&'static str>,
+}
+
+pub(crate) fn acknowledgement_event(context: &crate::commands::ReminderCloseGuard, action: ReminderAction,
+    observation: &AckObservation, result: &Result<(), String>,
+) -> String {
+    use crate::commands::bounded_reminder_identifier as identifier;
+    let reason = match result {
+        Ok(()) => "acknowledged",
+        Err(error) => match error.as_str() {
+            "stale_reminder" => "stale_reminder", "acknowledgement_in_progress" => "acknowledgement_in_progress",
+            "no_pending_persistence" => "no_pending_persistence", "reminder_persistence_failed" => "persistence_failed",
+            _ if observation.is_test.is_none() => "guard_rejected",
+            _ if observation.apply == Some("failed") => "policy_apply_failed",
+            _ if observation.persistence == Some("failed") => "persistence_failed",
+            _ => "acknowledgement_failed",
+        },
+    };
+    let action = match action { ReminderAction::Dismiss => "dismiss", ReminderAction::Snooze => "snooze", ReminderAction::Retry => "retry" };
+    format!("APP_REMINDER_ACK {}", serde_json::json!({"session": identifier(&context.session_id),
+        "client": identifier(&context.client_id), "reminder": identifier(&context.reminder_id),
+        "revision": context.revision, "action": action, "is_test": observation.is_test,
+        "policy_apply": observation.apply.unwrap_or("not_attempted"),
+        "persistence": observation.persistence.unwrap_or("not_attempted"), "reason": reason, "succeeded": result.is_ok()}))
+}
+
+pub(crate) fn acknowledge_with_observed(state: &AppReminderState, client: &str, id: &str, revision: u32,
+    action: ReminderAction, apply: impl FnOnce(ReminderAction) -> Result<(), String>,
+    persist: impl FnOnce() -> Result<(), String>, observation: &mut AckObservation,
+) -> Result<(), String> {
+    *observation = AckObservation::default();
     let (is_test, needs_apply) = state.0.lock().unwrap_or_else(|error| error.into_inner())
         .begin_ack(client, id, revision, action)?;
-    let result = if is_test { Ok(()) } else {
-        let applied = if needs_apply { apply(action) } else { Ok(()) };
+    observation.is_test = Some(is_test);
+    let result = if is_test {
+        observation.apply = Some("skipped_test"); observation.persistence = Some("skipped_test"); Ok(())
+    } else {
+        let applied = if needs_apply {
+            let result = apply(action);
+            observation.apply = Some(if result.is_ok() { "applied" } else { "failed" }); result
+        } else { observation.apply = Some("previously_applied"); Ok(()) };
         match applied {
             Err(error) => Err(error),
             Ok(()) => {
                 state.0.lock().unwrap_or_else(|error| error.into_inner()).ack_applied(id);
-                persist()
+                let result = persist();
+                observation.persistence = Some(if result.is_ok() { "succeeded" } else { "failed" });
+                result
             }
         }
     };
