@@ -84,6 +84,8 @@ pub(crate) struct Reminders {
     client_sequence: u32,
     last_occurrences: [u64; 3],
     presented_id: Option<String>,
+    // Successful ACK evidence is distinct from the latest contextual retirement.
+    acknowledged_close_id: Option<String>,
 }
 
 pub struct AppReminderState(pub(crate) Mutex<Reminders>);
@@ -98,12 +100,14 @@ impl Default for AppReminderState {
             }, active: None, pending: None, acknowledgement: None, next_id: 0, client_sequence: 0,
             last_occurrences: [0; 3],
             presented_id: None,
+            acknowledged_close_id: None,
         }))
     }
 }
 
 impl Reminders {
     pub fn snapshot(&self) -> AppReminderSnapshot { self.snapshot.clone() }
+    pub(crate) fn acknowledged_for_close(&self, id: &str) -> bool { self.acknowledged_close_id.as_deref() == Some(id) }
 
     fn changed(&mut self) {
         self.snapshot.revision = self.snapshot.revision.checked_add(1).expect("reminder revision exhausted");
@@ -116,6 +120,7 @@ impl Reminders {
         if self.snapshot.client_id.as_deref() == Some(client) { return Ok(()); }
         if self.snapshot.client_id.as_deref() != previous { return Err("stale_client".into()); }
         self.snapshot.client_id = Some(client.into());
+        self.acknowledged_close_id = None;
         self.client_sequence = 0;
         // Retain protected edits until the new owner explicitly reports its actual flow.
         self.changed();
@@ -127,6 +132,7 @@ impl Reminders {
             return Err("stale_client_update".into());
         }
         self.client_sequence = sequence;
+        self.acknowledged_close_id = None;
         self.snapshot.protected_flow = flow;
         // Protected views mask the current message; they never move unread or
         // reserved current state into the replaceable pending slot.
@@ -141,6 +147,7 @@ impl Reminders {
         let producer = match source { ReminderSource::Policy => 0, ReminderSource::Session => 1, ReminderSource::Test => 2 };
         // Dedupe an actual occurrence, never all identical messages for the day.
         if draft.occurrence <= self.last_occurrences[producer] { return; }
+        self.acknowledged_close_id = None;
         self.last_occurrences[producer] = draft.occurrence;
         self.next_id += 1;
         let entry = Entry { message: AppReminderMessage {
@@ -214,6 +221,7 @@ impl Reminders {
             if slot.as_ref().is_some_and(|entry| entry.message.id == id) { *slot = None; removed = true; }
         }
         if removed {
+            self.acknowledged_close_id = Some(id.into());
             self.snapshot.last_retirement = Some(ReminderRetirement { id: id.into(), reason: RetirementReason::Acknowledged });
             if self.snapshot.protected_flow.is_none() && self.active.is_none() { self.active = self.pending.take(); }
         }

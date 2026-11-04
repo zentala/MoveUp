@@ -131,12 +131,7 @@ pub(crate) fn hide_main_window_if_current_reminder_observed(
 ) -> Result<(), String> {
     let (snapshot, acknowledged) = {
         let current = state.0.lock().unwrap_or_else(|error| error.into_inner());
-        let snapshot = current.snapshot();
-        let acknowledged = snapshot.last_retirement.as_ref().is_some_and(|retirement| {
-            retirement.id == expected.reminder_id
-                && retirement.reason == crate::communication_types::RetirementReason::Acknowledged
-        });
-        (snapshot, acknowledged)
+        (current.snapshot(), current.acknowledged_for_close(&expected.reminder_id))
     };
     let mismatches: Vec<_> = [
         (snapshot.session_id != expected.session_id, "session_changed"),

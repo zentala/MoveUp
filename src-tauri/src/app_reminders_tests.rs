@@ -128,6 +128,88 @@ fn facts() -> SessionNotificationFacts {
         standing_target_fired: false, praise_fired: false }
 }
 
+/// Non-Test A + queued B, real Dismiss policy and the production disposable Store seam.
+/// This proves a source mechanism, not the cause of the operator's installed report.
+fn real_ack_with_queued_reason(reason: ReminderReason) -> (AppReminderState, crate::commands::ReminderCloseGuard) {
+    use std::cell::{Cell, RefCell};
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("settings.json");
+    let owner = tauri::test::mock_builder().plugin(tauri_plugin_store::Builder::default().build())
+        .build(tauri::test::mock_context(tauri::test::noop_assets())).unwrap();
+    let store = crate::app_store::initialize_at(owner.handle(), &file).unwrap();
+    let session = crate::session::SessionManager::new();
+    let mut profile = CommunicationProfile::default();
+    profile.notifications_enabled = true;
+    profile.notification_backend = "toast".into();
+    let policy = RefCell::new(CommunicationPolicy::new(profile, ErgonomicProfile::default()));
+    let now = std::time::Instant::now();
+    let input = crate::communication_policy::PolicyInput { state: DeskState::Sitting, elapsed_secs: 3000,
+        sensor_connected: true, observation_fresh: true, standing_lap: 0, standing_lap_progress: 0.0,
+        standing_lap_flash: false, continuous_computer_secs: 0 };
+    let current_facts = facts();
+    let obsolete = |entry: &Entry| policy.borrow().reminder_obsolete_reason(
+        &entry.draft, entry.day, &input, &current_facts, 2400, 0, now);
+    let state = state_with_message();
+    let before = {
+        let mut guard = state.0.lock().unwrap();
+        let mut b = draft(reason); b.occurrence = 100;
+        guard.publish(b, ReminderSource::Policy, day());
+        guard.reconcile(&obsolete);
+        let before = guard.snapshot();
+        assert!(before.active.is_some() && before.pending.is_some(), "both real reasons must be valid before ACK");
+        assert!(!before.active.as_ref().unwrap().is_test && !before.pending.as_ref().unwrap().is_test);
+        before
+    };
+    let id = before.active.unwrap().id;
+    let applications = Cell::new(0);
+    let saves = Cell::new(0);
+    let mut observation = crate::commands_reminders::AckObservation::default();
+    let result = crate::commands_reminders::acknowledge_with_observed(&state, "first", &id, before.revision, ReminderAction::Dismiss,
+        |action| { assert_eq!(action, ReminderAction::Dismiss); applications.set(applications.get() + 1);
+            policy.borrow_mut().dismiss_at(now); Ok(()) },
+        || { saves.set(saves.get() + 1); crate::session_persistence::save_with_policy_result(
+            &store, &session, &policy.borrow(), None) }, &mut observation);
+    result.as_ref().unwrap();
+    let context = crate::commands::ReminderCloseGuard { session_id: state.0.lock().unwrap().snapshot().session_id,
+        client_id: "first".into(), reminder_id: id.clone(), revision: before.revision };
+    let line = crate::commands_reminders::acknowledgement_event(&context, ReminderAction::Dismiss, &observation, &result);
+    let event: serde_json::Value = serde_json::from_str(line.strip_prefix("APP_REMINDER_ACK ").unwrap()).unwrap();
+    assert_eq!(event["is_test"], false); assert_eq!(event["policy_apply"], "applied");
+    assert_eq!(event["persistence"], "succeeded"); assert_eq!(event["reminder"], id);
+    assert_eq!((applications.get(), saves.get()), (1, 1));
+    let disk: serde_json::Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+    let saved = crate::session_persistence::PersistedEngineState::from_stored_value(
+        disk.get("persisted_session_state").cloned().unwrap()).unwrap();
+    let saved_policy = saved.notification_policy.unwrap();
+    assert_eq!(saved_policy.snooze_index, 1, "Dismiss advanced the real persisted policy exactly once");
+    assert!(saved_policy.snoozed_until_utc.is_some());
+    state.0.lock().unwrap().reconcile(obsolete);
+    let after = state.0.lock().unwrap().snapshot();
+    let expected = crate::commands::ReminderCloseGuard { session_id: after.session_id,
+        client_id: after.client_id.unwrap(), reminder_id: id, revision: after.revision };
+    (state, expected)
+}
+
+#[test]
+fn real_ack_obsolete_queued_reason_must_allow_original_x_hide() {
+    let (state, expected) = real_ack_with_queued_reason(ReminderReason::SittingLimit);
+    let snapshot = state.0.lock().unwrap().snapshot();
+    assert!(snapshot.active.is_none() && snapshot.pending.is_none());
+    let hidden = std::cell::Cell::new(false);
+    crate::commands::hide_main_window_if_current_reminder(&state, &expected, || {
+        hidden.set(true); Ok(())
+    }).expect("successful real Dismiss + persisted policy + obsolete B must allow one X to hide");
+    assert!(hidden.get());
+}
+
+#[test]
+fn real_ack_valid_queued_reason_still_blocks_original_x_hide() {
+    let (state, expected) = real_ack_with_queued_reason(ReminderReason::StandingTarget);
+    assert_eq!(state.0.lock().unwrap().snapshot().active.unwrap().reason, ReminderReason::StandingTarget);
+    assert_eq!(crate::commands::hide_main_window_if_current_reminder(&state, &expected,
+        || panic!("the original X must not hide valid B")).unwrap_err(), "reminder_changed_before_hide");
+}
+
 #[test]
 fn hide_result_diagnostic_uses_existing_sink_and_never_copies_raw_errors() {
     use crate::commands::{main_window_hide_event, ReminderCloseGuard};
