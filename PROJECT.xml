@@ -13,6 +13,15 @@
   </meta>
 
   <functionality>
+    <feature name="isolated-native-reminder-acceptance">
+      <description>Opt-in two-process native fixture with separate private WebView profiles and disposable Store. Uses actual policy dispatch, reminder hook/component and production ACK/persist/hide; records bounded foreground, native focus-loss and trusted synthetic input counts, repeated real-message X and duplicate ACK rejection. Does not run product setup, diagnostics crash scenarios, services, serial or OS notification channels. Native execution requires independent isolation review.</description>
+      <source path="src-tauri/src/reminder_native_fixture.rs"/>
+      <source path="src-tauri/examples/reminder_native_smoke.rs"/>
+      <fixture path="tests/native/reminder-native.html" config="src-tauri/tauri.reminder-native-test.conf.json"/>
+      <source path="tests/native/reminder-native.tsx"/>
+      <source path="vite.reminder-native.config.ts"/>
+      <source path="tsconfig.reminder-native.json"/>
+    </feature>
     <feature name="application-owned-reminders">
       <description>Bounded active/pending main-window reminders with policy-sourced reasons and values, occurrence deduplication, session/message identities, snapshot/event revisions, protected Settings/Share client handshake, persistence-safe acknowledgement retries and rate-limited test previews. Main Settings and the separate Welcome window may request previews; presentation, claims and acknowledgement remain owned by the main window. Automatic Windows presentation does not request focus, and losing main-window focus neither hides the window nor changes reminder acknowledgement or snooze state.</description>
       <source path="src-tauri/src/app_reminders.rs" tests="src-tauri/src/app_reminders_tests.rs"/>

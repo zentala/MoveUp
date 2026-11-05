@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["tests/native/reminder-native.tsx", "vite.reminder-native.config.ts"]
+}

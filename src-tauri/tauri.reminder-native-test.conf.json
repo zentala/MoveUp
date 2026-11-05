@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MoveUp isolated reminder fixture",
+  "identifier": "io.zntl.moveup.reminder-native-test",
+  "build": {
+    "frontendDist": "../node_modules/.cache/reminder-native-dist",
+    "devUrl": null,
+    "beforeDevCommand": null,
+    "beforeBuildCommand": null
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "capabilities": [{
+        "identifier": "reminder-fixture-events",
+        "windows": ["main"],
+        "permissions": ["core:event:default"]
+      }],
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": { "active": false, "icon": ["icons/icon.ico"] }
+}
