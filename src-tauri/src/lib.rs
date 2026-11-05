@@ -15,6 +15,8 @@ mod commands;
 mod app_reminders;
 #[cfg(test)] mod app_reminders_tests;
 mod commands_reminders;
+#[cfg(all(windows, feature = "reminder-native-fixture"))]
+pub mod reminder_native_fixture;
 #[cfg(test)] mod commands_tests;
 mod commands_analyst;
 #[cfg(test)] mod commands_analyst_tests;
